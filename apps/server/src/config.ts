@@ -9,6 +9,7 @@ export interface Config {
   /** Directory holding the built web app, served as static files. Optional in dev. */
   webDir: string | null;
   isProduction: boolean;
+  maxUploadMb: number;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -26,5 +27,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     appSecret,
     webDir: env.WEB_DIR ? path.resolve(env.WEB_DIR) : null,
     isProduction,
+    maxUploadMb: Number(env.MAX_UPLOAD_MB ?? 50),
   };
 }

@@ -2,7 +2,7 @@ import { and, asc, eq, isNull, max, sql } from "drizzle-orm";
 import type { PageDetail, PageRole, PageSummary } from "@nootion/shared";
 import type { Db, DbLike } from "./db/index.js";
 import { pages } from "./db/schema.js";
-import { type ChainEntry } from "./permissions.js";
+import type { ChainEntry } from "./permissions.js";
 
 export type PageRow = typeof pages.$inferSelect;
 
@@ -10,7 +10,7 @@ export function toSummary(p: Pick<PageRow, "id" | "workspaceId" | "parentId" | "
   return { id: p.id, workspaceId: p.workspaceId, parentId: p.parentId, title: p.title, icon: p.icon, position: p.position };
 }
 
-export function toDetail(p: PageRow, role: PageRole, breadcrumb: PageDetail["breadcrumb"]): PageDetail {
+export function toDetail(p: PageMeta, role: PageRole, breadcrumb: PageDetail["breadcrumb"]): PageDetail {
   return {
     ...toSummary(p),
     role,
@@ -49,13 +49,33 @@ export function sortPages<T extends { position: number; createdAt: Date }>(rows:
   return [...rows].sort((a, b) => a.position - b.position || a.createdAt.getTime() - b.createdAt.getTime());
 }
 
-export function listWorkspacePages(db: Db, workspaceId: string): PageRow[] {
-  const rows = db.select().from(pages).where(eq(pages.workspaceId, workspaceId)).all();
+/** Page columns without the (possibly large) content. */
+export const pageMeta = {
+  id: pages.id,
+  workspaceId: pages.workspaceId,
+  parentId: pages.parentId,
+  title: pages.title,
+  icon: pages.icon,
+  position: pages.position,
+  createdBy: pages.createdBy,
+  createdAt: pages.createdAt,
+  updatedAt: pages.updatedAt,
+  deletedAt: pages.deletedAt,
+  deletedBy: pages.deletedBy,
+};
+export type PageMeta = Omit<PageRow, "contentState" | "contentJson" | "contentText">;
+
+export function getPageMeta(db: DbLike, id: string): PageMeta | undefined {
+  return db.select(pageMeta).from(pages).where(eq(pages.id, id)).get();
+}
+
+export function listWorkspacePages(db: Db, workspaceId: string): PageMeta[] {
+  const rows = db.select(pageMeta).from(pages).where(eq(pages.workspaceId, workspaceId)).all();
   return sortPages(withoutTrashed(rows));
 }
 
 /** All live descendants of a page (not including the page itself). */
-export function listDescendants(db: Db, pageId: string, opts: { includeTrashed?: boolean } = {}): PageRow[] {
+export function listDescendants(db: Db, pageId: string, opts: { includeTrashed?: boolean } = {}): PageMeta[] {
   const ids = db
     .all<{ id: string }>(sql`
       WITH RECURSIVE sub(id, depth) AS (
@@ -68,7 +88,7 @@ export function listDescendants(db: Db, pageId: string, opts: { includeTrashed?:
     .map((r) => r.id);
   if (ids.length === 0) return [];
   const rows = db
-    .select()
+    .select(pageMeta)
     .from(pages)
     .where(sql`${pages.id} IN (SELECT value FROM json_each(${JSON.stringify(ids)}))`)
     .all();
@@ -89,10 +109,10 @@ export function nextPosition(db: Db, workspaceId: string, parentId: string | nul
 }
 
 /** Renumbers live siblings so that `pageId` sits at `index`. */
-export function placeAmongSiblings(db: DbLike, page: PageRow, index: number | undefined): void {
+export function placeAmongSiblings(db: DbLike, page: PageMeta, index: number | undefined): void {
   const siblings = sortPages(
     db
-      .select()
+      .select(pageMeta)
       .from(pages)
       .where(
         and(

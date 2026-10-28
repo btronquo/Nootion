@@ -15,6 +15,13 @@
       "when": 1793204836760,
       "tag": "0001_pages_and_sharing",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1793214165586,
+      "tag": "0002_page_content_and_attachments",
+      "breakpoints": true
     }
   ]
 }

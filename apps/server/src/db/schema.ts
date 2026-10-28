@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { blob, index, integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 const createdAt = () =>
   integer("created_at", { mode: "timestamp_ms" })
@@ -91,6 +91,11 @@ export const pages = sqliteTable(
     // Set on the page that was moved to the trash; its descendants are trashed through it.
     deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
     deletedBy: text("deleted_by").references(() => users.id, { onDelete: "set null" }),
+    // Collaborative document (Yjs update encoding). Source of truth for the content.
+    contentState: blob("content_state", { mode: "buffer" }),
+    // Derived from contentState on every save: ProseMirror JSON (exports, public pages) and plain text (search).
+    contentJson: text("content_json", { mode: "json" }),
+    contentText: text("content_text"),
   },
   (t) => [index("pages_workspace_idx").on(t.workspaceId), index("pages_parent_idx").on(t.parentId)],
 );
@@ -121,3 +126,19 @@ export const publicLinks = sqliteTable("public_links", {
   createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: createdAt(),
 });
+
+export const attachments = sqliteTable(
+  "attachments",
+  {
+    id: text("id").primaryKey(),
+    pageId: text("page_id")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    filename: text("filename").notNull(),
+    mimeType: text("mime_type").notNull(),
+    size: integer("size").notNull(),
+    createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("attachments_page_idx").on(t.pageId)],
+);

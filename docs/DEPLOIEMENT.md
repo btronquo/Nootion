@@ -1,36 +1,66 @@
 # Déployer Nootion
 
-Nootion tourne dans **un seul conteneur**. Toutes les données sont dans le dossier monté sur `/data` :
+Nootion tourne dans **un seul conteneur** (API + interface web), sans base de données ni Redis à côté.
+Toutes les données sont dans le dossier monté sur `/data` :
 
-- `nootion.db` (+ `nootion.db-wal`, `nootion.db-shm`) : la base SQLite ;
-- plus tard `uploads/` (fichiers joints) et `plugins/`.
+| Chemin dans `/data` | Contenu |
+|---|---|
+| `nootion.db` (+ `-wal`, `-shm` quand l'app tourne) | La base SQLite : comptes, pages, databases, partages |
+| `uploads/` | Fichiers joints aux pages (images, PDF…) et plus tard aux databases. Un fichier par pièce jointe, nommé par son identifiant. |
+| `plugins/` (à venir) | Plugins installés à la main |
 
-**Sauvegarder Nootion = sauvegarder ce dossier** (un snapshot ZFS du dataset sur TrueNAS est idéal).
+**Sauvegarder Nootion = sauvegarder ce dossier.** Sur TrueNAS, un snapshot ZFS périodique du dataset suffit
+(*Data Protection > Periodic Snapshot Tasks*). Les exports `.md` (pages) et CSV/JSON (databases) se téléchargent
+depuis l'interface ; ils servent à récupérer ses données dans un format lisible, pas à remplacer la sauvegarde.
 
 ## Variables d'environnement
 
 | Variable | Obligatoire | Description |
 |---|---|---|
-| `APP_URL` | oui | Adresse utilisée dans le navigateur, sans `/` final (ex. `http://192.168.1.10:3000` ou `https://notes.mondomaine.fr`). Sert aux liens d'invitation et à la protection CSRF. |
-| `APP_SECRET` | oui | Chaîne aléatoire d'au moins 16 caractères (`openssl rand -hex 32`). À garder : elle servira aussi à chiffrer les identifiants des plugins. |
-| `PORT` | non | Port d'écoute dans le conteneur (défaut `3000`). |
+| `APP_URL` | oui | Adresse tapée dans le navigateur, sans `/` final (ex. `http://192.168.1.10:3000` ou `https://notes.mondomaine.fr`). Sert aux liens d'invitation et à la protection CSRF : ouvrez toujours Nootion à cette adresse. |
+| `APP_SECRET` | oui | Chaîne aléatoire d'au moins 16 caractères (`openssl rand -hex 32`). Générez-la une fois et ne la changez plus : elle servira à chiffrer les identifiants des plugins. |
 | `TZ` | non | Fuseau horaire (ex. `Europe/Paris`). |
+| `PORT` | non | Port d'écoute dans le conteneur (défaut `3000`). Pour changer le port côté NAS, modifiez plutôt `ports:`. |
+| `MAX_UPLOAD_MB` | non | Taille maximale d'un fichier joint, en Mo (défaut `50`). |
 
 Si Nootion est derrière un reverse proxy en HTTPS, mettez l'URL `https://…` dans `APP_URL` : le cookie de session devient alors `Secure`.
+Le proxy doit laisser passer les **WebSockets** sur `/collab` (édition à plusieurs en temps réel) : dans Nginx Proxy Manager, cochez *Websockets Support*.
+Pensez aussi à sa limite de taille d'envoi (`client_max_body_size` dans Nginx) pour les fichiers joints.
 
 ## TrueNAS SCALE (24.10 « Electric Eel » et plus)
 
-Tant que l'image n'est pas publiée sur GitHub (prévu à la release V1), on la construit sur le NAS à partir du code source.
+### 1. Préparer le dataset de données
 
-1. Créez deux datasets, par exemple `tank/apps/nootion` (données) et `tank/apps/nootion-src` (code).
-2. Copiez le contenu du dépôt dans `/mnt/tank/apps/nootion-src` (partage SMB, ou `git clone` plus tard), sans les dossiers `node_modules`.
-3. Donnez le dataset de données à l'utilisateur `apps` (UID 568) : *Datasets > nootion > Edit Permissions*, ou en shell `chown 568:568 /mnt/tank/apps/nootion`.
-4. *Apps > Discover Apps > ⋮ > Install via YAML*, nom `nootion`, et collez :
+1. *Datasets* : créez `tank/apps/nootion` (adaptez `tank` au nom de votre pool), preset **Apps**.
+2. Donnez-le à l'utilisateur `apps` (UID/GID 568) : *Datasets > nootion > Edit Permissions*, ou en shell
+   `chown -R 568:568 /mnt/tank/apps/nootion`.
+   Si ce n'est pas fait, le conteneur s'arrête au démarrage avec un message qui l'explique (visible dans les logs de l'app).
+
+### 2a. Installer avec l'image publiée (recommandé)
+
+L'image est construite automatiquement par GitLab CI et publiée sur `registry.gitlab.com/btronquoy/nootion`.
+
+1. *Apps > Discover Apps > ⋮ > Install via YAML*, nom `nootion`.
+2. Collez le contenu de [`deploy/truenas.yaml`](../deploy/truenas.yaml) et remplacez les trois valeurs marquées `<--`
+   (`APP_URL`, `APP_SECRET`, chemin du dataset).
+3. Enregistrez, attendez que l'app passe à *Running*, puis ouvrez `APP_URL` : la page de création du compte administrateur s'affiche.
+
+> Tant que le projet GitLab est **privé**, son registre d'images l'est aussi et TrueNAS ne peut pas télécharger l'image
+> sans identifiants. Deux solutions : rendre le projet public (c'est prévu, licence AGPL), ou utiliser la méthode 2b.
+
+**Mettre à jour** : *Apps > nootion > Edit > Save* (avec `pull_policy: always`, l'image `latest` est retéléchargée).
+Les migrations de base s'appliquent toutes seules au démarrage. Faites un snapshot du dataset avant une mise à jour majeure.
+Pour figer une version, remplacez `latest` par un numéro (ex. `registry.gitlab.com/btronquoy/nootion:0.1.0`).
+
+### 2b. Construire l'image sur le NAS depuis le code source
+
+1. Créez un second dataset `tank/apps/nootion-src` et copiez-y le dépôt (partage SMB ou `git clone`), sans les dossiers `node_modules`.
+2. *Apps > Discover Apps > ⋮ > Install via YAML*, nom `nootion`, et collez :
 
 ```yaml
 services:
   nootion:
-    image: nootion:latest
+    image: nootion:local
     build:
       context: /mnt/tank/apps/nootion-src
       dockerfile: docker/Dockerfile
@@ -47,11 +77,7 @@ services:
       - /mnt/tank/apps/nootion:/data
 ```
 
-5. Ouvrez `http://IP-DU-NAS:3000` : la page de création du compte administrateur s'affiche.
-
-Mise à jour : copiez le nouveau code dans `nootion-src`, puis reconstruisez l'app (*Apps > nootion > Edit > Save*, ou `docker compose up -d --build`). Les migrations de base s'appliquent toutes seules au démarrage.
-
-Après la release V1, la section `build:` sera remplacée par `image: ghcr.io/<compte>/nootion:<version>`.
+Mettre à jour : copiez le nouveau code dans `nootion-src`, puis *Apps > nootion > Edit > Save* (reconstruction).
 
 ## Docker classique (PC, autre NAS)
 
@@ -59,4 +85,20 @@ Après la release V1, la section `build:` sera remplacée par `image: ghcr.io/<c
 docker compose up -d --build
 ```
 
-Dans `docker-compose.yml`, supprimez la ligne `user: "568:568"` (propre à TrueNAS) et adaptez le chemin du volume.
+Le [`docker-compose.yml`](../docker-compose.yml) du dépôt construit l'image depuis les sources et range les données
+dans un volume Docker nommé `nootion-data`. Pour utiliser l'image publiée à la place, remplacez `build:` par
+`image: registry.gitlab.com/btronquoy/nootion:latest`.
+
+## Publier une nouvelle version de l'image
+
+Le pipeline [`.gitlab-ci.yml`](../.gitlab-ci.yml) lance les tests puis construit et publie l'image :
+
+- à chaque push sur la branche principale : tags `main` et `main-<commit>` (pour essayer la dernière version de dev) ;
+- à chaque tag git `vX.Y.Z` : tags `X.Y.Z` et `latest`.
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+Pour tester l'image localement avant de publier : `docker build -f docker/Dockerfile -t nootion:local .`

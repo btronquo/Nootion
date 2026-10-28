@@ -111,7 +111,7 @@ export function ShareDialog({ page, onClose }: { page: PageDetail; onClose: () =
             <Globe size={16} /> Lien public (lecture seule)
           </div>
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={!!link.data} onChange={(e) => (e.target.checked ? setLink.mutate(true) : removeLink.mutate())} />
+            <input type="checkbox" aria-label="Activer le lien public" checked={!!link.data} onChange={(e) => (e.target.checked ? setLink.mutate(true) : removeLink.mutate())} />
             {link.data ? "Activé" : "Désactivé"}
           </label>
         </div>
