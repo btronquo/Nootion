@@ -28,7 +28,7 @@ test:
     - pnpm typecheck
     - pnpm test
 
-image:
+docker-image:
   stage: image
   image: docker:29
   services:
