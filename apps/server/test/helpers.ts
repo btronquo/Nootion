@@ -33,6 +33,23 @@ export class Client {
   patch(url: string, body: unknown) {
     return this.request("PATCH", url, body);
   }
+  put(url: string, body: unknown) {
+    return this.request("PUT", url, body);
+  }
+  delete(url: string) {
+    return this.request("DELETE", url);
+  }
+  async id(): Promise<string> {
+    return (await this.get("/api/auth/me")).json().user.id;
+  }
+  async personalWorkspace(): Promise<string> {
+    return (await this.get("/api/workspaces")).json().workspaces.find((w: { kind: string }) => w.kind === "personal").id;
+  }
+  async createPage(workspaceId: string, title: string, parentId: string | null = null): Promise<string> {
+    const res = await this.post("/api/pages", { workspaceId, title, parentId });
+    if (res.statusCode !== 200) throw new Error(res.body);
+    return res.json().page.id;
+  }
 }
 
 export const ADMIN = { name: "Boris", email: "boris@example.com", password: "motdepasse-admin" };

@@ -1,3 +1,4 @@
+import type React from "react";
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
 
 export function Button({ variant = "primary", className = "", ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "ghost" | "danger" }) {
@@ -44,4 +45,24 @@ export function AuthCard({ title, subtitle, children }: { title: string; subtitl
       </div>
     </div>
   );
+}
+
+export function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 p-4 pt-[10vh]" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div
+        role="dialog"
+        aria-label={title}
+        className={`w-full ${wide ? "max-w-xl" : "max-w-md"} rounded-xl border border-neutral-200 bg-white p-5 shadow-xl dark:border-neutral-800 dark:bg-neutral-900`}
+        onKeyDown={(e) => e.key === "Escape" && onClose()}
+      >
+        <h2 className="mb-4 text-lg font-semibold">{title}</h2>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+export function Select({ className = "", ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return <select className={`rounded-md border border-neutral-300 bg-transparent px-2 py-1.5 text-sm dark:border-neutral-700 dark:bg-neutral-900 ${className}`} {...props} />;
 }

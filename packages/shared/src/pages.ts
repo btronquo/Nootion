@@ -1,0 +1,94 @@
+import { z } from "zod";
+import type { WorkspaceRole } from "./workspaces.js";
+
+/**
+ * Access level on a page, from lowest to highest.
+ * full: edit, share, publish and delete. editor: edit content and create subpages.
+ */
+export const PAGE_ROLES = ["viewer", "commenter", "editor", "full"] as const;
+export type PageRole = (typeof PAGE_ROLES)[number];
+
+export function roleRank(role: PageRole | null | undefined): number {
+  return role ? PAGE_ROLES.indexOf(role) + 1 : 0;
+}
+
+export function atLeast(role: PageRole | null | undefined, min: PageRole): boolean {
+  return roleRank(role) >= roleRank(min);
+}
+
+export function maxRole(a: PageRole | null, b: PageRole | null): PageRole | null {
+  return roleRank(a) >= roleRank(b) ? a : b;
+}
+
+/** Page access granted by membership of the page's workspace. */
+export const WORKSPACE_ROLE_TO_PAGE_ROLE: Record<WorkspaceRole, PageRole> = {
+  owner: "full",
+  editor: "full",
+  commenter: "commenter",
+  viewer: "viewer",
+};
+
+export interface PageSummary {
+  id: string;
+  workspaceId: string;
+  parentId: string | null;
+  title: string;
+  icon: string | null;
+  position: number;
+}
+
+export interface PageDetail extends PageSummary {
+  role: PageRole;
+  /** Ancestors the user can see, from the root down to the parent. */
+  breadcrumb: { id: string; title: string; icon: string | null }[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PageShare {
+  userId: string;
+  name: string;
+  email: string;
+  role: PageRole;
+  /** Set when the share comes from an ancestor page. */
+  inheritedFrom: { id: string; title: string } | null;
+}
+
+export interface PublicLinkInfo {
+  token: string;
+  includeSubpages: boolean;
+  url: string;
+}
+
+export interface TrashedPage {
+  id: string;
+  title: string;
+  icon: string | null;
+  deletedAt: string;
+}
+
+export const titleSchema = z.string().max(500);
+export const iconSchema = z.string().max(64).nullable();
+
+export const createPageInput = z.object({
+  workspaceId: z.string().min(1),
+  parentId: z.string().min(1).nullable().default(null),
+  title: titleSchema.default(""),
+  icon: iconSchema.optional(),
+});
+export type CreatePageInput = z.infer<typeof createPageInput>;
+
+export const updatePageInput = z.object({
+  title: titleSchema.optional(),
+  icon: iconSchema.optional(),
+});
+
+export const movePageInput = z.object({
+  parentId: z.string().min(1).nullable(),
+  /** Index among the new siblings; appended at the end when omitted. */
+  index: z.number().int().min(0).optional(),
+});
+
+export const sharePageInput = z.object({ userId: z.string().min(1), role: z.enum(PAGE_ROLES) });
+
+export const publicLinkInput = z.object({ includeSubpages: z.boolean().default(true) });

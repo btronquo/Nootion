@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
 import { AuthCard, Button, ErrorText, Field } from "../components/ui";
@@ -7,6 +7,8 @@ import { AuthCard, Button, ErrorText, Field } from "../components/ui";
 export function LoginPage() {
   const { refresh } = useSession();
   const navigate = useNavigate();
+  // After signing in, go back to the page that was asked for (e.g. a shared page link).
+  const from = (useLocation().state as { from?: string } | null)?.from;
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
@@ -18,7 +20,7 @@ export function LoginPage() {
     try {
       await api("/auth/login", { method: "POST", body: form });
       await refresh();
-      navigate("/", { replace: true });
+      navigate(from && from !== "/login" ? from : "/", { replace: true });
     } catch (err) {
       setError(err);
     } finally {

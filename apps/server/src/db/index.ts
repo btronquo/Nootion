@@ -4,9 +4,12 @@ import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
 import { drizzle, type BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import type { BaseSQLiteDatabase } from "drizzle-orm/sqlite-core";
 import * as schema from "./schema.js";
 
 export type Db = BetterSQLite3Database<typeof schema> & { $client: Database.Database };
+/** A database or an open transaction. */
+export type DbLike = BaseSQLiteDatabase<"sync", Database.RunResult, typeof schema>;
 
 function findMigrationsDir(): string {
   if (process.env.MIGRATIONS_DIR) return path.resolve(process.env.MIGRATIONS_DIR);
