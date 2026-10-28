@@ -38,18 +38,18 @@ const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCa
 export function slashItems(ctx: CommandContext) {
   const del = (e: Editor, r: Range) => e.chain().focus().deleteRange(r);
   const all = [
-    item("Texte", "Paragraphe simple", <Text size={16} />, (e, r) => del(e, r).setParagraph().run(), "paragraphe"),
-    item("Titre 1", "Grand titre", <Heading1 size={16} />, (e, r) => del(e, r).setHeading({ level: 1 }).run(), "h1 heading"),
-    item("Titre 2", "Titre moyen", <Heading2 size={16} />, (e, r) => del(e, r).setHeading({ level: 2 }).run(), "h2 heading"),
-    item("Titre 3", "Petit titre", <Heading3 size={16} />, (e, r) => del(e, r).setHeading({ level: 3 }).run(), "h3 heading"),
-    item("Liste à puces", "Liste simple", <List size={16} />, (e, r) => del(e, r).toggleBulletList().run(), "bullet ul"),
-    item("Liste numérotée", "Liste 1, 2, 3", <ListOrdered size={16} />, (e, r) => del(e, r).toggleOrderedList().run(), "ordered ol numero"),
-    item("Liste de tâches", "Cases à cocher", <CheckSquare size={16} />, (e, r) => del(e, r).toggleTaskList().run(), "todo checkbox tache"),
-    item("Citation", "Bloc de citation", <Quote size={16} />, (e, r) => del(e, r).toggleBlockquote().run(), "quote"),
-    item("Encadré", "Bloc mis en évidence", <Lightbulb size={16} />, (e, r) => del(e, r).setCallout().run(), "callout note info"),
-    item("Code", "Bloc de code", <Code size={16} />, (e, r) => del(e, r).toggleCodeBlock().run(), "code"),
-    item("Tableau", "Tableau 3 × 3", <Table size={16} />, (e, r) => del(e, r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(), "table"),
-    item("Séparateur", "Ligne horizontale", <Minus size={16} />, (e, r) => del(e, r).setHorizontalRule().run(), "hr divider ligne"),
+    item("Text", "Paragraphe simple", <Text size={16} />, (e, r) => del(e, r).setParagraph().run(), "paragraph"),
+    item("Heading 1", "Grand titre", <Heading1 size={16} />, (e, r) => del(e, r).setHeading({ level: 1 }).run(), "h1 title"),
+    item("Heading 2", "Titre moyen", <Heading2 size={16} />, (e, r) => del(e, r).setHeading({ level: 2 }).run(), "h2 title"),
+    item("Heading 3", "Petit titre", <Heading3 size={16} />, (e, r) => del(e, r).setHeading({ level: 3 }).run(), "h3 title"),
+    item("Bullet list", "Liste à puces", <List size={16} />, (e, r) => del(e, r).toggleBulletList().run(), "ul"),
+    item("Numbered list", "Liste 1, 2, 3", <ListOrdered size={16} />, (e, r) => del(e, r).toggleOrderedList().run(), "ordered ol"),
+    item("To-do list", "Cases à cocher", <CheckSquare size={16} />, (e, r) => del(e, r).toggleTaskList().run(), "todo task checkbox"),
+    item("Quote", "Bloc de citation", <Quote size={16} />, (e, r) => del(e, r).toggleBlockquote().run(), "blockquote"),
+    item("Callout", "Bloc mis en évidence", <Lightbulb size={16} />, (e, r) => del(e, r).setCallout().run(), "note info"),
+    item("Code", "Bloc de code", <Code size={16} />, (e, r) => del(e, r).toggleCodeBlock().run(), "codeblock"),
+    item("Table", "Tableau 3 × 3", <Table size={16} />, (e, r) => del(e, r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(), "grid"),
+    item("Divider", "Ligne horizontale", <Minus size={16} />, (e, r) => del(e, r).setHorizontalRule().run(), "hr separator"),
     item(
       "Image",
       "Envoyer une image",
@@ -58,20 +58,20 @@ export function slashItems(ctx: CommandContext) {
         del(e, r).run();
         await insertFiles(e, ctx.pageId, await pickFiles("image/*"));
       },
-      "photo picture",
+      "photo picture img",
     ),
     item(
-      "Fichier",
+      "File",
       "Joindre un fichier (PDF…)",
       <Paperclip size={16} />,
       async (e, r) => {
         del(e, r).run();
         await insertFiles(e, ctx.pageId, await pickFiles("*/*"));
       },
-      "pdf piece jointe attachment",
+      "pdf attachment upload",
     ),
     item(
-      "Sous-page",
+      "Page",
       "Créer une page dans celle-ci",
       <FileText size={16} />,
       async (e, r) => {
@@ -80,10 +80,10 @@ export function slashItems(ctx: CommandContext) {
         e.chain().focus().insertPageLink({ pageId: res.page.id, title: "" }).run();
         ctx.onPageCreated();
       },
-      "page subpage",
+      "subpage",
     ),
     item(
-      "Base de données",
+      "Database",
       "Tableau avec des colonnes typées",
       <Database size={16} />,
       async (e, r) => {
@@ -92,15 +92,17 @@ export function slashItems(ctx: CommandContext) {
         e.chain().focus().insertDatabase(res.database.id).run();
         ctx.onPageCreated();
       },
-      "database bdd table tableau",
+      "db table",
     ),
-    item("Lien vers une page", "Mentionner une page existante", <Link2 size={16} />, (e, r) => del(e, r).insertContent("@").run(), "mention lien"),
+    item("Link to page", "Mentionner une page existante", <Link2 size={16} />, (e, r) => del(e, r).insertContent("@").run(), "mention"),
   ];
   return ({ query }: { query: string }) => {
     const q = norm(query).trim();
     // Typing on past a non-matching command closes the menu.
     if (q.length > 25) return [];
-    return all.filter((i) => norm(`${i.title} ${i.keywords}`).includes(q));
+    // "/heading1" and "/heading 1" both match "Heading 1".
+    const compact = q.replace(/[\s-]/g, "");
+    return all.filter((i) => norm(`${i.title} ${i.keywords}`).includes(q) || norm(i.title).replace(/[\s-]/g, "").includes(compact));
   };
 }
 
