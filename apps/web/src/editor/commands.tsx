@@ -16,6 +16,7 @@ import {
   Table,
   Text,
   Lightbulb,
+  Database,
 } from "lucide-react";
 import type { PageSummary } from "@nootion/shared";
 import { api } from "../lib/api";
@@ -80,6 +81,18 @@ export function slashItems(ctx: CommandContext) {
         ctx.onPageCreated();
       },
       "page subpage",
+    ),
+    item(
+      "Base de données",
+      "Tableau avec des colonnes typées",
+      <Database size={16} />,
+      async (e, r) => {
+        del(e, r).run();
+        const res = await api<{ database: { id: string } }>("/databases", { method: "POST", body: { workspaceId: ctx.workspaceId, parentId: ctx.pageId, title: "" } });
+        e.chain().focus().insertDatabase(res.database.id).run();
+        ctx.onPageCreated();
+      },
+      "database bdd table tableau",
     ),
     item("Lien vers une page", "Mentionner une page existante", <Link2 size={16} />, (e, r) => del(e, r).insertContent("@").run(), "mention lien"),
   ];

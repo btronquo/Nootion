@@ -8,6 +8,7 @@ import multipart from "@fastify/multipart";
 import websocket from "@fastify/websocket";
 import { createCollab, registerCollabRoute, type Collab } from "./collab.js";
 import { attachmentRoutes } from "./routes/attachments.js";
+import { databaseRoutes } from "./routes/databases.js";
 import { cleanOrphanFiles } from "./attachments.js";
 import type { Config } from "./config.js";
 import type { Db } from "./db/index.js";
@@ -103,6 +104,7 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean 
   await app.register(userRoutes, { prefix: "/api/users" });
   await app.register(publicRoutes, { prefix: "/api/public" });
   await app.register(attachmentRoutes, { prefix: "/api" });
+  await app.register(databaseRoutes, { prefix: "/api/databases" });
   await registerCollabRoute(app, collab);
 
   const webDir = opts.config.webDir;

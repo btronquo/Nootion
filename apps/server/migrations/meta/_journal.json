@@ -22,6 +22,13 @@
       "when": 1793214165586,
       "tag": "0002_page_content_and_attachments",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1793215338732,
+      "tag": "0003_databases",
+      "breakpoints": true
     }
   ]
 }

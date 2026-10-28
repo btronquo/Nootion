@@ -8,7 +8,7 @@ export function PublicContent({ content, token }: { content: JSONContent; token:
     {
       editable: false,
       content,
-      extensions: baseExtensions({ collaborative: false, pageLink: { live: false, hrefFor: (id) => `/p/${token}/${id}` } }),
+      extensions: baseExtensions({ collaborative: false, pageLink: { live: false, hrefFor: (id) => `/p/${token}/${id}` }, publicToken: token }),
       editorProps: { attributes: { class: "nootion-content" } },
     },
     [content, token],

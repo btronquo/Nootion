@@ -1,11 +1,12 @@
 import type { FastifyPluginAsync } from "fastify";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { attachments, pages, publicLinks } from "../db/schema.js";
 import { sendAttachment } from "../attachments.js";
 import type { ProseMirrorNode } from "../collab.js";
 import { notFound } from "../http.js";
 import { getChain, isTrashed } from "../permissions.js";
-import { getPageMeta, listDescendants, toSummary } from "../pages.js";
+import { getPageMeta, listDescendants, notRow, toSummary } from "../pages.js";
+import { listProperties, loadDatabase, toRow } from "../databases.js";
 
 /** Read-only access through a public link. No account needed. */
 export const publicRoutes: FastifyPluginAsync = async (app) => {
@@ -17,12 +18,27 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
     return link;
   };
 
-  /** True if the page is reachable through this link (the root, or a live subpage when allowed). */
+  /**
+   * True if the page is reachable through this link: the root, a live subpage when allowed, or a
+   * database embedded in a reachable page (and its rows), since it is part of that page's content.
+   */
   const inScope = (link: typeof publicLinks.$inferSelect, pageId: string) => {
     if (pageId === link.pageId) return true;
-    if (!link.includeSubpages) return false;
     const chain = getChain(db, pageId);
-    return !isTrashed(chain) && chain.some((c) => c.id === link.pageId);
+    const rootIndex = chain.findIndex((c) => c.id === link.pageId);
+    if (rootIndex < 0 || isTrashed(chain)) return false;
+    if (link.includeSubpages) return true;
+    const below = chain.slice(0, rootIndex);
+    const rows = db.select({ id: pages.id, kind: pages.kind }).from(pages).where(inArray(pages.id, below.map((c) => c.id))).all();
+    const kind = new Map(rows.map((r) => [r.id, r.kind]));
+    return below.every((c) => kind.get(c.id) === "row" || (kind.get(c.id) === "database" && c.parentId !== null && embeds(c.parentId, c.id)));
+  };
+
+  const embeds = (pageId: string, databaseId: string) => {
+    const p = db.select({ content: pages.contentJson }).from(pages).where(eq(pages.id, pageId)).get();
+    const walk = (n: ProseMirrorNode | null | undefined): boolean =>
+      !!n && ((n.type === "databaseBlock" && n.attrs?.pageId === databaseId) || (n.content ?? []).some(walk));
+    return walk(p?.content as ProseMirrorNode | null);
   };
 
   /**
@@ -32,6 +48,7 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
   const sanitize = (link: typeof publicLinks.$inferSelect, node: ProseMirrorNode): ProseMirrorNode => {
     const out: ProseMirrorNode = { ...node };
     const attrs = node.attrs ? { ...node.attrs } : undefined;
+    if (attrs && node.type === "databaseBlock" && (typeof attrs.pageId !== "string" || !inScope(link, attrs.pageId))) attrs.pageId = null;
     if (attrs && (node.type === "pageLink" || node.type === "pageMention")) {
       const pageId = typeof attrs.pageId === "string" ? attrs.pageId : null;
       if (!pageId || !inScope(link, pageId)) {
@@ -51,17 +68,25 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
     return out;
   };
 
-  const publicPage = (link: typeof publicLinks.$inferSelect, p: typeof pages.$inferSelect) => ({
-    ...toSummary(p),
-    updatedAt: p.updatedAt.toISOString(),
-    content: p.contentJson ? sanitize(link, p.contentJson as ProseMirrorNode) : null,
-  });
+  const publicPage = (link: typeof publicLinks.$inferSelect, p: typeof pages.$inferSelect) => {
+    let row = null;
+    if (p.kind === "row" && p.parentId) {
+      const properties = listProperties(db, p.parentId);
+      row = { properties, values: toRow(p, properties).values };
+    }
+    return {
+      ...toSummary(p),
+      updatedAt: p.updatedAt.toISOString(),
+      content: p.contentJson ? sanitize(link, p.contentJson as ProseMirrorNode) : null,
+      row,
+    };
+  };
 
 
   app.get<{ Params: { token: string } }>("/:token", async (req) => {
     const link = resolve(req.params.token);
     const root = getPageMeta(db, link.pageId)!;
-    const subpages = link.includeSubpages ? listDescendants(db, root.id).map(toSummary) : [];
+    const subpages = link.includeSubpages ? listDescendants(db, root.id).filter(notRow).map(toSummary) : [];
     return { root: { ...toSummary(root), parentId: null }, pages: subpages };
   });
 
@@ -71,6 +96,15 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
     const page = db.select().from(pages).where(eq(pages.id, req.params.pageId)).get();
     if (!page) throw notFound();
     return { page: publicPage(link, page) };
+  });
+
+  // Read-only database. Names of people are not published.
+  app.get<{ Params: { token: string; id: string } }>("/:token/databases/:id", async (req) => {
+    const link = resolve(req.params.token);
+    if (!inScope(link, req.params.id)) throw notFound();
+    const meta = getPageMeta(db, req.params.id);
+    if (!meta || meta.kind !== "database") throw notFound();
+    return { database: { ...loadDatabase(db, meta, "viewer"), people: {} } };
   });
 
   app.get<{ Params: { token: string; id: string } }>("/:token/attachments/:id", async (req, reply) => {

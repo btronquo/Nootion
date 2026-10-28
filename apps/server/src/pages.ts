@@ -6,8 +6,8 @@ import type { ChainEntry } from "./permissions.js";
 
 export type PageRow = typeof pages.$inferSelect;
 
-export function toSummary(p: Pick<PageRow, "id" | "workspaceId" | "parentId" | "title" | "icon" | "position">): PageSummary {
-  return { id: p.id, workspaceId: p.workspaceId, parentId: p.parentId, title: p.title, icon: p.icon, position: p.position };
+export function toSummary(p: Pick<PageRow, "id" | "kind" | "workspaceId" | "parentId" | "title" | "icon" | "position">): PageSummary {
+  return { id: p.id, kind: p.kind, workspaceId: p.workspaceId, parentId: p.parentId, title: p.title, icon: p.icon, position: p.position };
 }
 
 export function toDetail(p: PageMeta, role: PageRole, breadcrumb: PageDetail["breadcrumb"]): PageDetail {
@@ -54,6 +54,7 @@ export const pageMeta = {
   id: pages.id,
   workspaceId: pages.workspaceId,
   parentId: pages.parentId,
+  kind: pages.kind,
   title: pages.title,
   icon: pages.icon,
   position: pages.position,
@@ -63,7 +64,10 @@ export const pageMeta = {
   deletedAt: pages.deletedAt,
   deletedBy: pages.deletedBy,
 };
-export type PageMeta = Omit<PageRow, "contentState" | "contentJson" | "contentText">;
+export type PageMeta = Omit<PageRow, "contentState" | "contentJson" | "contentText" | "props">;
+
+/** Database rows are pages too, but they are listed inside their database, not in page trees. */
+export const notRow = <T extends { kind: string }>(p: T) => p.kind !== "row";
 
 export function getPageMeta(db: DbLike, id: string): PageMeta | undefined {
   return db.select(pageMeta).from(pages).where(eq(pages.id, id)).get();
@@ -71,7 +75,7 @@ export function getPageMeta(db: DbLike, id: string): PageMeta | undefined {
 
 export function listWorkspacePages(db: Db, workspaceId: string): PageMeta[] {
   const rows = db.select(pageMeta).from(pages).where(eq(pages.workspaceId, workspaceId)).all();
-  return sortPages(withoutTrashed(rows));
+  return sortPages(withoutTrashed(rows)).filter(notRow);
 }
 
 /** All live descendants of a page (not including the page itself). */

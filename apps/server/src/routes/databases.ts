@@ -1,0 +1,244 @@
+import { randomUUID } from "node:crypto";
+import type { FastifyPluginAsync } from "fastify";
+import { z } from "zod";
+import {
+  createDatabaseInput,
+  createPropertyInput,
+  rowInput,
+  updatePropertyInput,
+  updateViewInput,
+  type CellValue,
+  type PropertyType,
+} from "@nootion/shared";
+import { and, eq, inArray, max } from "drizzle-orm";
+import { databaseProperties, databaseViews, pages } from "../db/schema.js";
+import { HttpError, notFound, parseBody, requireUser } from "../http.js";
+import { CAN_CREATE_ROOT_PAGES, requirePageRole, requireWorkspaceRole } from "../permissions.js";
+import { nextPosition } from "../pages.js";
+import {
+  collectPeople,
+  convertColumn,
+  createDatabase,
+  defaultConfig,
+  listProperties,
+  listRowPages,
+  loadDatabase,
+  toRow,
+  validateValues,
+} from "../databases.js";
+import type { PageRole } from "@nootion/shared";
+import type { Db } from "../db/index.js";
+
+function requireDatabase(db: Db, userId: string, id: string, min: PageRole) {
+  const access = requirePageRole(db, userId, id, min);
+  if (access.page.kind !== "database") throw notFound();
+  return access;
+}
+
+function requireRow(db: Db, userId: string, databaseId: string, rowId: string, min: PageRole) {
+  const access = requirePageRole(db, userId, rowId, min);
+  if (access.page.kind !== "row" || access.page.parentId !== databaseId) throw notFound();
+  return access;
+}
+
+export const databaseRoutes: FastifyPluginAsync = async (app) => {
+  const db = app.db;
+
+  app.post("/", async (req) => {
+    const user = requireUser(req);
+    const input = parseBody(createDatabaseInput, req.body);
+    if (input.parentId) {
+      const { page: parent } = requirePageRole(db, user.id, input.parentId, "editor");
+      if (parent.workspaceId !== input.workspaceId) throw notFound();
+      if (parent.kind === "database") throw new HttpError(400, "database_parent", "Une database ne peut pas contenir une autre database.");
+    } else {
+      requireWorkspaceRole(db, user.id, input.workspaceId, CAN_CREATE_ROOT_PAGES);
+    }
+    const id = createDatabase(db, { ...input, position: nextPosition(db, input.workspaceId, input.parentId), userId: user.id });
+    const { page, role } = requireDatabase(db, user.id, id, "viewer");
+    return { database: loadDatabase(db, page, role) };
+  });
+
+  app.get<{ Params: { id: string } }>("/:id", async (req) => {
+    const user = requireUser(req);
+    const { page, role } = requireDatabase(db, user.id, req.params.id, "viewer");
+    return { database: loadDatabase(db, page, role) };
+  });
+
+  // --- Columns ---
+
+  app.post<{ Params: { id: string } }>("/:id/properties", async (req) => {
+    const user = requireUser(req);
+    const input = parseBody(createPropertyInput, req.body);
+    requireDatabase(db, user.id, req.params.id, "editor");
+    const pos = db.select({ max: max(databaseProperties.position) }).from(databaseProperties).where(eq(databaseProperties.databaseId, req.params.id)).get();
+    const id = randomUUID();
+    db.insert(databaseProperties)
+      .values({
+        id,
+        databaseId: req.params.id,
+        name: input.name,
+        type: input.type,
+        config: { ...defaultConfig(input.type), ...input.config },
+        position: (pos?.max ?? -1) + 1,
+      })
+      .run();
+    return { property: listProperties(db, req.params.id).find((p) => p.id === id) };
+  });
+
+  app.patch<{ Params: { id: string; propId: string } }>("/:id/properties/:propId", async (req) => {
+    const user = requireUser(req);
+    const input = parseBody(updatePropertyInput, req.body);
+    requireDatabase(db, user.id, req.params.id, "editor");
+    const properties = listProperties(db, req.params.id);
+    const prop = properties.find((p) => p.id === req.params.propId);
+    if (!prop) throw notFound();
+    if (input.type && input.type !== prop.type && (prop.type === "title" || input.type === "title")) {
+      throw new HttpError(400, "title_type", "La colonne titre ne peut pas changer de type.");
+    }
+
+    db.transaction((tx) => {
+      const rows = listRowPages(tx, req.params.id);
+      const set: Partial<typeof databaseProperties.$inferInsert> = {};
+      if (input.name) set.name = input.name;
+      if (input.position !== undefined) set.position = input.position;
+
+      if (input.type && input.type !== prop.type) {
+        // Re-type every value, then store the new type and its (possibly generated) options.
+        const current = rows.map((r) => toRow(r, properties).values[prop.id]);
+        const target = input.type as PropertyType;
+        const { values, config } = convertColumn(current, prop, target, { ...defaultConfig(target), ...(input.config ?? {}) });
+        rows.forEach((r, i) => {
+          const props = { ...(r.props ?? {}) } as Record<string, CellValue>;
+          if (values[i] === null || ["created_time", "last_edited_time", "created_by"].includes(target)) delete props[prop.id];
+          else props[prop.id] = values[i];
+          tx.update(pages).set({ props }).where(eq(pages.id, r.id)).run();
+        });
+        set.type = target;
+        set.config = config;
+      } else if (input.config) {
+        set.config = input.config;
+        // Removing select options clears the cells that used them.
+        if ((prop.type === "select" || prop.type === "multi_select") && input.config.options) {
+          const kept = new Set(input.config.options.map((o) => o.id));
+          for (const r of rows) {
+            const props = { ...(r.props ?? {}) } as Record<string, CellValue>;
+            const v = props[prop.id];
+            if (v == null) continue;
+            const next = prop.type === "select" ? (kept.has(v as string) ? v : null) : (v as string[]).filter((x) => kept.has(x));
+            if (JSON.stringify(next) === JSON.stringify(v)) continue;
+            if (next === null || (Array.isArray(next) && next.length === 0)) delete props[prop.id];
+            else props[prop.id] = next;
+            tx.update(pages).set({ props }).where(eq(pages.id, r.id)).run();
+          }
+        }
+      }
+      if (Object.keys(set).length) tx.update(databaseProperties).set(set).where(eq(databaseProperties.id, prop.id)).run();
+    });
+    return { property: listProperties(db, req.params.id).find((p) => p.id === prop.id) };
+  });
+
+  app.delete<{ Params: { id: string; propId: string } }>("/:id/properties/:propId", async (req) => {
+    const user = requireUser(req);
+    requireDatabase(db, user.id, req.params.id, "editor");
+    const prop = listProperties(db, req.params.id).find((p) => p.id === req.params.propId);
+    if (!prop) throw notFound();
+    if (prop.type === "title") throw new HttpError(400, "title_delete", "La colonne titre ne peut pas être supprimée.");
+    db.transaction((tx) => {
+      for (const r of listRowPages(tx, req.params.id)) {
+        if (!r.props || !(prop.id in r.props)) continue;
+        const { [prop.id]: _removed, ...rest } = r.props;
+        tx.update(pages).set({ props: rest }).where(eq(pages.id, r.id)).run();
+      }
+      tx.delete(databaseProperties).where(eq(databaseProperties.id, prop.id)).run();
+    });
+    return { ok: true };
+  });
+
+  // --- Rows ---
+
+  app.post<{ Params: { id: string } }>("/:id/rows", async (req) => {
+    const user = requireUser(req);
+    const input = parseBody(rowInput, req.body);
+    const { page: database } = requireDatabase(db, user.id, req.params.id, "editor");
+    const properties = listProperties(db, database.id);
+    const { values, title } = validateValues(db, properties, null, input.values);
+    const id = randomUUID();
+    db.insert(pages)
+      .values({
+        id,
+        kind: "row",
+        workspaceId: database.workspaceId,
+        parentId: database.id,
+        title: title ?? input.title ?? "",
+        props: values,
+        position: nextPosition(db, database.workspaceId, database.id),
+        createdBy: user.id,
+      })
+      .run();
+    const row = listRowPages(db, database.id).find((r) => r.id === id)!;
+    return { row: toRow(row, properties) };
+  });
+
+  app.get<{ Params: { id: string; rowId: string } }>("/:id/rows/:rowId", async (req) => {
+    const user = requireUser(req);
+    // Reading a row only needs access to the row (it may have been shared on its own).
+    const { role } = requireRow(db, user.id, req.params.id, req.params.rowId, "viewer");
+    const properties = listProperties(db, req.params.id);
+    const row = db.select().from(pages).where(eq(pages.id, req.params.rowId)).get()!;
+    const data = toRow(row, properties);
+    return { properties, row: data, role, people: collectPeople(db, properties, [data]) };
+  });
+
+  app.patch<{ Params: { id: string; rowId: string } }>("/:id/rows/:rowId", async (req) => {
+    const user = requireUser(req);
+    const input = parseBody(rowInput, req.body);
+    requireRow(db, user.id, req.params.id, req.params.rowId, "editor");
+    const properties = listProperties(db, req.params.id);
+    const { values, title } = validateValues(db, properties, req.params.rowId, input.values);
+    const current = db.select({ props: pages.props }).from(pages).where(eq(pages.id, req.params.rowId)).get()!;
+    const props = { ...(current.props ?? {}) } as Record<string, CellValue>;
+    for (const [k, v] of Object.entries(values)) {
+      if (v === null) delete props[k];
+      else props[k] = v;
+    }
+    const newTitle = title ?? input.title;
+    db.update(pages)
+      .set({ props, updatedAt: new Date(), ...(newTitle !== undefined ? { title: newTitle } : {}) })
+      .where(eq(pages.id, req.params.rowId))
+      .run();
+    const row = listRowPages(db, req.params.id).find((r) => r.id === req.params.rowId)!;
+    return { row: toRow(row, properties) };
+  });
+
+  // Moves rows to the trash (they can be restored from there like any page).
+  app.post<{ Params: { id: string } }>("/:id/rows/delete", async (req) => {
+    const user = requireUser(req);
+    const { ids } = parseBody(z.object({ ids: z.array(z.string()).min(1).max(1000) }), req.body);
+    for (const id of ids) requireRow(db, user.id, req.params.id, id, "editor");
+    db.update(pages)
+      .set({ deletedAt: new Date(), deletedBy: user.id })
+      .where(and(inArray(pages.id, ids), eq(pages.parentId, req.params.id)))
+      .run();
+    return { ok: true };
+  });
+
+  // --- Views ---
+
+  app.patch<{ Params: { id: string; viewId: string } }>("/:id/views/:viewId", async (req) => {
+    const user = requireUser(req);
+    const input = parseBody(updateViewInput, req.body);
+    requireDatabase(db, user.id, req.params.id, "editor");
+    const view = db
+      .select()
+      .from(databaseViews)
+      .where(and(eq(databaseViews.id, req.params.viewId), eq(databaseViews.databaseId, req.params.id)))
+      .get();
+    if (!view) throw notFound();
+    db.update(databaseViews)
+      .set({ ...(input.name ? { name: input.name } : {}), ...(input.config ? { config: input.config } : {}) })
+      .where(eq(databaseViews.id, view.id))
+      .run();
+    return { ok: true };
+  });
+};

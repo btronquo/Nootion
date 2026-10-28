@@ -79,6 +79,8 @@ export const pages = sqliteTable(
       .notNull()
       .references(() => workspaces.id, { onDelete: "cascade" }),
     parentId: text("parent_id"),
+    // "database": the page is a database (its rows are its children). "row": a database row.
+    kind: text("kind", { enum: ["page", "database", "row"] }).notNull().default("page"),
     title: text("title").notNull().default(""),
     icon: text("icon"),
     // Fractional-free ordering: siblings are sorted by position, then creation time.
@@ -96,6 +98,8 @@ export const pages = sqliteTable(
     // Derived from contentState on every save: ProseMirror JSON (exports, public pages) and plain text (search).
     contentJson: text("content_json", { mode: "json" }),
     contentText: text("content_text"),
+    // Rows only: cell values by property id.
+    props: text("props", { mode: "json" }).$type<Record<string, unknown>>(),
   },
   (t) => [index("pages_workspace_idx").on(t.workspaceId), index("pages_parent_idx").on(t.parentId)],
 );
@@ -141,4 +145,36 @@ export const attachments = sqliteTable(
     createdAt: createdAt(),
   },
   (t) => [index("attachments_page_idx").on(t.pageId)],
+);
+
+export const databaseProperties = sqliteTable(
+  "database_properties",
+  {
+    id: text("id").primaryKey(),
+    databaseId: text("database_id")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    type: text("type").notNull(),
+    config: text("config", { mode: "json" }).$type<Record<string, unknown>>().notNull().default({}),
+    position: integer("position").notNull().default(0),
+    createdAt: createdAt(),
+  },
+  (t) => [index("database_properties_db_idx").on(t.databaseId)],
+);
+
+export const databaseViews = sqliteTable(
+  "database_views",
+  {
+    id: text("id").primaryKey(),
+    databaseId: text("database_id")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    type: text("type").notNull().default("table"),
+    config: text("config", { mode: "json" }).$type<Record<string, unknown>>().notNull().default({}),
+    position: integer("position").notNull().default(0),
+    createdAt: createdAt(),
+  },
+  (t) => [index("database_views_db_idx").on(t.databaseId)],
 );
