@@ -28,8 +28,12 @@ export const WORKSPACE_ROLE_TO_PAGE_ROLE: Record<WorkspaceRole, PageRole> = {
   viewer: "viewer",
 };
 
+export const PAGE_KINDS = ["page", "database", "row"] as const;
+export type PageKind = (typeof PAGE_KINDS)[number];
+
 export interface PageSummary {
   id: string;
+  kind: PageKind;
   workspaceId: string;
   parentId: string | null;
   title: string;

@@ -3,7 +3,7 @@
 Application de prise de notes open source façon Notion, auto-hébergeable, dont le point fort est les **databases**
 (relations, rollups, formules, filtres, agrégations).
 
-> Statut : en développement (V1, étape 2 sur 10 : espaces et permissions). Voir [PLAN.md](PLAN.md).
+> Statut : en développement (V1, étape 4 sur 10 : databases). Voir [PLAN.md](PLAN.md).
 
 ## Ce qui marche aujourd'hui
 
@@ -14,6 +14,13 @@ Application de prise de notes open source façon Notion, auto-hébergeable, dont
 - Arborescence de pages (sous-pages, glisser-déposer, icônes), corbeille avec restauration.
 - Pages privées par défaut : partage d'une page à un utilisateur (hérité par les sous-pages), lien public en lecture seule révocable.
   Toutes les vérifications d'accès sont faites côté serveur (`apps/server/src/permissions.ts`) et couvertes par des tests.
+- Éditeur de pages façon Notion (commandes « / », listes de tâches, tableaux, encadrés, images et fichiers joints,
+  liens entre pages avec « @ »), édition à plusieurs en temps réel.
+- Databases : colonnes typées (texte, nombre, montant en devise, pourcentage, date, sélection, sélection multiple,
+  case à cocher, lien, email, personne, fichiers, date de création, dernière modification, créé par), vue tableau
+  (ordre, largeur et masquage des colonnes), chaque ligne s'ouvre comme une page avec ses propriétés.
+  Une database peut être une page à part ou intégrée dans une page (commande « / Base de données »), et s'affiche
+  en lecture seule sur les liens publics.
 - Image Docker unique, données dans `/data`.
 
 ## Lancer avec Docker

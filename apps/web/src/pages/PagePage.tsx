@@ -11,6 +11,9 @@ import { Button } from "../components/ui";
 import { ShareDialog } from "../components/ShareDialog";
 import { IconPicker } from "../components/IconPicker";
 import { PageEditor } from "../editor/PageEditor";
+import { DatabaseTable } from "../database/DatabaseTable";
+import { RowProperties } from "../database/RowProperties";
+import { dbKey } from "../database/hooks";
 
 export function PagePage() {
   const { id = "" } = useParams();
@@ -55,6 +58,8 @@ function PageView({ page }: { page: PageDetail }) {
     qc.setQueryData(keys.page(page.id), { ...page, ...patch });
     await qc.invalidateQueries({ queryKey: ["pages"] });
     await qc.invalidateQueries({ queryKey: keys.shared });
+    if (page.kind === "database") await qc.invalidateQueries({ queryKey: dbKey(page.id) });
+    if (page.kind === "row" && page.parentId) await qc.invalidateQueries({ queryKey: dbKey(page.parentId) });
   }
 
   function onTitleChange(value: string) {
@@ -104,7 +109,7 @@ function PageView({ page }: { page: PageDetail }) {
         </div>
       </header>
 
-      <div className="mx-auto max-w-3xl px-12 pb-24 pt-16">
+      <div className={`mx-auto px-12 pb-24 pt-16 ${page.kind === "database" ? "max-w-6xl" : "max-w-3xl"}`}>
         <IconPicker icon={page.icon} editable={canEdit} onChange={(icon) => save({ icon })} />
         <textarea
           ref={titleRef}
@@ -122,8 +127,9 @@ function PageView({ page }: { page: PageDetail }) {
           aria-label="Titre de la page"
           className="w-full resize-none overflow-hidden bg-transparent text-4xl font-bold outline-none placeholder:text-neutral-300 dark:placeholder:text-neutral-600"
         />
+        {page.kind === "row" && page.parentId && <RowProperties databaseId={page.parentId} rowId={page.id} />}
         <div className="mt-4">
-          <PageEditor page={page} canEdit={canEdit} />
+          {page.kind === "database" ? <DatabaseTable id={page.id} /> : <PageEditor page={page} canEdit={canEdit} />}
         </div>
       </div>
 

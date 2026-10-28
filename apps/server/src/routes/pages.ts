@@ -23,7 +23,7 @@ import {
   requirePageRole,
   requireWorkspaceRole,
 } from "../permissions.js";
-import { breadcrumbFor, getPageMeta, pageMeta, listDescendants, nextPosition, placeAmongSiblings, toDetail, toSummary } from "../pages.js";
+import { breadcrumbFor, getPageMeta, notRow, pageMeta, listDescendants, nextPosition, placeAmongSiblings, toDetail, toSummary } from "../pages.js";
 
 export const pageRoutes: FastifyPluginAsync = async (app) => {
   const db = app.db;
@@ -34,6 +34,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     if (input.parentId) {
       const { page: parent } = requirePageRole(db, user.id, input.parentId, "editor");
       if (parent.workspaceId !== input.workspaceId) throw notFound();
+      if (parent.kind === "database") throw new HttpError(400, "database_parent", "Ajoutez plutôt une ligne à la database.");
     } else {
       requireWorkspaceRole(db, user.id, input.workspaceId, CAN_CREATE_ROOT_PAGES);
     }
@@ -82,7 +83,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     for (const id of roots) {
       const root = getPageMeta(db, id)!;
       result.push({ ...toSummary(root), parentId: null, shared: true });
-      for (const d of listDescendants(db, id)) result.push({ ...toSummary(d), shared: false });
+      for (const d of listDescendants(db, id).filter(notRow)) result.push({ ...toSummary(d), shared: false });
     }
     return { pages: result };
   });
@@ -124,9 +125,11 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     const user = requireUser(req);
     const input = parseBody(movePageInput, req.body);
     const { page } = requirePageRole(db, user.id, req.params.id, "full");
+    if (page.kind === "row") throw new HttpError(400, "row_move", "Une ligne de database ne peut pas être déplacée.");
     if (input.parentId) {
       const { page: parent, chain } = requirePageRole(db, user.id, input.parentId, "editor");
       if (parent.workspaceId !== page.workspaceId) throw notFound();
+      if (parent.kind === "database") throw new HttpError(400, "database_parent", "Une page ne peut pas être déplacée dans une database.");
       if (chain.some((c) => c.id === page.id)) {
         throw new HttpError(400, "cycle", "Une page ne peut pas être déplacée dans une de ses sous-pages.");
       }

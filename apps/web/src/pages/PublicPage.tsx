@@ -1,11 +1,14 @@
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { FileText } from "lucide-react";
-import type { PageSummary } from "@nootion/shared";
+import { Database, FileText } from "lucide-react";
+import type { CellValue, DatabaseProperty, PageSummary } from "@nootion/shared";
 import { api } from "../lib/api";
 import { buildTree, pageTitle, type TreeNode } from "../lib/tree";
 import type { JSONContent } from "@tiptap/core";
 import { PublicContent } from "../editor/PublicContent";
+import { Cell } from "../database/Cell";
+import { PropertyIcon } from "../database/icons";
+import { PublicDatabase } from "../database/DatabaseBlockView";
 
 /** Read-only view of a page published with a public link. Works without an account. */
 export function PublicPage() {
@@ -14,7 +17,7 @@ export function PublicPage() {
   const currentId = pageId ?? site.data?.root.id;
   const page = useQuery({
     queryKey: ["public", token, currentId],
-    queryFn: async () => (await api<{ page: PageSummary & { updatedAt: string; content: JSONContent | null } }>(`/public/${token}/pages/${currentId}`)).page,
+    queryFn: async () => (await api<{ page: PageSummary & { updatedAt: string; content: JSONContent | null; row: PublicRow | null } }>(`/public/${token}/pages/${currentId}`)).page,
     enabled: !!currentId,
   });
 
@@ -40,11 +43,17 @@ export function PublicPage() {
         </aside>
       )}
       <main className="min-w-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl px-12 pb-24 pt-16">
+        <div className={`mx-auto px-12 pb-24 pt-16 ${page.data?.kind === "database" ? "max-w-6xl" : "max-w-3xl"}`}>
           {page.data && (
             <>
               {page.data.icon && <div className="mb-2 text-5xl">{page.data.icon}</div>}
               <h1 className="text-4xl font-bold">{pageTitle(page.data.title)}</h1>
+              {page.data.row && <PublicRowProperties row={page.data.row} token={token} rowId={page.data.id} />}
+              {page.data.kind === "database" && (
+                <div className="mt-6">
+                  <PublicDatabase id={page.data.id} token={token} />
+                </div>
+              )}
               {page.data.content && (
                 <div className="mt-6">
                   <PublicContent content={page.data.content} token={token} />
@@ -60,6 +69,40 @@ export function PublicPage() {
   );
 }
 
+interface PublicRow {
+  properties: DatabaseProperty[];
+  values: Record<string, CellValue>;
+}
+
+function PublicRowProperties({ row, token, rowId }: { row: PublicRow; token: string; rowId: string }) {
+  return (
+    <div className="mt-4 space-y-0.5 border-b border-neutral-200 pb-4 text-sm dark:border-neutral-800">
+      {row.properties
+        .filter((p) => p.type !== "title")
+        .map((p) => (
+          <div key={p.id} className="flex items-start gap-2">
+            <div className="flex w-40 shrink-0 items-center gap-1.5 truncate py-1.5 text-neutral-500">
+              <PropertyIcon type={p.type} size={14} /> <span className="truncate">{p.name}</span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <Cell
+                prop={p}
+                value={row.values[p.id] ?? null}
+                rowId={rowId}
+                people={{}}
+                editable={false}
+                variant="panel"
+                onChange={() => {}}
+                onCreateOption={() => Promise.reject(new Error("read-only"))}
+                fileUrl={(id) => `/api/public/${token}/attachments/${id}`}
+              />
+            </div>
+          </div>
+        ))}
+    </div>
+  );
+}
+
 function PublicTree({ nodes, token, currentId, rootId, depth = 0 }: { nodes: TreeNode[]; token: string; currentId?: string; rootId: string; depth?: number }) {
   return (
     <ul>
@@ -70,7 +113,7 @@ function PublicTree({ nodes, token, currentId, rootId, depth = 0 }: { nodes: Tre
             className={`flex items-center gap-1.5 rounded px-2 py-1 text-sm ${page.id === currentId ? "bg-neutral-200/80 font-medium dark:bg-neutral-800" : "hover:bg-neutral-200/50 dark:hover:bg-neutral-800/60"}`}
             style={{ paddingLeft: 8 + depth * 12 }}
           >
-            <span className="w-4 shrink-0 text-center">{page.icon ?? <FileText size={14} className="inline text-neutral-400" />}</span>
+            <span className="w-4 shrink-0 text-center">{page.icon ?? (page.kind === "database" ? <Database size={14} className="inline text-neutral-400" /> : <FileText size={14} className="inline text-neutral-400" />)}</span>
             <span className="truncate">{pageTitle(page.title)}</span>
           </Link>
           {children.length > 0 && <PublicTree nodes={children} token={token} currentId={currentId} rootId={rootId} depth={depth + 1} />}
