@@ -67,7 +67,7 @@ export function createSuggestionExtension(name: string, char: string, items: Ite
   });
 }
 
-/** A menu item that first deletes the typed trigger ("/titre") then runs its action. */
+/** A menu item that first deletes the typed trigger ("/heading1") then runs its action. */
 export function item(title: string, hint: string, icon: MenuItem["icon"], action: (editor: Editor, range: Range) => void, keywords = ""): MenuItem & { runIn: (e: Editor, r: Range) => void; keywords: string } {
   return { title, hint, icon, keywords, run: () => {}, runIn: action };
 }
