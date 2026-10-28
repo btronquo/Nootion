@@ -1,0 +1,3 @@
+# Scripts exécutés dans le conteneur Linux : toujours en fin de ligne LF, même sous Windows.
+*.sh text eol=lf
+docker/Dockerfile text eol=lf

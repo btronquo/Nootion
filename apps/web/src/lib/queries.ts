@@ -29,7 +29,7 @@ export function useSharedPages() {
 }
 
 export function usePage(id: string) {
-  return useQuery({ queryKey: keys.page(id), queryFn: async () => (await api<{ page: PageDetail }>(`/pages/${id}`)).page });
+  return useQuery({ queryKey: keys.page(id), queryFn: async () => (await api<{ page: PageDetail }>(`/pages/${id}`)).page, enabled: !!id });
 }
 
 export function useUserDirectory() {

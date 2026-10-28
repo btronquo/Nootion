@@ -10,6 +10,7 @@ import { pageTitle } from "../lib/tree";
 import { Button } from "../components/ui";
 import { ShareDialog } from "../components/ShareDialog";
 import { IconPicker } from "../components/IconPicker";
+import { PageEditor } from "../editor/PageEditor";
 
 export function PagePage() {
   const { id = "" } = useParams();
@@ -111,14 +112,19 @@ function PageView({ page }: { page: PageDetail }) {
           value={title}
           readOnly={!canEdit}
           onChange={(e) => onTitleChange(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && e.preventDefault()}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              document.querySelector<HTMLElement>(".nootion-content")?.focus();
+            }
+          }}
           placeholder="Sans titre"
           aria-label="Titre de la page"
           className="w-full resize-none overflow-hidden bg-transparent text-4xl font-bold outline-none placeholder:text-neutral-300 dark:placeholder:text-neutral-600"
         />
-        <p className="mt-8 rounded-lg border border-dashed border-neutral-300 p-6 text-center text-sm text-neutral-400 dark:border-neutral-700">
-          L'éditeur de contenu arrive à l'étape suivante.
-        </p>
+        <div className="mt-4">
+          <PageEditor page={page} canEdit={canEdit} />
+        </div>
       </div>
 
       {sharing && <ShareDialog page={page} onClose={() => setSharing(false)} />}

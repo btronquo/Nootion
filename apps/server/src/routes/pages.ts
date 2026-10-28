@@ -23,7 +23,7 @@ import {
   requirePageRole,
   requireWorkspaceRole,
 } from "../permissions.js";
-import { breadcrumbFor, listDescendants, nextPosition, placeAmongSiblings, toDetail, toSummary } from "../pages.js";
+import { breadcrumbFor, getPageMeta, pageMeta, listDescendants, nextPosition, placeAmongSiblings, toDetail, toSummary } from "../pages.js";
 
 export const pageRoutes: FastifyPluginAsync = async (app) => {
   const db = app.db;
@@ -80,7 +80,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     }
     const result: (PageSummary & { shared: boolean })[] = [];
     for (const id of roots) {
-      const root = db.select().from(pages).where(eq(pages.id, id)).get()!;
+      const root = getPageMeta(db, id)!;
       result.push({ ...toSummary(root), parentId: null, shared: true });
       for (const d of listDescendants(db, id)) result.push({ ...toSummary(d), shared: false });
     }
@@ -115,7 +115,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
       .update(pages)
       .set({ ...input, updatedAt: new Date() })
       .where(eq(pages.id, req.params.id))
-      .returning()
+      .returning(pageMeta)
       .get();
     return { page: toSummary(page) };
   });
@@ -134,10 +134,11 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
       requireWorkspaceRole(db, user.id, page.workspaceId, CAN_CREATE_ROOT_PAGES);
     }
     db.transaction((tx) => {
-      const moved = tx.update(pages).set({ parentId: input.parentId }).where(eq(pages.id, page.id)).returning().get();
+      tx.update(pages).set({ parentId: input.parentId }).where(eq(pages.id, page.id)).run();
+      const moved = getPageMeta(tx, page.id)!;
       placeAmongSiblings(tx, moved, input.index);
     });
-    return { page: toSummary(db.select().from(pages).where(eq(pages.id, page.id)).get()!) };
+    return { page: toSummary(getPageMeta(db, page.id)!) };
   });
 
   // Moves the page (and its subpages) to the trash.
@@ -155,13 +156,11 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     // If an ancestor is itself in the trash, the page comes back at the root of its workspace.
     const parentTrashed = isTrashed(chain.slice(1));
     db.transaction((tx) => {
-      const restored = tx
-        .update(pages)
+      tx.update(pages)
         .set({ deletedAt: null, deletedBy: null, ...(parentTrashed ? { parentId: null } : {}) })
         .where(eq(pages.id, page.id))
-        .returning()
-        .get();
-      if (parentTrashed) placeAmongSiblings(tx, restored, undefined);
+        .run();
+      if (parentTrashed) placeAmongSiblings(tx, getPageMeta(tx, page.id)!, undefined);
     });
     return { ok: true };
   });

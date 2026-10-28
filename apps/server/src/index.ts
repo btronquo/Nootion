@@ -1,6 +1,7 @@
 import path from "node:path";
 import { buildApp } from "./app.js";
 import { purgeExpiredSessions } from "./auth/sessions.js";
+import { cleanOrphanFiles } from "./attachments.js";
 import { loadConfig } from "./config.js";
 import { openDb } from "./db/index.js";
 
@@ -9,6 +10,7 @@ const db = openDb(path.join(config.dataDir, "nootion.db"));
 const app = await buildApp({ db, config, logger: true });
 
 purgeExpiredSessions(db);
+cleanOrphanFiles(db, config.dataDir);
 setInterval(() => purgeExpiredSessions(db), 60 * 60 * 1000).unref();
 
 const shutdown = async () => {

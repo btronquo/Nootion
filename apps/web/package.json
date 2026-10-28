@@ -11,12 +11,27 @@
     "typecheck": "tsc -p ."
   },
   "dependencies": {
+    "@floating-ui/dom": "1.7.4",
+    "@hocuspocus/provider": "4.7.1",
     "@nootion/shared": "workspace:*",
     "@tanstack/react-query": "^5.90.5",
+    "@tiptap/core": "3.32.0",
+    "@tiptap/extension-collaboration": "3.32.0",
+    "@tiptap/extension-collaboration-caret": "3.32.0",
+    "@tiptap/extension-image": "3.32.0",
+    "@tiptap/extension-list": "3.32.0",
+    "@tiptap/extension-mention": "3.32.0",
+    "@tiptap/extension-table": "3.32.0",
+    "@tiptap/extensions": "3.32.0",
+    "@tiptap/pm": "3.32.0",
+    "@tiptap/react": "3.32.0",
+    "@tiptap/starter-kit": "3.32.0",
+    "@tiptap/suggestion": "3.32.0",
     "lucide-react": "^0.548.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-router-dom": "^7.9.4"
+    "react-router-dom": "^7.9.4",
+    "yjs": "13.6.27"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.16",

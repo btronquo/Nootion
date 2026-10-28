@@ -15,3 +15,126 @@ body,
 body {
   @apply bg-white text-neutral-900 antialiased dark:bg-neutral-900 dark:text-neutral-100;
 }
+
+/* ---------- Page content (editor and public view) ---------- */
+.nootion-content {
+  @apply min-h-[40vh] text-[16px] leading-7 outline-none;
+}
+.nootion-content > * + * {
+  @apply mt-2;
+}
+.nootion-content h1 {
+  @apply mt-8 text-3xl font-bold;
+}
+.nootion-content h2 {
+  @apply mt-6 text-2xl font-semibold;
+}
+.nootion-content h3 {
+  @apply mt-4 text-xl font-semibold;
+}
+.nootion-content a:not(.page-link):not(.file-attachment) {
+  @apply text-blue-600 underline decoration-blue-300 underline-offset-2 dark:text-blue-400;
+}
+.nootion-content ul {
+  @apply list-disc pl-6;
+}
+.nootion-content ol {
+  @apply list-decimal pl-6;
+}
+.nootion-content li > p {
+  @apply my-0.5;
+}
+.nootion-content ul[data-type="taskList"] {
+  @apply list-none pl-1;
+}
+.nootion-content ul[data-type="taskList"] li {
+  @apply flex items-start gap-2;
+}
+.nootion-content ul[data-type="taskList"] li > label {
+  @apply mt-1 select-none;
+}
+.nootion-content ul[data-type="taskList"] li > div {
+  @apply flex-1;
+}
+.nootion-content ul[data-type="taskList"] li[data-checked="true"] > div {
+  @apply text-neutral-400 line-through;
+}
+.nootion-content blockquote {
+  @apply border-l-4 border-neutral-300 pl-4 text-neutral-600 dark:border-neutral-600 dark:text-neutral-300;
+}
+.nootion-content code {
+  @apply rounded bg-neutral-100 px-1 py-0.5 font-mono text-[0.9em] text-rose-600 dark:bg-neutral-800 dark:text-rose-400;
+}
+.nootion-content pre {
+  @apply overflow-x-auto rounded-lg bg-neutral-100 p-4 font-mono text-sm dark:bg-neutral-800;
+}
+.nootion-content pre code {
+  @apply bg-transparent p-0 text-inherit;
+}
+.nootion-content hr {
+  @apply my-6 border-neutral-200 dark:border-neutral-700;
+}
+.nootion-content img {
+  @apply my-2 max-w-full rounded-md;
+}
+.nootion-content img.ProseMirror-selectednode {
+  @apply outline-2 outline-blue-500;
+}
+.nootion-content .callout {
+  @apply flex gap-3 rounded-lg bg-neutral-100 p-4 dark:bg-neutral-800;
+}
+.nootion-content .callout::before {
+  content: attr(data-emoji);
+  @apply text-xl leading-7;
+}
+.nootion-content .callout > * {
+  @apply flex-1;
+}
+.nootion-content .file-attachment {
+  @apply flex w-fit items-center gap-2 rounded-md border border-neutral-200 px-3 py-2 text-sm no-underline hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800;
+}
+.nootion-content .page-link {
+  @apply rounded px-0.5 font-medium underline decoration-neutral-300 underline-offset-2 hover:bg-neutral-100 dark:decoration-neutral-600 dark:hover:bg-neutral-800;
+}
+.nootion-content .page-link-private {
+  @apply cursor-default text-neutral-400 no-underline;
+}
+.nootion-content table {
+  @apply my-4 w-full border-collapse table-fixed;
+}
+.nootion-content th,
+.nootion-content td {
+  @apply relative border border-neutral-300 px-2 py-1 align-top dark:border-neutral-700;
+}
+.nootion-content th {
+  @apply bg-neutral-50 text-left font-semibold dark:bg-neutral-800;
+}
+.nootion-content .selectedCell::after {
+  content: "";
+  @apply pointer-events-none absolute inset-0 bg-blue-200/40;
+}
+.nootion-content .column-resize-handle {
+  @apply pointer-events-none absolute top-0 -right-0.5 bottom-0 w-1 bg-blue-400;
+}
+.nootion-content .tableWrapper {
+  @apply overflow-x-auto;
+}
+.nootion-content p.is-empty::before,
+.nootion-content h1.is-empty::before,
+.nootion-content h2.is-empty::before,
+.nootion-content h3.is-empty::before {
+  content: attr(data-placeholder);
+  @apply pointer-events-none float-left h-0 text-neutral-400;
+}
+.nootion-content[contenteditable="false"] .is-empty::before {
+  content: none;
+}
+
+/* Other people's cursors */
+.collaboration-carets__caret {
+  @apply relative -mx-px border-x pointer-events-none;
+  word-break: normal;
+}
+.collaboration-carets__label {
+  @apply absolute -top-5 -left-px rounded rounded-bl-none px-1.5 py-0.5 text-xs font-semibold whitespace-nowrap text-white select-none;
+}

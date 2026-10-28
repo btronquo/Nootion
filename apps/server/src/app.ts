@@ -4,6 +4,11 @@ import Fastify, { type FastifyInstance } from "fastify";
 import cookie from "@fastify/cookie";
 import rateLimit from "@fastify/rate-limit";
 import fastifyStatic from "@fastify/static";
+import multipart from "@fastify/multipart";
+import websocket from "@fastify/websocket";
+import { createCollab, registerCollabRoute, type Collab } from "./collab.js";
+import { attachmentRoutes } from "./routes/attachments.js";
+import { cleanOrphanFiles } from "./attachments.js";
 import type { Config } from "./config.js";
 import type { Db } from "./db/index.js";
 import { findSessionUser, SESSION_COOKIE } from "./auth/sessions.js";
@@ -22,6 +27,7 @@ declare module "fastify" {
   interface FastifyInstance {
     db: Db;
     config: Config;
+    collab: Collab;
   }
   interface FastifyRequest {
     user: UserRow | null;
@@ -38,10 +44,18 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean 
   });
   app.decorate("db", opts.db);
   app.decorate("config", opts.config);
+  const collab = createCollab(opts.db);
+  app.decorate("collab", collab);
+  app.addHook("onClose", async () => {
+    collab.flushPendingStores();
+    collab.closeConnections();
+  });
   app.decorateRequest("user", null);
 
   await app.register(cookie, { secret: opts.config.appSecret });
   await app.register(rateLimit, { global: false });
+  await app.register(multipart, { limits: { fileSize: opts.config.maxUploadMb * 1024 * 1024, files: 1 } });
+  await app.register(websocket, { options: { maxPayload: 10 * 1024 * 1024 } });
 
   app.addHook("onRequest", async (req) => {
     // CSRF: browsers always send Origin on cross-site mutations; reject those not coming from the app itself.
@@ -67,6 +81,18 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean 
     return reply.status(500).send({ error: "internal", message: "Erreur interne du serveur." });
   });
 
+  // When access may have been taken away, drop live editing sessions: clients reconnect at once
+  // and go through the permission check again.
+  const ACCESS_CHANGES = [/^\/api\/pages\/[^/]+\/shares/, /^\/api\/pages\/[^/]+(\/permanent)?$/, /^\/api\/workspaces\/[^/]+(\/members.*)?$/, /^\/api\/admin\/users\//];
+  app.addHook("onResponse", async (req, reply) => {
+    if (SAFE_METHODS.has(req.method) || reply.statusCode >= 400) return;
+    const url = req.url.split("?")[0];
+    if (!ACCESS_CHANGES.some((r) => r.test(url))) return;
+    if (req.method === "PATCH" && url.startsWith("/api/pages/")) return; // title/icon edits
+    collab.revalidateAll();
+    if (req.method === "DELETE") cleanOrphanFiles(opts.db, opts.config.dataDir);
+  });
+
   app.get("/api/health", async () => ({ ok: true }));
   await app.register(setupRoutes, { prefix: "/api" });
   await app.register(authRoutes, { prefix: "/api/auth" });
@@ -76,6 +102,8 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean 
   await app.register(pageRoutes, { prefix: "/api/pages" });
   await app.register(userRoutes, { prefix: "/api/users" });
   await app.register(publicRoutes, { prefix: "/api/public" });
+  await app.register(attachmentRoutes, { prefix: "/api" });
+  await registerCollabRoute(app, collab);
 
   const webDir = opts.config.webDir;
   if (webDir && fs.existsSync(path.join(webDir, "index.html"))) {

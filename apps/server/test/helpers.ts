@@ -1,10 +1,14 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import type { FastifyInstance, LightMyRequestResponse } from "fastify";
 import { buildApp } from "../src/app.js";
 import { loadConfig } from "../src/config.js";
 import { openDb } from "../src/db/index.js";
 
 export async function makeApp(): Promise<FastifyInstance> {
-  const config = loadConfig({ APP_SECRET: "test-secret-0123456789", APP_URL: "http://localhost:3000" });
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "nootion-test-"));
+  const config = loadConfig({ APP_SECRET: "test-secret-0123456789", APP_URL: "http://localhost:3000", DATA_DIR: dataDir });
   return buildApp({ db: openDb(":memory:"), config });
 }
 

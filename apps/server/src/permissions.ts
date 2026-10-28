@@ -1,8 +1,9 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { atLeast, maxRole, WORKSPACE_ROLE_TO_PAGE_ROLE, type PageRole, type WorkspaceRole } from "@nootion/shared";
 import type { Db } from "./db/index.js";
-import { pagePermissions, pages, workspaceMembers } from "./db/schema.js";
+import { pagePermissions, workspaceMembers } from "./db/schema.js";
 import { notFound } from "./http.js";
+import { getPageMeta } from "./pages.js";
 
 /**
  * Single source of truth for who can see what. Every route that touches a page goes through here.
@@ -81,7 +82,7 @@ export function requirePageRole(db: Db, userId: string, pageId: string, min: Pag
   const role = roleFromChain(db, userId, chain);
   if (!atLeast(role, "viewer")) throw notFound();
   if (!atLeast(role, min)) throw notFound();
-  const page = db.select().from(pages).where(eq(pages.id, pageId)).get()!;
+  const page = getPageMeta(db, pageId)!;
   return { page, chain, role: role! };
 }
 

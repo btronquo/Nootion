@@ -4,6 +4,8 @@ import { FileText } from "lucide-react";
 import type { PageSummary } from "@nootion/shared";
 import { api } from "../lib/api";
 import { buildTree, pageTitle, type TreeNode } from "../lib/tree";
+import type { JSONContent } from "@tiptap/core";
+import { PublicContent } from "../editor/PublicContent";
 
 /** Read-only view of a page published with a public link. Works without an account. */
 export function PublicPage() {
@@ -12,7 +14,7 @@ export function PublicPage() {
   const currentId = pageId ?? site.data?.root.id;
   const page = useQuery({
     queryKey: ["public", token, currentId],
-    queryFn: async () => (await api<{ page: PageSummary & { updatedAt: string } }>(`/public/${token}/pages/${currentId}`)).page,
+    queryFn: async () => (await api<{ page: PageSummary & { updatedAt: string; content: JSONContent | null } }>(`/public/${token}/pages/${currentId}`)).page,
     enabled: !!currentId,
   });
 
@@ -43,6 +45,11 @@ export function PublicPage() {
             <>
               {page.data.icon && <div className="mb-2 text-5xl">{page.data.icon}</div>}
               <h1 className="text-4xl font-bold">{pageTitle(page.data.title)}</h1>
+              {page.data.content && (
+                <div className="mt-6">
+                  <PublicContent content={page.data.content} token={token} />
+                </div>
+              )}
             </>
           )}
           {page.isError && <p className="text-neutral-500">Page introuvable.</p>}

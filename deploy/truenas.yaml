@@ -1,0 +1,20 @@
+# Nootion sur TrueNAS SCALE (24.10 et plus) : Apps > Discover Apps > ⋮ > Install via YAML.
+# Remplacez les 3 valeurs marquées <-- avant d'enregistrer. Guide complet : docs/DEPLOIEMENT.md
+services:
+  nootion:
+    # "latest" = dernière version publiée. Pour figer une version : registry.gitlab.com/btronquoy/nootion:0.1.0
+    image: registry.gitlab.com/btronquoy/nootion:latest
+    pull_policy: always
+    container_name: nootion
+    restart: unless-stopped
+    # Utilisateur "apps" de TrueNAS : le dataset de données doit lui appartenir.
+    user: "568:568"
+    ports:
+      - "3000:3000"   # port du NAS:port du conteneur. Changez le premier si 3000 est déjà pris.
+    environment:
+      APP_URL: "http://192.168.1.10:3000"                      # <-- adresse tapée dans le navigateur, sans / final
+      APP_SECRET: "remplacez-moi-par-une-longue-chaine-aleatoire" # <-- openssl rand -hex 32, à ne plus changer
+      TZ: "Europe/Paris"
+    volumes:
+      # Base SQLite, fichiers joints, plugins : c'est ce dataset qu'il faut sauvegarder (snapshots ZFS).
+      - /mnt/tank/apps/nootion:/data                           # <-- chemin de votre dataset
