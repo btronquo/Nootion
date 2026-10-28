@@ -70,3 +70,54 @@ export const workspaceMembers = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.workspaceId, t.userId] }), index("workspace_members_user_idx").on(t.userId)],
 );
+
+export const pages = sqliteTable(
+  "pages",
+  {
+    id: text("id").primaryKey(),
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    parentId: text("parent_id"),
+    title: text("title").notNull().default(""),
+    icon: text("icon"),
+    // Fractional-free ordering: siblings are sorted by position, then creation time.
+    position: integer("position").notNull().default(0),
+    createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .default(sql`(unixepoch('subsec') * 1000)`),
+    // Set on the page that was moved to the trash; its descendants are trashed through it.
+    deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
+    deletedBy: text("deleted_by").references(() => users.id, { onDelete: "set null" }),
+  },
+  (t) => [index("pages_workspace_idx").on(t.workspaceId), index("pages_parent_idx").on(t.parentId)],
+);
+
+export const pagePermissions = sqliteTable(
+  "page_permissions",
+  {
+    pageId: text("page_id")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    role: text("role", { enum: ["full", "editor", "commenter", "viewer"] }).notNull(),
+    grantedBy: text("granted_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.pageId, t.userId] }), index("page_permissions_user_idx").on(t.userId)],
+);
+
+export const publicLinks = sqliteTable("public_links", {
+  // One public link per page; the token is random and unguessable.
+  pageId: text("page_id")
+    .primaryKey()
+    .references(() => pages.id, { onDelete: "cascade" }),
+  token: text("token").notNull().unique(),
+  includeSubpages: integer("include_subpages", { mode: "boolean" }).notNull().default(true),
+  createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: createdAt(),
+});

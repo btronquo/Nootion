@@ -14,6 +14,9 @@ import { authRoutes } from "./routes/auth.js";
 import { adminRoutes } from "./routes/admin.js";
 import { invitationRoutes } from "./routes/invitations.js";
 import { workspaceRoutes } from "./routes/workspaces.js";
+import { pageRoutes } from "./routes/pages.js";
+import { userRoutes } from "./routes/users.js";
+import { publicRoutes } from "./routes/public.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -70,6 +73,9 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean 
   await app.register(adminRoutes, { prefix: "/api/admin" });
   await app.register(invitationRoutes, { prefix: "/api/invitations" });
   await app.register(workspaceRoutes, { prefix: "/api/workspaces" });
+  await app.register(pageRoutes, { prefix: "/api/pages" });
+  await app.register(userRoutes, { prefix: "/api/users" });
+  await app.register(publicRoutes, { prefix: "/api/public" });
 
   const webDir = opts.config.webDir;
   if (webDir && fs.existsSync(path.join(webDir, "index.html"))) {
