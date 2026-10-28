@@ -1,0 +1,23 @@
+# Nootion : déploiement Docker (TrueNAS SCALE : Apps > Discover Apps > Install via YAML).
+services:
+  nootion:
+    image: nootion:latest
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: nootion
+    restart: unless-stopped
+    # Sur TrueNAS, l'utilisateur "apps" a l'UID/GID 568. Le dossier monté doit lui appartenir.
+    # Ailleurs, supprimez cette ligne : l'image tourne par défaut avec l'UID 1000.
+    user: "568:568"
+    ports:
+      - "3000:3000"
+    environment:
+      # Adresse à laquelle vous ouvrez Nootion dans le navigateur (sans / final).
+      APP_URL: "http://192.168.1.10:3000"
+      # Chaîne aléatoire d'au moins 16 caractères, à générer une fois et à garder (ex. : openssl rand -hex 32).
+      APP_SECRET: "remplacez-moi-par-une-longue-chaine-aleatoire"
+      TZ: "Europe/Paris"
+    volumes:
+      # Toutes les données (base nootion.db, fichiers joints) : c'est ce dossier qu'il faut sauvegarder.
+      - /mnt/tank/apps/nootion:/data

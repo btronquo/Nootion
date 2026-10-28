@@ -1,0 +1,41 @@
+import { useState, type FormEvent } from "react";
+import { useNavigate } from "react-router-dom";
+import { api } from "../lib/api";
+import { useSession } from "../lib/session";
+import { AuthCard, Button, ErrorText, Field } from "../components/ui";
+
+export function LoginPage() {
+  const { refresh } = useSession();
+  const navigate = useNavigate();
+  const [form, setForm] = useState({ email: "", password: "" });
+  const [error, setError] = useState<unknown>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await api("/auth/login", { method: "POST", body: form });
+      await refresh();
+      navigate("/", { replace: true });
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <AuthCard title="Connexion">
+      <form onSubmit={submit} className="space-y-4">
+        <Field label="Email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required autoFocus autoComplete="username" />
+        <Field label="Mot de passe" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required autoComplete="current-password" />
+        <ErrorText error={error} />
+        <Button type="submit" disabled={busy} className="w-full">
+          Se connecter
+        </Button>
+      </form>
+    </AuthCard>
+  );
+}

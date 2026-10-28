@@ -1,0 +1,16 @@
+{
+  "name": "nootion",
+  "private": true,
+  "version": "0.1.0",
+  "license": "AGPL-3.0-only",
+  "packageManager": "pnpm@10.28.0",
+  "scripts": {
+    "dev": "pnpm --parallel --filter ./apps/* dev",
+    "build": "pnpm --filter @nootion/web build && pnpm --filter @nootion/server build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["better-sqlite3", "esbuild", "@node-rs/argon2"]
+  }
+}
