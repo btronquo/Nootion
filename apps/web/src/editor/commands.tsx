@@ -25,8 +25,10 @@ import {
   Clock,
   ListChecks,
   Star,
+  Bell,
 } from "lucide-react";
-import { pluginNodeName, type ClientPluginInfo, type PageSummary } from "@nootion/shared";
+import { currentLocale, parseNaturalDate, pluginNodeName, type ClientPluginInfo, type PageSummary } from "@nootion/shared";
+import { formatMentionDate } from "../lib/reminders";
 import { api } from "../lib/api";
 import { pageTitle } from "../lib/tree";
 import { item } from "./suggestion";
@@ -42,6 +44,8 @@ export interface CommandContext {
   linkablePages: () => PageSummary[];
   /** Installed plugins: enabled ones add their blocks to the "/" menu. */
   plugins: ClientPluginInfo[];
+  /** The user editing, who receives the reminders they set. */
+  userId: string | null;
 }
 
 const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -148,15 +152,33 @@ export function slashItems(ctx: CommandContext) {
   };
 }
 
+/** "@": pages to link to, and dates written in words ("@tomorrow 9am", "@rappel vendredi"). */
 export function mentionItems(ctx: CommandContext) {
   return ({ query }: { query: string }) => {
     const q = norm(query);
-    return ctx
+    const pages = ctx
       .linkablePages()
       .filter((p) => p.id !== ctx.pageId && norm(pageTitle(p.title)).includes(q))
       .slice(0, 12)
       .map((p) =>
         item(pageTitle(p.title), "", p.icon ?? <FileText size={16} />, (e, r) => e.chain().focus().deleteRange(r).insertPageLink({ pageId: p.id, title: p.title }).run()),
       );
+    const date = (text: string) => {
+      const found = parseNaturalDate(text, new Date(), currentLocale() === "en" ? "mdy" : "dmy");
+      if (!found) return [];
+      const remind = found.remind && !!ctx.userId;
+      return [
+        item(formatMentionDate(found.date), remind ? t("date.remindHint") : t("date.hint"), remind ? <Bell size={16} /> : <CalendarDays size={16} />, (e, r) =>
+          e
+            .chain()
+            .focus()
+            .deleteRange(r)
+            .insertDate({ date: found.date, reminder: remind ? 0 : null, remindUser: remind ? ctx.userId : null })
+            .run(),
+        ),
+      ];
+    };
+    // A date typed comes first; with nothing typed yet, today's date comes after the pages.
+    return q.trim() ? [...date(query), ...pages] : [...pages, ...date("today")];
   };
 }

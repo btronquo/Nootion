@@ -317,3 +317,45 @@ export const pageSnapshots = sqliteTable(
   },
   (t) => [index("page_snapshots_page_idx").on(t.pageId, t.createdAt)],
 );
+
+/** Reminders set on dates written in pages: one per date and per page, for the user who set it. */
+export const reminders = sqliteTable(
+  "reminders",
+  {
+    id: text("id").primaryKey(),
+    pageId: text("page_id")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    // The date's id in the page content.
+    mentionId: text("mention_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    // The date as written: "2026-11-15" or "2026-11-15T09:00".
+    date: text("date").notNull(),
+    remindAt: integer("remind_at", { mode: "timestamp_ms" }).notNull(),
+    // The line of text the date is in.
+    text: text("text").notNull().default(""),
+    // Sent to the user's devices.
+    notifiedAt: integer("notified_at", { mode: "timestamp_ms" }),
+    // Marked as done by the user.
+    dismissedAt: integer("dismissed_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("reminders_mention_unique").on(t.pageId, t.mentionId), index("reminders_user_idx").on(t.userId, t.remindAt)],
+);
+
+/** Devices that receive notifications (Web Push), one per browser or installed app. */
+export const pushSubscriptions = sqliteTable(
+  "push_subscriptions",
+  {
+    endpoint: text("endpoint").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("push_subscriptions_user_idx").on(t.userId)],
+);

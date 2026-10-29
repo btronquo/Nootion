@@ -9,6 +9,7 @@ import { keys, useRefreshPages } from "../lib/queries";
 import { pageTitle } from "../lib/tree";
 import { baseExtensions } from "../editor/extensions";
 import { usePlugins } from "../plugins/registry";
+import { formatMentionDate } from "../lib/reminders";
 
 interface Node {
   type: string;
@@ -23,8 +24,10 @@ const when = (iso: string) => new Date(iso).toLocaleString(intlLocale(), { dateS
 function textLines(node: Node | null | undefined, prefix = ""): string[] {
   if (!node) return [];
   const children = node.content ?? [];
-  if (children.some((c) => c.type === "text" || c.type === "hardBreak" || c.type === "pageMention")) {
-    const text = children.map((c) => c.text ?? (c.type === "pageMention" ? `@${String(c.attrs?.title ?? "")}` : " ")).join("");
+  if (children.some((c) => c.type === "text" || c.type === "hardBreak" || c.type === "pageMention" || c.type === "dateMention")) {
+    const text = children
+      .map((c) => c.text ?? (c.type === "pageMention" ? `@${String(c.attrs?.title ?? "")}` : c.type === "dateMention" ? `@${formatMentionDate(String(c.attrs?.date))}` : " "))
+      .join("");
     const mark = node.type === "heading" ? `${"#".repeat(Number(node.attrs?.level) || 1)} ` : "";
     return [`${prefix}${mark}${text}`];
   }

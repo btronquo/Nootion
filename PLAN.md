@@ -134,7 +134,7 @@ What makes everyday use comfortable, in this order (quick wins first, then what 
 9. **Backlinks** (done). "Linked from" at the bottom of a page: the pages that link or mention it.
 10. **Search inside attached files** (done). Text of PDFs and of images (OCR, e.g. scanned bills), indexed when the file
    arrives, in a background job; results point to the page holding the file.
-11. **Dates in plain words and reminders.** Typing `@tomorrow`, `@friday`, `@15/11 9:00` in the editor inserts a date;
+11. **Dates in plain words and reminders** (done). Typing `@tomorrow`, `@friday`, `@15/11 9:00` in the editor inserts a date;
     a date can carry a reminder, shown in the app (and as a notification of the installed app) when it is due.
 12. **API with personal tokens.** A documented REST API (read and write pages, query and fill databases, search),
    with tokens created in "My account", each limited to some spaces and read-only or read-write.

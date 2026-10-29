@@ -29,6 +29,7 @@ import { breadcrumbFor, getPageMeta, notRow, pageMeta, listDescendants, nextPosi
 import { t } from "@nootion/shared";
 import { homePageOf, recordVisit } from "../home.js";
 import { copyTree } from "../templates.js";
+import { syncReminders } from "../reminders.js";
 import { listBacklinks } from "../backlinks.js";
 import { getSnapshot, listVersions, recordSnapshot } from "../history.js";
 import { writeContent, type ProseMirrorNode } from "../collab.js";
@@ -201,6 +202,10 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
       .where(eq(pages.id, req.params.id))
       .returning(pageMeta)
       .get();
+    // A template's dates remind nobody; they come back when it is a page again.
+    if (input.template !== undefined) {
+      syncReminders(db, page.id, db.select({ json: pages.contentJson }).from(pages).where(eq(pages.id, page.id)).get()?.json as ProseMirrorNode | null);
+    }
     return { page: toSummary(page) };
   });
 

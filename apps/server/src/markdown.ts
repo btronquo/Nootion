@@ -35,6 +35,7 @@ function inline(nodes: ProseMirrorNode[] | undefined, links: MarkdownLinks): str
         const target = links.page(String(n.attrs?.pageId ?? ""));
         return target ? `[${escapeText(title)}](${dest(target)})` : escapeText(title);
       }
+      if (n.type === "dateMention") return escapeText(String(n.attrs?.date ?? "").replace("T", " "));
       if (n.type === "image") return `![${escapeText(String(n.attrs?.alt ?? ""))}](${dest(fileUrl(n.attrs?.src, links))})`;
       if (n.type !== "text") return inline(n.content, links);
       const marks = n.marks ?? [];
