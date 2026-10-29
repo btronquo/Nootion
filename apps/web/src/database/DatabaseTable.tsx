@@ -130,7 +130,7 @@ export function TableView({
           </button>
         </div>
       )}
-      <div className={`overflow-x-auto ${compact ? "" : "pb-2"}`}>
+      <div className={`thin-scroll overflow-x-auto ${compact ? "" : "pb-2"}`}>
         <div role="grid" aria-label={data.title || "Base de données"} className="inline-block min-w-full align-top">
           {/* Header */}
           <div role="row" className="flex border-y border-neutral-200 text-neutral-500 dark:border-neutral-800">

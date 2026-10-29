@@ -45,6 +45,8 @@ export interface PageDetail extends PageSummary {
   role: PageRole;
   /** Ancestors the user can see, from the root down to the parent. */
   breadcrumb: { id: string; title: string; icon: string | null }[];
+  /** Content uses the whole window width instead of a centered column. */
+  fullWidth: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -85,6 +87,7 @@ export type CreatePageInput = z.infer<typeof createPageInput>;
 export const updatePageInput = z.object({
   title: titleSchema.optional(),
   icon: iconSchema.optional(),
+  fullWidth: z.boolean().optional(),
 });
 
 export const movePageInput = z.object({

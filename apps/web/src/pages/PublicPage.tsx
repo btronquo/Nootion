@@ -17,7 +17,7 @@ export function PublicPage() {
   const currentId = pageId ?? site.data?.root.id;
   const page = useQuery({
     queryKey: ["public", token, currentId],
-    queryFn: async () => (await api<{ page: PageSummary & { updatedAt: string; content: JSONContent | null; row: PublicRow | null } }>(`/public/${token}/pages/${currentId}`)).page,
+    queryFn: async () => (await api<{ page: PageSummary & { updatedAt: string; content: JSONContent | null; row: PublicRow | null; fullWidth: boolean } }>(`/public/${token}/pages/${currentId}`)).page,
     enabled: !!currentId,
   });
 
@@ -43,7 +43,7 @@ export function PublicPage() {
         </aside>
       )}
       <main className="min-w-0 flex-1 overflow-y-auto">
-        <div className={`mx-auto px-12 pb-24 pt-16 ${page.data?.kind === "database" ? "max-w-6xl" : "max-w-3xl"}`}>
+        <div className={`mx-auto px-12 pb-24 pt-16 ${page.data?.fullWidth ? "max-w-none sm:px-24" : page.data?.kind === "database" ? "max-w-6xl" : "max-w-3xl"}`}>
           {page.data && (
             <>
               {page.data.icon && <div className="mb-2 text-5xl">{page.data.icon}</div>}

@@ -77,6 +77,7 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
     return {
       ...toSummary(p),
       updatedAt: p.updatedAt.toISOString(),
+      fullWidth: p.fullWidth,
       content: p.contentJson ? sanitize(link, p.contentJson as ProseMirrorNode) : null,
       row,
     };

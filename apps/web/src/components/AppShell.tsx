@@ -8,6 +8,7 @@ import { keys, useRefreshPages, useSharedPages, useWorkspacePages, useWorkspaces
 import { useSession } from "../lib/session";
 import { buildTree } from "../lib/tree";
 import { PageTree } from "./PageTree";
+import { Avatar } from "./Avatar";
 import { Button, ErrorText, Field, Modal } from "./ui";
 
 export function AppShell() {
@@ -28,8 +29,8 @@ export function AppShell() {
   return (
     <div className="flex h-full">
       <aside className="flex w-64 shrink-0 flex-col border-r border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-950">
-        <Link to="/" className="flex items-center gap-2 px-4 py-3">
-          <img src="/favicon.svg" alt="" className="h-6 w-6" />
+        <Link to="/account" title="Mon compte" className="m-2 flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-neutral-200/50 dark:hover:bg-neutral-800/60">
+          <Avatar name={user?.name ?? ""} url={user?.avatarUrl} size={26} />
           <span className="truncate text-sm font-semibold">{user?.name}</span>
         </Link>
         <nav className="flex-1 space-y-5 overflow-y-auto px-2 py-2">
@@ -45,6 +46,9 @@ export function AppShell() {
         <div className="space-y-0.5 border-t border-neutral-200 p-2 dark:border-neutral-800">
           <NavLink to="/trash" className={linkClass}>
             <Trash2 size={16} /> Corbeille
+          </NavLink>
+          <NavLink to="/account" className={linkClass}>
+            <User size={16} /> Mon compte
           </NavLink>
           {user?.role === "admin" && (
             <NavLink to="/admin" className={linkClass}>

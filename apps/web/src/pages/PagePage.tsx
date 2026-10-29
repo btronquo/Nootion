@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, Lock, Share2, Trash2 } from "lucide-react";
+import { ChevronRight, Lock, MoreHorizontal, Share2, Trash2 } from "lucide-react";
 import { atLeast, type PageDetail } from "@nootion/shared";
 import { api } from "../lib/api";
 import { keys, usePage, useRefreshPages } from "../lib/queries";
@@ -14,6 +14,7 @@ import { PageEditor } from "../editor/PageEditor";
 import { DatabaseTable } from "../database/DatabaseTable";
 import { RowProperties } from "../database/RowProperties";
 import { dbKey } from "../database/hooks";
+import { Popover } from "../database/Popover";
 
 export function PagePage() {
   const { id = "" } = useParams();
@@ -35,6 +36,7 @@ function PageView({ page }: { page: PageDetail }) {
   const canManage = page.role === "full";
   const [title, setTitle] = useState(page.title);
   const [sharing, setSharing] = useState(false);
+  const [menu, setMenu] = useState<HTMLElement | null>(null);
   const qc = useQueryClient();
   const refresh = useRefreshPages();
   const navigate = useNavigate();
@@ -53,7 +55,7 @@ function PageView({ page }: { page: PageDetail }) {
     }
   }, [title]);
 
-  async function save(patch: { title?: string; icon?: string | null }) {
+  async function save(patch: { title?: string; icon?: string | null; fullWidth?: boolean }) {
     await api(`/pages/${page.id}`, { method: "PATCH", body: patch });
     qc.setQueryData(keys.page(page.id), { ...page, ...patch });
     await qc.invalidateQueries({ queryKey: ["pages"] });
@@ -91,6 +93,11 @@ function PageView({ page }: { page: PageDetail }) {
           </span>
         </nav>
         <div className="flex shrink-0 items-center gap-1">
+          {canEdit && (
+            <Button variant="ghost" onClick={(e) => setMenu(e.currentTarget)} title="Options de la page" aria-label="Options de la page">
+              <MoreHorizontal size={16} />
+            </Button>
+          )}
           {!canManage && (
             <span className="flex items-center gap-1 rounded bg-neutral-100 px-2 py-1 text-xs text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
               <Lock size={12} /> {PAGE_ROLE_LABELS[page.role]}
@@ -109,7 +116,7 @@ function PageView({ page }: { page: PageDetail }) {
         </div>
       </header>
 
-      <div className={`mx-auto px-12 pb-24 pt-16 ${page.kind === "database" ? "max-w-6xl" : "max-w-3xl"}`}>
+      <div className={`mx-auto px-12 pb-24 pt-16 ${page.fullWidth ? "max-w-none sm:px-24" : page.kind === "database" ? "max-w-6xl" : "max-w-3xl"}`}>
         <IconPicker icon={page.icon} editable={canEdit} onChange={(icon) => save({ icon })} />
         <textarea
           ref={titleRef}
@@ -133,6 +140,14 @@ function PageView({ page }: { page: PageDetail }) {
         </div>
       </div>
 
+      {menu && (
+        <Popover anchor={menu} onClose={() => setMenu(null)} width={240}>
+          <label className="flex cursor-pointer items-center justify-between gap-2 rounded px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800">
+            Pleine largeur
+            <input type="checkbox" role="switch" className="h-4 w-4 accent-blue-600" checked={page.fullWidth} onChange={(e) => save({ fullWidth: e.target.checked })} />
+          </label>
+        </Popover>
+      )}
       {sharing && <ShareDialog page={page} onClose={() => setSharing(false)} />}
     </div>
   );

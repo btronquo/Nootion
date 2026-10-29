@@ -10,6 +10,7 @@ import { PagePage } from "./pages/PagePage";
 import { WorkspacePage } from "./pages/WorkspacePage";
 import { TrashPage } from "./pages/TrashPage";
 import { PublicPage } from "./pages/PublicPage";
+import { AccountPage } from "./pages/AccountPage";
 
 export function App() {
   const location = useLocation();
@@ -56,6 +57,7 @@ function PrivateApp() {
         <Route path="/page/:id" element={<PagePage />} />
         <Route path="/workspace/:id" element={<WorkspacePage />} />
         <Route path="/trash" element={<TrashPage />} />
+        <Route path="/account" element={<AccountPage />} />
         {user.role === "admin" && <Route path="/admin" element={<AdminPage />} />}
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

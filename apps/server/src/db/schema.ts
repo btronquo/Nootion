@@ -15,6 +15,8 @@ export const users = sqliteTable(
     passwordHash: text("password_hash").notNull(),
     role: text("role", { enum: ["admin", "member"] }).notNull().default("member"),
     disabled: integer("disabled", { mode: "boolean" }).notNull().default(false),
+    // File name of the profile picture in <data>/avatars, or null.
+    avatar: text("avatar"),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("users_email_unique").on(t.email)],
@@ -83,6 +85,7 @@ export const pages = sqliteTable(
     kind: text("kind", { enum: ["page", "database", "row"] }).notNull().default("page"),
     title: text("title").notNull().default(""),
     icon: text("icon"),
+    fullWidth: integer("full_width", { mode: "boolean" }).notNull().default(false),
     // Fractional-free ordering: siblings are sorted by position, then creation time.
     position: integer("position").notNull().default(0),
     createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),

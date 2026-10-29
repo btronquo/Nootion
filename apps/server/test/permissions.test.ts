@@ -265,3 +265,14 @@ describe("lien public", () => {
     expect((await anon.get("/api/public/nimportequoi")).statusCode).toBe(404);
   });
 });
+
+describe("options de page", () => {
+  it("pleine largeur enregistrée", async () => {
+    const app = await makeApp();
+    const boris = await setupAdmin(app);
+    const page = await boris.createPage(await boris.personalWorkspace(), "Large");
+    expect((await boris.get(`/api/pages/${page}`)).json().page.fullWidth).toBe(false);
+    expect((await boris.patch(`/api/pages/${page}`, { fullWidth: true })).statusCode).toBe(200);
+    expect((await boris.get(`/api/pages/${page}`)).json().page.fullWidth).toBe(true);
+  });
+});

@@ -131,3 +131,58 @@ describe("espaces de travail", () => {
     expect((await new Client(app).get("/api/workspaces")).statusCode).toBe(401);
   });
 });
+
+describe("mon compte", () => {
+  const avatarUpload = (c: Client, data: Buffer, type = "image/png") => {
+    const boundary = "----nootion";
+    const body = Buffer.concat([
+      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="moi.png"\r\nContent-Type: ${type}\r\n\r\n`),
+      data,
+      Buffer.from(`\r\n--${boundary}--\r\n`),
+    ]);
+    return c.request("POST", "/api/auth/me/avatar", body, { "content-type": `multipart/form-data; boundary=${boundary}` });
+  };
+  const PNG = Buffer.from("89504e470d0a1a0a0000000d49484452", "hex");
+
+  it("change le prénom sans mot de passe, l'email et le mot de passe avec", async () => {
+    const boris = await setupAdmin(app);
+    expect((await boris.patch("/api/auth/me", { name: "Boris T." })).json().user.name).toBe("Boris T.");
+    expect((await boris.patch("/api/auth/me", { email: "b@example.com" })).statusCode).toBe(400);
+    expect((await boris.patch("/api/auth/me", { email: "b@example.com", currentPassword: "faux-mot-de-passe" })).statusCode).toBe(400);
+    expect((await boris.patch("/api/auth/me", { email: "b@example.com", currentPassword: ADMIN.password })).json().user.email).toBe("b@example.com");
+
+    const other = new Client(app);
+    await other.post("/api/auth/login", { email: "b@example.com", password: ADMIN.password });
+    expect((await other.get("/api/auth/me")).statusCode).toBe(200);
+    const res = await boris.patch("/api/auth/me", { newPassword: "nouveau-mot-de-passe", currentPassword: ADMIN.password });
+    expect(res.statusCode).toBe(200);
+    // The other device is signed out, this one stays signed in.
+    expect((await other.get("/api/auth/me")).statusCode).toBe(401);
+    expect((await boris.get("/api/auth/me")).statusCode).toBe(200);
+    expect((await new Client(app).post("/api/auth/login", { email: "b@example.com", password: "nouveau-mot-de-passe" })).statusCode).toBe(200);
+  });
+
+  it("refuse un email déjà pris", async () => {
+    const boris = await setupAdmin(app);
+    await inviteUser(app, boris, { name: "Alice", email: "alice@example.com", password: "alice-password" });
+    expect((await boris.patch("/api/auth/me", { email: "alice@example.com", currentPassword: ADMIN.password })).statusCode).toBe(409);
+  });
+
+  it("avatar : image vérifiée par son contenu, visible des autres comptes connectés", async () => {
+    const boris = await setupAdmin(app);
+    const alice = await inviteUser(app, boris, { name: "Alice", email: "alice@example.com", password: "alice-password" });
+    expect((await avatarUpload(boris, Buffer.from("<svg onload=alert(1)>"), "image/png")).statusCode).toBe(400);
+    const res = await avatarUpload(boris, PNG);
+    expect(res.statusCode, res.body).toBe(200);
+    const url = res.json().user.avatarUrl as string;
+    expect(url).toMatch(/^\/api\/users\/.+\/avatar\?v=/);
+    const img = await alice.get(url);
+    expect(img.statusCode).toBe(200);
+    expect(img.headers["content-type"]).toBe("image/png");
+    expect((await new Client(app).get(url)).statusCode).toBe(401);
+    expect((await alice.get("/api/users")).json().users.find((u: { name: string }) => u.name === "Boris").avatarUrl).toBe(url);
+    expect((await avatarUpload(boris, Buffer.alloc(3 * 1024 * 1024, 1))).statusCode).toBe(413);
+    expect((await boris.delete("/api/auth/me/avatar")).json().user.avatarUrl).toBeNull();
+    expect((await alice.get(url)).statusCode).toBe(404);
+  });
+});
