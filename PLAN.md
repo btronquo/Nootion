@@ -89,13 +89,29 @@ No marketplace: plugins are installed on trust, as on any personal server. See [
 9. **Export / import**: Markdown, CSV / JSON, backup.
 10. **Search, polish, deployment guide, first release**, English and French interface.
 
-## 7. After V1
+## 7. Version 1.1
+
+Three gaps that Notion and the self-hosted alternatives leave open.
+
+1. **Mobile app that edits, not just reads** (PWA). Installable from the browser (manifest, icons, service worker),
+   with a layout made for phones: sidebar as a drawer, a toolbar above the keyboard for the editor, the `/` menu
+   and block actions usable by touch, database rows opened as cards instead of a wide table.
+2. **Offline and sync.** The app shell and recently opened pages stay available without a network. Page bodies are
+   already Yjs documents: they are kept in IndexedDB, edited offline and merged with no conflict when the connection
+   comes back. Database changes made offline go into a queue replayed in order, with a clear rule when a row was
+   changed on both sides (last write wins per cell, shown to the user). An indicator shows what is waiting to sync.
+3. **Lossless import from Notion.** Through the Notion API (an integration token), not the Markdown export:
+   page tree, icons and covers, blocks, databases with their property types, select options, relations, rollups
+   and formulas (translated to Nootion's formula language, with a report of what could not be converted),
+   attachments and links between pages. Notion's API does not expose views, so views are recreated as a default
+   table view. The import can run again to bring in what changed.
+
+## 8. After V1.1
 
 - **Nextcloud** plugin (pick a Nextcloud file and insert it in a page or a "file" property) and **Google Calendar** plugin
   (an agenda block, and syncing a database's date property with a calendar).
 - Per-user plugin credentials (OAuth, Nextcloud account), stored encrypted, and plugin property types.
-- Markdown and Notion import.
 - Search in the property values of database rows.
 - Page titles updated live for other users.
 - Later: calendar, gallery and chart views; OIDC sign-in (Authentik, Nextcloud…); scheduled Markdown export to a NAS folder;
-  comments; version history; templates; mobile PWA; more interface languages.
+  comments; version history; templates; more interface languages.
