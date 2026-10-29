@@ -30,7 +30,7 @@ export const attachmentRoutes: FastifyPluginAsync = async (app) => {
       fs.rmSync(tmp, { force: true });
     }
     const size = fs.statSync(dest).size;
-    const filename = (file.filename || "fichier").replace(/[\\/\r\n]/g, "_").slice(0, 255);
+    const filename = (file.filename || "file").replace(/[\\/\r\n]/g, "_").slice(0, 255);
     const row = db
       .insert(attachments)
       .values({ id, pageId: req.params.id, filename, mimeType: file.mimetype || "application/octet-stream", size, createdBy: user.id })

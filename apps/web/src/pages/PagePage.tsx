@@ -15,6 +15,7 @@ import { DatabaseTable } from "../database/DatabaseTable";
 import { RowProperties } from "../database/RowProperties";
 import { dbKey } from "../database/hooks";
 import { Popover } from "../database/Popover";
+import { MenuButton } from "../components/SidebarLayout";
 
 export function PagePage() {
   const { id = "" } = useParams();
@@ -22,7 +23,7 @@ export function PagePage() {
   if (page.isLoading) return null;
   if (page.isError || !page.data) {
     return (
-      <div className="mx-auto max-w-3xl px-8 py-16 text-neutral-500">
+      <div className="mx-auto max-w-3xl px-5 py-8 sm:px-8 sm:py-16 text-neutral-500">
         <h1 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">{t("page.notFound")}</h1>
         <p className="mt-2">{t("page.notFoundHelp")}</p>
       </div>
@@ -78,10 +79,12 @@ function PageView({ page }: { page: PageDetail }) {
 
   return (
     <div>
-      <header className="flex items-center justify-between gap-4 px-4 py-2 text-sm">
+      <header className="flex items-center justify-between gap-2 px-3 py-1.5 text-sm max-md:sticky max-md:top-0 max-md:z-30 max-md:border-b max-md:border-neutral-200 max-md:bg-white/95 max-md:backdrop-blur sm:gap-4 md:px-4 md:py-2 dark:max-md:border-neutral-800 dark:max-md:bg-neutral-900/95">
         <nav className="flex min-w-0 items-center gap-1 text-neutral-500">
+          <MenuButton />
           {page.breadcrumb.map((b) => (
-            <span key={b.id} className="flex min-w-0 items-center gap-1">
+            // On phones, only the parent page is shown, as a way back.
+            <span key={b.id} className={`min-w-0 items-center gap-1 ${b === page.breadcrumb[page.breadcrumb.length - 1] ? "flex" : "hidden md:flex"}`}>
               <Link to={`/page/${b.id}`} className="truncate rounded px-1 hover:bg-neutral-100 dark:hover:bg-neutral-800">
                 {b.icon} {pageTitle(b.title)}
               </Link>
@@ -97,14 +100,14 @@ function PageView({ page }: { page: PageDetail }) {
             <MoreHorizontal size={16} />
           </Button>
           {!canManage && (
-            <span className="flex items-center gap-1 rounded bg-neutral-100 px-2 py-1 text-xs text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
-              <Lock size={12} /> {pageRoleLabel(page.role)}
+            <span title={pageRoleLabel(page.role)} className="flex items-center gap-1 rounded bg-neutral-100 px-2 py-1 text-xs text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+              <Lock size={12} /> <span className="hidden sm:inline">{pageRoleLabel(page.role)}</span>
             </span>
           )}
           {canManage && (
             <>
-              <Button variant="ghost" onClick={() => setSharing(true)}>
-                <Share2 size={16} /> {t("share.button")}
+              <Button variant="ghost" onClick={() => setSharing(true)} aria-label={t("share.button")}>
+                <Share2 size={16} /> <span className="hidden sm:inline">{t("share.button")}</span>
               </Button>
               <Button variant="ghost" onClick={trash} title={t("page.trash")}>
                 <Trash2 size={16} />
@@ -114,7 +117,7 @@ function PageView({ page }: { page: PageDetail }) {
         </div>
       </header>
 
-      <div className={`mx-auto px-12 pb-24 pt-16 ${page.fullWidth ? "max-w-none sm:px-24" : page.kind === "database" ? "max-w-6xl" : "max-w-3xl"}`}>
+      <div className={`mx-auto px-5 pb-24 pt-8 sm:px-12 sm:pt-16 ${page.fullWidth ? "max-w-none sm:px-24" : page.kind === "database" ? "max-w-6xl" : "max-w-3xl"}`}>
         <IconPicker icon={page.icon} editable={canEdit} onChange={(icon) => save({ icon })} />
         <textarea
           ref={titleRef}
@@ -130,7 +133,7 @@ function PageView({ page }: { page: PageDetail }) {
           }}
           placeholder={t("common.untitled")}
           aria-label={t("page.titleLabel")}
-          className="w-full resize-none overflow-hidden bg-transparent text-4xl font-bold outline-none placeholder:text-neutral-300 dark:placeholder:text-neutral-600"
+          className="w-full resize-none overflow-hidden bg-transparent text-3xl font-bold sm:text-4xl outline-none placeholder:text-neutral-300 dark:placeholder:text-neutral-600"
         />
         {page.kind === "row" && page.parentId && <RowProperties databaseId={page.parentId} rowId={page.id} />}
         <div className="mt-4">

@@ -32,7 +32,7 @@ export function TrashPage() {
   const sections = (workspaces.data ?? []).map((ws, i) => ({ ws, pages: trash[i]?.data ?? [] })).filter((s) => s.pages.length > 0);
 
   return (
-    <div className="mx-auto max-w-3xl px-8 py-12">
+    <div className="mx-auto max-w-3xl px-5 py-8 sm:px-8 sm:py-12">
       <h1 className="mb-6 text-2xl font-bold">{t("trash.title")}</h1>
       {sections.length === 0 && <p className="text-neutral-500">{t("trash.empty")}</p>}
       {sections.map(({ ws, pages }) => (

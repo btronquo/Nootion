@@ -23,11 +23,19 @@ export function createSuggestionExtension(name: string, char: string, items: Ite
           let popup: HTMLDivElement | null = null;
           const place = (rect: DOMRect | null | undefined) => {
             if (!popup || !rect) return;
+            // On phones the keyboard hides the bottom of the screen: only the visual viewport is free,
+            // minus the editing toolbar above the keyboard.
+            const vv = window.visualViewport;
+            const visibleBottom = (vv ? vv.offsetTop + vv.height : window.innerHeight) - (document.querySelector(".mobile-toolbar")?.clientHeight ?? 0);
+            const visibleTop = vv?.offsetTop ?? 0;
             const below = rect.bottom + 6;
-            const fitsBelow = below + 320 < window.innerHeight;
-            popup.style.left = `${Math.min(rect.left, window.innerWidth - 300)}px`;
+            const spaceBelow = visibleBottom - below - 8;
+            const spaceAbove = rect.top - 6 - visibleTop - 8;
+            const fitsBelow = spaceBelow >= 320 || spaceBelow >= spaceAbove;
+            popup.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - 296))}px`;
             popup.style.top = fitsBelow ? `${below}px` : "";
             popup.style.bottom = fitsBelow ? "" : `${window.innerHeight - rect.top + 6}px`;
+            popup.style.setProperty("--menu-max", `${Math.max(120, Math.min(320, fitsBelow ? spaceBelow : spaceAbove))}px`);
           };
           // Each item runs with the range of the typed trigger, so it can replace it.
           const bind = (props: { items: MenuItem[]; editor: Editor; range: Range }) =>

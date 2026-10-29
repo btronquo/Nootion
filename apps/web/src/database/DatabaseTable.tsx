@@ -34,6 +34,8 @@ import { formatCalc, numberFormatOf, typeLabel } from "./format";
 import { useActiveView, useDatabase, useDatabaseActions, useDatabaseList } from "./hooks";
 import { ViewBar } from "./ViewBar";
 import { BoardView } from "./BoardView";
+import { RowCards } from "./RowCards";
+import { useIsMobile } from "../lib/mobile";
 import { OptionChip } from "./OptionPicker";
 import { useSession } from "../lib/session";
 import { pageTitle } from "../lib/tree";
@@ -126,6 +128,7 @@ export function TableView({
   const [showHidden, setShowHidden] = useState<HTMLElement | null>(null);
   const [widths, setWidths] = useState<Record<string, number>>({});
   const drag = useRef<string | null>(null);
+  const mobile = useIsMobile();
 
   const widthOf = (c: { prop: DatabaseProperty; col: ViewColumn }) => widths[c.prop.id] ?? c.col.width ?? (c.prop.type === "title" ? TITLE_WIDTH : DEFAULT_WIDTH);
 
@@ -225,7 +228,7 @@ export function TableView({
 
   const renderCalcs = (calcRows: DatabaseRow[]) =>
     (editable || Object.keys(view?.config.calculations ?? {}).length > 0) && (
-            <div role="row" aria-label="Calculs" className="group/calc flex">
+            <div role="row" aria-label={t("table.calculations")} className="group/calc flex">
               <div className={gutter} />
               {visible.map((c) => {
                 const fn = view?.config.calculations?.[c.prop.id];
@@ -252,6 +255,24 @@ export function TableView({
               })}
             </div>
           );
+
+  if (mobile) {
+    return (
+      <RowCards
+        data={data}
+        actions={actions}
+        view={view}
+        ctx={ctx}
+        rows={rows}
+        groups={groups}
+        groupProp={groupProp}
+        columns={visible}
+        editable={editable}
+        rowHref={rowHref}
+        fileUrl={fileUrl}
+      />
+    );
+  }
 
   return (
     <div className="text-sm">
@@ -330,7 +351,7 @@ export function TableView({
               const open = !collapsed.has(g.key);
               return (
                 <Fragment key={g.key}>
-                  <div role="row" aria-label={`Groupe ${g.label}`} className="flex items-center gap-1.5 border-b border-neutral-200 py-1.5 pl-1 dark:border-neutral-800">
+                  <div role="row" aria-label={t("table.group", { name: g.label })} className="flex items-center gap-1.5 border-b border-neutral-200 py-1.5 pl-1 dark:border-neutral-800">
                     <button
                       aria-label={open ? t("table.collapseGroup") : t("table.expandGroup")}
                       aria-expanded={open}

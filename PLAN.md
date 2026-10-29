@@ -93,7 +93,7 @@ No marketplace: plugins are installed on trust, as on any personal server. See [
 
 Three gaps that Notion and the self-hosted alternatives leave open.
 
-1. **Mobile app that edits, not just reads** (PWA). Installable from the browser (manifest, icons, service worker),
+1. **Mobile app that edits, not just reads** (PWA, done). Installable from the browser (manifest, icons, service worker),
    with a layout made for phones: sidebar as a drawer, a toolbar above the keyboard for the editor, the `/` menu
    and block actions usable by touch, database rows opened as cards instead of a wide table.
 2. **Offline and sync.** The app shell and recently opened pages stay available without a network. Page bodies are

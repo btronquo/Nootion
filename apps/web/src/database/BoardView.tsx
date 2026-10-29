@@ -21,7 +21,7 @@ import type { useDatabaseActions } from "./hooks";
 import { pageTitle } from "../lib/tree";
 import { t } from "@nootion/shared";
 
-const isEmpty = (v: CellValue | undefined) => v === null || v === undefined || v === "" || v === false || (Array.isArray(v) && !v.length);
+export const isEmpty = (v: CellValue | undefined) => v === null || v === undefined || v === "" || v === false || (Array.isArray(v) && !v.length);
 
 /** Picks the column a board is split by: the chosen one, or else the first select / checkbox / person column. */
 export function boardGroupProp(data: DatabaseData, view: DatabaseViewInfo): DatabaseProperty | undefined {
@@ -139,7 +139,7 @@ export function BoardView({
                       rollupTarget={data.rollupTargets[c.prop.id]}
                       rowHref={(id) => rowHref({ id } as DatabaseRow)}
                       onChange={() => {}}
-                      onCreateOption={() => Promise.reject(new Error("lecture seule"))}
+                      onCreateOption={() => Promise.reject(new Error("read-only"))}
                     />
                   </div>
                 ))}

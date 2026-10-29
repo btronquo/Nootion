@@ -110,7 +110,7 @@ function PageTreeItem({ node, depth, workspaceId, editable, all }: TreeProps & {
         onDrop={onDrop}
       >
         <button
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-800"
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-neutral-400 touch:h-8 touch:w-8 hover:bg-neutral-200 dark:hover:bg-neutral-800"
           onClick={() => setOpen(!open)}
           aria-label={open ? t("tree.collapse") : t("tree.expand")}
         >
@@ -119,14 +119,14 @@ function PageTreeItem({ node, depth, workspaceId, editable, all }: TreeProps & {
         <NavLink
           to={`/page/${page.id}`}
           className={({ isActive }) =>
-            `flex min-w-0 flex-1 items-center gap-1.5 rounded px-1 py-1 text-sm ${isActive ? "bg-neutral-200/80 font-medium dark:bg-neutral-800" : "hover:bg-neutral-200/50 dark:hover:bg-neutral-800/60"}`
+            `flex min-w-0 flex-1 items-center gap-1.5 rounded px-1 py-1 text-sm touch:py-2 ${isActive ? "bg-neutral-200/80 font-medium dark:bg-neutral-800" : "hover:bg-neutral-200/50 dark:hover:bg-neutral-800/60"}`
           }
         >
           <span className="w-4 shrink-0 text-center">{page.icon ?? (page.kind === "database" ? <Database size={14} className="inline text-neutral-400" /> : <FileText size={14} className="inline text-neutral-400" />)}</span>
           <span className="truncate">{pageTitle(page.title)}</span>
         </NavLink>
         {editable && (
-          <span className="hidden shrink-0 items-center group-hover:flex">
+          <span className="hidden shrink-0 items-center group-hover:flex touch:flex">
             <button className="rounded p-1 text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-800" onClick={trash} title={t("page.trash")}>
               <Trash2 size={13} />
             </button>

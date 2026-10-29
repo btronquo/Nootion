@@ -51,7 +51,7 @@ export const FileAttachment = Node.create({
   atom: true,
   draggable: true,
   addAttributes() {
-    return { url: { default: null }, name: { default: "fichier" }, size: { default: 0 }, mimeType: { default: "" } };
+    return { url: { default: null }, name: { default: "file" }, size: { default: 0 }, mimeType: { default: "" } };
   },
   parseHTML() {
     return [{ tag: "a[data-file]" }];

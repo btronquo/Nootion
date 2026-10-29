@@ -38,7 +38,7 @@ export function AdminPage() {
   });
 
   return (
-    <div className="mx-auto max-w-4xl space-y-10 px-8 py-12">
+    <div className="mx-auto max-w-4xl space-y-10 px-5 py-8 sm:px-8 sm:py-12">
       <h1 className="text-2xl font-bold">{t("admin.title")}</h1>
 
       <section>

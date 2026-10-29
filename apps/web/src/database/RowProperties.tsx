@@ -53,7 +53,7 @@ export function RowProperties({ databaseId, rowId }: { databaseId: string; rowId
         .filter((p) => p.type !== "title")
         .map((p) => (
           <div key={p.id} className="flex items-start gap-2">
-            <div className="flex w-40 shrink-0 items-center gap-1.5 truncate py-1.5 text-neutral-500">
+            <div className="flex w-32 shrink-0 sm:w-40 items-center gap-1.5 truncate py-1.5 text-neutral-500">
               <PropertyIcon type={p.type} size={14} /> <span className="truncate">{p.name}</span>
             </div>
             <div className="min-w-0 flex-1">
