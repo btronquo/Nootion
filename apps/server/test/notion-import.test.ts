@@ -52,7 +52,8 @@ describe("Notion import", () => {
     expect(status.connected).toBe(true);
     const report = status.job.report;
     expect(report).toMatchObject({ pages: 2, databases: 3, rows: 3, files: 2 });
-    expect(Object.keys(report.notes)).toEqual(expect.arrayContaining(["toggle", "columns", "table_of_contents"]));
+    expect(Object.keys(report.notes)).toEqual(expect.arrayContaining(["table_of_contents"]));
+    expect(Object.keys(report.notes)).not.toEqual(expect.arrayContaining(["toggle"]));
     expect(report.formulas).toEqual([expect.objectContaining({ database: "Tasks", name: "Weird" })]);
 
     const all = await tree();
@@ -86,6 +87,10 @@ describe("Notion import", () => {
       "image",
       "table",
       "databaseBlock",
+      "details",
+      "detailsSummary",
+      "columns",
+      "column",
     ])
       expect(kinds).toContain(k);
     const json = JSON.stringify(doc);
@@ -93,6 +98,15 @@ describe("Notion import", () => {
     expect(json).toContain(`"pageId":"${byTitle("Tasks").id}"`);
     expect(json).toMatch(/"src":"\/api\/attachments\//);
     expect(json).toContain('"checked":true');
+    // Toggles, with a heading toggle keeping its level, and columns side by side.
+    const toggles = doc.content!.filter((n) => n.type === "details");
+    expect(toggles.map((n) => [n.attrs?.level ?? null, n.content![0]!.content![0]!.text])).toEqual([
+      [null, "More"],
+      [2, "Folded"],
+    ]);
+    expect(JSON.stringify(toggles[1])).toContain("Under the heading");
+    const columns = doc.content!.find((n) => n.type === "columns")!;
+    expect(columns.content!.map((c) => c.content![0]!.content![0]!.text)).toEqual(["Left", "Right"]);
     expect(json).toContain("https://example.org/doc.pdf");
     // The nested list item stays nested.
     const list = doc.content!.find((n) => n.type === "bulletList")!;
