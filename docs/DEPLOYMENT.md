@@ -20,7 +20,7 @@ The admin can also download a full backup from **Administration › Backup** (a 
 
 | Variable | Required | Description |
 |---|---|---|
-| `APP_URL` | yes | Address typed in the browser, without a trailing `/` (e.g. `http://192.168.1.10:3000` or `https://notes.example.com`). Used for invitation links and CSRF protection: always open Nootion at this address. |
+| `APP_URL` | yes | Address typed in the browser, without a trailing `/` (e.g. `http://<yourLocalIp>:3000` or `https://mynootion.example.com`). Used for invitation links and CSRF protection: always open Nootion at this address. |
 | `APP_SECRET` | yes | Random string of at least 16 characters (`openssl rand -hex 32`). Generate it once and never change it: it encrypts the passwords stored in plugin settings. |
 | `TZ` | no | Time zone (e.g. `Europe/Paris`). |
 | `PORT` | no | Port the server listens on inside the container (default `3000`). To change the port on the host, change `ports:` instead. |
