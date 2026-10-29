@@ -110,7 +110,8 @@ docs/            Documentation (deployment, plugins)
 
 ## Contributing
 
-Bug reports, ideas and pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md).
+Bug reports and ideas are welcome in the issues. Nootion doesn't accept code contributions (pull requests):
+see [CONTRIBUTING.md](CONTRIBUTING.md).
 For a security issue: [SECURITY.md](SECURITY.md).
 
 ## License

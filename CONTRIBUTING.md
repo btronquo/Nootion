@@ -1,6 +1,9 @@
 # Contributing to Nootion
 
-Thanks for your interest! Bug reports, ideas and pull requests are welcome.
+Thanks for your interest! Nootion is open source, but **not open to code contributions**: pull requests
+are not accepted and will be closed. This keeps the project in the hands of a single author, who stays free to
+decide its future. Bug reports, ideas and feedback are very welcome, and so is forking it under the terms of
+the [AGPL-3.0](LICENSE).
 
 ## Reporting a bug or suggesting an idea
 
@@ -9,7 +12,7 @@ your setup and the steps to reproduce it.
 
 For a security issue, don't open a public issue: see [SECURITY.md](SECURITY.md).
 
-## Setting up
+## Building it yourself
 
 Requirements: Node.js 22 and pnpm 10 (`corepack enable`).
 
@@ -32,18 +35,9 @@ apps/server/plugins  Plugins that ship with the app (see docs/PLUGINS.md)
 After changing `apps/server/src/db/schema.ts`, create the migration with
 `pnpm --filter @nootion/server db:generate`. Migrations are applied at startup.
 
-## Proposing a change
-
-1. For a large change, open an issue first to discuss it.
-2. Create a branch and keep the pull request focused on one topic.
-3. Add tests when you can, especially for access rights (`permissions.ts`):
-   every route that reads or changes a page must check the user's role on the server.
-4. Make sure `pnpm typecheck` and `pnpm test` pass (CI runs them again).
-5. Add a line to [CHANGELOG.md](CHANGELOG.md) under an "Unreleased" section.
-
-Code, comments and documentation are in English.
-
 ## Translations
+
+To ask for a new language, open an issue. For reference, here is how the interface texts work:
 
 Every text shown to users goes through `t("key")` (from `@nootion/shared`), never a literal string.
 The catalogues live in `packages/shared/src/i18n/`:
@@ -58,4 +52,4 @@ and the catalogues in `packages/shared/src/i18n/index.ts` (and Zod's locale in `
 
 ## License
 
-By contributing, you agree that your contribution is published under the [AGPL-3.0](LICENSE) license.
+Nootion is published under the [AGPL-3.0](LICENSE) license.
