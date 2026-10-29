@@ -11,21 +11,24 @@ import {
   type PageSummary,
   type PublicLinkInfo,
 } from "@nootion/shared";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
+import { z } from "zod";
 import { newToken } from "../auth/tokens.js";
 import { attachments, pagePermissions, pages, publicLinks, users, workspaceMembers } from "../db/schema.js";
 import { HttpError, notFound, parseBody, requireUser } from "../http.js";
 import {
   CAN_CREATE_ROOT_PAGES,
   getChain,
+  getPageRole,
   getWorkspaceRole,
   isTrashed,
   requirePageRole,
   requireWorkspaceRole,
 } from "../permissions.js";
-import { breadcrumbFor, getPageMeta, notRow, pageMeta, listDescendants, nextPosition, placeAmongSiblings, toDetail, toSummary } from "../pages.js";
+import { breadcrumbFor, getPageMeta, notRow, pageMeta, listDescendants, nextPosition, placeAmongSiblings, sortPages, toDetail, toSummary } from "../pages.js";
 import { t } from "@nootion/shared";
 import { homePageOf, recordVisit } from "../home.js";
+import { copyTree } from "../templates.js";
 
 export const pageRoutes: FastifyPluginAsync = async (app) => {
   const db = app.db;
@@ -90,6 +93,37 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     return { pages: result };
   });
 
+  // Page templates the user can read, in all their spaces.
+  app.get("/templates", async (req) => {
+    const user = requireUser(req);
+    const rows = db
+      .select(pageMeta)
+      .from(pages)
+      .where(and(eq(pages.template, true), eq(pages.kind, "page"), isNull(pages.deletedAt)))
+      .all();
+    return { pages: sortPages(rows.filter((p) => getPageRole(db, user.id, p.id))).map(toSummary) };
+  });
+
+  // Fills a page with a copy of a template: its content, cover and icon, and its subpages and databases.
+  app.post<{ Params: { id: string } }>("/:id/apply-template", async (req) => {
+    const user = requireUser(req);
+    const { templateId } = parseBody(z.object({ templateId: z.string().min(1) }), req.body);
+    const { page, chain } = requirePageRole(db, user.id, req.params.id, "editor");
+    const { page: template } = requirePageRole(db, user.id, templateId, "viewer");
+    if (page.kind !== "page" || !template.template || template.kind !== "page" || chain.some((c) => c.id === template.id)) {
+      throw new HttpError(400, "bad_template", t("error.badTemplate"));
+    }
+    await copyTree(
+      db,
+      app.collab,
+      app.config.dataDir,
+      template.id,
+      { workspaceId: page.workspaceId, parentId: page.id, position: 0, userId: user.id },
+      { pageId: page.id, title: page.title, icon: page.icon, cover: page.cover },
+    );
+    return { ok: true };
+  });
+
   app.get<{ Params: { id: string } }>("/:id", async (req) => {
     const user = requireUser(req);
     const { page, chain, role } = requirePageRole(db, user.id, req.params.id, "viewer");
@@ -114,7 +148,8 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
   app.patch<{ Params: { id: string } }>("/:id", async (req) => {
     const user = requireUser(req);
     const input = parseBody(updatePageInput, req.body);
-    requirePageRole(db, user.id, req.params.id, "editor");
+    const { page: current } = requirePageRole(db, user.id, req.params.id, "editor");
+    if (input.template !== undefined && current.kind !== "page") throw new HttpError(400, "not_a_page", t("error.templateKind"));
     // An uploaded cover must be a file of this page: its access follows the page's.
     const coverFile = input.cover?.match(/^\/api\/attachments\/(.+)$/)?.[1];
     if (coverFile && db.select({ pageId: attachments.pageId }).from(attachments).where(eq(attachments.id, coverFile)).get()?.pageId !== req.params.id) {

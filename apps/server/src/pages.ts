@@ -21,6 +21,7 @@ export function toDetail(p: PageMeta, role: PageRole, breadcrumb: PageDetail["br
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
     home,
+    template: p.template,
   };
 }
 
@@ -70,6 +71,8 @@ export const pageMeta = {
   updatedAt: pages.updatedAt,
   deletedAt: pages.deletedAt,
   deletedBy: pages.deletedBy,
+  template: pages.template,
+  defaultTemplateId: pages.defaultTemplateId,
 };
 export type PageMeta = Omit<PageRow, "contentState" | "contentJson" | "contentText" | "props">;
 
