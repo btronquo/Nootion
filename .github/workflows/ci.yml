@@ -1,4 +1,4 @@
-# Checks the code, then publishes the Docker image to the GitHub registry (ghcr.io/<owner>/<repository>).
+# Checks the code, then publishes the Docker image to the GitHub registry (ghcr.io/btronquo/nootion: the action lowercases the repository name).
 #   - pull request     -> tests only
 #   - push to main     -> tags "main" and "main-<commit>"
 #   - git tag "v1.2.3" -> tags "1.2.3", "1.2" and "latest"

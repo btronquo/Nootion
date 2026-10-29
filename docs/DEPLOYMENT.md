@@ -35,7 +35,7 @@ Also check its upload size limit (`client_max_body_size` in Nginx) for attached 
 A prebuilt image will be published with the first public release; until then, the image is built from the source code.
 
 ```bash
-git clone <repository-url> nootion
+git clone https://github.com/btronquo/Nootion.git nootion
 cd nootion
 # Edit APP_URL and APP_SECRET in docker-compose.yml, then:
 docker compose up -d --build
@@ -114,7 +114,7 @@ Notion allows about three requests per second, so a large workspace takes a few 
 
 ## Publishing a new version of the image
 
-[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) publishes the image to GitHub's registry (ghcr.io, no setup
+[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) publishes the image to GitHub's registry as `ghcr.io/btronquo/nootion` (no setup
 needed: it uses the token provided by GitHub Actions); [`.gitlab-ci.yml`](../.gitlab-ci.yml) does the same on GitLab. They run the tests, then build and publish the image:
 
 - on every push to the default branch: tags `main` and `main-<commit>` (to try the latest development version);

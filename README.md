@@ -71,7 +71,7 @@ The interface is available in English and French; each user picks their language
 ## Getting started
 
 ```bash
-git clone <repository-url> nootion && cd nootion
+git clone https://github.com/btronquo/Nootion.git nootion && cd nootion
 # Set APP_URL and APP_SECRET in docker-compose.yml, then:
 docker compose up -d --build
 ```
