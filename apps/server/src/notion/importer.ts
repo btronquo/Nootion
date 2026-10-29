@@ -46,6 +46,8 @@ export interface ImportOptions {
   parentId: string | null;
   userId: string;
   job: ImportJob;
+  /** Progress lines for the server's log. */
+  log?: (message: string, data?: Record<string, unknown>) => void;
 }
 
 type Item = { kind: "page"; page: NotionPage } | { kind: "database"; database: NotionDatabase } | { kind: "row"; page: NotionPage; databaseId: string };
@@ -130,7 +132,11 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
   const { db, client, job } = o;
   const report = job.report;
   const note = (what: string) => (report.notes[what] = (report.notes[what] ?? 0) + 1);
-  const step = (phase: string, total: number) => Object.assign(job, { phase, done: 0, total });
+  const log = o.log ?? (() => {});
+  const step = (phase: string, total: number) => {
+    log(`Notion import: ${phase}`, { total });
+    Object.assign(job, { phase, done: 0, total });
+  };
 
   // --- 1. What the integration can see ---------------------------------------------------------
   step("discover", 0);
@@ -140,12 +146,14 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
     if (x.object === "database") items.set(normId(x.id), { kind: "database", database: x });
     else if (x.parent.type !== "database_id") items.set(normId(x.id), { kind: "page", page: x });
   }
+  log("Notion import: shared with the integration", { found: found.length, items: items.size });
   // Rows come from their database, in its order (search doesn't return rows of databases it can't see anyway).
   const rowsByDb = new Map<string, NotionPage[]>();
   const databases = [...items.values()].filter((i): i is Extract<Item, { kind: "database" }> => i.kind === "database");
   step("databases", databases.length);
   for (const { database } of databases) {
-    const rows = (await client.queryDatabase(database.id)).filter((r) => !r.archived && !r.in_trash);
+    // Wikis and nested databases can list databases among their entries: those come from the search.
+    const rows = (await client.queryDatabase(database.id)).filter((r) => r.object === "page" && !r.archived && !r.in_trash);
     rowsByDb.set(normId(database.id), rows);
     for (const row of rows) items.set(normId(row.id), { kind: "row", page: row, databaseId: normId(database.id) });
     job.done++;
@@ -212,6 +220,13 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
   const parents = new Map<string, string | null>();
   for (const [id, item] of items)
     parents.set(id, item.kind === "row" ? item.databaseId : await parentOf(item.kind === "database" ? item.database.parent : item.page.parent));
+  // Only rows live inside a database: a page or database placed in one (a wiki) goes next to it.
+  for (const [id, item] of items) {
+    if (item.kind === "row") continue;
+    let p = parents.get(id) ?? null;
+    for (let hops = 0; p && items.get(p)?.kind === "database" && hops < 100; hops++) p = parents.get(p) ?? null;
+    parents.set(id, p);
+  }
   const depth = (id: string): number => {
     let d = 0;
     for (let p = parents.get(id); p && d < 100; p = parents.get(p)) d++;

@@ -30,6 +30,7 @@ export const IDS = {
   task2: "55555555-5555-5555-5555-555555555552",
   house: "66666666-6666-6666-6666-666666666666",
   ada: "77777777-7777-7777-7777-777777777777",
+  wiki: "88888888-8888-8888-8888-888888888888",
 };
 
 const titleProp = (text: string) => ({ id: "title", type: "title", title: [rt(text)] });
@@ -175,6 +176,10 @@ export function fakeNotion() {
     }),
   ];
 
+  // A database inside the Tasks database (as in Notion's wikis): listed by its query too.
+  const wiki = () =>
+    database(IDS.wiki, { type: "database_id", database_id: IDS.tasks }, "Glossary", { Term: { id: "title", name: "Term", type: "title", title: {} } }, false);
+
   let base = "";
   const homeBlocks = () => [
     block("b1", "heading_1", { rich_text: [rt("Welcome")] }),
@@ -256,6 +261,7 @@ export function fakeNotion() {
             page(IDS.notes, { type: "page_id", page_id: IDS.home }, "Notes", notesEdited, { type: "external", external: { url: "https://x/i.png" } }),
             database(IDS.tasks, { type: "page_id", page_id: IDS.home }, "Tasks", tasksSchema, true),
             database(IDS.projects, { type: "workspace", workspace: true }, "Projects", projectsSchema, false),
+            wiki(),
             ...tasksRows(),
           ],
           cursor,
@@ -263,7 +269,7 @@ export function fakeNotion() {
       );
     }
     let m = /^\/v1\/databases\/([^/]+)\/query$/.exec(p);
-    if (m) return send(200, list(m[1] === IDS.tasks ? tasksRows() : projectRows(), cursor));
+    if (m) return send(200, list(m[1] === IDS.tasks ? [...tasksRows(), wiki()] : m[1] === IDS.wiki ? [] : projectRows(), cursor));
     m = /^\/v1\/blocks\/([^/]+)\/children$/.exec(p);
     if (m) return send(200, list(blocksOf(m[1]!).map(strip), cursor));
     m = /^\/v1\/pages\/([^/]+)\/properties\/([^/]+)$/.exec(p);

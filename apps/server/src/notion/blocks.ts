@@ -21,7 +21,7 @@ const paragraph = (content: ProseMirrorNode[] = []): ProseMirrorNode => (content
 /** Notion's rich text as inline nodes: marks, links, and mentions of pages turned into links to the imported pages. */
 export function richText(items: RichText[] | undefined, ctx: Pick<ConvertContext, "pageFor" | "note">): ProseMirrorNode[] {
   const out: ProseMirrorNode[] = [];
-  for (const item of items ?? []) {
+  for (const item of Array.isArray(items) ? items : []) {
     const a = item.annotations ?? { bold: false, italic: false, strikethrough: false, underline: false, code: false, color: "default" };
     const marks: Mark[] = [];
     if (a.bold) marks.push({ type: "bold" });
@@ -57,7 +57,7 @@ export function richText(items: RichText[] | undefined, ctx: Pick<ConvertContext
 }
 
 /** Plain text of rich text (database cells, titles). */
-export const plainText = (items: RichText[] | undefined) => (items ?? []).map((i) => i.plain_text).join("");
+export const plainText = (items: RichText[] | undefined) => (Array.isArray(items) ? items.map((i) => i.plain_text ?? "").join("") : "");
 
 const fileUrl = (f: NotionFile | undefined) => (f?.type === "file" ? f.file?.url : f?.external?.url) ?? "";
 
