@@ -10,6 +10,10 @@ export interface Config {
   webDir: string | null;
   isProduction: boolean;
   maxUploadMb: number;
+  /** Notion's API, for imports. Changed in tests only. */
+  notionApiUrl: string;
+  /** Pause between two requests to Notion (it allows about 3 per second). */
+  notionRequestInterval: number;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -28,5 +32,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     webDir: env.WEB_DIR ? path.resolve(env.WEB_DIR) : null,
     isProduction,
     maxUploadMb: Number(env.MAX_UPLOAD_MB ?? 50),
+    notionRequestInterval: Number(env.NOTION_REQUEST_INTERVAL ?? 340),
+    notionApiUrl: (env.NOTION_API_URL ?? "https://api.notion.com").replace(/\/+$/, ""),
   };
 }

@@ -27,6 +27,7 @@ import { userRoutes } from "./routes/users.js";
 import { publicRoutes } from "./routes/public.js";
 import { pluginAdminRoutes, pluginRoutes } from "./routes/plugins.js";
 import { exportRoutes } from "./routes/export.js";
+import { notionRoutes } from "./routes/notion.js";
 import { searchRoutes } from "./routes/search.js";
 import { builtinPluginsDir, PluginManager } from "./plugins.js";
 
@@ -116,6 +117,7 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean 
   await app.register(databaseRoutes, { prefix: "/api/databases" });
   await app.register(exportRoutes, { prefix: "/api" });
   await app.register(searchRoutes, { prefix: "/api/search" });
+  await app.register(notionRoutes, { prefix: "/api/import/notion" });
   const pluginManager = new PluginManager(opts.db, {
     dirs: [
       { path: builtinPluginsDir(), builtin: true },

@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import { decryptSecret, encryptSecret, secretKey } from "./secrets.js";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -87,7 +87,6 @@ interface Installed {
   error: string | null;
 }
 
-const ENC_PREFIX = "enc:v1:";
 
 export class PluginManager {
   private installed = new Map<string, Installed>();
@@ -99,7 +98,7 @@ export class PluginManager {
     private db: Db,
     private opts: { dirs: { path: string; builtin: boolean }[]; dataDir: string; appSecret: string; log: FastifyBaseLogger },
   ) {
-    this.key = createHash("sha256").update(`nootion-plugin-settings:${opts.appSecret}`).digest();
+    this.key = secretKey(opts.appSecret, "nootion-plugin-settings");
   }
 
   /** Reads every manifest, then starts the enabled plugins. */
@@ -150,22 +149,11 @@ export class PluginManager {
   // --- Settings ---------------------------------------------------------------------------------
 
   private encrypt(value: string): string {
-    const iv = randomBytes(12);
-    const c = createCipheriv("aes-256-gcm", this.key, iv);
-    const data = Buffer.concat([c.update(value, "utf8"), c.final()]);
-    return ENC_PREFIX + Buffer.concat([iv, c.getAuthTag(), data]).toString("base64");
+    return encryptSecret(this.key, value);
   }
 
   private decrypt(value: string): string | null {
-    try {
-      const raw = Buffer.from(value.slice(ENC_PREFIX.length), "base64");
-      const d = createDecipheriv("aes-256-gcm", this.key, raw.subarray(0, 12));
-      d.setAuthTag(raw.subarray(12, 28));
-      return Buffer.concat([d.update(raw.subarray(28)), d.final()]).toString("utf8");
-    } catch {
-      // APP_SECRET changed: the password has to be typed again.
-      return null;
-    }
+    return decryptSecret(this.key, value);
   }
 
   /** Setting values with defaults filled in and passwords decrypted. */

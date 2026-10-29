@@ -42,6 +42,8 @@ and can change it in **My account**.
   database rows as cards. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#installing-the-app-on-a-phone-or-computer).
 - Works offline: pages already opened stay readable and editable, and changes sync when the connection comes back
   (page content is merged with others' changes, database cells are sent in order).
+- Import from Notion through its API: pages, databases with their columns, relations, rollups and formulas, files
+  and links between pages, with a report of what was imported differently. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#importing-from-notion).
 - "My account" page: name, email, password, profile picture, language, light / dark / system theme.
 - "Full width" option per page.
 - Single Docker image (amd64 and arm64), data in `/data`.

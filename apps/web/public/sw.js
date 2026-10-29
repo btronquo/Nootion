@@ -7,7 +7,7 @@ const CACHE = "nootion-shell-v1";
 // Cleared by the app at sign-out and when another account signs in.
 const API_CACHE = "nootion-api";
 // Downloads and answers that depend on what is typed are never kept.
-const NOT_KEPT = /^\/api\/(health|search|auth\/(?!me$)|admin\/backup)|\/export(\/|$|\?)/;
+const NOT_KEPT = /^\/api\/(health|search|auth\/(?!me$)|admin\/backup|import\/)|\/export(\/|$|\?)/;
 
 self.addEventListener("install", () => self.skipWaiting());
 

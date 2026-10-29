@@ -100,8 +100,8 @@ Three gaps that Notion and the self-hosted alternatives leave open.
    already Yjs documents: they are kept in IndexedDB, edited offline and merged with no conflict when the connection
    comes back. Database changes made offline go into a queue replayed in order, with a clear rule when a row was
    changed on both sides (last write wins per cell; changes the server refuses are shown to the user). An indicator shows what is waiting to sync.
-3. **Lossless import from Notion.** Through the Notion API (an integration token), not the Markdown export:
-   page tree, icons and covers, blocks, databases with their property types, select options, relations, rollups
+3. **Lossless import from Notion** (done). Through the Notion API (an integration token), not the Markdown export:
+   page tree, emoji icons, blocks, databases with their property types, select options, relations, rollups
    and formulas (translated to Nootion's formula language, with a report of what could not be converted),
    attachments and links between pages. Notion's API does not expose views, so views are recreated as a default
    table view. The import can run again to bring in what changed.

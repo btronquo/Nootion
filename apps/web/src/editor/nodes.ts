@@ -2,7 +2,7 @@ import { mergeAttributes, Node } from "@tiptap/core";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import { PageLinkView } from "./PageLinkView";
 import { DatabaseBlockView } from "../database/DatabaseBlockView";
-import { t } from "@nootion/shared";
+import { intlLocale, t } from "@nootion/shared";
 
 declare module "@tiptap/core" {
   interface Commands<ReturnType> {
@@ -39,9 +39,8 @@ export const Callout = Node.create({
 });
 
 export function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} o`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} Ko`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} Mo`;
+  const [value, unit, digits] = bytes < 1024 ? [bytes, "byte", 0] : bytes < 1024 * 1024 ? [bytes / 1024, "kilobyte", 0] : [bytes / 1024 / 1024, "megabyte", 1];
+  return new Intl.NumberFormat(intlLocale(), { style: "unit", unit, unitDisplay: "short", maximumFractionDigits: digits }).format(value);
 }
 
 /** A downloadable file (PDF of an invoice, etc.). */

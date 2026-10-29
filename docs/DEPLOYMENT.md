@@ -126,6 +126,39 @@ Pages and databases already opened on a device stay available without network, i
   (for example a row deleted meanwhile).
 - Signing out removes everything kept on the device for that account.
 
+## Importing from Notion
+
+The *Import from Notion* link at the bottom of the sidebar copies a Notion workspace into a Nootion space
+(the personal space or a shared space you can edit). It reads Notion through its API, so the server needs
+internet access to `api.notion.com` and to Notion's file storage.
+
+1. In Notion, open *Settings › Connections › Develop or manage integrations* and create an **internal** integration.
+   In its capabilities, allow reading content and reading user information **with email addresses**.
+2. On each top-level page to import, open the **•••** menu › *Connections* and add the integration: its subpages
+   and databases follow.
+3. Copy the integration's secret, paste it on the import screen and start the import. It runs on the server:
+   the screen can be closed meanwhile.
+
+What is imported:
+
+- the page tree, emoji icons and page content: text formatting, headings, lists, to-dos, quotes, callouts, code,
+  tables, dividers, images and files (copied to Nootion), bookmarks, mentions and links between pages;
+- databases (inline or full page) with their columns, select and status options, number formats, rows and the content
+  of rows, people (matched to Nootion accounts by email), two-way relations, rollups and formulas, translated to
+  Nootion's formula language.
+
+What is not, or differently:
+
+- Notion's API doesn't give the views: each database gets a table view.
+- Formulas using what Nootion's formulas don't have (lists, `map`, `let`…) keep their values in a text column.
+- Toggles are shown open, columns are put one under the other, comments, covers, image icons and page history are left out.
+
+The report at the end lists these cases. **Importing again** uses the saved secret: pages and rows changed in Notion
+since the last import are updated (their content is replaced, edits made in Nootion included), the others are left
+as they are, and nothing is duplicated. *Forget the secret* removes it from the server; what was imported stays.
+
+Notion allows about three requests per second, so a large workspace takes a few minutes.
+
 ## Publishing a new version of the image
 
 Two pipelines do the same job, each on its own registry: [`.gitlab-ci.yml`](../.gitlab-ci.yml) for GitLab and
