@@ -114,7 +114,7 @@ What makes everyday use comfortable, in this order (quick wins first, then what 
    reorderable by drag and drop. Also in the mobile drawer.
 2. **Cover images** (done). A cover at the top of a page (uploaded image or link, a few built-in gradients),
    repositioned by dragging, shown on public pages. The Notion import brings covers in.
-3. **Toggles and columns.** Collapsible blocks (and toggle headings) and side-by-side columns in the editor.
+3. **Toggles and columns** (done). Collapsible blocks (and toggle headings) and side-by-side columns in the editor.
    They are the two blocks the Notion import can't render as they are today.
 4. **New database views**, next to table and board, each with its own filters, sorts and properties shown:
    - *Calendar*: rows placed on a date property, month and week, drag a row to change its date, click a day to add one;
