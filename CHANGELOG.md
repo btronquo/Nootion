@@ -10,6 +10,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Favorites: a star in each page's header adds the page to a "Favorites" section at the top of the sidebar
   (also in the phone drawer). Favorites are per user, reordered by drag and drop, and a page dragged from a tree
   onto the section is starred. Pages in the trash or no longer shared with the user are hidden from the list.
+- Cover images: a banner at the top of a page or database, from an uploaded image, an image link or one of six
+  built-in gradients. Images are repositioned by dragging them up or down. Covers show on public links, and the
+  Notion import brings them in (Notion's own files are copied, links are kept).
 
 ## [1.1.0] - 2026-10-29
 

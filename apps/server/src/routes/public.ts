@@ -81,6 +81,8 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
       ...toSummary(p),
       updatedAt: p.updatedAt.toISOString(),
       fullWidth: p.fullWidth,
+      cover: p.cover?.replace(/^\/api\/attachments\//, `/api/public/${link.token}/attachments/`) ?? null,
+      coverPosition: p.coverPosition,
       content: p.contentJson ? sanitize(link, p.contentJson as ProseMirrorNode) : null,
       row,
     };

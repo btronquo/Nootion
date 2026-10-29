@@ -112,7 +112,7 @@ What makes everyday use comfortable, in this order (quick wins first, then what 
 
 1. **Favorites** (done). A star on each page and database; a "Favorites" section at the top of the sidebar, per user,
    reorderable by drag and drop. Also in the mobile drawer.
-2. **Cover images.** A cover at the top of a page (uploaded image or link, a few built-in gradients),
+2. **Cover images** (done). A cover at the top of a page (uploaded image or link, a few built-in gradients),
    repositioned by dragging, shown on public pages. The Notion import brings covers in.
 3. **Toggles and columns.** Collapsible blocks (and toggle headings) and side-by-side columns in the editor.
    They are the two blocks the Notion import can't render as they are today.

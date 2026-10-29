@@ -139,7 +139,7 @@ What is not, or differently:
 
 - Notion's API doesn't give the views: each database gets a table view.
 - Formulas using what Nootion's formulas don't have (lists, `map`, `let`…) keep their values in a text column.
-- Toggles are shown open, columns are put one under the other, comments, covers, image icons and page history are left out.
+- Toggles are shown open, columns are put one under the other, comments, image icons and page history are left out. Covers are copied.
 
 The report at the end lists these cases. **Importing again** uses the saved secret: pages and rows changed in Notion
 since the last import are updated (their content is replaced, edits made in Nootion included), the others are left
