@@ -9,7 +9,9 @@ import {
   initialValues,
   type DatabaseViewInfo,
   type ViewContext,
-  CALC_LABELS,
+  calcLabel,
+  t,
+  type MessageKey,
   calcFunctionsFor,
   computeCalc,
   formulaCalcInput,
@@ -28,7 +30,7 @@ import { PropertyMenu } from "./PropertyMenu";
 import { PropertyIcon } from "./icons";
 import { Popover } from "./Popover";
 import { newOption } from "./OptionPicker";
-import { formatCalc, numberFormatOf, TYPE_LABELS } from "./format";
+import { formatCalc, numberFormatOf, typeLabel } from "./format";
 import { useActiveView, useDatabase, useDatabaseActions, useDatabaseList } from "./hooks";
 import { ViewBar } from "./ViewBar";
 import { BoardView } from "./BoardView";
@@ -44,8 +46,8 @@ const TITLE_WIDTH = 260;
 export function DatabaseTable({ id, compact }: { id: string; compact?: boolean }) {
   const db = useDatabase(id);
   const actions = useDatabaseActions(id);
-  if (db.isLoading) return <div className="py-4 text-sm text-neutral-400">Chargement…</div>;
-  if (db.isError || !db.data) return <div className="py-4 text-sm text-neutral-500">Base de données introuvable ou non partagée.</div>;
+  if (db.isLoading) return <div className="py-4 text-sm text-neutral-400">{t("common.loading")}</div>;
+  if (db.isError || !db.data) return <div className="py-4 text-sm text-neutral-500">{t("database.notFound")}</div>;
   return <DatabaseViews data={db.data} actions={actions} compact={compact} rowHref={(r) => `/page/${r.id}`} />;
 }
 
@@ -177,7 +179,7 @@ export function TableView({
                 {editable && (
                   <input
                     type="checkbox"
-                    aria-label="Sélectionner la ligne"
+                    aria-label={t("table.selectRow")}
                     className={`h-3.5 w-3.5 accent-blue-600 ${selected.has(row.id) ? "" : "opacity-0 group-hover:opacity-60"}`}
                     checked={selected.has(row.id)}
                     onChange={() =>
@@ -209,11 +211,11 @@ export function TableView({
                   {c.prop.type === "title" && (
                     <Link
                       to={rowHref(row)}
-                      title="Ouvrir"
-                      aria-label={`Ouvrir ${row.title || "Sans titre"}`}
+                      title={t("common.open")}
+                      aria-label={t("table.openRow", { title: row.title || t("common.untitled") })}
                       className="absolute right-1 top-1.5 z-[5] flex items-center gap-1 rounded border border-neutral-200 bg-white px-1.5 py-0.5 text-xs text-neutral-500 opacity-0 hover:bg-neutral-100 group-hover:opacity-100 dark:border-neutral-700 dark:bg-neutral-900"
                     >
-                      <Maximize2 size={11} /> Ouvrir
+                      <Maximize2 size={11} /> {t("common.open")}
                     </Link>
                   )}
                 </div>
@@ -233,17 +235,17 @@ export function TableView({
                     key={c.prop.id}
                     style={{ width: widthOf(c) }}
                     disabled={!editable}
-                    aria-label={`Calcul de ${c.prop.name}`}
+                    aria-label={t("table.calcOf", { name: c.prop.name })}
                     onClick={(e) => setCalcMenu({ propId: c.prop.id, anchor: e.currentTarget })}
                     className="flex shrink-0 items-center justify-end gap-1 truncate px-2 py-1.5 text-xs text-neutral-500 enabled:hover:bg-neutral-100 dark:enabled:hover:bg-neutral-800"
                   >
                     {fn ? (
                       <>
-                        <span className="truncate text-neutral-400">{CALC_SHORT[fn]}</span>
+                        <span className="truncate text-neutral-400">{calcShort(fn)}</span>
                         <span className="font-medium tabular-nums text-neutral-800 dark:text-neutral-200">{result ? formatCalc(result, calcFormatProp(data, c.prop)) : "—"}</span>
                       </>
                     ) : (
-                      <span className="opacity-0 group-hover/calc:opacity-100">Calculer</span>
+                      <span className="opacity-0 group-hover/calc:opacity-100">{t("table.calculate")}</span>
                     )}
                   </button>
                 );
@@ -255,28 +257,28 @@ export function TableView({
     <div className="text-sm">
       {editable && selected.size > 0 && (
         <div className="mb-1 flex items-center gap-2 text-neutral-600 dark:text-neutral-300">
-          <span>{selected.size} sélectionnée{selected.size > 1 ? "s" : ""}</span>
+          <span>{t("table.selected", { count: selected.size })}</span>
           <button
             onClick={() => {
-              if (!confirm(`Mettre ${selected.size} ligne${selected.size > 1 ? "s" : ""} à la corbeille ?`)) return;
+              if (!confirm(t("table.confirmTrash", { count: selected.size }))) return;
               actions!.deleteRows.mutate([...selected]);
               setSelected(new Set());
             }}
             className="flex items-center gap-1 rounded px-2 py-0.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
           >
-            <Trash2 size={14} /> Supprimer
+            <Trash2 size={14} /> {t("common.delete")}
           </button>
         </div>
       )}
       <div className={`thin-scroll overflow-x-auto ${compact ? "" : "pb-2"}`}>
-        <div role="grid" aria-label={data.title || "Base de données"} className="inline-block min-w-full align-top">
+        <div role="grid" aria-label={data.title || t("common.database")} className="inline-block min-w-full align-top">
           {/* Header */}
           <div role="row" className="flex border-y border-neutral-200 text-neutral-500 dark:border-neutral-800">
             <div className={`${gutter} flex items-center justify-center`}>
               {editable && (
                 <input
                   type="checkbox"
-                  aria-label="Tout sélectionner"
+                  aria-label={t("table.selectAll")}
                   className="h-3.5 w-3.5 accent-blue-600 opacity-40 hover:opacity-100 checked:opacity-100"
                   checked={allSelected}
                   onChange={() => setSelected(allSelected ? new Set() : new Set(rows.map((r) => r.id)))}
@@ -312,13 +314,13 @@ export function TableView({
               </div>
             ))}
             {editable && (
-              <button aria-label="Ajouter une propriété" onClick={(e) => setAdding(e.currentTarget)} className="flex w-10 shrink-0 items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800">
+              <button aria-label={t("table.addProperty")} onClick={(e) => setAdding(e.currentTarget)} className="flex w-10 shrink-0 items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800">
                 <Plus size={16} />
               </button>
             )}
             {hidden.length > 0 && (
               <button onClick={(e) => setShowHidden(e.currentTarget)} className="shrink-0 px-2 text-xs hover:text-neutral-800 dark:hover:text-neutral-200">
-                {hidden.length} masquée{hidden.length > 1 ? "s" : ""}
+                {t("table.hidden", { count: hidden.length })}
               </button>
             )}
           </div>
@@ -330,7 +332,7 @@ export function TableView({
                 <Fragment key={g.key}>
                   <div role="row" aria-label={`Groupe ${g.label}`} className="flex items-center gap-1.5 border-b border-neutral-200 py-1.5 pl-1 dark:border-neutral-800">
                     <button
-                      aria-label={open ? "Replier le groupe" : "Déplier le groupe"}
+                      aria-label={open ? t("table.collapseGroup") : t("table.expandGroup")}
                       aria-expanded={open}
                       onClick={() => toggleGroup(g.key)}
                       disabled={!actions}
@@ -347,7 +349,7 @@ export function TableView({
                       onClick={() => addRow({ prop: groupProp!, key: g.key })}
                       className="sticky left-0 flex items-center gap-1.5 px-2 py-1 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
                     >
-                      <Plus size={14} /> Nouvelle ligne
+                      <Plus size={14} /> {t("table.newRow")}
                     </button>
                   )}
                   {open && renderCalcs(g.rows)}
@@ -360,7 +362,7 @@ export function TableView({
               {renderCalcs(rows)}
             </>
           )}
-          {rows.length === 0 && !editable && <div className="px-3 py-2 text-neutral-400">Aucune ligne</div>}
+          {rows.length === 0 && !editable && <div className="px-3 py-2 text-neutral-400">{t("table.noRows")}</div>}
 
         </div>
       </div>
@@ -369,12 +371,11 @@ export function TableView({
           onClick={() => addRow()}
           className="flex w-full items-center gap-1.5 px-2 py-1.5 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
         >
-          <Plus size={14} /> Nouvelle ligne
+          <Plus size={14} /> {t("table.newRow")}
         </button>
       )}
       <div className="px-2 pt-1 text-xs text-neutral-400">
-        {rows.length} ligne{rows.length > 1 ? "s" : ""}
-        {rows.length !== data.rows.length && ` sur ${data.rows.length}`}
+        {rows.length !== data.rows.length ? t("table.countOf", { count: rows.length, total: data.rows.length }) : t("table.count", { count: rows.length })}
       </div>
 
       {menu && menuProp && actions && (
@@ -417,7 +418,7 @@ export function TableView({
                 }}
                 className="flex w-full items-center rounded px-2 py-1.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800"
               >
-                {fn ? CALC_LABELS[fn] : "Aucun"}
+                {fn ? calcLabel(fn) : t("calc.none")}
               </button>
             ))}
           </div>
@@ -447,7 +448,7 @@ export function TableView({
       {adding && actions && !addingRelation && (
         <Popover anchor={adding} onClose={() => setAdding(null)} width={220}>
           <div className="max-h-80 overflow-y-auto">
-            <div className="px-2 py-1 text-xs text-neutral-500">Type de la nouvelle colonne</div>
+            <div className="px-2 py-1 text-xs text-neutral-500">{t("table.newColumnType")}</div>
             {CREATABLE_TYPES.map((type: PropertyType) => (
               <button
                 key={type}
@@ -455,13 +456,13 @@ export function TableView({
                   if (type === "relation") return setAddingRelation(true);
                   const anchor = adding;
                   setAdding(null);
-                  const { property } = await actions.addProperty.mutateAsync({ name: uniqueName(data, TYPE_LABELS[type]), type });
+                  const { property } = await actions.addProperty.mutateAsync({ name: uniqueName(data, typeLabel(type)), type });
                   // Rollups and formulas need their settings first: open them right away.
                   if (type === "rollup" || type === "formula") setMenu({ propId: property.id, anchor });
                 }}
                 className="flex w-full items-center gap-2 rounded px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800"
               >
-                <PropertyIcon type={type} size={14} /> {TYPE_LABELS[type]}
+                <PropertyIcon type={type} size={14} /> {typeLabel(type)}
               </button>
             ))}
           </div>
@@ -481,7 +482,7 @@ export function TableView({
               className="flex w-full items-center gap-2 rounded px-2 py-1.5 enabled:hover:bg-neutral-100 dark:enabled:hover:bg-neutral-800"
             >
               <PropertyIcon type={c.prop.type} size={14} /> <span className="truncate">{c.prop.name}</span>
-              {editable && <span className="ml-auto text-xs text-blue-600">Afficher</span>}
+              {editable && <span className="ml-auto text-xs text-blue-600">{t("common.show")}</span>}
             </button>
           ))}
         </Popover>
@@ -498,28 +499,7 @@ function uniqueName(data: DatabaseData, base: string) {
 }
 
 /** Short labels shown before the result under a column. */
-const CALC_SHORT: Record<CalcFunction, string> = {
-  count_all: "Total",
-  count_values: "Valeurs",
-  count_unique: "Uniques",
-  count_empty: "Vides",
-  count_not_empty: "Non vides",
-  percent_empty: "Vides",
-  percent_not_empty: "Non vides",
-  sum: "Somme",
-  average: "Moyenne",
-  median: "Médiane",
-  min: "Min",
-  max: "Max",
-  range: "Écart",
-  earliest: "Plus ancienne",
-  latest: "Plus récente",
-  date_range: "Plage",
-  checked: "Cochées",
-  unchecked: "Non cochées",
-  percent_checked: "Cochées",
-  percent_unchecked: "Non cochées",
-};
+const calcShort = (fn: CalcFunction) => t(`calc.short.${fn}` as MessageKey);
 
 function columnValues(data: DatabaseData, prop: DatabaseProperty, rows = data.rows): { values: CellValue[]; type: PropertyType } {
   const values = rows.map((r) => (prop.type === "title" ? r.title : (r.values[prop.id] ?? null)));
@@ -555,24 +535,24 @@ function RelationSetup({ data, onCreate }: { data: DatabaseData; onCreate: (data
     return (
       <div className="space-y-2 p-1">
         <p>
-          Relation vers <span className="font-medium">{pageTitle(picked.title)}</span>
+          {t("relation.to")} <span className="font-medium">{pageTitle(picked.title)}</span>
         </p>
         <label className="flex items-start gap-2">
           <input type="checkbox" className="mt-1" checked={twoWay} onChange={(e) => setTwoWay(e.target.checked)} />
           <span>
-            Afficher aussi dans {self ? "cette database" : <span className="font-medium">{pageTitle(picked.title)}</span>}
-            <span className="block text-xs text-neutral-500">Ajoute une colonne « {pageTitle(data.title)} » de l'autre côté, tenue à jour automatiquement.</span>
+            {t("relation.alsoShowIn")} {self ? t("relation.thisDatabase") : <span className="font-medium">{pageTitle(picked.title)}</span>}
+            <span className="block text-xs text-neutral-500">{t("relation.twoWayHelp", { name: pageTitle(data.title) })}</span>
           </span>
         </label>
         <div className="flex justify-end gap-2">
           <button onClick={() => setPicked(null)} className="rounded px-2 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-800">
-            Retour
+            {t("common.back")}
           </button>
           <button
             onClick={() => onCreate(picked.id, uniqueName(data, pageTitle(picked.title)), twoWay)}
             className="rounded bg-neutral-900 px-3 py-1 text-white hover:bg-neutral-700 dark:bg-white dark:text-neutral-900"
           >
-            Créer la relation
+            {t("relation.create")}
           </button>
         </div>
       </div>
@@ -581,12 +561,12 @@ function RelationSetup({ data, onCreate }: { data: DatabaseData; onCreate: (data
   const databases = (list.data ?? []).filter((d) => norm(pageTitle(d.title)).includes(norm(query)));
   return (
     <div>
-      <div className="px-2 py-1 text-xs text-neutral-500">Relier à quelle database ?</div>
+      <div className="px-2 py-1 text-xs text-neutral-500">{t("relation.which")}</div>
       <input
         autoFocus
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Chercher une database…"
+        placeholder={t("relation.search")}
         className="mb-1 w-full rounded border border-neutral-200 bg-transparent px-2 py-1.5 outline-none focus:border-neutral-400 dark:border-neutral-700"
       />
       <div className="max-h-64 overflow-y-auto">
@@ -595,11 +575,11 @@ function RelationSetup({ data, onCreate }: { data: DatabaseData; onCreate: (data
             <span className="w-4 text-center">{d.icon ?? "🗃"}</span>
             <span className="truncate">
               {pageTitle(d.title)}
-              {d.id === data.id && <span className="text-neutral-400"> (cette database)</span>}
+              {d.id === data.id && <span className="text-neutral-400"> ({t("relation.thisDatabase")})</span>}
             </span>
           </button>
         ))}
-        {list.data && !databases.length && <p className="px-2 py-1 text-neutral-500">Aucune database.</p>}
+        {list.data && !databases.length && <p className="px-2 py-1 text-neutral-500">{t("relation.none")}</p>}
       </div>
     </div>
   );

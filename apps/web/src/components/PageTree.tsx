@@ -5,6 +5,7 @@ import type { PageSummary } from "@nootion/shared";
 import { api } from "../lib/api";
 import { useRefreshPages } from "../lib/queries";
 import { pageTitle, type TreeNode } from "../lib/tree";
+import { t } from "@nootion/shared";
 
 const DRAG_TYPE = "application/x-nootion-page";
 
@@ -20,7 +21,7 @@ interface TreeProps {
 }
 
 export function PageTree(props: TreeProps) {
-  if (props.nodes.length === 0) return <p className="px-2 py-1 text-xs text-neutral-400">Aucune page</p>;
+  if (props.nodes.length === 0) return <p className="px-2 py-1 text-xs text-neutral-400">{t("tree.empty")}</p>;
   return (
     <ul>
       {props.nodes.map((n) => (
@@ -111,7 +112,7 @@ function PageTreeItem({ node, depth, workspaceId, editable, all }: TreeProps & {
         <button
           className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-800"
           onClick={() => setOpen(!open)}
-          aria-label={open ? "Replier" : "Déplier"}
+          aria-label={open ? t("tree.collapse") : t("tree.expand")}
         >
           <ChevronRight size={14} className={`transition ${open ? "rotate-90" : ""} ${children.length ? "" : "opacity-30"}`} />
         </button>
@@ -126,10 +127,10 @@ function PageTreeItem({ node, depth, workspaceId, editable, all }: TreeProps & {
         </NavLink>
         {editable && (
           <span className="hidden shrink-0 items-center group-hover:flex">
-            <button className="rounded p-1 text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-800" onClick={trash} title="Mettre à la corbeille">
+            <button className="rounded p-1 text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-800" onClick={trash} title={t("page.trash")}>
               <Trash2 size={13} />
             </button>
-            <button className="rounded p-1 text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-800" onClick={addChild} title="Ajouter une sous-page">
+            <button className="rounded p-1 text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-800" onClick={addChild} title={t("tree.addSubpage")}>
               <Plus size={14} />
             </button>
           </span>

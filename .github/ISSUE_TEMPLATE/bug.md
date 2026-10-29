@@ -1,18 +1,18 @@
 ---
-name: Signaler un bug
-about: Quelque chose ne marche pas comme prévu
+name: Bug report
+about: Something doesn't work as expected
 labels: bug
 ---
 
-**Ce qui se passe**
+**What happens**
 
-**Ce qui devrait se passer**
+**What should happen**
 
-**Pour reproduire**
+**Steps to reproduce**
 1.
 2.
 
-**Environnement**
-- Version de Nootion (en bas de la page Administration) :
-- Installation (TrueNAS, Docker…) :
-- Navigateur :
+**Environment**
+- Nootion version (at the bottom of the Administration page):
+- Setup (TrueNAS, Docker…):
+- Browser:

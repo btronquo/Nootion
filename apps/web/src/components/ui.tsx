@@ -1,5 +1,6 @@
 import type React from "react";
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
+import { currentLocale, LOCALE_NAMES, LOCALES, t, type Locale } from "@nootion/shared";
 
 export function Button({ variant = "primary", className = "", ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "ghost" | "danger" }) {
   const styles = {
@@ -65,4 +66,29 @@ export function Modal({ title, onClose, children, wide }: { title: string; onClo
 
 export function Select({ className = "", ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return <select className={`rounded-md border border-neutral-300 bg-transparent px-2 py-1.5 text-sm dark:border-neutral-700 dark:bg-neutral-900 ${className}`} {...props} />;
+}
+
+/** Choice of the interface language, each one written in its own language. */
+export function LanguageSelect({ value = currentLocale(), onChange }: { value?: Locale; onChange: (locale: Locale) => void }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-sm font-medium text-neutral-700 dark:text-neutral-300">{t("account.language")}</span>
+      <Select value={value} onChange={(e) => onChange(e.target.value as Locale)} className="w-full py-2">
+        {LOCALES.map((l) => (
+          <option key={l} value={l}>
+            {LOCALE_NAMES[l]}
+          </option>
+        ))}
+      </Select>
+    </label>
+  );
+}
+
+/** A translated text where <b>…</b> marks words to put in bold. */
+export function Rich({ text }: { text: string }) {
+  return (
+    <>
+      {text.split(/<b>(.*?)<\/b>/).map((part, i) => (i % 2 ? <strong key={i}>{part}</strong> : part))}
+    </>
+  );
 }

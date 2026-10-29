@@ -20,6 +20,7 @@ import { useDatabase } from "./hooks";
 import { pageTitle } from "../lib/tree";
 import { OptionChip, OptionPicker } from "./OptionPicker";
 import { Popover } from "./Popover";
+import { t } from "@nootion/shared";
 
 export interface CellProps {
   prop: DatabaseProperty;
@@ -41,7 +42,7 @@ export interface CellProps {
   rowHref?: (id: string) => string;
 }
 
-const EMPTY = <span className="text-neutral-300 dark:text-neutral-600">Vide</span>;
+const EMPTY = <span className="text-neutral-300 dark:text-neutral-600">{t("cell.empty")}</span>;
 
 /** Displays a cell and edits it in place, with an editor suited to the column type. */
 export function Cell(props: CellProps) {
@@ -261,7 +262,7 @@ function InlineEditor({ prop, value, onChange, onDone }: CellProps & { onDone: (
         if (e.key === "Escape") onDone();
         e.stopPropagation();
       }}
-      title={invalid ? "Nombre invalide" : undefined}
+      title={invalid ? t("cell.invalidNumber") : undefined}
       className={`absolute inset-0 z-10 w-full bg-white px-2 outline-none ring-2 dark:bg-neutral-900 ${invalid ? "ring-red-500" : "ring-blue-400"} ${isNumber ? "text-right tabular-nums" : ""}`}
     />
   );
@@ -292,11 +293,11 @@ function RelationPicker({ prop, value, onChange }: CellProps) {
         autoFocus
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder={`Chercher dans ${pageTitle(target.data?.title ?? "")}…`}
+        placeholder={t("cell.searchIn", { title: pageTitle(target.data?.title ?? "") })}
         className="mb-1 w-full rounded border border-neutral-200 bg-transparent px-2 py-1.5 outline-none focus:border-neutral-400 dark:border-neutral-700"
       />
       <div className="max-h-64 overflow-y-auto">
-        {target.isError && <p className="px-2 py-1 text-neutral-500">Database liée inaccessible.</p>}
+        {target.isError && <p className="px-2 py-1 text-neutral-500">{t("cell.relatedUnavailable")}</p>}
         {rows.map((r) => (
           <button
             key={r.id}
@@ -310,7 +311,7 @@ function RelationPicker({ prop, value, onChange }: CellProps) {
             {selected.includes(r.id) && <Check size={14} />}
           </button>
         ))}
-        {target.data && !rows.length && <p className="px-2 py-1 text-neutral-500">Aucune ligne.</p>}
+        {target.data && !rows.length && <p className="px-2 py-1 text-neutral-500">{t("cell.noRows")}</p>}
       </div>
     </div>
   );
@@ -344,7 +345,7 @@ function FileEditor({ value, rowId, onChange }: CellProps) {
           <a href={`/api/attachments/${f.id}`} target="_blank" rel="noopener" className="truncate hover:underline">
             {f.name}
           </a>
-          <button onClick={() => onChange(files.filter((x) => x.id !== f.id))} title="Retirer" className="text-neutral-400 hover:text-red-600">
+          <button onClick={() => onChange(files.filter((x) => x.id !== f.id))} title={t("common.remove")} className="text-neutral-400 hover:text-red-600">
             <X size={14} />
           </button>
         </div>
@@ -366,7 +367,7 @@ function FileEditor({ value, rowId, onChange }: CellProps) {
         }}
         className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
       >
-        <Upload size={14} /> {busy ? "Envoi…" : "Ajouter un fichier"}
+        <Upload size={14} /> {busy ? t("common.uploading") : t("cell.addFile")}
       </button>
     </div>
   );

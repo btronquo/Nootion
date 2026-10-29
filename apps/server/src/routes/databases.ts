@@ -42,6 +42,7 @@ import type { PageRole } from "@nootion/shared";
 import type { Db } from "../db/index.js";
 import { databaseCsv, databaseJson, safeName } from "../export.js";
 import { IMPORT_MAX_ROWS, parseCsv, planImport } from "../import.js";
+import { t } from "@nootion/shared";
 
 /** Content-Disposition header of a download, with a non-ASCII-safe file name. */
 export function attachmentHeader(filename: string) {
@@ -65,11 +66,11 @@ function requireRow(db: Db, userId: string, databaseId: string, rowId: string, m
 function checkRollupConfig(db: Db, properties: DatabaseProperty[], config: PropertyConfig) {
   if (!config.relationPropertyId) return;
   const relation = properties.find((p) => p.id === config.relationPropertyId);
-  if (relation?.type !== "relation") throw new HttpError(400, "bad_rollup", "Le rollup doit suivre une relation de cette database.");
+  if (relation?.type !== "relation") throw new HttpError(400, "bad_rollup", t("error.rollupRelation"));
   if (config.targetPropertyId) {
     const target = listProperties(db, relation.config.databaseId!).find((p) => p.id === config.targetPropertyId);
     if (!target || target.type === "rollup" || target.type === "relation") {
-      throw new HttpError(400, "bad_rollup", "Choisissez une propriété de la database liée (hors relation et rollup).");
+      throw new HttpError(400, "bad_rollup", t("error.rollupProperty"));
     }
   }
 }
@@ -117,7 +118,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     if (input.parentId) {
       const { page: parent } = requirePageRole(db, user.id, input.parentId, "editor");
       if (parent.workspaceId !== input.workspaceId) throw notFound();
-      if (parent.kind === "database") throw new HttpError(400, "database_parent", "Une database ne peut pas contenir une autre database.");
+      if (parent.kind === "database") throw new HttpError(400, "database_parent", t("error.databaseInDatabase"));
     } else {
       requireWorkspaceRole(db, user.id, input.workspaceId, CAN_CREATE_ROOT_PAGES);
     }
@@ -149,7 +150,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     delete config.twinPropertyId;
     let twin: { databaseId: string; id: string } | null = null;
     if (input.type === "relation") {
-      if (!config.databaseId) throw new HttpError(400, "relation_target", "Choisissez la database à relier.");
+      if (!config.databaseId) throw new HttpError(400, "relation_target", t("error.relationTarget"));
       // Linking needs to see the other database; a two-way link also adds a column there.
       requireDatabase(db, user.id, config.databaseId, input.twoWay ? "editor" : "viewer");
       if (input.twoWay) twin = { databaseId: config.databaseId, id: randomUUID() };
@@ -181,7 +182,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
           .values({
             id: twin.id,
             databaseId: twin.databaseId,
-            name: (database.title || "Sans titre").slice(0, 100),
+            name: (database.title || t("common.untitled")).slice(0, 100),
             type: "relation",
             config: { databaseId: req.params.id, twinPropertyId: id },
             position: nextPos(twin.databaseId),
@@ -202,10 +203,10 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     const prop = properties.find((p) => p.id === req.params.propId);
     if (!prop) throw notFound();
     if (input.type && input.type !== prop.type && (prop.type === "title" || input.type === "title")) {
-      throw new HttpError(400, "title_type", "La colonne titre ne peut pas changer de type.");
+      throw new HttpError(400, "title_type", t("error.titleType"));
     }
     if (input.type && input.type !== prop.type && (STRUCTURAL_TYPES.includes(prop.type) || STRUCTURAL_TYPES.includes(input.type))) {
-      throw new HttpError(400, "structural_type", "Les relations et rollups ne se convertissent pas : créez une nouvelle colonne.");
+      throw new HttpError(400, "structural_type", t("error.structuralType"));
     }
     if (input.config && prop.type === "relation") {
       // The related database and the twin column are fixed once created.
@@ -279,7 +280,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     requireDatabase(db, user.id, req.params.id, "editor");
     const prop = listProperties(db, req.params.id).find((p) => p.id === req.params.propId);
     if (!prop) throw notFound();
-    if (prop.type === "title") throw new HttpError(400, "title_delete", "La colonne titre ne peut pas être supprimée.");
+    if (prop.type === "title") throw new HttpError(400, "title_delete", t("error.titleDelete"));
     db.transaction((tx) => {
       for (const r of listRowPages(tx, req.params.id)) {
         if (!r.props || !(prop.id in r.props)) continue;
@@ -439,7 +440,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     requireDatabase(db, user.id, req.params.id, "editor");
     const views = db.select({ id: databaseViews.id }).from(databaseViews).where(eq(databaseViews.databaseId, req.params.id)).all();
     if (!views.some((v) => v.id === req.params.viewId)) throw notFound();
-    if (views.length === 1) throw new HttpError(400, "last_view", "Une database garde au moins une vue.");
+    if (views.length === 1) throw new HttpError(400, "last_view", t("error.lastView"));
     db.delete(databaseViews).where(eq(databaseViews.id, req.params.viewId)).run();
     return { ok: true };
   });
@@ -468,8 +469,8 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     const input = parseBody(z.object({ csv: z.string().min(1), createColumns: z.boolean().default(true) }), req.body);
     const { page: database } = requireDatabase(db, user.id, req.params.id, "editor");
     const csv = parseCsv(input.csv);
-    if (csv.length < 2) throw new HttpError(400, "empty_csv", "Le fichier ne contient aucune ligne (la première ligne doit être l'en-tête).");
-    if (csv.length - 1 > IMPORT_MAX_ROWS) throw new HttpError(400, "too_many_rows", `${IMPORT_MAX_ROWS} lignes au maximum par import.`);
+    if (csv.length < 2) throw new HttpError(400, "empty_csv", t("error.emptyCsv"));
+    if (csv.length - 1 > IMPORT_MAX_ROWS) throw new HttpError(400, "too_many_rows", t("error.tooManyRows", { max: IMPORT_MAX_ROWS }));
     const properties = listProperties(db, database.id);
     const plan = planImport(db, properties, csv, {
       createColumns: input.createColumns,

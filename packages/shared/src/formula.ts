@@ -1,8 +1,9 @@
+import { intlLocale, t, type MessageKey } from "./i18n/index.js";
 /**
  * Formula language of database columns, close to Notion's:
- *   prop("Montant HT") * 1.2
- *   if(prop("Payée"), "Payée", "À payer")
- *   dateBetween(now(), prop("Échéance"), "days")
+ *   prop("Price") * 1.2
+ *   if(prop("Paid"), "Paid", "To pay")
+ *   dateBetween(now(), prop("Due"), "days")
  * Parsed and evaluated here so that the server (which computes values) and the editor
  * (which checks what is typed) share the same rules.
  */
@@ -54,7 +55,7 @@ function tokenize(src: string): Token[] {
           j += 2;
         } else v += src[j++];
       }
-      if (j >= src.length) throw new FormulaError("Texte non fermé : il manque un guillemet.", i);
+      if (j >= src.length) throw new FormulaError(t("formula.error.unclosedText"), i);
       out.push({ t: "str", v: close === "»" ? v.trim() : v, p: i });
       i = j + 1;
       continue;
@@ -66,7 +67,7 @@ function tokenize(src: string): Token[] {
       continue;
     }
     const op = OPERATORS.find((o) => src.startsWith(o, i));
-    if (!op) throw new FormulaError(`Caractère inattendu « ${c} ».`, i);
+    if (!op) throw new FormulaError(t("formula.error.unexpectedChar", { char: c }), i);
     out.push({ t: "op", v: op, p: i });
     i += op.length;
   }
@@ -86,14 +87,14 @@ export type FormulaNode =
 
 /** Parses an expression; throws FormulaError with the position of the problem. */
 export function parseFormula(src: string): FormulaNode {
-  if (!src.trim()) throw new FormulaError("La formule est vide.", 0);
+  if (!src.trim()) throw new FormulaError(t("formula.error.empty"), 0);
   const tokens = tokenize(src);
   let pos = 0;
   const peek = () => tokens[pos]!;
   const isOp = (v: string) => peek().t === "op" && (peek() as { v: string }).v === v;
   const isWord = (v: string) => peek().t === "id" && (peek() as { v: string }).v.toLowerCase() === v;
   const expect = (v: string) => {
-    if (!isOp(v)) throw new FormulaError(`« ${v} » attendu.`, peek().p);
+    if (!isOp(v)) throw new FormulaError(t("formula.error.expected", { token: v }), peek().p);
     pos++;
   };
 
@@ -108,13 +109,13 @@ export function parseFormula(src: string): FormulaNode {
   const binaryLevel = (next: () => FormulaNode, ops: string[], words: Record<string, string> = {}) => (): FormulaNode => {
     let left = next();
     for (;;) {
-      const t = peek();
+      const tok = peek();
       let op: string | undefined;
-      if (t.t === "op" && ops.includes(t.v)) op = t.v;
-      else if (t.t === "id" && words[t.v.toLowerCase()]) op = words[t.v.toLowerCase()];
+      if (tok.t === "op" && ops.includes(tok.v)) op = tok.v;
+      else if (tok.t === "id" && words[tok.v.toLowerCase()]) op = words[tok.v.toLowerCase()];
       if (!op) return left;
       pos++;
-      left = { type: "binary", op: op === "=" ? "==" : op, left, right: next(), p: t.p };
+      left = { type: "binary", op: op === "=" ? "==" : op, left, right: next(), p: tok.p };
     }
   };
   const unary = (): FormulaNode => {
@@ -143,27 +144,27 @@ export function parseFormula(src: string): FormulaNode {
   const or = binaryLevel(and, ["||"], { or: "||" });
 
   function primary(): FormulaNode {
-    const t = peek();
-    if (t.t === "num") {
+    const tok = peek();
+    if (tok.t === "num") {
       pos++;
-      return { type: "num", value: t.v };
+      return { type: "num", value: tok.v };
     }
-    if (t.t === "str") {
+    if (tok.t === "str") {
       pos++;
-      return { type: "str", value: t.v };
+      return { type: "str", value: tok.v };
     }
-    if (t.t === "op" && t.v === "(") {
+    if (tok.t === "op" && tok.v === "(") {
       pos++;
       const e = ternary();
       expect(")");
       return e;
     }
-    if (t.t === "id") {
+    if (tok.t === "id") {
       pos++;
-      const word = t.v.toLowerCase();
+      const word = tok.v.toLowerCase();
       if (word === "true" || word === "vrai") return { type: "bool", value: true };
       if (word === "false" || word === "faux") return { type: "bool", value: false };
-      if (!isOp("(")) throw new FormulaError(`« ${t.v} » inconnu. Pour une colonne, écrivez prop("${t.v}").`, t.p);
+      if (!isOp("(")) throw new FormulaError(t("formula.error.unknownName", { name: tok.v }), tok.p);
       pos++;
       const args: FormulaNode[] = [];
       if (!isOp(")")) {
@@ -175,23 +176,26 @@ export function parseFormula(src: string): FormulaNode {
       }
       expect(")");
       if (word === "prop") {
-        if (args.length !== 1 || args[0]!.type !== "str") throw new FormulaError('prop() attend le nom d\'une colonne entre guillemets : prop("Montant").', t.p);
+        if (args.length !== 1 || args[0]!.type !== "str") throw new FormulaError(t("formula.error.propArgument"), tok.p);
         return { type: "prop", name: (args[0] as { value: string }).value };
       }
       const fn = Object.hasOwn(FUNCTION_ALIASES, word) ? FUNCTION_ALIASES[word]! : word;
       const spec = Object.hasOwn(FUNCTIONS, fn) ? FUNCTIONS[fn] : undefined;
-      if (!spec) throw new FormulaError(`Fonction inconnue « ${t.v} ».`, t.p);
+      if (!spec) throw new FormulaError(t("formula.error.unknownFunction", { name: tok.v }), tok.p);
       if (args.length < spec.min || args.length > spec.max) {
-        throw new FormulaError(`${fn}() attend ${spec.min === spec.max ? spec.min : `${spec.min} à ${spec.max === Infinity ? "n" : spec.max}`} argument(s).`, t.p);
+        throw new FormulaError(
+          t("formula.error.argumentCount", { fn, count: spec.min === spec.max ? spec.min : t("formula.error.argumentRange", { min: spec.min, max: spec.max === Infinity ? "n" : spec.max }) }),
+          tok.p,
+        );
       }
-      return { type: "call", name: fn, args, p: t.p };
+      return { type: "call", name: fn, args, p: tok.p };
     }
-    if (t.t === "end") throw new FormulaError("La formule s'arrête trop tôt.", t.p);
-    throw new FormulaError(`« ${t.v} » inattendu.`, t.p);
+    if (tok.t === "end") throw new FormulaError(t("formula.error.earlyEnd"), tok.p);
+    throw new FormulaError(t("formula.error.unexpected", { token: tok.v }), tok.p);
   }
 
   const node = ternary();
-  if (peek().t !== "end") throw new FormulaError(`« ${(peek() as { v: string }).v} » inattendu.`, peek().p);
+  if (peek().t !== "end") throw new FormulaError(t("formula.error.unexpected", { token: (peek() as { v: string }).v }), peek().p);
   return node;
 }
 
@@ -246,25 +250,27 @@ const isoDay = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d
 function toText(v: FValue): string {
   if (v === null) return "";
   if (typeof v === "string") return v;
-  if (typeof v === "number") return new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 10, useGrouping: false }).format(v);
-  if (typeof v === "boolean") return v ? "vrai" : "faux";
+  if (typeof v === "number") return new Intl.NumberFormat(intlLocale(), { maximumFractionDigits: 10, useGrouping: false }).format(v);
+  if (typeof v === "boolean") return v ? t("formula.true") : t("formula.false");
   if (Array.isArray(v)) return v.map(toText).join(", ");
   const d = v.date;
-  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}${v.time ? ` ${pad(d.getHours())}:${pad(d.getMinutes())}` : ""}`;
+  return new Intl.DateTimeFormat(intlLocale(), { day: "2-digit", month: "2-digit", year: "numeric", ...(v.time ? { hour: "2-digit", minute: "2-digit", hour12: false } : {}) })
+    .format(d)
+    .replace(",", "");
 }
 
 const typeName = (v: FValue) =>
-  v === null ? "vide" : Array.isArray(v) ? "liste" : isDate(v) ? "date" : typeof v === "number" ? "nombre" : typeof v === "string" ? "texte" : "booléen";
+  t(v === null ? "formula.type.empty" : Array.isArray(v) ? "formula.type.list" : isDate(v) ? "formula.type.date" : typeof v === "number" ? "formula.type.number" : typeof v === "string" ? "formula.type.text" : "formula.type.boolean");
 
 function num(v: FValue, fn: string): number {
   if (v === null) return 0;
   if (typeof v === "number") return v;
   if (typeof v === "boolean") return v ? 1 : 0;
-  throw new FormulaError(`${fn} attend un nombre, pas un ${typeName(v)}.`);
+  throw new FormulaError(t("formula.error.expectsNumber", { fn, type: typeName(v) }));
 }
 function date(v: FValue, fn: string): FDate {
   if (isDate(v)) return v;
-  throw new FormulaError(`${fn} attend une date${v === null ? " (la valeur est vide)" : `, pas un ${typeName(v)}`}.`);
+  throw new FormulaError(v === null ? t("formula.error.expectsDateEmpty", { fn }) : t("formula.error.expectsDate", { fn, type: typeName(v) }));
 }
 function list(v: FValue): FValue[] {
   return Array.isArray(v) ? v : v === null ? [] : [v];
@@ -283,7 +289,7 @@ function compare(a: FValue, b: FValue, op: string): boolean {
   let x: number | string;
   let y: number | string;
   if (isDate(a) && isDate(b)) [x, y] = [a.date.getTime(), b.date.getTime()];
-  else if (typeof a === "string" && typeof b === "string") [x, y] = [a.localeCompare(b, "fr"), 0];
+  else if (typeof a === "string" && typeof b === "string") [x, y] = [a.localeCompare(b, intlLocale()), 0];
   else [x, y] = [num(a, op), num(b, op)];
   return op === ">" ? x > y : op === "<" ? x < y : op === ">=" ? x >= y : x <= y;
 }
@@ -299,7 +305,7 @@ const UNITS: Record<string, string> = {
 };
 function unit(v: FValue, fn: string): string {
   const u = UNITS[String(v).toLowerCase()];
-  if (!u) throw new FormulaError(`${fn} : unité inconnue « ${toText(v)} » (years, months, weeks, days, hours, minutes…).`);
+  if (!u) throw new FormulaError(t("formula.error.unknownUnit", { fn, unit: toText(v) }));
   return u;
 }
 function addTo(d: FDate, n: number, u: string): FDate {
@@ -326,17 +332,15 @@ function monthsBetween(a: Date, b: Date) {
 }
 
 function formatDate(d: FDate, pattern: string): string {
-  const MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
-  const DAYS = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
   const x = d.date;
   return pattern.replace(/YYYY|YY|MMMM|MM|M|DDDD|DD|D|HH|mm|ss/g, (tok) => {
     switch (tok) {
       case "YYYY": return String(x.getFullYear());
       case "YY": return String(x.getFullYear()).slice(-2);
-      case "MMMM": return MONTHS[x.getMonth()]!;
+      case "MMMM": return x.toLocaleString(intlLocale(), { month: "long" });
       case "MM": return pad(x.getMonth() + 1);
       case "M": return String(x.getMonth() + 1);
-      case "DDDD": return DAYS[x.getDay()]!;
+      case "DDDD": return x.toLocaleString(intlLocale(), { weekday: "long" });
       case "DD": return pad(x.getDate());
       case "D": return String(x.getDate());
       case "HH": return pad(x.getHours());
@@ -359,8 +363,8 @@ export interface FunctionSpec {
 const numeric = (fn: (x: number) => number, name: string): FunctionSpec["run"] => (a) => fn(num(a[0]!, `${name}()`));
 const flatNumbers = (a: FValue[], fn: string) => a.flatMap(list).filter((v) => v !== null).map((v) => num(v, fn));
 
-export const FUNCTIONS: Record<string, FunctionSpec> = {
-  if: { min: 3, max: 3, lazy: true, run: (_, l) => (truthy(l[0]!()) ? l[1]!() : l[2]!()), help: 'if(condition, siVrai, siFaux) : if(prop("Payée"), "OK", "À payer")' },
+const BUILTINS: Record<string, Omit<FunctionSpec, "help">> = {
+  if: { min: 3, max: 3, lazy: true, run: (_, l) => (truthy(l[0]!()) ? l[1]!() : l[2]!()) },
   ifs: {
     min: 2,
     max: Infinity,
@@ -369,39 +373,35 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
       for (let i = 0; i + 1 < l.length; i += 2) if (truthy(l[i]!())) return l[i + 1]!();
       return l.length % 2 ? l[l.length - 1]!() : null;
     },
-    help: "ifs(cond1, valeur1, cond2, valeur2, …, sinon)",
   },
-  and: { min: 1, max: Infinity, lazy: true, run: (_, l) => l.every((f) => truthy(f())), help: "and(a, b, …), ou a and b" },
-  or: { min: 1, max: Infinity, lazy: true, run: (_, l) => l.some((f) => truthy(f())), help: "or(a, b, …), ou a or b" },
-  not: { min: 1, max: 1, run: (a) => !truthy(a[0]!), help: "not(a)" },
-  empty: { min: 1, max: 1, run: (a) => empty(a[0]!), help: 'empty(prop("Date")) : vrai si la valeur est vide' },
+  and: { min: 1, max: Infinity, lazy: true, run: (_, l) => l.every((f) => truthy(f())) },
+  or: { min: 1, max: Infinity, lazy: true, run: (_, l) => l.some((f) => truthy(f())) },
+  not: { min: 1, max: 1, run: (a) => !truthy(a[0]!) },
+  empty: { min: 1, max: 1, run: (a) => empty(a[0]!) },
 
-  length: { min: 1, max: 1, run: (a) => (Array.isArray(a[0]) ? a[0].length : toText(a[0]!).length), help: "length(texte ou liste)" },
+  length: { min: 1, max: 1, run: (a) => (Array.isArray(a[0]) ? a[0].length : toText(a[0]!).length) },
   concat: {
     min: 1,
     max: Infinity,
     run: (a) => (a.some(Array.isArray) ? a.flatMap(list) : a.map(toText).join("")),
-    help: 'concat("Facture ", prop("Numéro")) : met des textes (ou des listes) bout à bout',
   },
-  join: { min: 1, max: 2, run: (a) => list(a[0]!).map(toText).join(a[1] === undefined ? ", " : toText(a[1]!)), help: 'join(liste, " / ")' },
+  join: { min: 1, max: 2, run: (a) => list(a[0]!).map(toText).join(a[1] === undefined ? ", " : toText(a[1]!)) },
   contains: {
     min: 2,
     max: 2,
     run: (a) => (Array.isArray(a[0]) ? a[0].some((v) => equals(v, a[1]!)) : toText(a[0]!).toLowerCase().includes(toText(a[1]!).toLowerCase())),
-    help: 'contains(prop("Étiquettes"), "Urgent")',
   },
-  lower: { min: 1, max: 1, run: (a) => toText(a[0]!).toLowerCase(), help: "lower(texte)" },
-  upper: { min: 1, max: 1, run: (a) => toText(a[0]!).toUpperCase(), help: "upper(texte)" },
-  trim: { min: 1, max: 1, run: (a) => toText(a[0]!).trim(), help: "trim(texte)" },
-  replace: { min: 3, max: 3, run: (a) => toText(a[0]!).replace(toText(a[1]!), toText(a[2]!)), help: "replace(texte, cherché, remplacement) : première occurrence" },
-  replaceAll: { min: 3, max: 3, run: (a) => toText(a[0]!).split(toText(a[1]!)).join(toText(a[2]!)), help: "replaceAll(texte, cherché, remplacement)" },
+  lower: { min: 1, max: 1, run: (a) => toText(a[0]!).toLowerCase() },
+  upper: { min: 1, max: 1, run: (a) => toText(a[0]!).toUpperCase() },
+  trim: { min: 1, max: 1, run: (a) => toText(a[0]!).trim() },
+  replace: { min: 3, max: 3, run: (a) => toText(a[0]!).replace(toText(a[1]!), toText(a[2]!)) },
+  replaceAll: { min: 3, max: 3, run: (a) => toText(a[0]!).split(toText(a[1]!)).join(toText(a[2]!)) },
   slice: {
     min: 2,
     max: 3,
     run: (a) => (Array.isArray(a[0]) ? a[0].slice(num(a[1]!, "slice()"), a[2] === undefined ? undefined : num(a[2], "slice()")) : toText(a[0]!).slice(num(a[1]!, "slice()"), a[2] === undefined ? undefined : num(a[2], "slice()"))),
-    help: "slice(texte, début, fin) : partie d'un texte (à partir de 0)",
   },
-  format: { min: 1, max: 1, run: (a) => toText(a[0]!), help: "format(valeur) : en texte" },
+  format: { min: 1, max: 1, run: (a) => toText(a[0]!) },
   toNumber: {
     min: 1,
     max: 1,
@@ -413,10 +413,9 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
       const n = Number(toText(v).replace(/\s/g, "").replace(",", "."));
       return Number.isFinite(n) && toText(v).trim() !== "" ? n : null;
     },
-    help: 'toNumber("12,5")',
   },
 
-  abs: { min: 1, max: 1, run: numeric(Math.abs, "abs"), help: "abs(x)" },
+  abs: { min: 1, max: 1, run: numeric(Math.abs, "abs") },
   round: {
     min: 1,
     max: 2,
@@ -424,26 +423,24 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
       const f = 10 ** (a[1] === undefined ? 0 : num(a[1], "round()"));
       return Math.round(num(a[0]!, "round()") * f) / f;
     },
-    help: "round(x) ou round(x, 2) : arrondi",
   },
-  floor: { min: 1, max: 1, run: numeric(Math.floor, "floor"), help: "floor(x) : arrondi inférieur" },
-  ceil: { min: 1, max: 1, run: numeric(Math.ceil, "ceil"), help: "ceil(x) : arrondi supérieur" },
-  sqrt: { min: 1, max: 1, run: numeric(Math.sqrt, "sqrt"), help: "sqrt(x) : racine carrée" },
-  pow: { min: 2, max: 2, run: (a) => num(a[0]!, "pow()") ** num(a[1]!, "pow()"), help: "pow(x, y), ou x ^ y" },
-  min: { min: 1, max: Infinity, run: (a) => { const n = flatNumbers(a, "min()"); return n.length ? Math.min(...n) : null; }, help: "min(a, b, …) ou min(liste)" },
-  max: { min: 1, max: Infinity, run: (a) => { const n = flatNumbers(a, "max()"); return n.length ? Math.max(...n) : null; }, help: "max(a, b, …) ou max(liste)" },
-  sum: { min: 1, max: Infinity, run: (a) => flatNumbers(a, "sum()").reduce((x, y) => x + y, 0), help: "sum(a, b, …) ou sum(liste)" },
+  floor: { min: 1, max: 1, run: numeric(Math.floor, "floor") },
+  ceil: { min: 1, max: 1, run: numeric(Math.ceil, "ceil") },
+  sqrt: { min: 1, max: 1, run: numeric(Math.sqrt, "sqrt") },
+  pow: { min: 2, max: 2, run: (a) => num(a[0]!, "pow()") ** num(a[1]!, "pow()") },
+  min: { min: 1, max: Infinity, run: (a) => { const n = flatNumbers(a, "min()"); return n.length ? Math.min(...n) : null; } },
+  max: { min: 1, max: Infinity, run: (a) => { const n = flatNumbers(a, "max()"); return n.length ? Math.max(...n) : null; } },
+  sum: { min: 1, max: Infinity, run: (a) => flatNumbers(a, "sum()").reduce((x, y) => x + y, 0) },
   average: {
     min: 1,
     max: Infinity,
     run: (a) => { const n = flatNumbers(a, "average()"); return n.length ? n.reduce((x, y) => x + y, 0) / n.length : null; },
-    help: "average(a, b, …) ou average(liste)",
   },
 
-  now: { min: 0, max: 0, run: () => ({ date: new Date(), end: null, time: true }), help: "now() : maintenant" },
-  today: { min: 0, max: 0, run: () => makeDate(isoDay(new Date())), help: "today() : aujourd'hui" },
-  dateAdd: { min: 3, max: 3, run: (a) => addTo(date(a[0]!, "dateAdd()"), num(a[1]!, "dateAdd()"), unit(a[2]!, "dateAdd()")), help: 'dateAdd(prop("Date"), 30, "days")' },
-  dateSubtract: { min: 3, max: 3, run: (a) => addTo(date(a[0]!, "dateSubtract()"), -num(a[1]!, "dateSubtract()"), unit(a[2]!, "dateSubtract()")), help: 'dateSubtract(prop("Date"), 1, "months")' },
+  now: { min: 0, max: 0, run: () => ({ date: new Date(), end: null, time: true }) },
+  today: { min: 0, max: 0, run: () => makeDate(isoDay(new Date())) },
+  dateAdd: { min: 3, max: 3, run: (a) => addTo(date(a[0]!, "dateAdd()"), num(a[1]!, "dateAdd()"), unit(a[2]!, "dateAdd()")) },
+  dateSubtract: { min: 3, max: 3, run: (a) => addTo(date(a[0]!, "dateSubtract()"), -num(a[1]!, "dateSubtract()"), unit(a[2]!, "dateSubtract()")) },
   dateBetween: {
     min: 3,
     max: 3,
@@ -463,9 +460,8 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
       }
       return Math.trunc(ms / per);
     },
-    help: 'dateBetween(prop("Échéance"), today(), "days") : écart entre deux dates',
   },
-  dateStart: { min: 1, max: 1, run: (a) => ({ ...date(a[0]!, "dateStart()"), end: null }), help: "dateStart(date) : début d'une plage" },
+  dateStart: { min: 1, max: 1, run: (a) => ({ ...date(a[0]!, "dateStart()"), end: null }) },
   dateEnd: {
     min: 1,
     max: 1,
@@ -473,16 +469,15 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
       const d = date(a[0]!, "dateEnd()");
       return { date: d.end ?? d.date, end: null, time: d.time };
     },
-    help: "dateEnd(date) : fin d'une plage",
   },
-  formatDate: { min: 2, max: 2, run: (a) => formatDate(date(a[0]!, "formatDate()"), toText(a[1]!)), help: 'formatDate(prop("Date"), "DD/MM/YYYY") (aussi MMMM, DDDD, HH, mm)' },
-  year: { min: 1, max: 1, run: (a) => date(a[0]!, "year()").date.getFullYear(), help: "year(date)" },
-  month: { min: 1, max: 1, run: (a) => date(a[0]!, "month()").date.getMonth() + 1, help: "month(date) : 1 à 12" },
-  date: { min: 1, max: 1, run: (a) => date(a[0]!, "date()").date.getDate(), help: "date(date) : jour du mois" },
-  day: { min: 1, max: 1, run: (a) => date(a[0]!, "day()").date.getDay(), help: "day(date) : jour de la semaine (0 = dimanche)" },
-  hour: { min: 1, max: 1, run: (a) => date(a[0]!, "hour()").date.getHours(), help: "hour(date)" },
-  minute: { min: 1, max: 1, run: (a) => date(a[0]!, "minute()").date.getMinutes(), help: "minute(date)" },
-  timestamp: { min: 1, max: 1, run: (a) => date(a[0]!, "timestamp()").date.getTime(), help: "timestamp(date) : en millisecondes" },
+  formatDate: { min: 2, max: 2, run: (a) => formatDate(date(a[0]!, "formatDate()"), toText(a[1]!)) },
+  year: { min: 1, max: 1, run: (a) => date(a[0]!, "year()").date.getFullYear() },
+  month: { min: 1, max: 1, run: (a) => date(a[0]!, "month()").date.getMonth() + 1 },
+  date: { min: 1, max: 1, run: (a) => date(a[0]!, "date()").date.getDate() },
+  day: { min: 1, max: 1, run: (a) => date(a[0]!, "day()").date.getDay() },
+  hour: { min: 1, max: 1, run: (a) => date(a[0]!, "hour()").date.getHours() },
+  minute: { min: 1, max: 1, run: (a) => date(a[0]!, "minute()").date.getMinutes() },
+  timestamp: { min: 1, max: 1, run: (a) => date(a[0]!, "timestamp()").date.getTime() },
   parseDate: {
     min: 1,
     max: 1,
@@ -491,18 +486,25 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
       const fr = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s);
       return makeDate(fr ? `${fr[3]}-${fr[2]!.padStart(2, "0")}-${fr[1]!.padStart(2, "0")}` : s);
     },
-    help: 'parseDate("2026-03-15") ou parseDate("15/03/2026")',
   },
 };
+
+// Built-in functions take their help from the message catalogue, in the current language.
+export const FUNCTIONS: Record<string, FunctionSpec> = Object.fromEntries(
+  Object.entries(BUILTINS).map(([name, spec]) => [
+    name,
+    Object.defineProperty({ ...spec, help: "" }, "help", { get: () => t(`formula.help.${name}` as MessageKey), enumerable: true }),
+  ]),
+);
 
 const FUNCTION_ALIASES: Record<string, string> = Object.fromEntries(Object.keys(FUNCTIONS).map((k) => [k.toLowerCase(), k]));
 const BUILTIN_FUNCTIONS = new Set(Object.keys(FUNCTIONS));
 
 /** Adds a function from a plugin. Built-in functions can't be replaced. Returns a function that removes it. */
 export function registerFormulaFunction(name: string, spec: Omit<FunctionSpec, "lazy">): () => void {
-  if (!/^[a-zA-Z][a-zA-Z0-9_]{0,39}$/.test(name)) throw new Error(`Nom de fonction invalide : ${name}`);
+  if (!/^[a-zA-Z][a-zA-Z0-9_]{0,39}$/.test(name)) throw new Error(`Invalid function name: ${name}`);
   const key = name.toLowerCase();
-  if (BUILTIN_FUNCTIONS.has(name) || Object.hasOwn(FUNCTION_ALIASES, key)) throw new Error(`La fonction ${name}() existe déjà.`);
+  if (BUILTIN_FUNCTIONS.has(name) || Object.hasOwn(FUNCTION_ALIASES, key)) throw new Error(`The function ${name}() already exists.`);
   FUNCTIONS[name] = { ...spec, lazy: false };
   FUNCTION_ALIASES[key] = name;
   return () => {
@@ -533,7 +535,7 @@ export function evaluateFormula(node: FormulaNode, getProp: (name: string) => FV
       case "call": {
         // A plugin's function may have been removed since the expression was parsed.
         const spec = Object.hasOwn(FUNCTIONS, n.name) ? FUNCTIONS[n.name] : undefined;
-        if (!spec) throw new FormulaError(`Fonction inconnue « ${n.name} ».`);
+        if (!spec) throw new FormulaError(t("formula.error.unknownFunction", { name: n.name }));
         if (spec.lazy) return spec.run([], n.args.map((a) => () => ev(a)));
         return spec.run(n.args.map(ev), []);
       }
@@ -545,16 +547,16 @@ export function evaluateFormula(node: FormulaNode, getProp: (name: string) => FV
         switch (n.op) {
           case "+":
             if (typeof a === "string" || typeof b === "string") return toText(a) + toText(b);
-            if (isDate(a) || isDate(b)) throw new FormulaError("Pour ajouter du temps à une date, utilisez dateAdd().");
+            if (isDate(a) || isDate(b)) throw new FormulaError(t("formula.error.useDateAdd"));
             return num(a, "« + »") + num(b, "« + »");
           case "-":
-            if (isDate(a) || isDate(b)) throw new FormulaError("Pour l'écart entre deux dates, utilisez dateBetween().");
+            if (isDate(a) || isDate(b)) throw new FormulaError(t("formula.error.useDateBetween"));
             return num(a, "« - »") - num(b, "« - »");
           case "*":
             return num(a, "« * »") * num(b, "« * »");
           case "/": {
             const d = num(b, "« / »");
-            if (d === 0) throw new FormulaError("Division par zéro.");
+            if (d === 0) throw new FormulaError(t("formula.error.divisionByZero"));
             return num(a, "« / »") / d;
           }
           case "%":
@@ -585,7 +587,7 @@ export type FormulaResult =
 
 export function toFormulaResult(v: FValue): FormulaResult | null {
   if (v === null) return null;
-  if (typeof v === "number") return Number.isFinite(v) ? { kind: "number", value: Math.round(v * 1e9) / 1e9 } : { kind: "error", value: "Résultat infini." };
+  if (typeof v === "number") return Number.isFinite(v) ? { kind: "number", value: Math.round(v * 1e9) / 1e9 } : { kind: "error", value: t("formula.error.infinite") };
   if (typeof v === "string") return v === "" ? null : { kind: "text", value: v };
   if (typeof v === "boolean") return { kind: "boolean", value: v };
   if (Array.isArray(v)) return v.length ? { kind: "list", value: v.map(toText) } : null;

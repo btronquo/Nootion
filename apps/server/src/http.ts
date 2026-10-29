@@ -1,5 +1,6 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { ZodType } from "zod";
+import { t } from "@nootion/shared";
 
 export class HttpError extends Error {
   constructor(
@@ -11,16 +12,16 @@ export class HttpError extends Error {
   }
 }
 
-export const notFound = () => new HttpError(404, "not_found", "Ressource introuvable.");
-export const forbidden = () => new HttpError(403, "forbidden", "Accès refusé.");
-export const unauthorized = () => new HttpError(401, "unauthorized", "Connexion requise.");
+export const notFound = () => new HttpError(404, "not_found", t("error.notFound"));
+export const forbidden = () => new HttpError(403, "forbidden", t("error.forbidden"));
+export const unauthorized = () => new HttpError(401, "unauthorized", t("error.unauthorized"));
 
 export function parseBody<T>(schema: ZodType<T>, body: unknown): T {
   const result = schema.safeParse(body);
   if (!result.success) {
     const first = result.error.issues[0];
     const field = first?.path.join(".");
-    throw new HttpError(400, "invalid_input", field ? `${field} : ${first.message}` : (first?.message ?? "Données invalides."));
+    throw new HttpError(400, "invalid_input", field ? t("error.invalidField", { field, message: first.message }) : (first?.message ?? t("error.invalidInput")));
   }
   return result.data;
 }

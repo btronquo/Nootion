@@ -18,8 +18,8 @@ beforeEach(async () => {
 const search = async (c: Client, q: string) => (await c.get(`/api/search?q=${encodeURIComponent(q)}`)).json().results;
 const setText = (id: string, text: string) => app.db.update(pages).set({ contentText: text }).where(eq(pages.id, id)).run();
 
-describe("recherche", () => {
-  it("cherche dans les titres et le contenu, sans tenir compte des accents ni des mots inachevés", async () => {
+describe("search", () => {
+  it("searches titles and content, ignoring accents and unfinished words", async () => {
     const ws = await boris.personalWorkspace();
     const maison = await boris.createPage(ws, "Maison");
     const travaux = await boris.createPage(ws, "Travaux de la toiture", maison);
@@ -44,7 +44,7 @@ describe("recherche", () => {
     expect(await search(boris, '"*) OR (')).toEqual([]);
   });
 
-  it("ne montre que les pages que l'utilisateur peut lire", async () => {
+  it("only shows pages the user can read", async () => {
     const ws = await boris.personalWorkspace();
     const root = await boris.createPage(ws, "Secret budget");
     const child = await boris.createPage(ws, "Budget vacances", root);
@@ -56,7 +56,7 @@ describe("recherche", () => {
     expect((await new Client(app).get("/api/search?q=budget")).statusCode).toBe(401);
   });
 
-  it("transforme la saisie en requête sûre", () => {
+  it("turns the input into a safe query", () => {
     expect(ftsQuery("Café  au lait")).toBe('"Café" "au" "lait"*');
     expect(ftsQuery('a" OR b')).toBe('"a" "OR" "b"*');
     expect(ftsQuery("--")).toBeNull();

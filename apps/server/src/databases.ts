@@ -35,6 +35,7 @@ import { attachments, databaseProperties, databaseViews, pages, users } from "./
 import { HttpError } from "./http.js";
 import { getPageRole } from "./permissions.js";
 import type { PageMeta } from "./pages.js";
+import { t } from "@nootion/shared";
 
 export type PropertyRow = typeof databaseProperties.$inferSelect;
 
@@ -69,9 +70,9 @@ export function createDatabase(db: Db, input: { workspaceId: string; parentId: s
     tx.insert(pages)
       .values({ id, kind: "database", workspaceId: input.workspaceId, parentId: input.parentId, title: input.title, position: input.position, createdBy: input.userId })
       .run();
-    tx.insert(databaseProperties).values({ id: randomUUID(), databaseId: id, name: "Nom", type: "title", position: 0 }).run();
-    tx.insert(databaseProperties).values({ id: randomUUID(), databaseId: id, name: "Étiquettes", type: "multi_select", config: { options: [] }, position: 1 }).run();
-    tx.insert(databaseViews).values({ id: randomUUID(), databaseId: id, name: "Tableau", type: "table", position: 0 }).run();
+    tx.insert(databaseProperties).values({ id: randomUUID(), databaseId: id, name: t("database.defaultTitle"), type: "title", position: 0 }).run();
+    tx.insert(databaseProperties).values({ id: randomUUID(), databaseId: id, name: t("database.defaultTags"), type: "multi_select", config: { options: [] }, position: 1 }).run();
+    tx.insert(databaseViews).values({ id: randomUUID(), databaseId: id, name: t("view.defaultTable"), type: "table", position: 0 }).run();
     return id;
   });
 }
@@ -257,7 +258,7 @@ function toFormulaValue(prop: DatabaseProperty, value: CellValue, ctx: FormulaCo
     }
     case "formula": {
       const f = value as FormulaResult;
-      if (f.kind === "error") throw new FormulaError(`La colonne « ${prop.name} » est en erreur.`);
+      if (f.kind === "error") throw new FormulaError(t("formula.error.columnInError", { name: prop.name }));
       if (f.kind === "date") return makeDate(f.value);
       return f.value;
     }
@@ -308,7 +309,7 @@ export function computeFormulas(
     const visiting = new Set<string>();
     const compute = (prop: DatabaseProperty): FormulaResult | null => {
       if (done.has(prop.id)) return done.get(prop.id)!;
-      if (visiting.has(prop.id)) throw new FormulaError("Référence circulaire entre formules.");
+      if (visiting.has(prop.id)) throw new FormulaError(t("formula.error.circular"));
       visiting.add(prop.id);
       let result: FormulaResult | null = null;
       try {
@@ -317,7 +318,7 @@ export function computeFormulas(
         result = toFormulaResult(
           evaluateFormula(node, (name) => {
             const p = byName.get(name);
-            if (!p) throw new FormulaError(`Colonne inconnue « ${name} ».`);
+            if (!p) throw new FormulaError(t("formula.error.unknownColumn", { name }));
             if (p.type === "title") return row.title || null;
             if (p.type === "formula") {
               const r = compute(p);
@@ -352,10 +353,10 @@ export function checkFormula(properties: DatabaseProperty[], propId: string | nu
   const visit = (n: FormulaNode, path: string[]) => {
     for (const name of formulaReferencesOf(n)) {
       const p = byName.get(name);
-      if (!p) throw new HttpError(400, "bad_formula", `Colonne inconnue « ${name} ».`);
+      if (!p) throw new HttpError(400, "bad_formula", t("formula.error.unknownColumn", { name }));
       if (p.type !== "formula") continue;
       if (p.id === propId || path.includes(p.id)) {
-        throw new HttpError(400, "bad_formula", "La formule se référence elle-même (directement ou par une autre formule).");
+        throw new HttpError(400, "bad_formula", t("formula.error.selfReference"));
       }
       if (seen.has(p.id)) continue;
       seen.add(p.id);
@@ -379,10 +380,10 @@ export function validateValues(db: DbLike, properties: DatabaseProperty[], rowId
   let title: string | undefined;
   for (const [propId, raw] of Object.entries(input)) {
     const prop = byId.get(propId);
-    if (!prop) throw new HttpError(400, "unknown_property", "Colonne inconnue.");
-    if (COMPUTED_TYPES.includes(prop.type)) throw new HttpError(400, "computed_property", `La colonne « ${prop.name} » est calculée automatiquement.`);
+    if (!prop) throw new HttpError(400, "unknown_property", t("error.unknownProperty"));
+    if (COMPUTED_TYPES.includes(prop.type)) throw new HttpError(400, "computed_property", t("error.computedProperty", { name: prop.name }));
     const parsed = valueSchema(prop.type).safeParse(raw);
-    if (!parsed.success) throw new HttpError(400, "invalid_value", `Valeur invalide pour « ${prop.name} ».`);
+    if (!parsed.success) throw new HttpError(400, "invalid_value", t("error.invalidValue", { name: prop.name }));
     let value = parsed.data;
     if (typeof value === "string" && value === "" && prop.type !== "title") value = null;
     if (Array.isArray(value) && value.length === 0) value = null;
@@ -392,17 +393,17 @@ export function validateValues(db: DbLike, properties: DatabaseProperty[], rowId
       continue;
     }
     if (prop.type === "select" && value !== null && !(prop.config.options ?? []).some((o) => o.id === value)) {
-      throw new HttpError(400, "unknown_option", `Option inconnue pour « ${prop.name} ».`);
+      throw new HttpError(400, "unknown_option", t("error.unknownOption", { name: prop.name }));
     }
     if (prop.type === "multi_select" && value !== null) {
       const ids = new Set((prop.config.options ?? []).map((o) => o.id));
-      if ((value as string[]).some((v) => !ids.has(v))) throw new HttpError(400, "unknown_option", `Option inconnue pour « ${prop.name} ».`);
+      if ((value as string[]).some((v) => !ids.has(v))) throw new HttpError(400, "unknown_option", t("error.unknownOption", { name: prop.name }));
       value = [...new Set(value as string[])];
     }
     if (prop.type === "person" && value !== null) {
       const ids = [...new Set(value as string[])];
       const found = db.select({ id: users.id }).from(users).where(inArray(users.id, ids)).all();
-      if (found.length !== ids.length) throw new HttpError(400, "unknown_user", `Personne inconnue pour « ${prop.name} ».`);
+      if (found.length !== ids.length) throw new HttpError(400, "unknown_user", t("error.unknownPerson", { name: prop.name }));
       value = ids;
     }
     if (prop.type === "relation" && value !== null) {
@@ -414,7 +415,7 @@ export function validateValues(db: DbLike, properties: DatabaseProperty[], rowId
             .where(and(inArray(pages.id, ids), eq(pages.parentId, prop.config.databaseId), eq(pages.kind, "row"), isNull(pages.deletedAt)))
             .all()
         : [];
-      if (found.length !== ids.length) throw new HttpError(400, "unknown_row", `Ligne inconnue pour « ${prop.name} ».`);
+      if (found.length !== ids.length) throw new HttpError(400, "unknown_row", t("error.unknownRow", { name: prop.name }));
       value = ids;
     }
     if (prop.type === "file" && value !== null) {
@@ -426,7 +427,7 @@ export function validateValues(db: DbLike, properties: DatabaseProperty[], rowId
             .where(and(eq(attachments.pageId, rowId), inArray(attachments.id, files.map((f) => f.id))))
             .all()
         : [];
-      if (owned.length !== new Set(files.map((f) => f.id)).size) throw new HttpError(400, "unknown_file", "Fichier inconnu : envoyez-le d'abord sur cette ligne.");
+      if (owned.length !== new Set(files.map((f) => f.id)).size) throw new HttpError(400, "unknown_file", t("error.unknownFile"));
     }
     out[propId] = value;
   }
@@ -465,7 +466,7 @@ export function valueToText(value: CellValue, prop: DatabaseProperty): string {
       return d.end ? `${d.start} → ${d.end}` : d.start;
     }
     case "checkbox":
-      return value ? "Oui" : "";
+      return value ? t("common.yes") : "";
     case "file":
       return (value as { name: string }[]).map((f) => f.name).join(", ");
     case "person":

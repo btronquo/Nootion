@@ -17,6 +17,8 @@ export const users = sqliteTable(
     disabled: integer("disabled", { mode: "boolean" }).notNull().default(false),
     // File name of the profile picture in <data>/avatars, or null.
     avatar: text("avatar"),
+    // Interface language ("en", "fr"…).
+    locale: text("locale").notNull().default("en"),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("users_email_unique").on(t.email)],

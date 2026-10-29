@@ -7,6 +7,7 @@ import { Placeholder } from "@tiptap/extensions";
 import type { ClientPluginInfo } from "@nootion/shared";
 import { Callout, DatabaseBlock, FileAttachment, PageLink } from "./nodes";
 import { pluginNodes } from "../plugins/nodes";
+import { t } from "@nootion/shared";
 
 /** Extensions shared by the collaborative editor and the read-only public view. Keep both schemas identical. */
 export function baseExtensions(opts: {
@@ -32,7 +33,7 @@ export function baseExtensions(opts: {
     DatabaseBlock.configure({ publicToken: opts.publicToken ?? null }),
     ...pluginNodes(opts.plugins),
     Placeholder.configure({
-      placeholder: ({ node }) => (node.type.name === "heading" ? "Titre" : "Écrivez, ou tapez « / » pour les commandes…"),
+      placeholder: ({ node }) => (node.type.name === "heading" ? t("editor.headingPlaceholder") : t("editor.placeholder")),
       showOnlyCurrent: true,
     }),
   ];

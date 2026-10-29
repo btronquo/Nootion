@@ -7,6 +7,7 @@ import { attachmentPath, sendAttachment, uploadsDir } from "../attachments.js";
 import { attachments } from "../db/schema.js";
 import { HttpError, notFound, requireUser } from "../http.js";
 import { requirePageRole } from "../permissions.js";
+import { t } from "@nootion/shared";
 
 export const attachmentRoutes: FastifyPluginAsync = async (app) => {
   const db = app.db;
@@ -16,14 +17,14 @@ export const attachmentRoutes: FastifyPluginAsync = async (app) => {
     const user = requireUser(req);
     requirePageRole(db, user.id, req.params.id, "editor");
     const file = await req.file();
-    if (!file) throw new HttpError(400, "no_file", "Aucun fichier reçu.");
+    if (!file) throw new HttpError(400, "no_file", t("error.noFile"));
     const id = randomUUID();
     fs.mkdirSync(uploadsDir(dataDir), { recursive: true });
     const dest = attachmentPath(dataDir, id);
     const tmp = `${dest}.part`;
     try {
       await pipeline(file.file, fs.createWriteStream(tmp));
-      if (file.file.truncated) throw new HttpError(413, "too_large", `Fichier trop volumineux (max ${app.config.maxUploadMb} Mo).`);
+      if (file.file.truncated) throw new HttpError(413, "too_large", t("error.fileTooLarge", { max: app.config.maxUploadMb }));
       fs.renameSync(tmp, dest);
     } finally {
       fs.rmSync(tmp, { force: true });

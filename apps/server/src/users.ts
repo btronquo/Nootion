@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import type { PublicUser, UserRole } from "@nootion/shared";
+import { isLocale, t, type Locale, type PublicUser, type UserRole } from "@nootion/shared";
 import type { Db } from "./db/index.js";
 import { users, workspaceMembers, workspaces } from "./db/schema.js";
 import { hashPassword } from "./auth/password.js";
@@ -20,6 +20,7 @@ export function toPublicUser(u: UserRow): PublicUser {
     avatarUrl: avatarUrl(u),
     role: u.role,
     disabled: u.disabled,
+    locale: isLocale(u.locale) ? u.locale : "en",
     createdAt: u.createdAt.toISOString(),
   };
 }
@@ -27,17 +28,17 @@ export function toPublicUser(u: UserRow): PublicUser {
 /** Creates a user together with their private personal workspace. */
 export async function createUser(
   db: Db,
-  input: { name: string; email: string; password: string; role: UserRole },
+  input: { name: string; email: string; password: string; role: UserRole; locale: Locale },
 ): Promise<UserRow> {
   const passwordHash = await hashPassword(input.password);
   return db.transaction((tx) => {
     const user = tx
       .insert(users)
-      .values({ id: randomUUID(), name: input.name, email: input.email, passwordHash, role: input.role })
+      .values({ id: randomUUID(), name: input.name, email: input.email, passwordHash, role: input.role, locale: input.locale })
       .returning()
       .get();
     const workspaceId = randomUUID();
-    tx.insert(workspaces).values({ id: workspaceId, name: "Espace personnel", kind: "personal", createdBy: user.id }).run();
+    tx.insert(workspaces).values({ id: workspaceId, name: t("workspace.personal"), kind: "personal", createdBy: user.id }).run();
     tx.insert(workspaceMembers).values({ workspaceId, userId: user.id, role: "owner" }).run();
     return user;
   });

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Database, FileText, Search } from "lucide-react";
-import type { SearchResult } from "@nootion/shared";
+import { t, type SearchResult } from "@nootion/shared";
 import { api } from "../lib/api";
 
 /** Opens the search dialog with Ctrl+K (Cmd+K on a Mac). */
@@ -85,7 +85,7 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 px-4 pt-[12vh]" onMouseDown={onClose}>
       <div
         role="dialog"
-        aria-label="Rechercher"
+        aria-label={t("search.title")}
         className="w-full max-w-xl overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-800 dark:bg-neutral-900"
         onMouseDown={(e) => e.stopPropagation()}
       >
@@ -96,8 +96,8 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="Rechercher dans les pages…"
-            aria-label="Rechercher dans les pages"
+            placeholder={t("search.placeholder")}
+            aria-label={t("search.label")}
             className="w-full bg-transparent py-3.5 text-base outline-none placeholder:text-neutral-400"
           />
         </div>
@@ -122,7 +122,7 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
                     ))}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium">{r.title || "Sans titre"}</span>
+                  <span className="block truncate text-sm font-medium">{r.title || t("common.untitled")}</span>
                   {r.path.length > 0 && <span className="block truncate text-xs text-neutral-500">{r.path.join(" / ")}</span>}
                   {r.snippet && (
                     <span className="mt-0.5 line-clamp-2 text-xs text-neutral-600 dark:text-neutral-400">
@@ -132,13 +132,13 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
                 </span>
               </li>
             ))}
-            {!search.isFetching && results.length === 0 && <li className="px-3 py-6 text-center text-sm text-neutral-500">Aucun résultat</li>}
+            {!search.isFetching && results.length === 0 && <li className="px-3 py-6 text-center text-sm text-neutral-500">{t("search.noResults")}</li>}
           </ul>
         )}
         <div className="flex gap-4 border-t border-neutral-200 px-4 py-2 text-xs text-neutral-500 dark:border-neutral-800">
-          <span>↑↓ pour choisir</span>
-          <span>Entrée pour ouvrir</span>
-          <span>Échap pour fermer</span>
+          <span>{t("search.hintChoose")}</span>
+          <span>{t("search.hintOpen")}</span>
+          <span>{t("search.hintClose")}</span>
         </div>
       </div>
     </div>

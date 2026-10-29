@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { calcFunctionsFor, computeCalc, rollupCalcInput } from "@nootion/shared";
 
-describe("calculs de colonnes", () => {
-  it("nombres", () => {
+describe("column calculations", () => {
+  it("numbers", () => {
     const v = [10, null, 2.5, 7.5, 0.1, 0.2];
     expect(computeCalc("sum", v, "number")).toEqual({ kind: "number", value: 20.3 });
     expect(computeCalc("average", [1, 2, null], "number")).toEqual({ kind: "number", value: 1.5 });
@@ -12,7 +12,7 @@ describe("calculs de colonnes", () => {
     expect(computeCalc("sum", [], "number")).toEqual({ kind: "number", value: 0 });
   });
 
-  it("comptages et pourcentages", () => {
+  it("counts and percentages", () => {
     const v = [["a", "b"], null, ["a"], []];
     expect(computeCalc("count_all", v, "multi_select")).toEqual({ kind: "count", value: 4 });
     expect(computeCalc("count_values", v, "multi_select")).toEqual({ kind: "count", value: 3 });
@@ -28,7 +28,7 @@ describe("calculs de colonnes", () => {
     expect(computeCalc("date_range", v, "date")).toEqual({ kind: "days", value: 73 });
   });
 
-  it("fonctions proposées et colonnes de rollups", () => {
+  it("offered functions and rollup columns", () => {
     expect(calcFunctionsFor("checkbox")).toContain("percent_checked");
     expect(calcFunctionsFor("text")).not.toContain("sum");
     const input = rollupCalcInput([{ kind: "number", value: 60 }, null, { kind: "number", value: 84.5 }], null);

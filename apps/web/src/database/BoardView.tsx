@@ -19,6 +19,7 @@ import { OptionChip } from "./OptionPicker";
 import { orderedColumns } from "./DatabaseTable";
 import type { useDatabaseActions } from "./hooks";
 import { pageTitle } from "../lib/tree";
+import { t } from "@nootion/shared";
 
 const isEmpty = (v: CellValue | undefined) => v === null || v === undefined || v === "" || v === false || (Array.isArray(v) && !v.length);
 
@@ -63,8 +64,7 @@ export function BoardView({
   if (!prop) {
     return (
       <p className="rounded border border-dashed border-neutral-300 px-3 py-4 text-sm text-neutral-500 dark:border-neutral-700">
-        Le Kanban range les lignes en colonnes selon une propriété. Ajoute une colonne « Sélection » (par exemple un statut), ou choisis une propriété
-        avec le bouton « Colonnes ».
+        {t("board.noGroup")}
       </p>
     );
   }
@@ -82,7 +82,7 @@ export function BoardView({
       {groups.map((g) => (
         <section
           key={g.key}
-          aria-label={`Colonne ${g.label}`}
+          aria-label={t("board.column", { name: g.label })}
           onDragOver={(e) => {
             if (!dragging) return;
             e.preventDefault();
@@ -112,7 +112,7 @@ export function BoardView({
                 // Links inside the card (relations, files) keep their own behaviour.
                 if (!(e.target as HTMLElement).closest("a")) navigate(rowHref(row));
               }}
-              aria-label={row.title || "Sans titre"}
+              aria-label={row.title || t("common.untitled")}
               className={`cursor-pointer rounded-md border border-neutral-200 bg-white p-2 shadow-sm hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:hover:bg-neutral-700/70 ${dragging?.rowId === row.id ? "opacity-50" : ""}`}
             >
               <div className="font-medium">
@@ -150,7 +150,7 @@ export function BoardView({
               onClick={() => actions.addRow.mutate(initialValues(ctx, view.config, { prop, key: g.key }))}
               className="flex items-center gap-1 rounded px-1.5 py-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
             >
-              <Plus size={14} /> Nouvelle
+              <Plus size={14} /> {t("board.new")}
             </button>
           )}
         </section>

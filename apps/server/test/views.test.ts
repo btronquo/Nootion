@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { applyView, groupRows, initialValues, moveToGroup, type DatabaseProperty, type DatabaseRow, type ViewContext } from "@nootion/shared";
+import { setLocaleResolver } from "@nootion/shared";
+
+// These tests check French messages and formats.
+setLocaleResolver(() => "fr");
 
 const prop = (id: string, type: DatabaseProperty["type"], config: DatabaseProperty["config"] = {}): DatabaseProperty => ({
   id,
@@ -56,8 +60,8 @@ const ctx: ViewContext = {
 const titles = (r: DatabaseRow[]) => r.map((x) => x.title);
 const now = new Date(2026, 9, 29, 12);
 
-describe("filtres, tris et groupes", () => {
-  it("filtre par texte, nombre, date, case, sélection, personne et formule", () => {
+describe("filters, sorts and groups", () => {
+  it("filters by text, number, date, checkbox, select, person and formula", () => {
     expect(titles(applyView(ctx, { filters: [{ propertyId: "title", operator: "contains", value: "eco" }] }))).toEqual(["Éco"]);
     expect(titles(applyView(ctx, { filters: [{ propertyId: "amount", operator: "gt", value: 50 }] }))).toEqual(["EDF", "Assurance"]);
     expect(titles(applyView(ctx, { filters: [{ propertyId: "amount", operator: "is_empty" }] }))).toEqual(["Éco"]);
@@ -69,7 +73,7 @@ describe("filtres, tris et groupes", () => {
     expect(titles(applyView(ctx, { filters: [{ propertyId: "total", operator: "gte", value: 72 }] }))).toEqual(["EDF", "Assurance"]);
   });
 
-  it("combine les filtres avec et / ou, et ignore les filtres incomplets", () => {
+  it("combines filters with and / or, and ignores incomplete filters", () => {
     const filters = [
       { propertyId: "status", operator: "is" as const, value: "s1" },
       { propertyId: "amount", operator: "lt" as const, value: 50 },
@@ -82,7 +86,7 @@ describe("filtres, tris et groupes", () => {
     expect(applyView(ctx, { filters: [{ propertyId: "paid", operator: "gt", value: 1 }] })).toHaveLength(4);
   });
 
-  it("trie, vides en dernier, sur plusieurs colonnes", () => {
+  it("sorts on several columns, empty values last", () => {
     expect(titles(applyView(ctx, { sorts: [{ propertyId: "amount", direction: "desc" }] }))).toEqual(["EDF", "Assurance", "Free", "Éco"]);
     expect(titles(applyView(ctx, { sorts: [{ propertyId: "title", direction: "asc" }] }))).toEqual(["Assurance", "Éco", "EDF", "Free"]);
     // Select options sort in their own order.
@@ -98,7 +102,7 @@ describe("filtres, tris et groupes", () => {
     ).toEqual(["Free", "Assurance", "EDF", "Éco"]);
   });
 
-  it("groupe et déplace entre groupes", () => {
+  it("groups and moves between groups", () => {
     const g = groupRows(status, rows, ctx);
     expect(g.map((x) => [x.label, titles(x.rows)])).toEqual([
       ["À payer", ["Free", "Assurance"]],
@@ -117,7 +121,7 @@ describe("filtres, tris et groupes", () => {
     expect(moveToGroup(paid, false, "false", "true")).toBe(true);
   });
 
-  it("préremplit une nouvelle ligne selon les filtres et le groupe", () => {
+  it("prefills a new row from the filters and the group", () => {
     const config = {
       filters: [
         { propertyId: "owner", operator: "contains" as const, value: "me" },

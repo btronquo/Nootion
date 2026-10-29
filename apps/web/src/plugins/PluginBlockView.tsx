@@ -2,6 +2,7 @@ import { Component, type ReactNode } from "react";
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import type { PluginBlock } from "@nootion/shared";
 import { blockRenderer } from "./registry";
+import { t } from "@nootion/shared";
 
 export interface PluginNodeOptions {
   pluginId: string;
@@ -17,7 +18,7 @@ class Boundary extends Component<{ children: ReactNode; label: string }, { error
   render() {
     return this.state.error ? (
       <Placeholder>
-        Le bloc « {this.props.label} » a planté : {this.state.error}
+        {t("plugins.blockCrashed", { block: this.props.label, error: this.state.error })}
       </Placeholder>
     ) : (
       this.props.children
@@ -52,7 +53,7 @@ export function PluginBlockView({ node, extension, editor, updateAttributes }: N
         </Boundary>
       ) : (
         <Placeholder>
-          Bloc « {block.title} » : le plugin « {pluginName} » est désactivé.
+          {t("plugins.blockDisabled", { block: block.title, plugin: pluginName })}
         </Placeholder>
       )}
     </NodeViewWrapper>

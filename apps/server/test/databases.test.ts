@@ -28,7 +28,7 @@ async function addProp(c: Client, dbId: string, name: string, type: string, conf
 const getDb = async (c: Client, id: string): Promise<DatabaseData> => (await c.get(`/api/databases/${id}`)).json().database;
 
 describe("databases", () => {
-  it("crée une database avec une colonne titre et une vue tableau", async () => {
+  it("creates a database with a title column and a table view", async () => {
     const d = await createDb(boris);
     expect(d.properties.map((p) => p.type)).toEqual(["title", "multi_select"]);
     expect(d.views).toHaveLength(1);
@@ -38,7 +38,7 @@ describe("databases", () => {
     expect(pages).toEqual([expect.objectContaining({ id: d.id, kind: "database", title: "Factures" })]);
   });
 
-  it("ajoute des lignes typées, et les lignes n'apparaissent pas dans l'arborescence", async () => {
+  it("adds typed rows, and rows don't appear in the page tree", async () => {
     const d = await createDb(boris);
     const titleId = d.properties[0].id;
     const ht = await addProp(boris, d.id, "Montant HT", "currency");
@@ -63,7 +63,7 @@ describe("databases", () => {
     expect((await boris.get(`/api/pages/${row.id}`)).json().page).toMatchObject({ kind: "row", title: "Facture EDF" });
   });
 
-  it("refuse les valeurs invalides", async () => {
+  it("refuses invalid values", async () => {
     const d = await createDb(boris);
     const n = await addProp(boris, d.id, "Montant", "number");
     const s = await addProp(boris, d.id, "Statut", "select", { options: [{ id: "a", name: "Payée", color: "green" }] });
@@ -80,7 +80,7 @@ describe("databases", () => {
     expect((await boris.post(`/api/databases/${d.id}/rows`, { values: { [s.id]: "a" } })).statusCode).toBe(200);
   });
 
-  it("met à jour une cellule sans toucher aux autres", async () => {
+  it("updates a cell without touching the others", async () => {
     const d = await createDb(boris);
     const a = await addProp(boris, d.id, "A", "text");
     const b = await addProp(boris, d.id, "B", "number");
@@ -91,7 +91,7 @@ describe("databases", () => {
     expect(cleared.json().row.values[a.id]).toBeNull();
   });
 
-  it("convertit les valeurs quand une colonne change de type", async () => {
+  it("converts values when a column changes type", async () => {
     const d = await createDb(boris);
     const col = await addProp(boris, d.id, "Montant", "text");
     for (const v of ["12,50 €", "abc", "1 000"]) await boris.post(`/api/databases/${d.id}/rows`, { values: { [col.id]: v } });
@@ -111,7 +111,7 @@ describe("databases", () => {
     expect((await boris.patch(`/api/databases/${d.id}/properties/${d.properties[0].id}`, { type: "text" })).statusCode).toBe(400);
   });
 
-  it("supprimer une option vide les cellules qui l'utilisaient", async () => {
+  it("deleting an option empties the cells that used it", async () => {
     const d = await createDb(boris);
     const s = await addProp(boris, d.id, "Statut", "multi_select", {
       options: [
@@ -125,7 +125,7 @@ describe("databases", () => {
     expect(data.rows.find((r) => r.id === row.id)!.values[s.id]).toEqual(["b"]);
   });
 
-  it("supprime une colonne et ses valeurs, mais jamais le titre", async () => {
+  it("deletes a column and its values, but never the title", async () => {
     const d = await createDb(boris);
     const a = await addProp(boris, d.id, "A", "text");
     await boris.post(`/api/databases/${d.id}/rows`, { values: { [a.id]: "x" } });
@@ -135,7 +135,7 @@ describe("databases", () => {
     expect((await boris.delete(`/api/databases/${d.id}/properties/${d.properties[0].id}`)).statusCode).toBe(400);
   });
 
-  it("met des lignes à la corbeille", async () => {
+  it("moves rows to the trash", async () => {
     const d = await createDb(boris);
     const r1 = (await boris.post(`/api/databases/${d.id}/rows`, {})).json().row;
     const r2 = (await boris.post(`/api/databases/${d.id}/rows`, {})).json().row;
@@ -145,7 +145,7 @@ describe("databases", () => {
     expect((await getDb(boris, d.id)).rows).toHaveLength(2);
   });
 
-  it("personnes et fichiers sont vérifiés", async () => {
+  it("people and files are checked", async () => {
     const d = await createDb(boris);
     const who = await addProp(boris, d.id, "Responsable", "person");
     const file = await addProp(boris, d.id, "PDF", "file");
@@ -158,8 +158,8 @@ describe("databases", () => {
   });
 });
 
-describe("databases et droits", () => {
-  it("rien n'est visible ni modifiable sans partage", async () => {
+describe("databases and access", () => {
+  it("nothing is visible or editable without a share", async () => {
     const d = await createDb(boris);
     const row = (await boris.post(`/api/databases/${d.id}/rows`, {})).json().row;
     const attempts = [
@@ -178,7 +178,7 @@ describe("databases et droits", () => {
     for (const res of await Promise.all(attempts)) expect(res.statusCode).toBe(404);
   });
 
-  it("un lecteur voit les lignes mais ne modifie rien", async () => {
+  it("a viewer sees the rows but changes nothing", async () => {
     const d = await createDb(boris);
     const row = (await boris.post(`/api/databases/${d.id}/rows`, {})).json().row;
     await boris.put(`/api/pages/${d.id}/shares`, { userId: await alice.id(), role: "viewer" });
@@ -191,7 +191,7 @@ describe("databases et droits", () => {
     expect((await alice.post(`/api/databases/${d.id}/properties`, { name: "x", type: "text" })).statusCode).toBe(404);
   });
 
-  it("un éditeur ajoute et modifie des lignes", async () => {
+  it("an editor adds and edits rows", async () => {
     const d = await createDb(boris);
     await boris.put(`/api/pages/${d.id}/shares`, { userId: await alice.id(), role: "editor" });
     const row = (await alice.post(`/api/databases/${d.id}/rows`, { values: { [d.properties[0].id]: "De Alice" } })).json().row;
@@ -199,7 +199,7 @@ describe("databases et droits", () => {
     expect((await alice.patch(`/api/databases/${d.id}/rows/${row.id}`, { values: { [d.properties[0].id]: "Modifiée" } })).statusCode).toBe(200);
   });
 
-  it("une ligne ne se déplace pas et une page ne va pas dans une database", async () => {
+  it("a row can't be moved and a page can't go into a database", async () => {
     const d = await createDb(boris);
     const row = (await boris.post(`/api/databases/${d.id}/rows`, {})).json().row;
     const page = await boris.createPage(await boris.personalWorkspace(), "Page");
@@ -208,7 +208,7 @@ describe("databases et droits", () => {
     expect((await boris.post("/api/pages", { workspaceId: await boris.personalWorkspace(), parentId: d.id, title: "x" })).statusCode).toBe(400);
   });
 
-  it("lien public : database intégrée à la page visible, database simple sous-page non", async () => {
+  it("public link: a database embedded in the page is visible, a database subpage is not", async () => {
     const page = await boris.createPage(await boris.personalWorkspace(), "Compta");
     const inline = await createDb(boris, "Factures", page);
     const separate = await createDb(boris, "Secret", page);
@@ -243,7 +243,7 @@ describe("databases et droits", () => {
   });
 });
 
-describe("relations et rollups", () => {
+describe("relations and rollups", () => {
   async function setup() {
     const fournisseurs = await createDb(boris, "Fournisseurs");
     const factures = await createDb(boris, "Factures");
@@ -273,7 +273,7 @@ describe("relations et rollups", () => {
     return { fournisseurs, factures, montant, payee, relation, twin, free, edf, add };
   }
 
-  it("relation dans les deux sens, gardée à jour des deux côtés", async () => {
+  it("two-way relation, kept up to date on both sides", async () => {
     const s = await setup();
     const f1 = await s.add("F1", 29.99, true, s.free.id);
     expect(f1.related[s.free.id].title).toBe("Free");
@@ -304,7 +304,7 @@ describe("relations et rollups", () => {
     expect(twin.config.twinPropertyId).toBeNull();
   });
 
-  it("rollups : somme, % coché, valeurs d'origine", async () => {
+  it("rollups: sum, % checked, original values", async () => {
     const s = await setup();
     await s.add("F1", 29.99, true, s.free.id);
     await s.add("F2", 30.01, false, s.free.id);
@@ -337,7 +337,7 @@ describe("relations et rollups", () => {
     expect((await boris.patch(`/api/databases/${s.fournisseurs.id}/properties/${total.id}`, { type: "number" })).statusCode).toBe(400);
   });
 
-  it("droits : pas de relation vers une database invisible, rien ne fuit à la lecture", async () => {
+  it("access: no relation to an invisible database, nothing leaks when reading", async () => {
     const s = await setup();
     await s.add("F1", 29.99, true, s.free.id);
     // Alice can see the invoices but not the suppliers.
@@ -354,10 +354,10 @@ describe("relations et rollups", () => {
   });
 });
 
-describe("colonnes formule", () => {
+describe("formula columns", () => {
   const formula = (dbId: string, name: string, expression: string) => boris.post(`/api/databases/${dbId}/properties`, { name, type: "formula", config: { expression } });
 
-  it("calcule, enchaîne les formules, suit les renommages et signale les erreurs", async () => {
+  it("computes, chains formulas, follows renames and reports errors", async () => {
     const d = await createDb(boris);
     const ht = await addProp(boris, d.id, "HT", "currency");
     const payee = await addProp(boris, d.id, "Payée", "checkbox");
@@ -390,7 +390,7 @@ describe("colonnes formule", () => {
     expect((await boris.patch(`/api/databases/${d.id}/rows/${row.id}`, { values: { [ttc.id]: 1 } })).statusCode).toBe(400);
   });
 
-  it("formules sur les relations, et rollup d'une formule", async () => {
+  it("formulas on relations, and rollup of a formula", async () => {
     const fournisseurs = await createDb(boris, "Fournisseurs");
     const factures = await createDb(boris, "Factures");
     const ht = await addProp(boris, factures.id, "HT", "currency");
@@ -417,7 +417,7 @@ describe("colonnes formule", () => {
     expect(data.rows[0].values[count.id]).toEqual({ kind: "text", value: "2 factures, 36 €" });
   });
 
-  it("vues : créer, dupliquer, configurer, supprimer", async () => {
+  it("views: create, duplicate, configure, delete", async () => {
     const d = await createDb(boris);
     const first = d.views[0];
     const tag = d.properties[1];

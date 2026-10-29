@@ -67,7 +67,7 @@ beforeEach(async () => {
 afterEach(() => app.close());
 
 describe("plugins", () => {
-  it("liste les plugins, l'embed intégré est actif, les autres désactivés par défaut", async () => {
+  it("lists plugins: the built-in embed is on, others are off by default", async () => {
     const admin = (await boris.get("/api/admin/plugins")).json();
     expect(admin.plugins.map((p: { id: string; enabled: boolean; builtin: boolean }) => [p.id, p.enabled, p.builtin])).toEqual([
       ["embed", true, true],
@@ -87,7 +87,7 @@ describe("plugins", () => {
     expect((await alice.get("/api/plugins/demo/hello/x")).statusCode).toBe(404);
   });
 
-  it("active un plugin : routes, réglages chiffrés, fonctions de formule ; désactiver coupe tout", async () => {
+  it("turning a plugin on: routes, encrypted settings, formula functions; turning it off stops everything", async () => {
     const res = await boris.patch("/api/admin/plugins/demo", { enabled: true, values: { token: "s3cret-value", mode: "b" } });
     expect(res.statusCode, res.body).toBe(200);
     expect(res.json().plugin.values).toEqual({ token: { set: true }, mode: "b" });
@@ -130,7 +130,7 @@ describe("plugins", () => {
     expect(fs.existsSync(path.join(dataDir, "plugin-data", "demo"))).toBe(true);
   });
 
-  it("embed : aperçu d'un lien, réseau local refusé sauf réglage", async () => {
+  it("embed: link preview, local network refused unless allowed", async () => {
     const server = http.createServer((req, res) => {
       if (req.url === "/go") return res.writeHead(302, { location: "/page" }).end();
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });

@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { t } from "@nootion/shared";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
 import { AuthCard, Button, ErrorText, Field } from "../components/ui";
@@ -29,13 +30,13 @@ export function LoginPage() {
   }
 
   return (
-    <AuthCard title="Connexion">
+    <AuthCard title={t("login.title")}>
       <form onSubmit={submit} className="space-y-4">
-        <Field label="Email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required autoFocus autoComplete="username" />
-        <Field label="Mot de passe" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required autoComplete="current-password" />
+        <Field label={t("auth.email")} type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required autoFocus autoComplete="username" />
+        <Field label={t("auth.password")} type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required autoComplete="current-password" />
         <ErrorText error={error} />
         <Button type="submit" disabled={busy} className="w-full">
-          Se connecter
+          {t("login.submit")}
         </Button>
       </form>
     </AuthCard>

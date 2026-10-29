@@ -1,12 +1,13 @@
 import { useQueries } from "@tanstack/react-query";
-import type { TrashedPage } from "@nootion/shared";
+import { intlLocale, t, type TrashedPage } from "@nootion/shared";
+import { workspaceName } from "../lib/labels";
 import { RotateCcw, Trash2 } from "lucide-react";
 import { api } from "../lib/api";
 import { useRefreshPages, useWorkspaces } from "../lib/queries";
 import { pageTitle } from "../lib/tree";
 import { Button } from "../components/ui";
 
-const dateFmt = new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" });
+const dateFmt = () => new Intl.DateTimeFormat(intlLocale(), { dateStyle: "medium", timeStyle: "short" });
 
 export function TrashPage() {
   const workspaces = useWorkspaces();
@@ -23,7 +24,7 @@ export function TrashPage() {
     await refresh();
   }
   async function destroy(p: TrashedPage) {
-    if (!confirm(`Supprimer définitivement « ${pageTitle(p.title)} » et ses sous-pages ?`)) return;
+    if (!confirm(t("trash.confirmDelete", { title: pageTitle(p.title) }))) return;
     await api(`/pages/${p.id}/permanent`, { method: "DELETE" });
     await refresh();
   }
@@ -32,22 +33,22 @@ export function TrashPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-8 py-12">
-      <h1 className="mb-6 text-2xl font-bold">Corbeille</h1>
-      {sections.length === 0 && <p className="text-neutral-500">La corbeille est vide.</p>}
+      <h1 className="mb-6 text-2xl font-bold">{t("trash.title")}</h1>
+      {sections.length === 0 && <p className="text-neutral-500">{t("trash.empty")}</p>}
       {sections.map(({ ws, pages }) => (
         <section key={ws.id} className="mb-8">
-          <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-neutral-500">{ws.name}</h2>
+          <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-neutral-500">{workspaceName(ws)}</h2>
           <ul className="divide-y divide-neutral-200 rounded-lg border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
             {pages.map((p) => (
               <li key={p.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
                 <span className="min-w-0 truncate">
-                  {p.icon} {pageTitle(p.title)} <span className="text-neutral-400">· supprimée le {dateFmt.format(new Date(p.deletedAt))}</span>
+                  {p.icon} {pageTitle(p.title)} <span className="text-neutral-400">· {t("trash.deletedOn", { date: dateFmt().format(new Date(p.deletedAt)) })}</span>
                 </span>
                 <span className="flex shrink-0 gap-1">
                   <Button variant="ghost" onClick={() => restore(p.id)}>
-                    <RotateCcw size={14} /> Restaurer
+                    <RotateCcw size={14} /> {t("trash.restore")}
                   </Button>
-                  <Button variant="danger" onClick={() => destroy(p)} title="Supprimer définitivement">
+                  <Button variant="danger" onClick={() => destroy(p)} title={t("trash.deleteForever")}>
                     <Trash2 size={14} />
                   </Button>
                 </span>

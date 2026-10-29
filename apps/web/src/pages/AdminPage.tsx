@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, Trash2 } from "lucide-react";
-import type { InvitationInfo, PublicUser, UserRole } from "@nootion/shared";
+import { intlLocale, t, type InvitationInfo, type PublicUser, type UserRole } from "@nootion/shared";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
-import { Button, ErrorText, Field } from "../components/ui";
+import { Button, ErrorText, Field, Rich } from "../components/ui";
 import { PluginsAdmin } from "./PluginsAdmin";
 
-const dateFmt = new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium" });
+const dateFmt = () => new Intl.DateTimeFormat(intlLocale(), { dateStyle: "medium" });
 
 export function AdminPage() {
   const { user: me } = useSession();
@@ -39,19 +39,19 @@ export function AdminPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-10 px-8 py-12">
-      <h1 className="text-2xl font-bold">Administration</h1>
+      <h1 className="text-2xl font-bold">{t("admin.title")}</h1>
 
       <section>
-        <h2 className="mb-3 text-lg font-semibold">Utilisateurs</h2>
+        <h2 className="mb-3 text-lg font-semibold">{t("admin.users")}</h2>
         <ErrorText error={updateUser.error} />
         <div className="overflow-hidden rounded-lg border border-neutral-200 dark:border-neutral-800">
           <table className="w-full text-sm">
             <thead className="bg-neutral-50 text-left text-neutral-500 dark:bg-neutral-950">
               <tr>
-                <th className="px-3 py-2 font-medium">Nom</th>
-                <th className="px-3 py-2 font-medium">Email</th>
-                <th className="px-3 py-2 font-medium">Rôle</th>
-                <th className="px-3 py-2 font-medium">Statut</th>
+                <th className="px-3 py-2 font-medium">{t("auth.name")}</th>
+                <th className="px-3 py-2 font-medium">{t("auth.email")}</th>
+                <th className="px-3 py-2 font-medium">{t("admin.role")}</th>
+                <th className="px-3 py-2 font-medium">{t("admin.status")}</th>
               </tr>
             </thead>
             <tbody>
@@ -65,16 +65,16 @@ export function AdminPage() {
                       value={u.role}
                       onChange={(e) => updateUser.mutate({ id: u.id, patch: { role: e.target.value as UserRole } })}
                     >
-                      <option value="member">Membre</option>
-                      <option value="admin">Admin</option>
+                      <option value="member">{t("admin.member")}</option>
+                      <option value="admin">{t("admin.admin")}</option>
                     </select>
                   </td>
                   <td className="px-3 py-2">
                     {u.id === me?.id ? (
-                      <span className="text-neutral-400">Vous</span>
+                      <span className="text-neutral-400">{t("common.you")}</span>
                     ) : (
                       <Button variant={u.disabled ? "ghost" : "danger"} onClick={() => updateUser.mutate({ id: u.id, patch: { disabled: !u.disabled } })}>
-                        {u.disabled ? "Réactiver" : "Désactiver"}
+                        {u.disabled ? t("admin.enable") : t("admin.disable")}
                       </Button>
                     )}
                   </td>
@@ -86,8 +86,8 @@ export function AdminPage() {
       </section>
 
       <section>
-        <h2 className="mb-1 text-lg font-semibold">Inviter quelqu'un</h2>
-        <p className="mb-3 text-sm text-neutral-500">Créez un lien d'invitation valable 7 jours et envoyez-le à la personne.</p>
+        <h2 className="mb-1 text-lg font-semibold">{t("admin.invite")}</h2>
+        <p className="mb-3 text-sm text-neutral-500">{t("admin.inviteHelp")}</p>
         <form
           className="flex flex-wrap items-end gap-3"
           onSubmit={(e) => {
@@ -96,21 +96,21 @@ export function AdminPage() {
           }}
         >
           <div className="min-w-64 flex-1">
-            <Field label="Email (optionnel, réserve le lien à cette adresse)" type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
+            <Field label={t("admin.inviteEmail")} type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
           </div>
           <select className="rounded-md border border-neutral-300 bg-transparent px-3 py-2 text-sm dark:border-neutral-700" value={inviteRole} onChange={(e) => setInviteRole(e.target.value as UserRole)}>
-            <option value="member">Membre</option>
-            <option value="admin">Admin</option>
+            <option value="member">{t("admin.member")}</option>
+            <option value="admin">{t("admin.admin")}</option>
           </select>
           <Button type="submit" disabled={createInvite.isPending}>
-            Créer le lien
+            {t("admin.createLink")}
           </Button>
         </form>
         <ErrorText error={createInvite.error} />
         {lastLink && (
           <div className="mt-3 flex items-center gap-2 rounded-md bg-green-50 p-3 text-sm dark:bg-green-950">
             <code className="flex-1 break-all">{lastLink}</code>
-            <Button variant="ghost" onClick={() => navigator.clipboard.writeText(lastLink)} title="Copier">
+            <Button variant="ghost" onClick={() => navigator.clipboard.writeText(lastLink)} title={t("common.copy")}>
               <Copy size={16} />
             </Button>
           </div>
@@ -120,9 +120,9 @@ export function AdminPage() {
             {invitations.data.invitations.map((i) => (
               <li key={i.id} className="flex items-center justify-between px-3 py-2">
                 <span>
-                  {i.email ?? "Lien ouvert"} · {i.role === "admin" ? "Admin" : "Membre"} · expire le {dateFmt.format(new Date(i.expiresAt))}
+                  {i.email ?? t("admin.openLink")} · {i.role === "admin" ? t("admin.admin") : t("admin.member")} · {t("admin.expiresOn", { date: dateFmt().format(new Date(i.expiresAt)) })}
                 </span>
-                <Button variant="danger" onClick={() => revokeInvite.mutate(i.id)} title="Révoquer">
+                <Button variant="danger" onClick={() => revokeInvite.mutate(i.id)} title={t("admin.revoke")}>
                   <Trash2 size={16} />
                 </Button>
               </li>
@@ -132,23 +132,22 @@ export function AdminPage() {
       </section>
 
       <section>
-        <h2 className="mb-1 text-lg font-semibold">Sauvegarde</h2>
+        <h2 className="mb-1 text-lg font-semibold">{t("admin.backup")}</h2>
         <p className="mb-3 text-sm text-neutral-500">
-          Télécharge tout Nootion dans un fichier .zip : la base (comptes, pages, databases), les fichiers joints, les photos de profil et les
-          plugins. Pour restaurer, décompressez-le dans le dossier <code>/data</code> à la place de l'ancien, conteneur arrêté.
+          <Rich text={t("admin.backupHelp")} />
         </p>
         <a
           href="/api/admin/backup"
           download
           className="inline-flex items-center gap-2 rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
         >
-          Télécharger une sauvegarde
+          {t("admin.downloadBackup")}
         </a>
       </section>
 
       <PluginsAdmin />
 
-      {health.data && <p className="text-xs text-neutral-500">Nootion version {health.data.version}</p>}
+      {health.data && <p className="text-xs text-neutral-500">{t("admin.version", { version: health.data.version })}</p>}
     </div>
   );
 }

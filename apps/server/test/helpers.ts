@@ -57,7 +57,8 @@ export class Client {
   }
 }
 
-export const ADMIN = { name: "Boris", email: "boris@example.com", password: "motdepasse-admin" };
+// Most tests check French texts; i18n.test.ts covers English.
+export const ADMIN = { name: "Boris", email: "boris@example.com", password: "motdepasse-admin", locale: "fr" };
 
 export async function setupAdmin(app: FastifyInstance): Promise<Client> {
   const c = new Client(app);
@@ -66,11 +67,11 @@ export async function setupAdmin(app: FastifyInstance): Promise<Client> {
   return c;
 }
 
-export async function inviteUser(app: FastifyInstance, admin: Client, user: { name: string; email: string; password: string }) {
+export async function inviteUser(app: FastifyInstance, admin: Client, user: { name: string; email: string; password: string; locale?: string }) {
   const inv = await admin.post("/api/admin/invitations", { role: "member" });
   const token = inv.json().url.split("/invite/")[1];
   const c = new Client(app);
-  const res = await c.post(`/api/invitations/${token}/accept`, user);
+  const res = await c.post(`/api/invitations/${token}/accept`, { locale: "fr", ...user });
   if (res.statusCode !== 200) throw new Error(res.body);
   return c;
 }

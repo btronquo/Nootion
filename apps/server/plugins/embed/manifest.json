@@ -1,8 +1,11 @@
 {
   "id": "embed",
-  "name": "Intégrations (embed)",
+  "name": { "en": "Embeds", "fr": "Intégrations (embed)" },
   "version": "1.0.0",
-  "description": "Intègre une vidéo YouTube ou Vimeo, un son Spotify, une carte Google Maps, un design Figma… dans une page, ou affiche l'aperçu de n'importe quel lien. Commande « /embed ».",
+  "description": {
+    "en": "Embeds a YouTube or Vimeo video, a Spotify track, a Google Maps map, a Figma design… in a page, or shows a preview of any link. Command \"/embed\".",
+    "fr": "Intègre une vidéo YouTube ou Vimeo, un son Spotify, une carte Google Maps, un design Figma… dans une page, ou affiche l'aperçu de n'importe quel lien. Commande « /embed »."
+  },
   "author": "Nootion",
   "server": "server.js",
   "client": "client.js",
@@ -11,7 +14,7 @@
     {
       "id": "embed",
       "title": "Embed",
-      "description": "Vidéo, carte, aperçu d'un lien…",
+      "description": { "en": "Video, map, link preview…", "fr": "Vidéo, carte, aperçu d'un lien…" },
       "icon": "🔗",
       "keywords": "youtube vimeo video spotify maps figma loom link url bookmark lien integration"
     }
@@ -19,10 +22,13 @@
   "settings": [
     {
       "key": "allowPrivateNetworks",
-      "label": "Aperçus des liens du réseau local",
+      "label": { "en": "Previews of local network links", "fr": "Aperçus des liens du réseau local" },
       "type": "boolean",
       "default": false,
-      "help": "Autorise le serveur à lire les pages d'adresses locales (192.168.x.x, nas.local…) pour en afficher l'aperçu. Laissez désactivé si des personnes extérieures utilisent votre Nootion."
+      "help": {
+        "en": "Lets the server read pages at local addresses (192.168.x.x, nas.local…) to show their preview. Leave it off if people outside your home or team use your Nootion.",
+        "fr": "Autorise le serveur à lire les pages d'adresses locales (192.168.x.x, nas.local…) pour en afficher l'aperçu. Laissez désactivé si des personnes extérieures utilisent votre Nootion."
+      }
     }
   ]
 }

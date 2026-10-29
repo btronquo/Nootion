@@ -1,5 +1,6 @@
 import type { Editor } from "@tiptap/core";
 import { ApiError } from "../lib/api";
+import { t } from "@nootion/shared";
 
 export interface UploadedFile {
   id: string;
@@ -14,7 +15,7 @@ export async function uploadFile(pageId: string, file: File): Promise<UploadedFi
   form.append("file", file, file.name);
   const res = await fetch(`/api/pages/${pageId}/attachments`, { method: "POST", body: form, credentials: "same-origin" });
   const data = await res.json().catch(() => null);
-  if (!res.ok) throw new ApiError(res.status, data?.error ?? "error", data?.message ?? `Erreur ${res.status}`);
+  if (!res.ok) throw new ApiError(res.status, data?.error ?? "error", data?.message ?? t("common.errorStatus", { status: res.status }));
   return data.attachment;
 }
 
@@ -33,7 +34,7 @@ export async function insertFiles(editor: Editor, pageId: string, files: File[],
       if (pos !== undefined) editor.chain().focus().insertContentAt(pos, content).run();
       else editor.chain().focus().insertContent(content).run();
     } catch (err) {
-      alert(`Impossible d'envoyer « ${file.name} » : ${err instanceof Error ? err.message : err}`);
+      alert(t("editor.uploadFailed", { name: file.name, error: err instanceof Error ? err.message : String(err) }));
     }
   }
 }

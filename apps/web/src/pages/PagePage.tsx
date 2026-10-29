@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronRight, Lock, MoreHorizontal, Share2, Trash2 } from "lucide-react";
-import { atLeast, type PageDetail } from "@nootion/shared";
+import { atLeast, t, type PageDetail } from "@nootion/shared";
 import { api } from "../lib/api";
 import { keys, usePage, useRefreshPages } from "../lib/queries";
-import { PAGE_ROLE_LABELS } from "../lib/labels";
+import { pageRoleLabel } from "../lib/labels";
 import { pageTitle } from "../lib/tree";
 import { Button } from "../components/ui";
 import { ShareDialog } from "../components/ShareDialog";
@@ -23,8 +23,8 @@ export function PagePage() {
   if (page.isError || !page.data) {
     return (
       <div className="mx-auto max-w-3xl px-8 py-16 text-neutral-500">
-        <h1 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">Page introuvable</h1>
-        <p className="mt-2">Elle n'existe pas, a été mise à la corbeille, ou ne vous a pas été partagée.</p>
+        <h1 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">{t("page.notFound")}</h1>
+        <p className="mt-2">{t("page.notFoundHelp")}</p>
       </div>
     );
   }
@@ -93,20 +93,20 @@ function PageView({ page }: { page: PageDetail }) {
           </span>
         </nav>
         <div className="flex shrink-0 items-center gap-1">
-          <Button variant="ghost" onClick={(e) => setMenu(e.currentTarget)} title="Options de la page" aria-label="Options de la page">
+          <Button variant="ghost" onClick={(e) => setMenu(e.currentTarget)} title={t("page.options")} aria-label={t("page.options")}>
             <MoreHorizontal size={16} />
           </Button>
           {!canManage && (
             <span className="flex items-center gap-1 rounded bg-neutral-100 px-2 py-1 text-xs text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
-              <Lock size={12} /> {PAGE_ROLE_LABELS[page.role]}
+              <Lock size={12} /> {pageRoleLabel(page.role)}
             </span>
           )}
           {canManage && (
             <>
               <Button variant="ghost" onClick={() => setSharing(true)}>
-                <Share2 size={16} /> Partager
+                <Share2 size={16} /> {t("share.button")}
               </Button>
-              <Button variant="ghost" onClick={trash} title="Mettre à la corbeille">
+              <Button variant="ghost" onClick={trash} title={t("page.trash")}>
                 <Trash2 size={16} />
               </Button>
             </>
@@ -128,8 +128,8 @@ function PageView({ page }: { page: PageDetail }) {
               document.querySelector<HTMLElement>(".nootion-content")?.focus();
             }
           }}
-          placeholder="Sans titre"
-          aria-label="Titre de la page"
+          placeholder={t("common.untitled")}
+          aria-label={t("page.titleLabel")}
           className="w-full resize-none overflow-hidden bg-transparent text-4xl font-bold outline-none placeholder:text-neutral-300 dark:placeholder:text-neutral-600"
         />
         {page.kind === "row" && page.parentId && <RowProperties databaseId={page.parentId} rowId={page.id} />}
@@ -142,7 +142,7 @@ function PageView({ page }: { page: PageDetail }) {
         <Popover anchor={menu} onClose={() => setMenu(null)} width={240}>
           {canEdit && (
             <label className="flex cursor-pointer items-center justify-between gap-2 rounded px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800">
-              Pleine largeur
+              {t("page.fullWidth")}
               <input type="checkbox" role="switch" className="h-4 w-4 accent-blue-600" checked={page.fullWidth} onChange={(e) => save({ fullWidth: e.target.checked })} />
             </label>
           )}
@@ -152,7 +152,7 @@ function PageView({ page }: { page: PageDetail }) {
             onClick={() => setMenu(null)}
             className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800"
           >
-            Exporter en Markdown (.zip)
+            {t("page.exportMarkdown")}
           </a>
         </Popover>
       )}

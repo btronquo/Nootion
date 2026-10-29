@@ -9,6 +9,7 @@ import { PublicContent } from "../editor/PublicContent";
 import { Cell } from "../database/Cell";
 import { PropertyIcon } from "../database/icons";
 import { PublicDatabase } from "../database/DatabaseBlockView";
+import { t } from "@nootion/shared";
 
 /** Read-only view of a page published with a public link. Works without an account. */
 export function PublicPage() {
@@ -26,8 +27,8 @@ export function PublicPage() {
     return (
       <div className="flex h-full items-center justify-center p-8 text-center text-neutral-500">
         <div>
-          <h1 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">Lien indisponible</h1>
-          <p className="mt-2">Ce lien public n'existe pas ou a été désactivé.</p>
+          <h1 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">{t("public.unavailable")}</h1>
+          <p className="mt-2">{t("public.unavailableHelp")}</p>
         </div>
       </div>
     );
@@ -61,9 +62,9 @@ export function PublicPage() {
               )}
             </>
           )}
-          {page.isError && <p className="text-neutral-500">Page introuvable.</p>}
+          {page.isError && <p className="text-neutral-500">{t("page.notFound")}</p>}
         </div>
-        <footer className="pb-8 text-center text-xs text-neutral-400">Publié avec Nootion</footer>
+        <footer className="pb-8 text-center text-xs text-neutral-400">{t("public.footer")}</footer>
       </main>
     </div>
   );

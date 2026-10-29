@@ -2,6 +2,7 @@ import { mergeAttributes, Node } from "@tiptap/core";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import { PageLinkView } from "./PageLinkView";
 import { DatabaseBlockView } from "../database/DatabaseBlockView";
+import { t } from "@nootion/shared";
 
 declare module "@tiptap/core" {
   interface Commands<ReturnType> {
@@ -97,11 +98,11 @@ export const PageLink = Node.create<{ live: boolean; hrefFor: (pageId: string) =
     return [
       "a",
       { "data-page-link": pageId ?? "", class: `page-link${pageId ? "" : " page-link-private"}`, href: pageId ? this.options.hrefFor(pageId) : undefined },
-      `📄 ${title || "Sans titre"}`,
+      `📄 ${title || t("common.untitled")}`,
     ];
   },
   renderText({ node }) {
-    return node.attrs.title || "Sans titre";
+    return node.attrs.title || t("common.untitled");
   },
   addNodeView() {
     return this.options.live ? ReactNodeViewRenderer(PageLinkView, { as: "span" }) : null;
@@ -136,7 +137,7 @@ export const DatabaseBlock = Node.create<{ publicToken: string | null }>({
     return [{ tag: "div[data-database]", getAttrs: (el) => ({ pageId: (el as HTMLElement).dataset.database || null }) }];
   },
   renderHTML({ node }) {
-    return ["div", { "data-database": node.attrs.pageId ?? "" }, "Base de données"];
+    return ["div", { "data-database": node.attrs.pageId ?? "" }, t("common.database")];
   },
   addNodeView() {
     // The table handles its own clicks and keys.

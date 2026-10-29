@@ -1,5 +1,6 @@
 import type { CellValue, DatabaseProperty, DateValue, PropertyType, RollupValue } from "./databases.js";
 import type { FormulaResult } from "./formula.js";
+import { t, type MessageKey } from "./i18n/index.js";
 
 /** Calculations shown under table columns and computed by rollups. */
 export const CALC_FUNCTIONS = [
@@ -26,28 +27,10 @@ export const CALC_FUNCTIONS = [
 ] as const;
 export type CalcFunction = (typeof CALC_FUNCTIONS)[number];
 
-export const CALC_LABELS: Record<CalcFunction, string> = {
-  count_all: "Tout compter",
-  count_values: "Compter les valeurs",
-  count_unique: "Compter les valeurs uniques",
-  count_empty: "Compter les vides",
-  count_not_empty: "Compter les non vides",
-  percent_empty: "Pourcentage de vides",
-  percent_not_empty: "Pourcentage de non vides",
-  sum: "Somme",
-  average: "Moyenne",
-  median: "Médiane",
-  min: "Minimum",
-  max: "Maximum",
-  range: "Écart (max − min)",
-  earliest: "Date la plus ancienne",
-  latest: "Date la plus récente",
-  date_range: "Plage de dates (jours)",
-  checked: "Cochées",
-  unchecked: "Non cochées",
-  percent_checked: "Pourcentage cochées",
-  percent_unchecked: "Pourcentage non cochées",
-};
+/** Name of a calculation, in the current language. */
+export function calcLabel(fn: CalcFunction): string {
+  return t(`calc.${fn}` as MessageKey);
+}
 
 /**
  * Result of a calculation. "number" values keep the unit of the column (currency…),

@@ -24,6 +24,7 @@ import {
   requireWorkspaceRole,
 } from "../permissions.js";
 import { breadcrumbFor, getPageMeta, notRow, pageMeta, listDescendants, nextPosition, placeAmongSiblings, toDetail, toSummary } from "../pages.js";
+import { t } from "@nootion/shared";
 
 export const pageRoutes: FastifyPluginAsync = async (app) => {
   const db = app.db;
@@ -34,7 +35,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     if (input.parentId) {
       const { page: parent } = requirePageRole(db, user.id, input.parentId, "editor");
       if (parent.workspaceId !== input.workspaceId) throw notFound();
-      if (parent.kind === "database") throw new HttpError(400, "database_parent", "Ajoutez plutôt une ligne à la database.");
+      if (parent.kind === "database") throw new HttpError(400, "database_parent", t("error.addRowInstead"));
     } else {
       requireWorkspaceRole(db, user.id, input.workspaceId, CAN_CREATE_ROOT_PAGES);
     }
@@ -125,13 +126,13 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     const user = requireUser(req);
     const input = parseBody(movePageInput, req.body);
     const { page } = requirePageRole(db, user.id, req.params.id, "full");
-    if (page.kind === "row") throw new HttpError(400, "row_move", "Une ligne de database ne peut pas être déplacée.");
+    if (page.kind === "row") throw new HttpError(400, "row_move", t("error.rowMove"));
     if (input.parentId) {
       const { page: parent, chain } = requirePageRole(db, user.id, input.parentId, "editor");
       if (parent.workspaceId !== page.workspaceId) throw notFound();
-      if (parent.kind === "database") throw new HttpError(400, "database_parent", "Une page ne peut pas être déplacée dans une database.");
+      if (parent.kind === "database") throw new HttpError(400, "database_parent", t("error.moveIntoDatabase"));
       if (chain.some((c) => c.id === page.id)) {
-        throw new HttpError(400, "cycle", "Une page ne peut pas être déplacée dans une de ses sous-pages.");
+        throw new HttpError(400, "cycle", t("error.moveCycle"));
       }
     } else {
       requireWorkspaceRole(db, user.id, page.workspaceId, CAN_CREATE_ROOT_PAGES);
@@ -155,7 +156,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
   app.post<{ Params: { id: string } }>("/:id/restore", async (req) => {
     const user = requireUser(req);
     const { page, chain } = requirePageRole(db, user.id, req.params.id, "full", { includeTrashed: true });
-    if (!page.deletedAt) throw new HttpError(400, "not_trashed", "Cette page n'est pas dans la corbeille.");
+    if (!page.deletedAt) throw new HttpError(400, "not_trashed", t("error.notInTrash"));
     // If an ancestor is itself in the trash, the page comes back at the root of its workspace.
     const parentTrashed = isTrashed(chain.slice(1));
     db.transaction((tx) => {
@@ -171,7 +172,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
   app.delete<{ Params: { id: string } }>("/:id/permanent", async (req) => {
     const user = requireUser(req);
     const { page } = requirePageRole(db, user.id, req.params.id, "full", { includeTrashed: true });
-    if (!page.deletedAt) throw new HttpError(400, "not_trashed", "Mettez d'abord la page à la corbeille.");
+    if (!page.deletedAt) throw new HttpError(400, "not_trashed", t("error.trashFirst"));
     const ids = [page.id, ...listDescendants(db, page.id, { includeTrashed: true }).map((p) => p.id)];
     db.delete(pages).where(inArray(pages.id, ids)).run();
     return { ok: true };

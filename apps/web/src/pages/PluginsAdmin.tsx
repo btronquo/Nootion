@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { AdminPluginInfo, PluginSetting } from "@nootion/shared";
+import { t, type AdminPluginInfo, type PluginSetting } from "@nootion/shared";
 import { api } from "../lib/api";
-import { Button, ErrorText } from "../components/ui";
+import { Button, ErrorText, Rich } from "../components/ui";
 
 type Values = Record<string, string | number | boolean | null>;
 
@@ -23,18 +23,17 @@ export function PluginsAdmin() {
     <section>
       <h2 className="mb-1 text-lg font-semibold">Plugins</h2>
       <p className="mb-3 text-sm text-neutral-500">
-        Les plugins ajoutent des blocs, des fonctions de formule ou des connexions à d'autres services. Pour en installer un, copiez son dossier dans{" "}
-        <code>/data/plugins</code> puis redémarrez Nootion. N'installez que des plugins de confiance : leur code s'exécute sur votre serveur.
+        <Rich text={t("plugins.help")} />
       </p>
       <ErrorText error={update.error} />
       <div className="space-y-3">
         {list.data?.plugins.map((p) => (
           <PluginCard key={p.id} plugin={p} pending={update.isPending} onUpdate={(body) => update.mutateAsync({ id: p.id, ...body })} />
         ))}
-        {list.data && !list.data.plugins.length && <p className="text-sm text-neutral-500">Aucun plugin installé.</p>}
+        {list.data && !list.data.plugins.length && <p className="text-sm text-neutral-500">{t("plugins.none")}</p>}
         {list.data?.broken.map((b) => (
           <p key={b.dir} className="rounded-md bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950 dark:text-red-300">
-            Plugin illisible dans <code>{b.dir}</code> : {b.error}
+            {t("plugins.broken", { dir: b.dir, error: b.error })}
           </p>
         ))}
       </div>
@@ -63,7 +62,7 @@ function PluginCard({
             <span className="text-xs text-neutral-400">
               v{p.version}
               {p.author && ` · ${p.author}`}
-              {p.builtin && " · inclus"}
+              {p.builtin && ` · ${t("plugins.builtin")}`}
             </span>
           </div>
           <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">{p.description}</p>
@@ -72,10 +71,10 @@ function PluginCard({
               {p.homepage}
             </a>
           )}
-          {p.error && <p className="mt-2 text-sm text-red-600">Erreur : {p.error}</p>}
+          {p.error && <p className="mt-2 text-sm text-red-600">{t("plugins.error", { error: p.error })}</p>}
         </div>
         <label className="flex shrink-0 cursor-pointer items-center gap-2 text-sm">
-          <span className="text-neutral-500">{p.enabled ? "Activé" : "Désactivé"}</span>
+          <span className="text-neutral-500">{p.enabled ? t("plugins.enabled") : t("plugins.disabled")}</span>
           <input
             type="checkbox"
             role="switch"
@@ -115,9 +114,9 @@ function PluginCard({
           ))}
           <div className="flex items-center gap-3">
             <Button type="submit" disabled={!dirty || pending}>
-              Enregistrer les réglages
+              {t("plugins.saveSettings")}
             </Button>
-            {saved && !dirty && <span className="text-sm text-green-600">Enregistré.</span>}
+            {saved && !dirty && <span className="text-sm text-green-600">{t("common.saved")}</span>}
           </div>
         </form>
       )}
@@ -170,7 +169,7 @@ function SettingField({
           className={input}
           type={s.type === "password" ? "password" : s.type === "number" ? "number" : "text"}
           value={String(shown)}
-          placeholder={passwordSet ? "•••••••• (enregistré ; laissez vide pour le garder)" : undefined}
+          placeholder={passwordSet ? `•••••••• (${t("plugins.passwordKept")})` : undefined}
           autoComplete={s.type === "password" ? "new-password" : undefined}
           onChange={(e) => onChange(s.type === "number" ? (e.target.value === "" ? null : Number(e.target.value)) : e.target.value)}
         />

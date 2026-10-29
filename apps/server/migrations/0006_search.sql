@@ -1,5 +1,5 @@
--- Recherche plein texte : titres et contenu des pages (accents et majuscules ignorés).
--- Tenue à jour par des triggers, quel que soit le chemin d'écriture.
+-- Full-text search: page titles and content (accents and case ignored).
+-- Kept up to date by triggers, whatever writes the pages.
 CREATE VIRTUAL TABLE `pages_fts` USING fts5(page_id UNINDEXED, title, body, tokenize = 'unicode61 remove_diacritics 2', prefix = '2 3');
 --> statement-breakpoint
 INSERT INTO `pages_fts` (page_id, title, body) SELECT id, title, coalesce(content_text, '') FROM `pages`;

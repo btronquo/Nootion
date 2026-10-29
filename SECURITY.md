@@ -1,13 +1,13 @@
-# Sécurité
+# Security
 
-## Signaler une faille
+## Reporting a vulnerability
 
-Merci de ne pas ouvrir d'issue publique. Utilisez le signalement privé de GitHub
-(onglet « Security » du dépôt, bouton « Report a vulnerability »).
+Please don't open a public issue. Use GitHub's private reporting
+("Security" tab of the repository, "Report a vulnerability" button).
 
-Décrivez la faille, la version concernée et comment la reproduire. Vous recevrez une réponse dès que possible,
-et la correction sera publiée dans une nouvelle version avant toute annonce publique.
+Describe the vulnerability, the affected version and how to reproduce it. You'll get an answer as soon as possible,
+and the fix will be released in a new version before any public announcement.
 
-## Versions maintenues
+## Supported versions
 
-Seule la dernière version publiée reçoit des correctifs de sécurité.
+Only the latest released version receives security fixes.

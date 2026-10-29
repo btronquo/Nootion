@@ -1,20 +1,20 @@
-# Nootion sur TrueNAS SCALE (24.10 et plus) : Apps > Discover Apps > ⋮ > Install via YAML.
-# Remplacez les 3 valeurs marquées <-- avant d'enregistrer. Guide complet : docs/DEPLOIEMENT.md
+# Nootion on TrueNAS SCALE (24.10 and later): Apps > Discover Apps > ⋮ > Install via YAML.
+# Replace the 3 values marked <-- before saving. Full guide: docs/DEPLOYMENT.md
 services:
   nootion:
-    # "latest" = dernière version publiée. Pour figer une version : registry.gitlab.com/btronquoy/nootion:0.1.0
+    # "latest" = last published version. To pin a version: registry.gitlab.com/btronquoy/nootion:1.0.0
     image: registry.gitlab.com/btronquoy/nootion:latest
     pull_policy: always
     container_name: nootion
     restart: unless-stopped
-    # Utilisateur "apps" de TrueNAS : le dataset de données doit lui appartenir.
+    # TrueNAS "apps" user: the data dataset must belong to it.
     user: "568:568"
     ports:
-      - "3000:3000"   # port du NAS:port du conteneur. Changez le premier si 3000 est déjà pris.
+      - "3000:3000"   # NAS port:container port. Change the first one if 3000 is already taken.
     environment:
-      APP_URL: "http://192.168.1.10:3000"                      # <-- adresse tapée dans le navigateur, sans / final
-      APP_SECRET: "remplacez-moi-par-une-longue-chaine-aleatoire" # <-- openssl rand -hex 32, à ne plus changer
+      APP_URL: "http://192.168.1.10:3000"                 # <-- address typed in the browser, without a trailing /
+      APP_SECRET: "replace-me-with-a-long-random-string"  # <-- openssl rand -hex 32, never change it afterwards
       TZ: "Europe/Paris"
     volumes:
-      # Base SQLite, fichiers joints, plugins : c'est ce dataset qu'il faut sauvegarder (snapshots ZFS).
-      - /mnt/tank/apps/nootion:/data                           # <-- chemin de votre dataset
+      # SQLite database, attached files, plugins: this is the dataset to back up (ZFS snapshots).
+      - /mnt/tank/apps/nootion:/data                      # <-- path of your dataset

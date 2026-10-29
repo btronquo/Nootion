@@ -39,8 +39,8 @@ async function expectNoAccess(c: Client, pageId: string, workspaceId: string) {
   }
 }
 
-describe("pages privées par défaut", () => {
-  it("un autre utilisateur ne voit rien, même avec l'URL", async () => {
+describe("pages are private by default", () => {
+  it("another user sees nothing, even with the URL", async () => {
     const ws = await boris.personalWorkspace();
     const root = await boris.createPage(ws, "Factures");
     const child = await boris.createPage(ws, "2026", root);
@@ -55,7 +55,7 @@ describe("pages privées par défaut", () => {
     expect((await boris.get(`/api/workspaces/${ws}/pages`)).json().pages).toHaveLength(2);
   });
 
-  it("le propriétaire a l'accès complet à son espace personnel", async () => {
+  it("the owner has full access to their personal space", async () => {
     const ws = await boris.personalWorkspace();
     const root = await boris.createPage(ws, "Notes");
     const page = (await boris.get(`/api/pages/${root}`)).json().page;
@@ -63,8 +63,8 @@ describe("pages privées par défaut", () => {
   });
 });
 
-describe("partage d'une page à un utilisateur", () => {
-  it("donne accès à la page et à ses sous-pages, pas au reste", async () => {
+describe("sharing a page with a user", () => {
+  it("gives access to the page and its subpages, not to the rest", async () => {
     const ws = await boris.personalWorkspace();
     const factures = await boris.createPage(ws, "Factures");
     const y2026 = await boris.createPage(ws, "2026", factures);
@@ -87,7 +87,7 @@ describe("partage d'une page à un utilisateur", () => {
     await expectNoAccess(eve, y2026, ws);
   });
 
-  it("un lecteur ne peut ni modifier ni repartager", async () => {
+  it("a viewer can neither edit nor reshare", async () => {
     const ws = await boris.personalWorkspace();
     const page = await boris.createPage(ws, "Factures");
     await boris.put(`/api/pages/${page}/shares`, { userId: await alice.id(), role: "viewer" });
@@ -98,7 +98,7 @@ describe("partage d'une page à un utilisateur", () => {
     expect((await alice.delete(`/api/pages/${page}`)).statusCode).toBe(404);
   });
 
-  it("un éditeur modifie et crée des sous-pages, mais ne partage pas", async () => {
+  it("an editor edits and creates subpages, but doesn't share", async () => {
     const ws = await boris.personalWorkspace();
     const page = await boris.createPage(ws, "Factures");
     await boris.put(`/api/pages/${page}/shares`, { userId: await alice.id(), role: "editor" });
@@ -111,7 +111,7 @@ describe("partage d'une page à un utilisateur", () => {
     expect((await alice.post("/api/pages", { workspaceId: ws, parentId: null, title: "x" })).statusCode).toBe(404);
   });
 
-  it("retirer le partage coupe l'accès", async () => {
+  it("removing the share removes access", async () => {
     const ws = await boris.personalWorkspace();
     const page = await boris.createPage(ws, "Factures");
     const aliceId = await alice.id();
@@ -121,7 +121,7 @@ describe("partage d'une page à un utilisateur", () => {
     await expectNoAccess(alice, page, ws);
   });
 
-  it("liste les partages, y compris hérités", async () => {
+  it("lists shares, including inherited ones", async () => {
     const ws = await boris.personalWorkspace();
     const page = await boris.createPage(ws, "Factures");
     const sub = await boris.createPage(ws, "2026", page);
@@ -132,8 +132,8 @@ describe("partage d'une page à un utilisateur", () => {
   });
 });
 
-describe("espaces partagés", () => {
-  it("les membres voient les pages selon leur rôle, les autres rien", async () => {
+describe("shared spaces", () => {
+  it("members see pages according to their role, others see nothing", async () => {
     const ws = (await boris.post("/api/workspaces", { name: "Maison" })).json().workspace.id;
     const page = await boris.createPage(ws, "Courses");
     await expectNoAccess(alice, page, ws);
@@ -153,7 +153,7 @@ describe("espaces partagés", () => {
     await expectNoAccess(eve, page, ws);
   });
 
-  it("un membre retiré perd l'accès ; le dernier propriétaire ne peut pas partir", async () => {
+  it("a removed member loses access; the last owner can't leave", async () => {
     const ws = (await boris.post("/api/workspaces", { name: "Asso" })).json().workspace.id;
     const page = await boris.createPage(ws, "PV");
     const aliceId = await alice.id();
@@ -164,14 +164,14 @@ describe("espaces partagés", () => {
     expect((await boris.delete(`/api/workspaces/${ws}/members/${await boris.id()}`)).statusCode).toBe(409);
   });
 
-  it("l'espace personnel ne peut pas recevoir de membres", async () => {
+  it("the personal space can't have members", async () => {
     const ws = await boris.personalWorkspace();
     expect((await boris.put(`/api/workspaces/${ws}/members`, { userId: await alice.id(), role: "viewer" })).statusCode).toBe(400);
   });
 });
 
-describe("corbeille", () => {
-  it("une page à la corbeille disparaît pour tous, puis se restaure", async () => {
+describe("trash", () => {
+  it("a page in the trash disappears for everyone, then can be restored", async () => {
     const ws = await boris.personalWorkspace();
     const page = await boris.createPage(ws, "Factures");
     const sub = await boris.createPage(ws, "2026", page);
@@ -189,7 +189,7 @@ describe("corbeille", () => {
     expect((await boris.get(`/api/pages/${sub}`)).statusCode).toBe(200);
   });
 
-  it("la suppression définitive efface la page et ses sous-pages", async () => {
+  it("permanent deletion removes the page and its subpages", async () => {
     const ws = await boris.personalWorkspace();
     const page = await boris.createPage(ws, "Brouillon");
     const sub = await boris.createPage(ws, "Sous-page", page);
@@ -200,8 +200,8 @@ describe("corbeille", () => {
   });
 });
 
-describe("déplacement", () => {
-  it("réordonne et refuse les cycles", async () => {
+describe("moving", () => {
+  it("reorders and refuses cycles", async () => {
     const ws = await boris.personalWorkspace();
     const a = await boris.createPage(ws, "A");
     const b = await boris.createPage(ws, "B");
@@ -219,7 +219,7 @@ describe("déplacement", () => {
     expect(list.find((p: { id: string }) => p.id === b).parentId).toBe(a);
   });
 
-  it("ne déplace pas une page vers l'espace d'un autre", async () => {
+  it("doesn't move a page into someone else's space", async () => {
     const ws = await boris.personalWorkspace();
     const page = await boris.createPage(ws, "A");
     const alicePage = await alice.createPage(await alice.personalWorkspace(), "Chez Alice");
@@ -227,8 +227,8 @@ describe("déplacement", () => {
   });
 });
 
-describe("lien public", () => {
-  it("donne un accès en lecture seule, sans compte, et se révoque", async () => {
+describe("public link", () => {
+  it("gives read-only access without an account, and can be revoked", async () => {
     const ws = await boris.personalWorkspace();
     const page = await boris.createPage(ws, "Recette");
     const sub = await boris.createPage(ws, "Variante", page);
@@ -253,7 +253,7 @@ describe("lien public", () => {
     expect((await anon.get(`/api/public/${link.token}`)).statusCode).toBe(404);
   });
 
-  it("un lien vers une page à la corbeille ne marche plus", async () => {
+  it("a link to a page in the trash stops working", async () => {
     const ws = await boris.personalWorkspace();
     const page = await boris.createPage(ws, "Recette");
     const link = (await boris.put(`/api/pages/${page}/public-link`, {})).json().link;
@@ -261,13 +261,13 @@ describe("lien public", () => {
     expect((await anon.get(`/api/public/${link.token}`)).statusCode).toBe(404);
   });
 
-  it("un jeton inventé ne donne rien", async () => {
+  it("a made-up token gives nothing", async () => {
     expect((await anon.get("/api/public/nimportequoi")).statusCode).toBe(404);
   });
 });
 
-describe("options de page", () => {
-  it("pleine largeur enregistrée", async () => {
+describe("page options", () => {
+  it("full width is saved", async () => {
     const app = await makeApp();
     const boris = await setupAdmin(app);
     const page = await boris.createPage(await boris.personalWorkspace(), "Large");

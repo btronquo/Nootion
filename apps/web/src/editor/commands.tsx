@@ -23,6 +23,7 @@ import { api } from "../lib/api";
 import { pageTitle } from "../lib/tree";
 import { item } from "./suggestion";
 import { insertFiles, pickFiles } from "./upload";
+import { t } from "@nootion/shared";
 
 export interface CommandContext {
   pageId: string;
@@ -40,21 +41,21 @@ const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCa
 export function slashItems(ctx: CommandContext) {
   const del = (e: Editor, r: Range) => e.chain().focus().deleteRange(r);
   const all = [
-    item("Text", "Paragraphe simple", <Text size={16} />, (e, r) => del(e, r).setParagraph().run(), "paragraph"),
-    item("Heading 1", "Grand titre", <Heading1 size={16} />, (e, r) => del(e, r).setHeading({ level: 1 }).run(), "h1 title"),
-    item("Heading 2", "Titre moyen", <Heading2 size={16} />, (e, r) => del(e, r).setHeading({ level: 2 }).run(), "h2 title"),
-    item("Heading 3", "Petit titre", <Heading3 size={16} />, (e, r) => del(e, r).setHeading({ level: 3 }).run(), "h3 title"),
-    item("Bullet list", "Liste à puces", <List size={16} />, (e, r) => del(e, r).toggleBulletList().run(), "ul"),
-    item("Numbered list", "Liste 1, 2, 3", <ListOrdered size={16} />, (e, r) => del(e, r).toggleOrderedList().run(), "ordered ol"),
-    item("To-do list", "Cases à cocher", <CheckSquare size={16} />, (e, r) => del(e, r).toggleTaskList().run(), "todo task checkbox"),
-    item("Quote", "Bloc de citation", <Quote size={16} />, (e, r) => del(e, r).toggleBlockquote().run(), "blockquote"),
-    item("Callout", "Bloc mis en évidence", <Lightbulb size={16} />, (e, r) => del(e, r).setCallout().run(), "note info"),
-    item("Code", "Bloc de code", <Code size={16} />, (e, r) => del(e, r).toggleCodeBlock().run(), "codeblock"),
-    item("Table", "Tableau 3 × 3", <Table size={16} />, (e, r) => del(e, r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(), "grid"),
-    item("Divider", "Ligne horizontale", <Minus size={16} />, (e, r) => del(e, r).setHorizontalRule().run(), "hr separator"),
+    item("Text", t("command.text"), <Text size={16} />, (e, r) => del(e, r).setParagraph().run(), "paragraph"),
+    item("Heading 1", t("command.h1"), <Heading1 size={16} />, (e, r) => del(e, r).setHeading({ level: 1 }).run(), "h1 title"),
+    item("Heading 2", t("command.h2"), <Heading2 size={16} />, (e, r) => del(e, r).setHeading({ level: 2 }).run(), "h2 title"),
+    item("Heading 3", t("command.h3"), <Heading3 size={16} />, (e, r) => del(e, r).setHeading({ level: 3 }).run(), "h3 title"),
+    item("Bullet list", t("command.bullets"), <List size={16} />, (e, r) => del(e, r).toggleBulletList().run(), "ul"),
+    item("Numbered list", t("command.numbers"), <ListOrdered size={16} />, (e, r) => del(e, r).toggleOrderedList().run(), "ordered ol"),
+    item("To-do list", t("command.todo"), <CheckSquare size={16} />, (e, r) => del(e, r).toggleTaskList().run(), "todo task checkbox"),
+    item("Quote", t("command.quote"), <Quote size={16} />, (e, r) => del(e, r).toggleBlockquote().run(), "blockquote"),
+    item("Callout", t("command.callout"), <Lightbulb size={16} />, (e, r) => del(e, r).setCallout().run(), "note info"),
+    item("Code", t("command.code"), <Code size={16} />, (e, r) => del(e, r).toggleCodeBlock().run(), "codeblock"),
+    item("Table", t("command.table"), <Table size={16} />, (e, r) => del(e, r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(), "grid"),
+    item("Divider", t("command.divider"), <Minus size={16} />, (e, r) => del(e, r).setHorizontalRule().run(), "hr separator"),
     item(
       "Image",
-      "Envoyer une image",
+      t("command.image"),
       <ImageIcon size={16} />,
       async (e, r) => {
         del(e, r).run();
@@ -64,7 +65,7 @@ export function slashItems(ctx: CommandContext) {
     ),
     item(
       "File",
-      "Joindre un fichier (PDF…)",
+      t("command.file"),
       <Paperclip size={16} />,
       async (e, r) => {
         del(e, r).run();
@@ -74,7 +75,7 @@ export function slashItems(ctx: CommandContext) {
     ),
     item(
       "Page",
-      "Créer une page dans celle-ci",
+      t("command.page"),
       <FileText size={16} />,
       async (e, r) => {
         del(e, r).run();
@@ -86,7 +87,7 @@ export function slashItems(ctx: CommandContext) {
     ),
     item(
       "Database",
-      "Tableau avec des colonnes typées",
+      t("command.database"),
       <Database size={16} />,
       async (e, r) => {
         del(e, r).run();
@@ -96,7 +97,7 @@ export function slashItems(ctx: CommandContext) {
       },
       "db table",
     ),
-    item("Link to page", "Mentionner une page existante", <Link2 size={16} />, (e, r) => del(e, r).insertContent("@").run(), "mention"),
+    item("Link to page", t("command.link"), <Link2 size={16} />, (e, r) => del(e, r).insertContent("@").run(), "mention"),
     // Blocks of enabled plugins.
     ...ctx.plugins
       .filter((p) => p.enabled)

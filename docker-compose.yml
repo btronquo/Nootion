@@ -1,5 +1,5 @@
-# Nootion : construction et lancement depuis le code source (PC, autre NAS, tests).
-# Pour TrueNAS avec l'image publiée, utilisez plutôt deploy/truenas.yaml (voir docs/DEPLOIEMENT.md).
+# Nootion: build and run from the source code (PC, other NAS, tests).
+# For TrueNAS with the published image, use deploy/truenas.yaml instead (see docs/DEPLOYMENT.md).
 services:
   nootion:
     image: nootion:local
@@ -8,20 +8,20 @@ services:
       dockerfile: docker/Dockerfile
     container_name: nootion
     restart: unless-stopped
-    # L'image tourne par défaut avec l'UID 1000 (utilisateur "node").
-    # Sur TrueNAS, décommentez la ligne suivante (utilisateur "apps", UID/GID 568).
+    # The image runs as UID 1000 ("node" user) by default.
+    # On TrueNAS, uncomment the next line ("apps" user, UID/GID 568).
     # user: "568:568"
     ports:
       - "3000:3000"
     environment:
-      # Adresse à laquelle vous ouvrez Nootion dans le navigateur (sans / final).
+      # Address where you open Nootion in the browser (without a trailing /).
       APP_URL: "http://localhost:3000"
-      # Chaîne aléatoire d'au moins 16 caractères, à générer une fois et à garder (ex. : openssl rand -hex 32).
-      APP_SECRET: "remplacez-moi-par-une-longue-chaine-aleatoire"
+      # Random string of at least 16 characters, generated once and kept (e.g. openssl rand -hex 32).
+      APP_SECRET: "replace-me-with-a-long-random-string"
       TZ: "Europe/Paris"
     volumes:
-      # Toutes les données (base nootion.db, fichiers joints) dans un volume Docker nommé.
-      # Pour un dossier de l'hôte à la place : - /chemin/vers/nootion:/data (le dossier doit appartenir à l'UID 1000).
+      # All data (nootion.db database, attached files) in a named Docker volume.
+      # For a host folder instead: - /path/to/nootion:/data (the folder must belong to UID 1000).
       - nootion-data:/data
 
 volumes:

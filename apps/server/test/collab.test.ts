@@ -62,8 +62,8 @@ function write(doc: Y.Doc, text: string) {
 const textOf = (doc: Y.Doc) => doc.getXmlFragment("default").toString();
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-describe("édition en temps réel", { timeout: 15000 }, () => {
-  it("synchronise deux éditeurs et enregistre le contenu", async () => {
+describe("real-time editing", { timeout: 15000 }, () => {
+  it("syncs two editors and saves the content", async () => {
     const ws = await boris.personalWorkspace();
     const page = await boris.createPage(ws, "Notes");
     await boris.put(`/api/pages/${page}/shares`, { userId: await alice.id(), role: "editor" });
@@ -87,7 +87,7 @@ describe("édition en temps réel", { timeout: 15000 }, () => {
     expect(JSON.parse(row.content_json).content[0]).toEqual({ type: "paragraph", content: [{ type: "text", text: "Bonjour Alice" }] });
   });
 
-  it("un lecteur reçoit les modifications mais ne peut rien changer", async () => {
+  it("a viewer receives changes but can't change anything", async () => {
     const ws = await boris.personalWorkspace();
     const page = await boris.createPage(ws, "Notes");
     await boris.put(`/api/pages/${page}/shares`, { userId: await alice.id(), role: "viewer" });
@@ -108,7 +108,7 @@ describe("édition en temps réel", { timeout: 15000 }, () => {
     expect(row.content_text).toBe("Version officielle");
   });
 
-  it("refuse un utilisateur sans accès, un anonyme et une autre origine", async () => {
+  it("refuses a user without access, an anonymous visitor and another origin", async () => {
     const ws = await boris.personalWorkspace();
     const page = await boris.createPage(ws, "Secret");
     const owner = connect(boris, page);
@@ -128,7 +128,7 @@ describe("édition en temps réel", { timeout: 15000 }, () => {
     expect(textOf(crossSite.doc)).toBe("");
   });
 
-  it("retirer le partage coupe la session en cours", async () => {
+  it("removing the share ends the current session", async () => {
     const ws = await boris.personalWorkspace();
     const page = await boris.createPage(ws, "Notes");
     const aliceId = await alice.id();
@@ -151,7 +151,7 @@ describe("édition en temps réel", { timeout: 15000 }, () => {
     expect(textOf(again.doc)).toContain("Après le retrait");
   });
 
-  it("le contenu est visible par le lien public, sans fuite des pages privées liées", async () => {
+  it("the content is visible through the public link, without leaking linked private pages", async () => {
     const ws = await boris.personalWorkspace();
     const page = await boris.createPage(ws, "Recette");
     const secret = await boris.createPage(ws, "Journal intime");
@@ -175,14 +175,14 @@ describe("édition en temps réel", { timeout: 15000 }, () => {
   });
 });
 
-describe("fichiers joints", () => {
+describe("attached files", () => {
   async function upload(c: Client, pageId: string, name: string, type: string, body: string) {
     const form = new FormData();
     form.append("file", new Blob([body], { type }), name);
     return fetch(`http://${base}/api/pages/${pageId}/attachments`, { method: "POST", body: form, headers: { cookie: c.cookie } });
   }
 
-  it("seuls ceux qui voient la page voient ses fichiers", async () => {
+  it("only those who see the page see its files", async () => {
     const ws = await boris.personalWorkspace();
     const page = await boris.createPage(ws, "Factures");
     const res = await upload(boris, page, "facture.pdf", "application/pdf", "%PDF-1.4 facture");
@@ -206,7 +206,7 @@ describe("fichiers joints", () => {
     expect((await new Client(app).get(`/api/public/${link.token}/attachments/${attachment.id}`)).statusCode).toBe(200);
   });
 
-  it("un fichier HTML ou SVG est toujours téléchargé, jamais affiché", async () => {
+  it("an HTML or SVG file is always downloaded, never displayed", async () => {
     const ws = await boris.personalWorkspace();
     const page = await boris.createPage(ws, "Pièges");
     for (const [name, type] of [["x.html", "text/html"], ["x.svg", "image/svg+xml"]]) {
@@ -217,7 +217,7 @@ describe("fichiers joints", () => {
     }
   });
 
-  it("la suppression définitive efface aussi les fichiers du disque", async () => {
+  it("permanent deletion also removes the files from disk", async () => {
     const ws = await boris.personalWorkspace();
     const page = await boris.createPage(ws, "Temp");
     const { attachment } = (await (await upload(boris, page, "a.txt", "text/plain", "hello")).json()) as { attachment: { id: string } };

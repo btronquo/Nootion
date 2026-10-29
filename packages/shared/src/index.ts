@@ -7,3 +7,5 @@ export * from "./calculations.js";
 export * from "./formula.js";
 export * from "./views.js";
 export * from "./plugins.js";
+export * from "./i18n/index.js";
+import "./i18n/zod.js";

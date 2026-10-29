@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from "fastify";
 import { atLeast, type SearchResult } from "@nootion/shared";
 import { requireUser } from "../http.js";
 import { getChain, isTrashed, roleFromChain } from "../permissions.js";
+import { t } from "@nootion/shared";
 
 /** FTS5 query from what the user typed: every word must appear, the last one may be unfinished. */
 export function ftsQuery(input: string): string | null {
@@ -47,7 +48,7 @@ export const searchRoutes: FastifyPluginAsync = async (app) => {
         title: r.title,
         icon: r.icon,
         kind: r.kind,
-        path: parents.map((c) => c.title || "Sans titre").reverse(),
+        path: parents.map((c) => c.title || t("common.untitled")).reverse(),
         snippet: r.snippet,
       });
       if (results.length >= limit) break;

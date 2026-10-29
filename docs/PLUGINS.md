@@ -1,129 +1,144 @@
-# Écrire un plugin Nootion
+# Writing a Nootion plugin
 
-Un plugin ajoute à Nootion des **blocs** pour l'éditeur (commande `/`), des **routes API**, des **tâches planifiées**
-et des **fonctions de formule**. L'administrateur l'active, le désactive et remplit ses réglages dans
-**Administration › Plugins**.
+A plugin adds editor **blocks** (`/` command), **API routes**, **scheduled tasks** and **formula functions**
+to Nootion. The administrator turns it on and off and fills in its settings in **Administration › Plugins**.
 
-> Les plugins s'installent en confiance, comme sur un serveur perso : leur code serveur tourne avec les mêmes droits
-> que Nootion. N'installez que des plugins dont vous connaissez la source.
+> Plugins are installed on trust, as on any personal server: their server code runs with the same rights
+> as Nootion. Only install plugins whose source you know.
 
-Le plugin **Intégrations (embed)**, livré avec Nootion, sert d'exemple complet : [`apps/server/plugins/embed`](../apps/server/plugins/embed).
+The **Embeds** plugin that ships with Nootion is a complete example: [`apps/server/plugins/embed`](../apps/server/plugins/embed).
 
-## Installer un plugin
+## Installing a plugin
 
-1. Copiez le dossier du plugin dans `/data/plugins/<id>/` (le volume de données de Nootion).
-2. Redémarrez le conteneur.
-3. Activez-le dans **Administration › Plugins**. Activer, désactiver ou changer un réglage ne demande pas de redémarrage.
+1. Copy the plugin's folder to `/data/plugins/<id>/` (Nootion's data volume).
+2. Restart the container.
+3. Turn it on in **Administration › Plugins**. Turning it on or off, or changing a setting, needs no restart.
 
 ## Structure
 
 ```
-mon_plugin/
-├── manifest.json   obligatoire
-├── server.js       code serveur (module ES), optionnel
-└── client.js       code navigateur (module ES), optionnel
+my_plugin/
+├── manifest.json   required
+├── server.js       server code (ES module), optional
+└── client.js       browser code (ES module), optional
 ```
 
 ### manifest.json
 
 ```json
 {
-  "id": "mon_plugin",
-  "name": "Mon plugin",
+  "id": "my_plugin",
+  "name": "My plugin",
   "version": "1.0.0",
-  "description": "Ce que fait le plugin.",
-  "author": "Moi",
-  "homepage": "https://exemple.org",
+  "description": "What the plugin does.",
+  "author": "Me",
+  "homepage": "https://example.org",
   "server": "server.js",
   "client": "client.js",
   "blocks": [
-    { "id": "carte", "title": "Ma carte", "description": "Texte du menu /", "icon": "🗺️", "keywords": "map plan", "defaultData": {} }
+    { "id": "map", "title": "My map", "description": "Text of the / menu", "icon": "🗺️", "keywords": "map plan", "defaultData": {} }
   ],
   "settings": [
-    { "key": "apiKey", "label": "Clé d'API", "type": "password", "help": "Chiffrée sur le serveur." },
+    { "key": "apiKey", "label": "API key", "type": "password", "help": "Encrypted on the server." },
     { "key": "mode", "label": "Mode", "type": "select", "default": "simple", "options": [{ "value": "simple", "label": "Simple" }] }
   ]
 }
 ```
 
-- `id` : minuscules, chiffres et `_` (2 à 40 caractères). Il apparaît dans les URL et dans le contenu des pages.
-- Types de réglages : `text`, `password`, `number`, `boolean`, `select`. Les mots de passe sont chiffrés (avec
-  `APP_SECRET`) et ne sont jamais renvoyés au navigateur.
-- Les blocs déclarés ici restent connus de l'éditeur même quand le plugin est désactivé : les pages les gardent et
-  affichent un emplacement « plugin désactivé ». Ne renommez donc pas l'`id` d'un bloc d'une version à l'autre.
+- `id`: lowercase letters, digits and `_` (2 to 40 characters). It appears in URLs and in page content.
+- Setting types: `text`, `password`, `number`, `boolean`, `select`. Passwords are encrypted (with
+  `APP_SECRET`) and never sent back to the browser.
+- Blocks declared here stay known to the editor even when the plugin is off: pages keep them and show a
+  "plugin turned off" placeholder. So don't rename a block's `id` from one version to the next.
 
-## Côté serveur (`server.js`)
+### Translations
+
+Every text of the manifest (`name`, `description`, block `title`, `description` and `keywords`, setting `label`,
+`help` and option `label`) can be a plain string or one string per language:
+
+```json
+{ "name": { "en": "My plugin", "fr": "Mon plugin" } }
+```
+
+Each user sees the texts in their language, or in English when theirs is missing. Block keywords of every language
+are searched in the `/` menu. In code, `nootion.locale` (browser) and `nootion.locale()` (server, during a request)
+give the user's language (`"en"`, `"fr"`…) to pick the plugin's own texts.
+
+## Server side (`server.js`)
 
 ```js
 export function activate(nootion) {
-  // GET /api/plugins/mon_plugin/bonjour/Boris : réservé aux utilisateurs connectés
-  nootion.route("GET", "/bonjour/:nom", ({ params, user, query, body }) => ({ message: `Bonjour ${params.nom}, de la part de ${user.name}` }));
+  // GET /api/plugins/my_plugin/hello/Ada: for signed-in users only
+  nootion.route("GET", "/hello/:name", ({ params, user, query, body }) => ({ message: `Hello ${params.name}, from ${user.name}` }));
 
-  // Accessible sans être connecté (pages publiques) : { public: true }
-  nootion.route("GET", "/statut", () => ({ ok: true }), { public: true });
+  // Reachable without signing in (public pages): { public: true }
+  nootion.route("GET", "/status", () => ({ ok: true }), { public: true });
 
-  // Erreur avec un code HTTP
-  nootion.route("POST", "/refus", () => {
-    throw new nootion.HttpError(403, "refus", "Pas autorisé.");
+  // Error with an HTTP status, in the user's language
+  nootion.route("POST", "/refused", () => {
+    throw new nootion.HttpError(403, "refused", nootion.locale() === "fr" ? "Pas autorisé." : "Not allowed.");
   });
 
-  // Tâche planifiée (au moins 1 seconde), arrêtée quand le plugin est désactivé
-  nootion.every(15 * 60 * 1000, async () => nootion.log.info("synchro…"));
+  // Scheduled task (at least 1 second), stopped when the plugin is turned off
+  nootion.every(15 * 60 * 1000, async () => nootion.log.info("syncing…"));
 
-  // Fonction de formule, utilisable dans les colonnes Formule : ttc(prop("Montant HT"))
-  nootion.formulaFunction("ttc", { min: 1, max: 1, help: "ttc(montant) : montant × 1,2", run: ([x]) => x * 1.2 });
+  // Formula function, usable in Formula columns: withTax(prop("Price"))
+  nootion.formulaFunction("withTax", { min: 1, max: 1, help: "withTax(amount): amount × 1.2", run: ([x]) => x * 1.2 });
 
-  // Avant de montrer une page à un utilisateur, vérifiez son droit d'accès :
-  // nootion.pages.role(user.id, pageId) renvoie null, "viewer", "commenter", "editor" ou "full".
+  // Before showing a page to a user, check their access:
+  // nootion.pages.role(user.id, pageId) returns null, "viewer", "commenter", "editor" or "full".
 
-  // Retourner une fonction : appelée à l'arrêt du plugin.
+  // Return a function: it is called when the plugin stops.
   return () => {};
 }
 ```
 
-Ce que reçoit `activate` :
+What `activate` receives:
 
-| Champ | Rôle |
+| Field | Purpose |
 |---|---|
-| `id` | identifiant du plugin |
-| `settings` | valeurs des réglages (mots de passe déchiffrés). Le plugin redémarre quand elles changent. |
-| `dataDir` | dossier propre au plugin : `/data/plugin-data/<id>` |
-| `log.info / warn / error` | journal du serveur |
-| `route(méthode, chemin, handler, { public })` | route servie sous `/api/plugins/<id>/…` |
-| `every(ms, tâche)` | tâche répétée |
-| `formulaFunction(nom, { min, max, help, run })` | fonction de formule calculée sur le serveur. `run` reçoit les arguments déjà évalués (nombres, textes, booléens, listes, dates). |
-| `pages.role(userId, pageId)` | rôle d'un utilisateur sur une page |
-| `HttpError` | erreur avec code HTTP |
+| `id` | the plugin's id |
+| `settings` | setting values (passwords decrypted). The plugin restarts when they change. |
+| `dataDir` | the plugin's own folder: `/data/plugin-data/<id>` |
+| `log.info / warn / error` | server log |
+| `route(method, path, handler, { public })` | route served under `/api/plugins/<id>/…` |
+| `every(ms, task)` | repeated task |
+| `formulaFunction(name, { min, max, help, run })` | formula function computed on the server. `run` receives the already evaluated arguments (numbers, texts, booleans, lists, dates). |
+| `pages.role(userId, pageId)` | a user's role on a page |
+| `HttpError` | error with an HTTP status |
+| `locale()` | language of the user being served (`"en"`, `"fr"`…) |
 
-Un plugin ne doit jamais renvoyer à un utilisateur des données qu'il ne pourrait pas voir lui-même.
+A plugin must never send a user data they couldn't see themselves.
 
-## Côté navigateur (`client.js`)
+## Browser side (`client.js`)
 
-Le code navigateur est chargé par toutes les pages, y compris les pages publiques. Il reçoit le React de
-l'application : n'en embarquez pas un autre. Pas besoin d'outil de compilation, `React.createElement` suffit.
+The browser code is loaded by every page, public pages included. It receives the application's React:
+don't bundle another one. No build tool needed, `React.createElement` is enough.
 
 ```js
 export function activate(nootion) {
   const { React } = nootion;
   const h = React.createElement;
+  const label = nootion.locale === "fr" ? "Choisir un lieu" : "Choose a place";
 
-  function Carte({ data, setData, editable }) {
-    if (!data.lieu) {
-      return editable ? h("button", { onClick: () => setData({ lieu: "Lyon" }) }, "Choisir un lieu") : null;
+  function Map({ data, setData, editable }) {
+    if (!data.place) {
+      return editable ? h("button", { onClick: () => setData({ place: "Lyon" }) }, label) : null;
     }
-    return h("div", null, `📍 ${data.lieu}`);
+    return h("div", null, `📍 ${data.place}`);
   }
 
-  nootion.registerBlock("carte", Carte);
+  nootion.registerBlock("map", Map);
 }
 ```
 
-- `data` : les données du bloc, enregistrées dans la page (et partagées en direct avec les autres éditeurs).
-  Gardez-y ce que les lecteurs doivent voir, pour que les pages publiques s'affichent sans appel au serveur.
-- `setData(objet)` : remplace les données du bloc.
-- `editable` : faux pour les lecteurs et sur les pages publiques.
-- `nootion.api(chemin, { method, body })` : appelle une route du plugin (`/api/plugins/<id><chemin>`).
+- `data`: the block's data, stored in the page (and shared live with other editors).
+  Keep there what readers need to see, so public pages render without calling the server.
+- `setData(object)`: replaces the block's data.
+- `editable`: false for viewers and on public pages.
+- `nootion.api(path, { method, body })`: calls one of the plugin's routes (`/api/plugins/<id><path>`).
+- `nootion.locale`: the interface language. The page reloads when the user changes it.
 
-Les classes Tailwind de l'application ne sont pas disponibles pour les plugins : utilisez des styles en ligne.
-Un élément avec la classe `nootion-hover-only` n'apparaît qu'au survol du bloc (pratique pour des boutons d'édition).
-Si le composant plante, seul le bloc affiche une erreur ; le reste de la page continue de fonctionner.
+The application's Tailwind classes aren't available to plugins: use inline styles.
+An element with the `nootion-hover-only` class only shows when the block is hovered (handy for edit buttons).
+If the component crashes, only the block shows an error; the rest of the page keeps working.

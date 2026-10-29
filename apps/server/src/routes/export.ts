@@ -70,7 +70,7 @@ export const exportRoutes: FastifyPluginAsync = async (app) => {
     reply.raw.on("close", cleanup);
     return reply
       .header("content-type", "application/zip")
-      .header("content-disposition", attachmentHeader(`nootion-sauvegarde-${today()}.zip`))
+      .header("content-disposition", attachmentHeader(`nootion-backup-${today()}.zip`))
       .send(zip.outputStream);
   });
 };

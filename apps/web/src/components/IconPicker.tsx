@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { SmilePlus } from "lucide-react";
+import { t } from "@nootion/shared";
 
 const ICONS = ["📄", "📝", "📒", "📚", "💡", "✅", "📌", "📅", "💰", "🧾", "📊", "🏠", "🛒", "🍳", "✈️", "🎯", "🔧", "💼", "❤️", "⭐"];
 
@@ -14,7 +15,7 @@ export function IconPicker({ icon, editable, onChange }: { icon: string | null; 
         </button>
       ) : (
         <button onClick={() => setOpen(!open)} className="flex items-center gap-1 rounded px-2 py-1 text-sm text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800">
-          <SmilePlus size={16} /> Ajouter une icône
+          <SmilePlus size={16} /> {t("icon.add")}
         </button>
       )}
       {open && (
@@ -41,7 +42,7 @@ export function IconPicker({ icon, editable, onChange }: { icon: string | null; 
                 setOpen(false);
               }}
             >
-              Retirer l'icône
+              {t("icon.remove")}
             </button>
           )}
         </div>

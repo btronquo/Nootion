@@ -1,8 +1,8 @@
-# Vérifie le code puis publie l'image Docker sur le registre GitLab du projet
+# Checks the code, then publishes the Docker image to the project's GitLab registry
 # (registry.gitlab.com/btronquoy/nootion).
-# Jobs : "test" puis "docker-image" (ne pas nommer un job "image", mot réservé de GitLab).
-#   - push sur la branche principale -> tags "main" et "main-<commit>"
-#   - tag git "v1.2.3"               -> tags "1.2.3" et "latest"
+# Jobs: "test" then "docker-image" (don't name a job "image", a GitLab reserved word).
+#   - push to the default branch -> tags "main" and "main-<commit>"
+#   - git tag "v1.2.3"           -> tags "1.2.3" and "latest"
 
 stages:
   - test
