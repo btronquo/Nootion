@@ -83,8 +83,14 @@ instead of `latest`.
 git clone https://github.com/btronquo/Nootion.git nootion && cd nootion
 ```
 
-In `docker-compose.yml`, replace the `image:` line with the `build:` block given in comments, then
-`docker compose up -d --build`. To update: `git pull`, then the same command.
+Then build and start it with the `docker-compose.build.yml` overlay (a plain `docker compose up --build` keeps
+using the published image):
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+```
+
+To update: `git pull`, then the same command. To try the `develop` branch, `git checkout develop` first.
 
 ## Installing the app on a phone or computer
 
