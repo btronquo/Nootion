@@ -14,6 +14,7 @@ import {
   List,
   LayoutGrid,
   CalendarDays,
+  GanttChart,
   Trash2,
   Upload,
   X,
@@ -52,7 +53,7 @@ type Actions = ReturnType<typeof useDatabaseActions>;
 
 export const viewTypeLabel = (type: ViewType) => t(`view.${type}` as MessageKey);
 
-const VIEW_ICONS: Record<ViewType, typeof Table2> = { table: Table2, board: SquareKanban, list: List, gallery: LayoutGrid, calendar: CalendarDays };
+const VIEW_ICONS: Record<ViewType, typeof Table2> = { table: Table2, board: SquareKanban, list: List, gallery: LayoutGrid, calendar: CalendarDays, timeline: GanttChart };
 const DATE_TYPES = ["date", "created_time", "last_edited_time"];
 
 export function ViewIcon({ type, size = 14 }: { type: ViewType; size?: number }) {
@@ -90,7 +91,7 @@ export function ViewBar({
   const activeFilters = (config.filters ?? []).filter((f) => isActiveFilter(f, data)).length;
   const sorts = (config.sorts ?? []).filter((s) => data.properties.some((p) => p.id === s.propertyId)).length;
   const groupProp = view.type === "board" ? boardGroupProp(data, view) : data.properties.find((p) => p.id === config.groupBy);
-  const dateProp = view.type === "calendar" ? calendarDateProp(data.properties, config.dateProperty) : undefined;
+  const dateProp = view.type === "calendar" || view.type === "timeline" ? calendarDateProp(data.properties, config.dateProperty) : undefined;
   const tool = (on: boolean) =>
     `flex items-center gap-1 rounded px-1.5 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-800 ${on ? "text-blue-600 dark:text-blue-400" : "text-neutral-500"}`;
 
@@ -136,7 +137,7 @@ export function ViewBar({
                   <Rows3 size={14} /> {view.type === "board" ? t("view.columns") : t("view.group")}
                 </button>
               )}
-              {view.type === "calendar" && (
+              {(view.type === "calendar" || view.type === "timeline") && (
                 <button className={tool(false)} onClick={(e) => setMenu({ kind: "date", anchor: e.currentTarget })}>
                   <CalendarDays size={14} /> {dateProp?.name ?? t("view.dateProperty")}
                 </button>

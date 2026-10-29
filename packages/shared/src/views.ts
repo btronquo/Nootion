@@ -15,7 +15,7 @@ import { intlLocale, t } from "./i18n/index.js";
 
 /** Filters, sorts and groups of database views. Applied in the browser, on rows the reader can already see. */
 
-export const VIEW_TYPES = ["table", "board", "list", "gallery", "calendar"] as const;
+export const VIEW_TYPES = ["table", "board", "list", "gallery", "calendar", "timeline"] as const;
 export type ViewType = (typeof VIEW_TYPES)[number];
 
 export const FILTER_OPERATORS = [
