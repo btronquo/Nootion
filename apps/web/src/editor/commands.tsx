@@ -18,7 +18,7 @@ import {
   Lightbulb,
   Database,
 } from "lucide-react";
-import type { PageSummary } from "@nootion/shared";
+import { pluginNodeName, type ClientPluginInfo, type PageSummary } from "@nootion/shared";
 import { api } from "../lib/api";
 import { pageTitle } from "../lib/tree";
 import { item } from "./suggestion";
@@ -31,6 +31,8 @@ export interface CommandContext {
   onPageCreated: () => void;
   /** Pages the user can link to, for "@". */
   linkablePages: () => PageSummary[];
+  /** Installed plugins: enabled ones add their blocks to the "/" menu. */
+  plugins: ClientPluginInfo[];
 }
 
 const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -95,6 +97,23 @@ export function slashItems(ctx: CommandContext) {
       "db table",
     ),
     item("Link to page", "Mentionner une page existante", <Link2 size={16} />, (e, r) => del(e, r).insertContent("@").run(), "mention"),
+    // Blocks of enabled plugins.
+    ...ctx.plugins
+      .filter((p) => p.enabled)
+      .flatMap((p) =>
+        p.blocks.map((b) =>
+          item(
+            b.title,
+            b.description,
+            <span className="w-4 text-center text-base leading-none">{b.icon}</span>,
+            (e, r) =>
+              del(e, r)
+                .insertContent({ type: pluginNodeName(p.id, b.id), attrs: { data: JSON.stringify(b.defaultData) } })
+                .run(),
+            `${b.keywords} ${p.name}`,
+          ),
+        ),
+      ),
   ];
   return ({ query }: { query: string }) => {
     const q = norm(query).trim();

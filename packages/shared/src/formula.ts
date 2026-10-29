@@ -346,7 +346,7 @@ function formatDate(d: FDate, pattern: string): string {
   });
 }
 
-interface FunctionSpec {
+export interface FunctionSpec {
   min: number;
   max: number;
   /** Arguments are evaluated lazily for if / ifs / and / or. */
@@ -496,6 +496,21 @@ export const FUNCTIONS: Record<string, FunctionSpec> = {
 };
 
 const FUNCTION_ALIASES: Record<string, string> = Object.fromEntries(Object.keys(FUNCTIONS).map((k) => [k.toLowerCase(), k]));
+const BUILTIN_FUNCTIONS = new Set(Object.keys(FUNCTIONS));
+
+/** Adds a function from a plugin. Built-in functions can't be replaced. Returns a function that removes it. */
+export function registerFormulaFunction(name: string, spec: Omit<FunctionSpec, "lazy">): () => void {
+  if (!/^[a-zA-Z][a-zA-Z0-9_]{0,39}$/.test(name)) throw new Error(`Nom de fonction invalide : ${name}`);
+  const key = name.toLowerCase();
+  if (BUILTIN_FUNCTIONS.has(name) || Object.hasOwn(FUNCTION_ALIASES, key)) throw new Error(`La fonction ${name}() existe déjà.`);
+  FUNCTIONS[name] = { ...spec, lazy: false };
+  FUNCTION_ALIASES[key] = name;
+  return () => {
+    if (FUNCTIONS[name]?.run !== spec.run) return;
+    delete FUNCTIONS[name];
+    delete FUNCTION_ALIASES[key];
+  };
+}
 
 // --- Evaluation -----------------------------------------------------------------------------
 
@@ -516,7 +531,9 @@ export function evaluateFormula(node: FormulaNode, getProp: (name: string) => FV
         return n.op === "!" ? !truthy(v) : -num(v, "« - »");
       }
       case "call": {
-        const spec = FUNCTIONS[n.name]!;
+        // A plugin's function may have been removed since the expression was parsed.
+        const spec = Object.hasOwn(FUNCTIONS, n.name) ? FUNCTIONS[n.name] : undefined;
+        if (!spec) throw new FormulaError(`Fonction inconnue « ${n.name} ».`);
         if (spec.lazy) return spec.run([], n.args.map((a) => () => ev(a)));
         return spec.run(n.args.map(ev), []);
       }

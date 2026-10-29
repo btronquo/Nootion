@@ -5,6 +5,7 @@ import Collaboration from "@tiptap/extension-collaboration";
 import CollaborationCaret from "@tiptap/extension-collaboration-caret";
 import { HocuspocusProvider } from "@hocuspocus/provider";
 import * as Y from "yjs";
+import { NodeSelection } from "@tiptap/pm/state";
 import { useQueryClient } from "@tanstack/react-query";
 import { Bold, Code, Italic, Link as LinkIcon, Strikethrough, Underline } from "lucide-react";
 import type { PageDetail, PageSummary } from "@nootion/shared";
@@ -14,6 +15,8 @@ import { baseExtensions } from "./extensions";
 import { createSuggestionExtension } from "./suggestion";
 import { mentionItems, slashItems, type CommandContext } from "./commands";
 import { insertFiles } from "./upload";
+import { usePlugins } from "../plugins/registry";
+import type { ClientPluginInfo } from "@nootion/shared";
 
 const COLORS = ["#e11d48", "#ea580c", "#ca8a04", "#16a34a", "#0891b2", "#2563eb", "#7c3aed", "#c026d3"];
 export function colorFor(id: string): string {
@@ -35,6 +38,7 @@ interface Peer {
 /** Collaborative editor of a page body. Creates one Yjs document and connection per page. */
 export function PageEditor({ page, canEdit }: { page: PageDetail; canEdit: boolean }) {
   const [collab, setCollab] = useState<{ doc: Y.Doc; provider: HocuspocusProvider } | null>(null);
+  const plugins = usePlugins();
   useEffect(() => {
     const doc = new Y.Doc();
     const provider = new HocuspocusProvider({ url: collabUrl(), name: page.id, document: doc, token: "session" });
@@ -44,11 +48,25 @@ export function PageEditor({ page, canEdit }: { page: PageDetail; canEdit: boole
       doc.destroy();
     };
   }, [page.id]);
-  if (!collab) return null;
-  return <CollabEditor key={page.id} page={page} canEdit={canEdit} doc={collab.doc} provider={collab.provider} />;
+  // The editor's schema needs the plugins' blocks: without them, their blocks would be dropped from the page.
+  if (plugins.isError) return <p className="text-sm text-red-600">Impossible de charger les plugins : la page ne peut pas s'ouvrir. Rechargez la page.</p>;
+  if (!collab || !plugins.data) return null;
+  return <CollabEditor key={page.id} page={page} canEdit={canEdit} doc={collab.doc} provider={collab.provider} plugins={plugins.data} />;
 }
 
-function CollabEditor({ page, canEdit, doc, provider }: { page: PageDetail; canEdit: boolean; doc: Y.Doc; provider: HocuspocusProvider }) {
+function CollabEditor({
+  page,
+  canEdit,
+  doc,
+  provider,
+  plugins,
+}: {
+  page: PageDetail;
+  canEdit: boolean;
+  doc: Y.Doc;
+  provider: HocuspocusProvider;
+  plugins: ClientPluginInfo[];
+}) {
   const { user } = useSession();
   const qc = useQueryClient();
   const refreshPages = useRefreshPages();
@@ -75,6 +93,7 @@ function CollabEditor({ page, canEdit, doc, provider }: { page: PageDetail; canE
     () => ({
       pageId: page.id,
       workspaceId: page.workspaceId,
+      plugins,
       onPageCreated: () => void refreshPages(),
       linkablePages: () => {
         const seen = new Map<string, PageSummary>();
@@ -83,14 +102,14 @@ function CollabEditor({ page, canEdit, doc, provider }: { page: PageDetail; canE
         return [...seen.values()];
       },
     }),
-    [page.id, page.workspaceId, qc, refreshPages],
+    [page.id, page.workspaceId, qc, refreshPages, plugins],
   );
 
   const editor = useEditor(
     {
       editable: canEdit,
       extensions: [
-        ...baseExtensions({ collaborative: true }),
+        ...baseExtensions({ collaborative: true, plugins }),
         Collaboration.configure({ document: doc }),
         CollaborationCaret.configure({ provider, user: { name: user?.name ?? "?", color: colorFor(user?.id ?? "") } }),
         createSuggestionExtension("slashCommands", "/", slashItems(ctx), "Aucune commande"),
@@ -155,7 +174,7 @@ function FormatMenu({ editor }: { editor: Editor }) {
   return (
     <BubbleMenu
       editor={editor}
-      shouldShow={({ editor: e, from, to }) => from !== to && !e.isActive("image") && !e.isActive("fileAttachment") && !e.isActive("pageLink")}
+      shouldShow={({ editor: e, from, to }) => from !== to && !(e.state.selection instanceof NodeSelection) && !e.isActive("image") && !e.isActive("fileAttachment") && !e.isActive("pageLink")}
       className="flex items-center gap-0.5 rounded-lg border border-neutral-200 bg-white p-1 shadow-lg dark:border-neutral-700 dark:bg-neutral-900"
     >
       <button className={btn(state.bold)} onClick={() => editor.chain().focus().toggleBold().run()} title="Gras (Ctrl+B)">

@@ -8,7 +8,8 @@ Toutes les données sont dans le dossier monté sur `/data` :
 | `nootion.db` (+ `-wal`, `-shm` quand l'app tourne) | La base SQLite : comptes, pages, databases, partages |
 | `uploads/` | Fichiers joints aux pages (images, PDF…) et plus tard aux databases. Un fichier par pièce jointe, nommé par son identifiant. |
 | `avatars/` | Photos de profil des comptes |
-| `plugins/` (à venir) | Plugins installés à la main |
+| `plugins/` | Plugins installés à la main (voir [PLUGINS.md](PLUGINS.md)) |
+| `plugin-data/` | Fichiers gardés par les plugins |
 
 **Sauvegarder Nootion = sauvegarder ce dossier.** Sur TrueNAS, un snapshot ZFS périodique du dataset suffit
 (*Data Protection > Periodic Snapshot Tasks*). Les exports `.md` (pages) et CSV/JSON (databases) se téléchargent
@@ -19,7 +20,7 @@ depuis l'interface ; ils servent à récupérer ses données dans un format lisi
 | Variable | Obligatoire | Description |
 |---|---|---|
 | `APP_URL` | oui | Adresse tapée dans le navigateur, sans `/` final (ex. `http://192.168.1.10:3000` ou `https://notes.mondomaine.fr`). Sert aux liens d'invitation et à la protection CSRF : ouvrez toujours Nootion à cette adresse. |
-| `APP_SECRET` | oui | Chaîne aléatoire d'au moins 16 caractères (`openssl rand -hex 32`). Générez-la une fois et ne la changez plus : elle servira à chiffrer les identifiants des plugins. |
+| `APP_SECRET` | oui | Chaîne aléatoire d'au moins 16 caractères (`openssl rand -hex 32`). Générez-la une fois et ne la changez plus : elle chiffre les mots de passe des réglages des plugins. |
 | `TZ` | non | Fuseau horaire (ex. `Europe/Paris`). |
 | `PORT` | non | Port d'écoute dans le conteneur (défaut `3000`). Pour changer le port côté NAS, modifiez plutôt `ports:`. |
 | `MAX_UPLOAD_MB` | non | Taille maximale d'un fichier joint, en Mo (défaut `50`). |

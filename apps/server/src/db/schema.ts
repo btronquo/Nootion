@@ -181,3 +181,11 @@ export const databaseViews = sqliteTable(
   },
   (t) => [index("database_views_db_idx").on(t.databaseId)],
 );
+
+export const plugins = sqliteTable("plugins", {
+  id: text("id").primaryKey(),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(false),
+  /** Setting values by key; passwords are encrypted. */
+  settings: text("settings", { mode: "json" }).$type<Record<string, unknown>>().notNull().default({}),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
+});

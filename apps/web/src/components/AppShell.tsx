@@ -10,11 +10,14 @@ import { buildTree } from "../lib/tree";
 import { PageTree } from "./PageTree";
 import { Avatar } from "./Avatar";
 import { Button, ErrorText, Field, Modal } from "./ui";
+import { usePlugins } from "../plugins/registry";
 
 export function AppShell() {
   const { user, refresh } = useSession();
   const navigate = useNavigate();
   const workspaces = useWorkspaces();
+  // Loaded ahead: page editors wait for the plugins' blocks before opening.
+  usePlugins();
   const [creatingWorkspace, setCreatingWorkspace] = useState(false);
 
   async function logout() {

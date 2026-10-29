@@ -36,6 +36,13 @@
       "when": 1793257381499,
       "tag": "0004_account_and_full_width",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1793260751404,
+      "tag": "0005_plugins",
+      "breakpoints": true
     }
   ]
 }

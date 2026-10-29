@@ -1,0 +1,28 @@
+{
+  "id": "embed",
+  "name": "Intégrations (embed)",
+  "version": "1.0.0",
+  "description": "Intègre une vidéo YouTube ou Vimeo, un son Spotify, une carte Google Maps, un design Figma… dans une page, ou affiche l'aperçu de n'importe quel lien. Commande « /embed ».",
+  "author": "Nootion",
+  "server": "server.js",
+  "client": "client.js",
+  "enabledByDefault": true,
+  "blocks": [
+    {
+      "id": "embed",
+      "title": "Embed",
+      "description": "Vidéo, carte, aperçu d'un lien…",
+      "icon": "🔗",
+      "keywords": "youtube vimeo video spotify maps figma loom link url bookmark lien integration"
+    }
+  ],
+  "settings": [
+    {
+      "key": "allowPrivateNetworks",
+      "label": "Aperçus des liens du réseau local",
+      "type": "boolean",
+      "default": false,
+      "help": "Autorise le serveur à lire les pages d'adresses locales (192.168.x.x, nas.local…) pour en afficher l'aperçu. Laissez désactivé si des personnes extérieures utilisent votre Nootion."
+    }
+  ]
+}
