@@ -37,6 +37,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   like a row, one of them used for every new row if chosen. Page templates ("Use as a template" in a page's menu):
   an empty page offers them, and the copy brings the template's content, icon, cover, subpages and databases (with
   their columns, views and rows), and attached files.
+- Page history (clock button in a page's header): versions are kept as the page is edited (every 10 minutes at
+  most while people type, and when the last of them leaves), with who edited. Each version shows what changed
+  (added lines in green, removed ones struck in red) or the page as it was, and can be restored; the current
+  content stays in the history. All versions of the last day are kept, then one a day for a month, then one a week.
 
 ### Fixed
 

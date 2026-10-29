@@ -146,3 +146,14 @@ export interface SearchResult {
 
 /** New order of the user's favorites: every favorite page id, in order. */
 export const reorderFavoritesInput = z.object({ pageIds: z.array(z.string().min(1)).max(1000) });
+
+/** A version in a page's history. */
+export interface PageVersion {
+  id: string;
+  createdAt: string;
+  title: string;
+  /** People who edited the page since the version before. */
+  authors: { id: string; name: string }[];
+  /** Set when this version came from restoring an older one: when that one was made. */
+  restoredFrom: string | null;
+}

@@ -294,3 +294,23 @@ export const pageVisits = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.userId, t.pageId] }), index("page_visits_recent_idx").on(t.userId, t.visitedAt)],
 );
+
+/** Versions of a page's content kept over time, for its history. */
+export const pageSnapshots = sqliteTable(
+  "page_snapshots",
+  {
+    id: text("id").primaryKey(),
+    pageId: text("page_id")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    // ProseMirror JSON of the content at that time.
+    content: text("content", { mode: "json" }).notNull(),
+    // Who edited the page since the previous version.
+    authors: text("authors", { mode: "json" }).$type<string[]>().notNull().default([]),
+    // Set on the version a restore produced: when the restored version was made.
+    restoredFrom: integer("restored_from", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("page_snapshots_page_idx").on(t.pageId, t.createdAt)],
+);
