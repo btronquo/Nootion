@@ -11,6 +11,7 @@ import { pageTitle } from "../lib/tree";
 import { Button } from "../components/ui";
 import { ShareDialog } from "../components/ShareDialog";
 import { IconPicker } from "../components/IconPicker";
+import { AddCoverButton, PageCover } from "../components/PageCover";
 import { PageEditor } from "../editor/PageEditor";
 import { DatabaseTable } from "../database/DatabaseTable";
 import { RowProperties } from "../database/RowProperties";
@@ -58,7 +59,7 @@ function PageView({ page }: { page: PageDetail }) {
     }
   }, [title]);
 
-  async function save(patch: { title?: string; icon?: string | null; fullWidth?: boolean }) {
+  async function save(patch: { title?: string; icon?: string | null; fullWidth?: boolean; cover?: string | null; coverPosition?: number }) {
     // Kept for later when the server can't be reached.
     await sendOrQueue(`/pages/${page.id}`, patch);
     qc.setQueryData(keys.page(page.id), { ...page, ...patch });
@@ -122,8 +123,14 @@ function PageView({ page }: { page: PageDetail }) {
         </div>
       </header>
 
-      <div className={`mx-auto px-5 pb-24 pt-8 sm:px-12 sm:pt-16 ${page.fullWidth ? "max-w-none sm:px-24" : page.kind === "database" ? "max-w-6xl" : "max-w-3xl"}`}>
-        <IconPicker icon={page.icon} editable={canEdit} onChange={(icon) => save({ icon })} />
+      {page.cover && <PageCover pageId={page.id} cover={page.cover} position={page.coverPosition} editable={canEdit} onChange={save} />}
+      <div
+        className={`mx-auto px-5 pb-24 ${page.cover ? "pt-6" : "pt-8 sm:pt-16"} sm:px-12 ${page.fullWidth ? "max-w-none sm:px-24" : page.kind === "database" ? "max-w-6xl" : "max-w-3xl"}`}
+      >
+        <div className="flex flex-wrap items-end gap-1">
+          <IconPicker icon={page.icon} editable={canEdit} onChange={(icon) => save({ icon })} />
+          {canEdit && !page.cover && <AddCoverButton pageId={page.id} onChange={save} />}
+        </div>
         <textarea
           ref={titleRef}
           rows={1}
