@@ -186,11 +186,12 @@ body {
 .nootion-content h1.is-empty::before,
 .nootion-content h2.is-empty::before,
 .nootion-content h3.is-empty::before,
-.nootion-content summary.is-empty::before {
+.nootion-content summary:has(> br.ProseMirror-trailingBreak:only-child)::before {
   content: attr(data-placeholder);
   @apply pointer-events-none float-left h-0 text-neutral-400;
 }
-.nootion-content[contenteditable="false"] .is-empty::before {
+.nootion-content[contenteditable="false"] .is-empty::before,
+.nootion-content[contenteditable="false"] summary::before {
   content: none;
 }
 

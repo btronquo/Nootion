@@ -19,6 +19,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   `<details>`.
 - The "/" menu also finds commands by their name in the interface language.
 
+### Fixed
+
+- The "Write, or type /" hint stayed on empty lines after the cursor had left them.
+
 ## [1.1.0] - 2026-10-29
 
 ### Mobile
