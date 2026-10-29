@@ -106,12 +106,40 @@ Three gaps that Notion and the self-hosted alternatives leave open.
    attachments and links between pages. Notion's API does not expose views, so views are recreated as a default
    table view. The import can run again to bring in what changed.
 
-## 8. After V1.1
+## 8. Version 1.2
 
+What makes everyday use comfortable, in this order (quick wins first, then what builds on them).
+
+1. **Favorites.** A star on each page and database; a "Favorites" section at the top of the sidebar, per user,
+   reorderable by drag and drop. Also in the mobile drawer.
+2. **Cover images.** A cover at the top of a page (uploaded image or link, a few built-in gradients),
+   repositioned by dragging, shown on public pages. The Notion import brings covers in.
+3. **Toggles and columns.** Collapsible blocks (and toggle headings) and side-by-side columns in the editor.
+   They are the two blocks the Notion import can't render as they are today.
+4. **New database views**, next to table and board, each with its own filters, sorts and properties shown:
+   - *Calendar*: rows placed on a date property, month and week, drag a row to change its date, click a day to add one;
+   - *Gallery*: cards with the row's cover or first image;
+   - *List*: one compact line per row;
+   - *Timeline*: bars from a start date to an end date (date ranges), dragged to move or resize.
+5. **Calendar widget.** A `/calendar` block for any page that gathers the dated rows of one or several databases
+   (tasks, appointments, bills due…), each with its colour. Read-only iCal feed (private link) to see these dates
+   in a phone or desktop calendar.
+6. **Templates.** Page templates and database row templates (content and default values), chosen when creating.
+7. **Page history.** Snapshots of each page kept over time, compared and restored (built on Yjs).
+8. **Backlinks.** "Linked from" at the bottom of a page: the pages that link or mention it.
+9. **API with personal tokens.** A documented REST API (read and write pages, query and fill databases, search),
+   with tokens created in "My account", each limited to some spaces and read-only or read-write.
+   It is what the V2 MCP server builds on.
+
+Possible later in 1.x: comments and @mentions with notifications, search in database values, page titles updated
+live for other users, chart view, OIDC sign-in (Authentik, Nextcloud…), scheduled Markdown export to a NAS folder,
+more interface languages.
+
+## 9. Version 2
+
+- **MCP server**, so that Claude (or another assistant) can work with Nootion: search, read and write pages, query
+  databases and add or change rows, within the rights of the token's owner. Served by Nootion itself over HTTP
+  (remote MCP), connected to Claude as a custom connector with a token from "My account".
 - **Nextcloud** plugin (pick a Nextcloud file and insert it in a page or a "file" property) and **Google Calendar** plugin
-  (an agenda block, and syncing a database's date property with a calendar).
+  (syncing a database's date property with a calendar).
 - Per-user plugin credentials (OAuth, Nextcloud account), stored encrypted, and plugin property types.
-- Search in the property values of database rows.
-- Page titles updated live for other users.
-- Later: calendar, gallery and chart views; OIDC sign-in (Authentik, Nextcloud…); scheduled Markdown export to a NAS folder;
-  comments; version history; templates; more interface languages.
