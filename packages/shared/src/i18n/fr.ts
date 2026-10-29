@@ -637,6 +637,7 @@ export const fr: Messages = {
   "search.hintOpen": "Entrée pour ouvrir",
   "search.label": "Rechercher dans les pages",
   "search.noResults": "Aucun résultat",
+  "search.openFile": "Ouvrir le fichier",
   "search.placeholder": "Rechercher dans les pages…",
   "search.title": "Rechercher",
   "setup.submit": "Créer le compte",

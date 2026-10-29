@@ -142,6 +142,8 @@ export interface SearchResult {
   path: string[];
   /** Extract of the content; matched words are between \u0001 and \u0002. */
   snippet: string;
+  /** Set when the match is in a file attached to the page (its name or its text). */
+  file?: { id: string; name: string };
 }
 
 /** New order of the user's favorites: every favorite page id, in order. */
