@@ -117,9 +117,9 @@ What makes everyday use comfortable, in this order (quick wins first, then what 
 3. **Toggles and columns** (done). Collapsible blocks (and toggle headings) and side-by-side columns in the editor.
    They are the two blocks the Notion import can't render as they are today.
 4. **New database views**, next to table and board, each with its own filters, sorts and properties shown:
-   - *Calendar*: rows placed on a date property, month and week, drag a row to change its date, click a day to add one;
-   - *Gallery*: cards with the row's cover or first image;
-   - *List*: one compact line per row;
+   - *Calendar* (done): rows placed on a date property, month and week, drag a row to change its date, click a day to add one;
+   - *Gallery* (done): cards with the row's cover or first image;
+   - *List* (done): one compact line per row;
    - *Timeline*: bars from a start date to an end date (date ranges), dragged to move or resize.
 5. **Calendar widget.** A `/calendar` block for any page that gathers the dated rows of one or several databases
    (tasks, appointments, bills due…), each with its colour. Read-only iCal feed (private link) to see these dates
