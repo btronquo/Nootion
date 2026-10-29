@@ -23,7 +23,7 @@ import type { useDatabaseActions } from "./hooks";
 import { CoverFill } from "../components/PageCover";
 import { pageTitle } from "../lib/tree";
 
-interface MoreViewProps {
+export interface MoreViewProps {
   data: DatabaseData;
   actions?: ReturnType<typeof useDatabaseActions>;
   rowHref: (row: DatabaseRow) => string;
@@ -75,7 +75,7 @@ function RowValues({
   );
 }
 
-const RowTitle = ({ row }: { row: DatabaseRow }) => (
+export const RowTitle = ({ row }: { row: DatabaseRow }) => (
   <>
     {row.icon && <span className="mr-1">{row.icon}</span>}
     {row.title ? row.title : <span className="text-neutral-400">{pageTitle("")}</span>}

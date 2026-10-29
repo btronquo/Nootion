@@ -120,7 +120,7 @@ What makes everyday use comfortable, in this order (quick wins first, then what 
    - *Calendar* (done): rows placed on a date property, month and week, drag a row to change its date, click a day to add one;
    - *Gallery* (done): cards with the row's cover or first image;
    - *List* (done): one compact line per row;
-   - *Timeline*: bars from a start date to an end date (date ranges), dragged to move or resize.
+   - *Timeline* (done): bars from a start date to an end date (date ranges), dragged to move or resize.
 5. **Calendar widget.** A `/calendar` block for any page that gathers the dated rows of one or several databases
    (tasks, appointments, bills due…), each with its colour. Read-only iCal feed (private link) to see these dates
    in a phone or desktop calendar.

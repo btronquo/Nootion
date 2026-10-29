@@ -152,10 +152,12 @@ export interface ViewConfig {
   groupBy?: string | null;
   /** Groups folded away (table) or hidden (board), by group key. */
   collapsedGroups?: string[];
-  /** Calendar: the date column rows are placed on (else the first date column). */
+  /** Calendar and timeline: the date column rows are placed on (else the first date column). */
   dateProperty?: string | null;
   /** Calendar: a month or a week at a time. */
   calendarMode?: "month" | "week";
+  /** Timeline: width of a day, from days to months. */
+  timelineScale?: "day" | "week" | "month";
   /** Gallery: shows the row's cover or first image at the top of its card (default true). */
   showPreview?: boolean;
 }
@@ -174,6 +176,7 @@ export const viewConfigSchema = z
     collapsedGroups: z.array(z.string().max(500)).max(500).optional(),
     dateProperty: z.string().min(1).max(64).nullable().optional(),
     calendarMode: z.enum(["month", "week"]).optional(),
+    timelineScale: z.enum(["day", "week", "month"]).optional(),
     showPreview: z.boolean().optional(),
   })
   .passthrough();
