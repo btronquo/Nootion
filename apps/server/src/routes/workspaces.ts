@@ -14,6 +14,7 @@ import { pages, users, workspaceMembers, workspaces } from "../db/schema.js";
 import { HttpError, notFound, parseBody, requireUser } from "../http.js";
 import { getPageRole, requireWorkspaceRole } from "../permissions.js";
 import { listWorkspacePages, toSummary } from "../pages.js";
+import { t } from "@nootion/shared";
 
 const ANY_ROLE = ["owner", "editor", "commenter", "viewer"] as const;
 
@@ -25,7 +26,7 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
   const requireSharedOwner = (userId: string, workspaceId: string) => {
     requireWorkspaceRole(db, userId, workspaceId, ["owner"]);
     const ws = getWorkspace(workspaceId)!;
-    if (ws.kind === "personal") throw new HttpError(400, "personal_workspace", "L'espace personnel ne peut pas être partagé ni modifié.");
+    if (ws.kind === "personal") throw new HttpError(400, "personal_workspace", t("error.personalWorkspace"));
     return ws;
   };
 
@@ -100,7 +101,7 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
     const target = db.select().from(users).where(eq(users.id, input.userId)).get();
     if (!target || target.disabled) throw new HttpError(404, "user_not_found", "Utilisateur introuvable.");
     if (input.role !== "owner" && ownerCount(req.params.id, input.userId) === 0) {
-      throw new HttpError(409, "last_owner", "L'espace doit garder au moins un propriétaire.");
+      throw new HttpError(409, "last_owner", t("error.lastOwner"));
     }
     db.insert(workspaceMembers)
       .values({ workspaceId: req.params.id, userId: input.userId, role: input.role })
@@ -114,12 +115,12 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
     const user = requireUser(req);
     if (req.params.userId === user.id) {
       requireWorkspaceRole(db, user.id, req.params.id, ANY_ROLE);
-      if (getWorkspace(req.params.id)!.kind === "personal") throw new HttpError(400, "personal_workspace", "Impossible de quitter son espace personnel.");
+      if (getWorkspace(req.params.id)!.kind === "personal") throw new HttpError(400, "personal_workspace", t("error.leavePersonal"));
     } else {
       requireSharedOwner(user.id, req.params.id);
     }
     if (ownerCount(req.params.id, req.params.userId) === 0) {
-      throw new HttpError(409, "last_owner", "L'espace doit garder au moins un propriétaire.");
+      throw new HttpError(409, "last_owner", t("error.lastOwner"));
     }
     db.delete(workspaceMembers)
       .where(and(eq(workspaceMembers.workspaceId, req.params.id), eq(workspaceMembers.userId, req.params.userId)))

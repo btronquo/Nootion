@@ -1,4 +1,25 @@
-// Plugin « embed », côté navigateur : bloc « /embed » qui intègre une vidéo, une carte… ou montre l'aperçu d'un lien.
+// "embed" plugin, browser side: the "/embed" block shows a video, a map… or a preview of a link.
+
+const TEXTS = {
+  en: {
+    placeholder: "Paste a link: YouTube, Vimeo, Spotify, Google Maps, Figma or any page",
+    label: "Link to embed",
+    embed: "Embed",
+    open: "Open",
+    change: "Change link",
+    invalid: "Invalid address.",
+    frame: "Embedded content",
+  },
+  fr: {
+    placeholder: "Collez un lien : YouTube, Vimeo, Spotify, Google Maps, Figma ou n'importe quelle page",
+    label: "Lien à intégrer",
+    embed: "Intégrer",
+    open: "Ouvrir",
+    change: "Changer le lien",
+    invalid: "Adresse invalide.",
+    frame: "Contenu intégré",
+  },
+};
 
 /** Players that accept being shown in a page, from the address the user pastes. */
 const PROVIDERS = [
@@ -44,7 +65,7 @@ export function findProvider(url) {
 
 function normalizeUrl(raw) {
   const text = raw.trim();
-  // Google Maps "Partager > Intégrer" gives an <iframe> snippet: keep its address.
+  // Google Maps "Share > Embed a map" gives an <iframe> snippet: keep its address.
   const fromIframe = text.match(/<iframe[^>]*\ssrc="([^"]+)"/i);
   const candidate = fromIframe ? fromIframe[1].replace(/&amp;/g, "&") : /^[\w-]+(\.[\w-]+)+/.test(text) ? `https://${text}` : text;
   try {
@@ -62,6 +83,7 @@ const box = {
 };
 
 export function activate(nootion) {
+  const text = TEXTS[nootion.locale] ?? TEXTS.en;
   const { React } = nootion;
   const h = React.createElement;
 
@@ -72,7 +94,7 @@ export function activate(nootion) {
     const submit = async (e) => {
       e.preventDefault();
       const url = normalizeUrl(value);
-      if (!url) return setError("Adresse invalide.");
+      if (!url) return setError(text.invalid);
       setBusy(true);
       try {
         await onSubmit(url);
@@ -93,8 +115,8 @@ export function activate(nootion) {
           autoFocus: true,
           value,
           onChange: (e) => (setValue(e.target.value), setError(null)),
-          placeholder: "Collez un lien : YouTube, Vimeo, Spotify, Google Maps, Figma ou n'importe quelle page",
-          "aria-label": "Lien à intégrer",
+          placeholder: text.placeholder,
+          "aria-label": text.label,
           style: {
             flex: 1,
             minWidth: 0,
@@ -123,7 +145,7 @@ export function activate(nootion) {
               cursor: "pointer",
             },
           },
-          busy ? "…" : "Intégrer",
+          busy ? "…" : text.embed,
         ),
       ),
       error && h("div", { style: { color: "#dc2626", fontSize: "13px" } }, error),
@@ -143,8 +165,8 @@ export function activate(nootion) {
     return h(
       "div",
       { className: "nootion-hover-only", style: { position: "absolute", top: "6px", right: "6px", display: "flex", gap: "4px" } },
-      h("a", { href: data.url, target: "_blank", rel: "noopener noreferrer", style: { ...btn, textDecoration: "none" } }, "Ouvrir"),
-      h("button", { type: "button", style: btn, onClick: () => setData({ editing: true, url: data.url }) }, "Changer le lien"),
+      h("a", { href: data.url, target: "_blank", rel: "noopener noreferrer", style: { ...btn, textDecoration: "none" } }, text.open),
+      h("button", { type: "button", style: btn, onClick: () => setData({ editing: true, url: data.url }) }, text.change),
     );
   }
 
@@ -220,7 +242,7 @@ export function activate(nootion) {
       data.kind === "frame"
         ? h("iframe", {
             src: data.src,
-            title: data.provider ?? "Contenu intégré",
+            title: data.provider ?? text.frame,
             loading: "lazy",
             allow: "autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture",
             allowFullScreen: true,

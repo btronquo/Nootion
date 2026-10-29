@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Check, Plus } from "lucide-react";
 import { OPTION_COLORS, type DatabaseProperty, type SelectOption } from "@nootion/shared";
 import { OPTION_CLASSES } from "./format";
+import { t } from "@nootion/shared";
 
 export function OptionChip({ option }: { option: SelectOption }) {
   return <span className={`inline-block max-w-full truncate rounded px-1.5 py-0.5 text-xs ${OPTION_CLASSES[option.color]}`}>{option.name}</span>;
@@ -49,7 +50,7 @@ export function OptionPicker({
           }
           setQuery("");
         }}
-        placeholder={multi ? "Chercher ou créer des options…" : "Chercher ou créer une option…"}
+        placeholder={multi ? t("option.searchMany") : t("option.searchOne")}
         className="mb-1 w-full rounded border border-neutral-200 bg-transparent px-2 py-1.5 outline-none focus:border-neutral-400 dark:border-neutral-700"
       />
       <div className="max-h-64 overflow-y-auto">
@@ -68,10 +69,10 @@ export function OptionPicker({
             }}
             className="flex w-full items-center gap-2 rounded px-2 py-1 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800"
           >
-            <Plus size={14} /> Créer « {query.trim()} »
+            <Plus size={14} /> {t("option.create", { name: query.trim() })}
           </button>
         )}
-        {!filtered.length && !query && <p className="px-2 py-1 text-neutral-500">Aucune option. Tapez pour en créer une.</p>}
+        {!filtered.length && !query && <p className="px-2 py-1 text-neutral-500">{t("option.none")}</p>}
       </div>
     </div>
   );

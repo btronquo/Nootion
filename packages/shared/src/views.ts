@@ -11,6 +11,7 @@ import type {
   SelectOption,
 } from "./databases.js";
 import type { FormulaResult } from "./formula.js";
+import { intlLocale, t } from "./i18n/index.js";
 
 /** Filters, sorts and groups of database views. Applied in the browser, on rows the reader can already see. */
 
@@ -364,7 +365,15 @@ export function matchesFilter(row: DatabaseRow, f: ViewFilter, ctx: ViewContext,
   return true;
 }
 
-const collator = new Intl.Collator("fr", { numeric: true, sensitivity: "base" });
+const collators = new Map<string, Intl.Collator>();
+const collator = {
+  compare: (a: string, b: string) => {
+    const locale = intlLocale();
+    let c = collators.get(locale);
+    if (!c) collators.set(locale, (c = new Intl.Collator(locale, { numeric: true, sensitivity: "base" })));
+    return c.compare(a, b);
+  },
+};
 
 function sortKey(prop: DatabaseProperty, kind: FilterKind, row: DatabaseRow, ctx: ViewContext): string | number | null {
   const v = comparable(prop, kind, row, ctx);
@@ -440,16 +449,16 @@ export interface RowGroup {
   rows: DatabaseRow[];
 }
 
-const monthFmt = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" });
+const monthLabel = (d: Date) => d.toLocaleDateString(intlLocale(), { month: "long", year: "numeric" });
 
 /** Keys (and labels) of the groups a row belongs to; a row can be in several groups (multi-select, people). */
 function groupKeysOf(prop: DatabaseProperty, row: DatabaseRow, ctx: ViewContext): { key: string; label: string }[] {
   const v = rawValue(prop, row);
   if (v === null || v === undefined || v === "" || (Array.isArray(v) && !v.length))
-    return prop.type === "checkbox" ? [{ key: "false", label: "Non coché" }] : [];
+    return prop.type === "checkbox" ? [{ key: "false", label: t("group.unchecked") }] : [];
   switch (prop.type) {
     case "checkbox":
-      return [{ key: String(v === true), label: v === true ? "Coché" : "Non coché" }];
+      return [{ key: String(v === true), label: v === true ? t("group.checked") : t("group.unchecked") }];
     case "select":
     case "multi_select":
       return (Array.isArray(v) ? (v as string[]) : [v as string])
@@ -459,13 +468,13 @@ function groupKeysOf(prop: DatabaseProperty, row: DatabaseRow, ctx: ViewContext)
     case "created_by":
       return (v as string[]).map((id) => ({ key: id, label: ctx.people[id] ?? "?" }));
     case "relation":
-      return (v as string[]).map((id) => ({ key: id, label: ctx.related[id]?.title || "Sans titre" }));
+      return (v as string[]).map((id) => ({ key: id, label: ctx.related[id]?.title || t("common.untitled") }));
     case "date":
     case "created_time":
     case "last_edited_time": {
       const day = dayOf(typeof v === "string" ? v : (v as DateValue).start);
       const month = day.slice(0, 7);
-      return [{ key: month, label: monthFmt.format(new Date(`${month}-01T00:00:00`)) }];
+      return [{ key: month, label: monthLabel(new Date(`${month}-01T00:00:00`)) }];
     }
     case "number":
     case "currency":
@@ -484,13 +493,13 @@ function groupKeysOf(prop: DatabaseProperty, row: DatabaseRow, ctx: ViewContext)
  */
 export function groupRows(prop: DatabaseProperty, rows: DatabaseRow[], ctx: ViewContext): RowGroup[] {
   const groups = new Map<string, RowGroup>();
-  const empty: RowGroup = { key: "", label: `Sans ${prop.name.toLowerCase()}`, rows: [] };
+  const empty: RowGroup = { key: "", label: t("group.none", { name: prop.name.toLowerCase() }), rows: [] };
   if (prop.type === "select" || prop.type === "multi_select") {
     for (const o of prop.config.options ?? []) groups.set(o.id, { key: o.id, label: o.name, option: o, rows: [] });
   }
   if (prop.type === "checkbox") {
-    groups.set("true", { key: "true", label: "Coché", rows: [] });
-    groups.set("false", { key: "false", label: "Non coché", rows: [] });
+    groups.set("true", { key: "true", label: t("group.checked"), rows: [] });
+    groups.set("false", { key: "false", label: t("group.unchecked"), rows: [] });
   }
   for (const row of rows) {
     const keys = groupKeysOf(prop, row, ctx);

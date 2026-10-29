@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { FormulaError, registerFormulaFunction, type ClientPluginInfo } from "@nootion/shared";
+import { currentLocale, FormulaError, t, registerFormulaFunction, type ClientPluginInfo, type Locale } from "@nootion/shared";
 import { api } from "../lib/api";
 
 /** What a plugin block's component receives. */
@@ -22,6 +22,8 @@ export interface ClientPluginApi {
   api: <T = unknown>(path: string, init?: { method?: string; body?: unknown }) => Promise<T>;
   /** Renders a block declared in the manifest. */
   registerBlock: (blockId: string, component: React.ComponentType<PluginBlockProps>) => void;
+  /** Language of the interface ("en", "fr"…). The page reloads when it changes. */
+  locale: Locale;
 }
 
 const renderers = new Map<string, React.ComponentType<PluginBlockProps>>();
@@ -35,6 +37,7 @@ async function loadClient(p: ClientPluginInfo) {
   const sdk: ClientPluginApi = {
     id: p.id,
     React,
+    locale: currentLocale(),
     api: (path, init) => api(`/plugins/${p.id}${path}`, init),
     registerBlock: (blockId, component) => {
       renderers.set(`${p.id}.${blockId}`, component);
@@ -46,7 +49,7 @@ async function loadClient(p: ClientPluginInfo) {
     if (typeof activate === "function") await activate(sdk);
   } catch (e) {
     // One broken plugin must not break the editor: its blocks show a placeholder.
-    console.warn(`Plugin ${p.id} : impossible de charger le code du navigateur`, e);
+    console.warn(`Plugin ${p.id}: could not load its browser code`, e);
   }
 }
 
@@ -70,7 +73,7 @@ async function loadPlugins(): Promise<ClientPluginInfo[]> {
     if (formulaStubs.has(f.name)) continue;
     try {
       const run = () => {
-        throw new FormulaError(`${f.name}() est calculée par le serveur.`);
+        throw new FormulaError(t("formula.error.serverOnly", { name: f.name }));
       };
       formulaStubs.set(f.name, registerFormulaFunction(f.name, { min: f.min, max: f.max, help: f.help, run }));
     } catch {

@@ -65,7 +65,7 @@ async function invoices(c: Client, parentId: string | null = null) {
 }
 
 describe("export", () => {
-  it("database en CSV et JSON, avec les formules calculées et l'ordre d'une vue", async () => {
+  it("database as CSV and JSON, with computed formulas and a view's order", async () => {
     const { d } = await invoices(boris);
     const csv = await boris.get(`/api/databases/${d.id}/export`);
     expect(csv.statusCode).toBe(200);
@@ -107,7 +107,7 @@ describe("export", () => {
     expect((await alice.get(`/api/databases/${d.id}/export`)).statusCode).toBe(404);
   });
 
-  it("page en Markdown : sous-pages, database, fichiers et liens relatifs, sans les pages privées", async () => {
+  it("page as Markdown: subpages, database, files and relative links, without private pages", async () => {
     const ws = await boris.personalWorkspace();
     const root = await boris.createPage(ws, "Maison / 2026");
     const child = await boris.createPage(ws, "Travaux", root);
@@ -189,7 +189,7 @@ describe("export", () => {
     expect((await alice.get(`/api/workspaces/${ws}/export`)).statusCode).toBe(404);
   });
 
-  it("sauvegarde complète réservée à l'admin", async () => {
+  it("full backup is for the admin only", async () => {
     await invoices(boris);
     expect((await alice.get("/api/admin/backup")).statusCode).toBe(403);
     const res = await boris.get("/api/admin/backup");
@@ -203,8 +203,8 @@ describe("export", () => {
   });
 });
 
-describe("import CSV", () => {
-  it("ajoute les lignes, crée les colonnes et les options manquantes", async () => {
+describe("CSV import", () => {
+  it("adds the rows, creates missing columns and options", async () => {
     const { d, amount } = await invoices(boris);
     const csv =
       '﻿Nom;Montant;Payée;Échéance;Étiquettes;Fournisseur;TTC\n"Eau; avril";1 234,50 €;oui;15/04/2026;Maison, Eau;Veolia;999\nGaz;;non;2026-05-01 → 2026-05-31;Maison;;\n';

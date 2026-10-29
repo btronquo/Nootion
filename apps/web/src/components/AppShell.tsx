@@ -2,7 +2,8 @@ import { useCallback, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { LogOut, Plus, Settings, Share2, Trash2, Users, User, Download, Search } from "lucide-react";
-import type { PageSummary, WorkspaceSummary } from "@nootion/shared";
+import { t, type PageSummary, type WorkspaceSummary } from "@nootion/shared";
+import { workspaceName } from "../lib/labels";
 import { api } from "../lib/api";
 import { keys, useRefreshPages, useSharedPages, useWorkspacePages, useWorkspaces } from "../lib/queries";
 import { useSession } from "../lib/session";
@@ -35,7 +36,7 @@ export function AppShell() {
   return (
     <div className="flex h-full">
       <aside className="flex w-64 shrink-0 flex-col border-r border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-950">
-        <Link to="/account" title="Mon compte" className="m-2 flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-neutral-200/50 dark:hover:bg-neutral-800/60">
+        <Link to="/account" title={t("account.title")} className="m-2 flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-neutral-200/50 dark:hover:bg-neutral-800/60">
           <Avatar name={user?.name ?? ""} url={user?.avatarUrl} size={26} />
           <span className="truncate text-sm font-semibold">{user?.name}</span>
         </Link>
@@ -43,7 +44,7 @@ export function AppShell() {
           onClick={() => setSearching(true)}
           className="mx-2 mb-1 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-neutral-600 hover:bg-neutral-200/50 dark:text-neutral-400 dark:hover:bg-neutral-800/60"
         >
-          <Search size={16} /> Rechercher
+          <Search size={16} /> {t("search.button")}
           <kbd className="ml-auto rounded border border-neutral-300 px-1 font-sans text-[10px] text-neutral-400 dark:border-neutral-700">
             {/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K"}
           </kbd>
@@ -55,23 +56,23 @@ export function AppShell() {
             onClick={() => setCreatingWorkspace(true)}
             className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-neutral-500 hover:bg-neutral-200/50 dark:hover:bg-neutral-800/60"
           >
-            <Plus size={16} /> Nouvel espace partagé
+            <Plus size={16} /> {t("workspace.new")}
           </button>
         </nav>
         <div className="space-y-0.5 border-t border-neutral-200 p-2 dark:border-neutral-800">
           <NavLink to="/trash" className={linkClass}>
-            <Trash2 size={16} /> Corbeille
+            <Trash2 size={16} /> {t("trash.title")}
           </NavLink>
           <NavLink to="/account" className={linkClass}>
-            <User size={16} /> Mon compte
+            <User size={16} /> {t("account.title")}
           </NavLink>
           {user?.role === "admin" && (
             <NavLink to="/admin" className={linkClass}>
-              <Settings size={16} /> Administration
+              <Settings size={16} /> {t("admin.title")}
             </NavLink>
           )}
           <button onClick={logout} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-neutral-200/50 dark:hover:bg-neutral-800/60">
-            <LogOut size={16} /> Se déconnecter
+            <LogOut size={16} /> {t("auth.logout")}
           </button>
         </div>
       </aside>
@@ -111,17 +112,17 @@ function WorkspaceSection({ workspace }: { workspace: WorkspaceSummary }) {
   const iconBtn = "rounded p-0.5 text-neutral-400 hover:bg-neutral-200 hover:text-neutral-700 dark:hover:bg-neutral-800";
   return (
     <div>
-      <SectionHeader icon={workspace.kind === "personal" ? <User size={12} /> : <Users size={12} />} label={workspace.name}>
+      <SectionHeader icon={workspace.kind === "personal" ? <User size={12} /> : <Users size={12} />} label={workspaceName(workspace)}>
         {workspace.kind === "shared" && (
-          <Link to={`/workspace/${workspace.id}`} className={iconBtn} title="Paramètres de l'espace">
+          <Link to={`/workspace/${workspace.id}`} className={iconBtn} title={t("workspace.settings")}>
             <Settings size={13} />
           </Link>
         )}
-        <a href={`/api/workspaces/${workspace.id}/export`} download className={iconBtn} title="Exporter l'espace en Markdown (.zip)">
+        <a href={`/api/workspaces/${workspace.id}/export`} download className={iconBtn} title={t("workspace.export")}>
           <Download size={13} />
         </a>
         {canEdit && (
-          <button onClick={addPage} className={iconBtn} title="Nouvelle page">
+          <button onClick={addPage} className={iconBtn} title={t("page.new")}>
             <Plus size={14} />
           </button>
         )}
@@ -136,7 +137,7 @@ function SharedSection() {
   if (!shared.data?.length) return null;
   return (
     <div>
-      <SectionHeader icon={<Share2 size={12} />} label="Partagé avec moi" />
+      <SectionHeader icon={<Share2 size={12} />} label={t("sidebar.shared")} />
       <PageTree nodes={buildTree(shared.data)} all={shared.data} workspaceId="" editable={false} />
     </div>
   );
@@ -148,7 +149,7 @@ function CreateWorkspaceDialog({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   return (
-    <Modal title="Nouvel espace partagé" onClose={onClose}>
+    <Modal title={t("workspace.new")} onClose={onClose}>
       <form
         className="space-y-4"
         onSubmit={async (e) => {
@@ -163,14 +164,14 @@ function CreateWorkspaceDialog({ onClose }: { onClose: () => void }) {
           }
         }}
       >
-        <Field label="Nom de l'espace" value={name} onChange={(e) => setName(e.target.value)} placeholder="Maison, Association…" required autoFocus />
-        <p className="text-sm text-neutral-500">Vous pourrez ensuite y ajouter des membres. Toutes les pages de l'espace leur seront visibles selon leur rôle.</p>
+        <Field label={t("workspace.name")} value={name} onChange={(e) => setName(e.target.value)} placeholder={t("workspace.namePlaceholder")} required autoFocus />
+        <p className="text-sm text-neutral-500">{t("workspace.newHelp")}</p>
         <ErrorText error={error} />
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose}>
-            Annuler
+            {t("common.cancel")}
           </Button>
-          <Button type="submit">Créer</Button>
+          <Button type="submit">{t("common.create")}</Button>
         </div>
       </form>
     </Modal>

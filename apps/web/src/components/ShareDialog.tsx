@@ -5,8 +5,9 @@ import { PAGE_ROLES, type PageDetail, type PageRole, type PageShare, type Public
 import { api } from "../lib/api";
 import { useUserDirectory } from "../lib/queries";
 import { useSession } from "../lib/session";
-import { PAGE_ROLE_LABELS } from "../lib/labels";
+import { pageRoleLabel } from "../lib/labels";
 import { Button, ErrorText, Modal, Select } from "./ui";
+import { t } from "@nootion/shared";
 
 const ROLES_DESC = [...PAGE_ROLES].reverse();
 
@@ -43,7 +44,7 @@ export function ShareDialog({ page, onClose }: { page: PageDetail; onClose: () =
   const candidates = directory.data?.filter((u) => u.id !== me?.id && !sharedIds.has(u.id)) ?? [];
 
   return (
-    <Modal title="Partager la page" onClose={onClose} wide>
+    <Modal title={t("share.title")} onClose={onClose} wide>
       <section className="space-y-3">
         <form
           className="flex gap-2"
@@ -52,23 +53,23 @@ export function ShareDialog({ page, onClose }: { page: PageDetail; onClose: () =
             if (newUser) setShare.mutate({ userId: newUser, role: newRole });
           }}
         >
-          <Select className="min-w-0 flex-1" value={newUser} onChange={(e) => setNewUser(e.target.value)} aria-label="Personne">
-            <option value="">Choisir une personne…</option>
+          <Select className="min-w-0 flex-1" value={newUser} onChange={(e) => setNewUser(e.target.value)} aria-label={t("workspace.person")}>
+            <option value="">{t("share.choosePerson")}</option>
             {candidates.map((u) => (
               <option key={u.id} value={u.id}>
                 {u.name} ({u.email})
               </option>
             ))}
           </Select>
-          <Select value={newRole} onChange={(e) => setNewRole(e.target.value as PageRole)} aria-label="Droit">
+          <Select value={newRole} onChange={(e) => setNewRole(e.target.value as PageRole)} aria-label={t("share.access")}>
             {ROLES_DESC.map((r) => (
               <option key={r} value={r}>
-                {PAGE_ROLE_LABELS[r]}
+                {pageRoleLabel(r)}
               </option>
             ))}
           </Select>
           <Button type="submit" disabled={!newUser}>
-            Inviter
+            {t("share.invite")}
           </Button>
         </form>
         <ErrorText error={setShare.error ?? removeShare.error} />
@@ -80,39 +81,39 @@ export function ShareDialog({ page, onClose }: { page: PageDetail; onClose: () =
                 <div className="truncate font-medium">{s.name}</div>
                 <div className="truncate text-xs text-neutral-500">
                   {s.email}
-                  {s.inheritedFrom && <> · hérité de « {s.inheritedFrom.title || "Sans titre"} »</>}
+                  {s.inheritedFrom && <> · {t("share.inheritedFrom", { title: s.inheritedFrom.title || t("common.untitled") })}</>}
                 </div>
               </div>
               {s.inheritedFrom ? (
-                <span className="text-neutral-500">{PAGE_ROLE_LABELS[s.role]}</span>
+                <span className="text-neutral-500">{pageRoleLabel(s.role)}</span>
               ) : (
                 <div className="flex items-center gap-1">
-                  <Select value={s.role} onChange={(e) => setShare.mutate({ userId: s.userId, role: e.target.value as PageRole })} aria-label={`Droit de ${s.name}`}>
+                  <Select value={s.role} onChange={(e) => setShare.mutate({ userId: s.userId, role: e.target.value as PageRole })} aria-label={t("share.accessOf", { name: s.name })}>
                     {ROLES_DESC.map((r) => (
                       <option key={r} value={r}>
-                        {PAGE_ROLE_LABELS[r]}
+                        {pageRoleLabel(r)}
                       </option>
                     ))}
                   </Select>
-                  <Button variant="ghost" onClick={() => removeShare.mutate(s.userId)} title="Retirer l'accès">
+                  <Button variant="ghost" onClick={() => removeShare.mutate(s.userId)} title={t("share.removeAccess")}>
                     <X size={16} />
                   </Button>
                 </div>
               )}
             </li>
           ))}
-          {shares.data?.length === 0 && <li className="py-2 text-sm text-neutral-500">Cette page n'est partagée avec personne. Les sous-pages héritent des partages.</li>}
+          {shares.data?.length === 0 && <li className="py-2 text-sm text-neutral-500">{t("share.nobody")}</li>}
         </ul>
       </section>
 
       <section className="mt-5 border-t border-neutral-200 pt-4 dark:border-neutral-800">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm font-medium">
-            <Globe size={16} /> Lien public (lecture seule)
+            <Globe size={16} /> {t("share.publicLink")}
           </div>
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" aria-label="Activer le lien public" checked={!!link.data} onChange={(e) => (e.target.checked ? setLink.mutate(true) : removeLink.mutate())} />
-            {link.data ? "Activé" : "Désactivé"}
+            <input type="checkbox" aria-label={t("share.enableLink")} checked={!!link.data} onChange={(e) => (e.target.checked ? setLink.mutate(true) : removeLink.mutate())} />
+            {link.data ? t("plugins.enabled") : t("plugins.disabled")}
           </label>
         </div>
         {link.data && (
@@ -125,23 +126,23 @@ export function ShareDialog({ page, onClose }: { page: PageDetail; onClose: () =
                   await navigator.clipboard.writeText(link.data!.url);
                   setCopied(true);
                 }}
-                title="Copier"
+                title={t("common.copy")}
               >
-                <Copy size={16} /> {copied ? "Copié" : ""}
+                <Copy size={16} /> {copied ? t("common.copied") : ""}
               </Button>
             </div>
             <label className="flex items-center gap-2 text-sm text-neutral-600 dark:text-neutral-400">
               <input type="checkbox" checked={link.data.includeSubpages} onChange={(e) => setLink.mutate(e.target.checked)} />
-              Inclure les sous-pages
+              {t("share.includeSubpages")}
             </label>
-            <p className="text-xs text-neutral-500">Toute personne ayant ce lien peut lire la page, sans compte. Désactivez-le pour couper l'accès.</p>
+            <p className="text-xs text-neutral-500">{t("share.publicHelp")}</p>
           </div>
         )}
       </section>
 
       <div className="mt-5 flex justify-end">
         <Button variant="ghost" onClick={onClose}>
-          Fermer
+          {t("common.close")}
         </Button>
       </div>
     </Modal>

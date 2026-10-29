@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 import { Cell } from "./Cell";
 import { PropertyIcon } from "./icons";
 import { newOption } from "./OptionPicker";
+import { t } from "@nootion/shared";
 
 interface RowData {
   properties: DatabaseProperty[];
@@ -47,7 +48,7 @@ export function RowProperties({ databaseId, rowId }: { databaseId: string; rowId
   };
 
   return (
-    <div className="mt-4 space-y-0.5 border-b border-neutral-200 pb-4 text-sm dark:border-neutral-800" aria-label="Propriétés">
+    <div className="mt-4 space-y-0.5 border-b border-neutral-200 pb-4 text-sm dark:border-neutral-800" aria-label={t("row.properties")}>
       {properties
         .filter((p) => p.type !== "title")
         .map((p) => (

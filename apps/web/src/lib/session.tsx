@@ -1,7 +1,8 @@
 import { createContext, useContext, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { PublicUser } from "@nootion/shared";
+import { currentLocale, type PublicUser } from "@nootion/shared";
 import { api, ApiError } from "./api";
+import { setLocale } from "./i18n";
 
 interface SessionState {
   user: PublicUser | null;
@@ -26,6 +27,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       }
     },
   });
+  // The signed-in user's language wins over the browser's; set before the app below renders.
+  if (me.data && me.data.locale !== currentLocale()) setLocale(me.data.locale);
   const value: SessionState = {
     user: me.data ?? null,
     needsSetup: setup.data?.needsSetup ?? false,

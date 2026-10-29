@@ -1,4 +1,5 @@
 import type { ProseMirrorNode } from "./collab.js";
+import { t as translate } from "@nootion/shared";
 
 /** How links of an exported page point to the other files of the export. */
 export interface MarkdownLinks {
@@ -30,7 +31,7 @@ function inline(nodes: ProseMirrorNode[] | undefined, links: MarkdownLinks): str
     .map((n) => {
       if (n.type === "hardBreak") return "  \n";
       if (n.type === "pageLink" || n.type === "pageMention") {
-        const title = String(n.attrs?.title || "Sans titre");
+        const title = String(n.attrs?.title || translate("common.untitled"));
         const target = links.page(String(n.attrs?.pageId ?? ""));
         return target ? `[${escapeText(title)}](${dest(target)})` : escapeText(title);
       }
@@ -129,7 +130,7 @@ function block(n: ProseMirrorNode, links: MarkdownLinks): string {
     case "databaseBlock": {
       const id = String(n.attrs?.pageId ?? "");
       const target = id ? links.page(id) : null;
-      return target ? `[🗃 Base de données](${dest(target)})` : "";
+      return target ? `[🗃 ${translate("common.database")}](${dest(target)})` : "";
     }
     default: {
       // Plugin blocks keep a link when their data has one (embeds…).

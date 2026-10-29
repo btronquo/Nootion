@@ -1,4 +1,5 @@
 import type { PageSummary } from "@nootion/shared";
+import { t } from "@nootion/shared";
 
 export interface TreeNode<T extends PageSummary = PageSummary> {
   page: T;
@@ -23,5 +24,5 @@ export function buildTree<T extends PageSummary>(pages: T[]): TreeNode<T>[] {
 }
 
 export function pageTitle(title: string): string {
-  return title.trim() || "Sans titre";
+  return title.trim() || t("common.untitled");
 }

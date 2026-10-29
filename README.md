@@ -1,84 +1,89 @@
 # Nootion
 
-Application de prise de notes open source façon Notion, auto-hébergeable, dont le point fort est les **databases**
-(relations, rollups, formules, filtres, agrégations).
+An open-source, self-hosted note-taking app in the spirit of Notion, whose strong point is **databases**
+(relations, rollups, formulas, filters, calculations).
 
-> Statut : version 1.0.0. Voir [CHANGELOG.md](CHANGELOG.md) pour le détail et [PLAN.md](PLAN.md) pour la suite.
+> Status: version 1.0.0. See [CHANGELOG.md](CHANGELOG.md) for details and [PLAN.md](PLAN.md) for what comes next.
 
-## Fonctionnalités
+The interface is available in English and French; each user picks their language when creating their account
+and can change it in **My account**.
 
-- Premier lancement : création du compte administrateur.
-- Connexion / déconnexion, sessions sécurisées (cookie httpOnly, mots de passe argon2).
-- Invitations par lien (7 jours, optionnellement réservées à un email), rôles admin / membre, désactivation de comptes.
-- Un espace personnel privé par utilisateur, et des espaces partagés avec rôles (propriétaire, éditeur, commentateur, lecteur).
-- Arborescence de pages (sous-pages, glisser-déposer, icônes), corbeille avec restauration.
-- Pages privées par défaut : partage d'une page à un utilisateur (hérité par les sous-pages), lien public en lecture seule révocable.
-  Toutes les vérifications d'accès sont faites côté serveur (`apps/server/src/permissions.ts`) et couvertes par des tests.
-- Éditeur de pages façon Notion (commandes « / », listes de tâches, tableaux, encadrés, images et fichiers joints,
-  liens entre pages avec « @ »), édition à plusieurs en temps réel.
-- Databases : colonnes typées (texte, nombre, montant en devise, pourcentage, date, sélection, sélection multiple,
-  case à cocher, lien, email, personne, fichiers, date de création, dernière modification, créé par), vue tableau
-  (ordre, largeur et masquage des colonnes), chaque ligne s'ouvre comme une page avec ses propriétés.
-  Une database peut être une page à part ou intégrée dans une page (commande `/database`), et s'affiche
-  en lecture seule sur les liens publics.
-- Calculs sous les colonnes (somme, moyenne, médiane, min, max, nombre, pourcentage coché, dates…).
-- Relations entre databases (dans un sens ou dans les deux, tenues à jour automatiquement) et rollups
-  (ex. total des factures d'un fournisseur).
-- Formules façon Notion : `prop("Montant") * 1.2`, `if(prop("Payé"), "OK", "À payer")`, `dateBetween(now(), prop("Échéance"), "days")`…
-  Éditeur avec vérification en direct et aide sur les fonctions ; les formules marchent avec les relations, les rollups et les calculs.
-- Plusieurs vues par database (tableau ou Kanban), chacune avec ses filtres (et / ou, dates relatives comme
-  « la semaine à venir »), ses tris, ses groupes et ses colonnes affichées. Glisser-déposer entre colonnes du Kanban.
-- Plugins : blocs pour l'éditeur, routes API, tâches planifiées et fonctions de formule, activés et réglés
-  dans l'administration. Livré avec le plugin « Intégrations » (`/embed` : YouTube, Vimeo, Spotify, Google Maps,
-  Figma, aperçu de liens). Voir [docs/PLUGINS.md](docs/PLUGINS.md) pour écrire le vôtre.
-- Export d'une page ou d'un espace en Markdown (.zip : sous-pages, fichiers joints, databases en CSV et JSON),
-  export d'une database en CSV (ou CSV pour Excel) et JSON avec les formules calculées, import de CSV dans une database
-  (colonnes et options créées au besoin), sauvegarde complète téléchargeable par l'admin.
-- Recherche plein texte dans les titres et le contenu des pages (Ctrl+K ou ⌘K), insensible aux accents,
-  limitée aux pages que l'utilisateur peut lire.
-- Page « Mon compte » : nom, email, mot de passe, photo de profil, thème clair / sombre / système.
-- Option « Pleine largeur » par page.
-- Image Docker unique (amd64 et arm64), données dans `/data`.
+## Features
 
-## Lancer avec Docker
+- First launch: creation of the administrator account.
+- Sign in / sign out, secure sessions (httpOnly cookie, argon2 password hashes).
+- Invitations by link (valid 7 days, optionally restricted to one email), admin / member roles, account disabling.
+- A private personal space for each user, and shared spaces with roles (owner, editor, commenter, viewer).
+- Page tree (subpages, drag and drop, icons), trash with restore.
+- Pages are private by default: share a page with a user (inherited by subpages), or through a revocable read-only public link.
+  Every access check is done on the server (`apps/server/src/permissions.ts`) and covered by tests.
+- Notion-like page editor ("/" commands, to-do lists, tables, callouts, images and attached files,
+  links between pages with "@"), with real-time collaborative editing.
+- Databases: typed columns (text, number, currency amount, percent, date, select, multi-select, checkbox, link,
+  email, person, files, created time, last edited time, created by), table view (column order, width and visibility),
+  each row opens as a page with its properties. A database can be a page of its own or embedded in a page
+  (`/database` command), and shows read-only on public links.
+- Calculations under columns (sum, average, median, min, max, count, percent checked, dates…).
+- Relations between databases (one way or both ways, kept up to date automatically) and rollups
+  (e.g. the total of a supplier's invoices).
+- Notion-like formulas: `prop("Price") * 1.2`, `if(prop("Paid"), "OK", "To pay")`, `dateBetween(now(), prop("Due"), "days")`…
+  Editor with live checking and function help; formulas work with relations, rollups and calculations.
+- Several views per database (table or board), each with its own filters (and / or, relative dates such as
+  "the next week"), sorts, groups and visible columns. Drag and drop between board columns.
+- Plugins: editor blocks, API routes, scheduled tasks and formula functions, turned on and set up in the
+  administration. Ships with the "Embeds" plugin (`/embed`: YouTube, Vimeo, Spotify, Google Maps, Figma,
+  link previews). See [docs/PLUGINS.md](docs/PLUGINS.md) to write your own.
+- Export a page or a space as Markdown (.zip: subpages, attached files, databases as CSV and JSON),
+  export a database as CSV (or CSV for Excel) and JSON with computed formulas, import a CSV into a database
+  (columns and options created as needed), full backup downloadable by the admin.
+- Full-text search in page titles and content (Ctrl+K or ⌘K), accent-insensitive, limited to the pages the user can read.
+- English and French interface, chosen per user.
+- "My account" page: name, email, password, profile picture, language, light / dark / system theme.
+- "Full width" option per page.
+- Single Docker image (amd64 and arm64), data in `/data`.
 
-Voir [docs/DEPLOIEMENT.md](docs/DEPLOIEMENT.md) (TrueNAS SCALE et Docker classique).
+## Run with Docker
+
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) (TrueNAS SCALE and plain Docker).
 
 ```bash
 docker compose up -d --build
 ```
 
-## Développement
+## Development
 
-Prérequis : Node.js 22 et pnpm 10 (`corepack enable`).
+Requirements: Node.js 22 and pnpm 10 (`corepack enable`).
 
 ```bash
 pnpm install
-pnpm dev          # serveur sur :3000, interface sur http://localhost:5173
-pnpm test         # tests automatiques
+pnpm dev          # server on :3000, interface on http://localhost:5173
+pnpm test         # automated tests
 pnpm typecheck
 pnpm build
 ```
 
-Après une modification de `apps/server/src/db/schema.ts` : `pnpm --filter @nootion/server db:generate` pour créer la migration.
-Les migrations sont appliquées automatiquement au démarrage.
+After changing `apps/server/src/db/schema.ts`, run `pnpm --filter @nootion/server db:generate` to create the migration.
+Migrations are applied automatically at startup.
 
-## Organisation
+Interface texts live in `packages/shared/src/i18n/` (`en.ts` is the reference, `fr.ts` the French translation);
+see [CONTRIBUTING.md](CONTRIBUTING.md#translations) to add a language.
+
+## Project layout
 
 ```
-apps/server      API Fastify + Drizzle + SQLite
-apps/web         Interface React + Vite + Tailwind
-packages/shared  Types et schémas de validation partagés
+apps/server      Fastify API + Drizzle + SQLite
+apps/web         React + Vite + Tailwind interface
+packages/shared  Types, validation, formulas, views and translations shared by both
 docker/          Dockerfile
-deploy/          Fichier d'installation TrueNAS
-docs/            Documentation (déploiement…)
+deploy/          TrueNAS install file
+docs/            Documentation (deployment, plugins)
 ```
 
-## Contribuer
+## Contributing
 
-Les bugs, idées et pull requests sont les bienvenus : voir [CONTRIBUTING.md](CONTRIBUTING.md).
-Pour une faille de sécurité : [SECURITY.md](SECURITY.md).
+Bug reports, ideas and pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md).
+For a security issue: [SECURITY.md](SECURITY.md).
 
-## Licence
+## License
 
 [AGPL-3.0](LICENSE)

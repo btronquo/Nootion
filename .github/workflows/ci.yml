@@ -1,7 +1,7 @@
-# Vérifie le code puis publie l'image Docker sur le registre GitHub (ghcr.io/<propriétaire>/<dépôt>).
-#   - pull request                -> tests seulement
-#   - push sur main               -> tags "main" et "main-<commit>"
-#   - tag git "v1.2.3"            -> tags "1.2.3", "1.2" et "latest"
+# Checks the code, then publishes the Docker image to the GitHub registry (ghcr.io/<owner>/<repository>).
+#   - pull request     -> tests only
+#   - push to main     -> tags "main" and "main-<commit>"
+#   - git tag "v1.2.3" -> tags "1.2.3", "1.2" and "latest"
 name: CI
 
 on:

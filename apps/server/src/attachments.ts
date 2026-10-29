@@ -3,6 +3,7 @@ import path from "node:path";
 import type { FastifyReply } from "fastify";
 import type { Db } from "./db/index.js";
 import { attachments } from "./db/schema.js";
+import { t } from "@nootion/shared";
 
 export type AttachmentRow = typeof attachments.$inferSelect;
 
@@ -21,7 +22,7 @@ const INLINE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/web
 
 export function sendAttachment(reply: FastifyReply, dataDir: string, a: AttachmentRow, forceDownload = false) {
   const file = attachmentPath(dataDir, a.id);
-  if (!fs.existsSync(file)) return reply.status(404).send({ error: "not_found", message: "Fichier introuvable." });
+  if (!fs.existsSync(file)) return reply.status(404).send({ error: "not_found", message: t("error.fileNotFound") });
   const inline = !forceDownload && INLINE_TYPES.has(a.mimeType);
   const encoded = encodeURIComponent(a.filename);
   reply

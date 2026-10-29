@@ -16,7 +16,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const isProduction = env.NODE_ENV === "production";
   const appSecret = env.APP_SECRET ?? (isProduction ? "" : "dev-secret-do-not-use-in-production");
   if (appSecret.length < 16) {
-    throw new Error("APP_SECRET doit être défini et faire au moins 16 caractères.");
+    throw new Error("APP_SECRET must be set and be at least 16 characters long.");
   }
   const port = Number(env.PORT ?? 3000);
   return {

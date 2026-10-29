@@ -1,40 +1,41 @@
-# Journal des versions
+# Changelog
 
-Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) et les numéros de version suivent
-[Semantic Versioning](https://semver.org/lang/fr/).
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and version numbers follow
+[Semantic Versioning](https://semver.org/).
 
-## [1.0.0] - à publier
+## [1.0.0] - unreleased
 
-Première version publique.
+First public version.
 
-### Comptes et partage
+### Accounts and sharing
 
-- Création du compte administrateur au premier lancement, invitations par lien, rôles admin / membre.
-- Espace personnel privé par utilisateur et espaces partagés (propriétaire, éditeur, commentateur, lecteur).
-- Pages privées par défaut, partage d'une page à un utilisateur, lien public en lecture seule révocable.
+- Administrator account created at first launch, invitation links, admin / member roles.
+- Private personal space for each user and shared spaces (owner, editor, commenter, viewer).
+- Pages private by default, sharing a page with a user, revocable read-only public link.
+- English and French interface, chosen when creating the account and changeable in "My account".
 
 ### Pages
 
-- Éditeur façon Notion avec commandes « / », édition à plusieurs en temps réel, fichiers joints, liens entre pages.
-- Arborescence avec glisser-déposer, icônes, corbeille avec restauration.
-- Recherche plein texte dans les titres et le contenu (Ctrl+K ou ⌘K), sans tenir compte des accents.
+- Notion-like editor with "/" commands, real-time collaborative editing, attached files, links between pages.
+- Page tree with drag and drop, icons, trash with restore.
+- Full-text search in titles and content (Ctrl+K or ⌘K), accent-insensitive.
 
 ### Databases
 
-- Colonnes typées (texte, nombre, montant, pourcentage, date, sélections, case à cocher, lien, email, personne,
-  fichiers, dates et auteur automatiques).
-- Calculs sous les colonnes, relations dans un sens ou dans les deux, rollups.
-- Formules façon Notion avec vérification en direct.
-- Vues tableau et Kanban, avec filtres, tris, groupes et colonnes propres à chaque vue.
+- Typed columns (text, number, amount, percent, date, selects, checkbox, link, email, person,
+  files, automatic dates and author).
+- Calculations under columns, one-way or two-way relations, rollups.
+- Notion-like formulas with live checking.
+- Table and board views, each with its own filters, sorts, groups and columns.
 
 ### Plugins
 
-- SDK pour ajouter des blocs, des routes API, des tâches planifiées et des fonctions de formule.
-- Plugin « Intégrations » livré (`/embed` : YouTube, Vimeo, Spotify, Google Maps, Figma, aperçu de liens).
+- SDK to add blocks, API routes, scheduled tasks and formula functions, with translatable manifests.
+- "Embeds" plugin included (`/embed`: YouTube, Vimeo, Spotify, Google Maps, Figma, link previews).
 
-### Données
+### Data
 
-- Export en Markdown (.zip), CSV et JSON, import de CSV, sauvegarde complète téléchargeable.
-- Une seule image Docker (amd64 et arm64), données dans `/data`, migrations appliquées au démarrage.
+- Markdown (.zip), CSV and JSON export, CSV import, full backup download.
+- Single Docker image (amd64 and arm64), data in `/data`, migrations applied at startup.
 
 [1.0.0]: ../../releases/tag/v1.0.0

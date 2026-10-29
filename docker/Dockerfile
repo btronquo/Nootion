@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# Image unique de Nootion : API Fastify + interface web compilée. Données dans /data.
+# Single Nootion image: Fastify API + built web interface. Data in /data.
 
 FROM node:22-bookworm-slim AS build
 WORKDIR /src
@@ -20,7 +20,7 @@ RUN pnpm build \
 FROM node:22-bookworm-slim
 ARG VERSION=dev
 LABEL org.opencontainers.image.title="Nootion" \
-      org.opencontainers.image.description="Prise de notes open source façon Notion, avec databases" \
+      org.opencontainers.image.description="Open-source, self-hosted Notion-like notes app with databases" \
       org.opencontainers.image.licenses="AGPL-3.0-only" \
       org.opencontainers.image.version="${VERSION}"
 ENV NODE_ENV=production \

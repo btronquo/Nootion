@@ -11,6 +11,7 @@ import { WorkspacePage } from "./pages/WorkspacePage";
 import { TrashPage } from "./pages/TrashPage";
 import { PublicPage } from "./pages/PublicPage";
 import { AccountPage } from "./pages/AccountPage";
+import { t } from "@nootion/shared";
 
 export function App() {
   const location = useLocation();
@@ -29,7 +30,7 @@ export function App() {
 function PrivateApp() {
   const { user, needsSetup, loading } = useSession();
   const location = useLocation();
-  if (loading) return <div className="flex h-full items-center justify-center text-sm text-neutral-500">Chargement…</div>;
+  if (loading) return <div className="flex h-full items-center justify-center text-sm text-neutral-500">{t("common.loading")}</div>;
 
   if (needsSetup) {
     return (

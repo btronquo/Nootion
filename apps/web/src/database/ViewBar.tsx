@@ -16,6 +16,8 @@ import {
   X,
 } from "lucide-react";
 import {
+  t,
+  type MessageKey,
   DATE_PERIODS,
   FILTER_OPERATORS_BY_KIND,
   RELATIVE_DATES,
@@ -43,54 +45,17 @@ import { api } from "../lib/api";
 
 type Actions = ReturnType<typeof useDatabaseActions>;
 
-export const VIEW_TYPE_LABELS: Record<ViewType, string> = { table: "Tableau", board: "Kanban" };
+export const viewTypeLabel = (type: ViewType) => t(`view.${type}` as MessageKey);
 
 export function ViewIcon({ type, size = 14 }: { type: ViewType; size?: number }) {
   const Icon = type === "board" ? SquareKanban : Table2;
   return <Icon size={size} className="shrink-0" />;
 }
 
-const OPERATOR_LABELS: Record<FilterOperator, string> = {
-  contains: "contient",
-  not_contains: "ne contient pas",
-  is: "est",
-  is_not: "n'est pas",
-  starts_with: "commence par",
-  ends_with: "se termine par",
-  eq: "=",
-  neq: "≠",
-  gt: ">",
-  lt: "<",
-  gte: "≥",
-  lte: "≤",
-  before: "est avant le",
-  after: "est après le",
-  on_or_before: "est le ou avant le",
-  on_or_after: "est le ou après le",
-  within: "est dans",
-  checked: "est cochée",
-  unchecked: "n'est pas cochée",
-  is_empty: "est vide",
-  is_not_empty: "n'est pas vide",
-};
+const operatorLabel = (key: string) => t(`filter.op.${key}` as MessageKey);
 
-const RELATIVE_LABELS: Record<(typeof RELATIVE_DATES)[number], string> = {
-  today: "Aujourd'hui",
-  tomorrow: "Demain",
-  yesterday: "Hier",
-  one_week_ago: "Il y a une semaine",
-  one_week_from_now: "Dans une semaine",
-  one_month_ago: "Il y a un mois",
-  one_month_from_now: "Dans un mois",
-};
-const PERIOD_LABELS: Record<(typeof DATE_PERIODS)[number], string> = {
-  past_week: "la semaine passée",
-  past_month: "le mois passé",
-  past_year: "l'année passée",
-  next_week: "la semaine à venir",
-  next_month: "le mois à venir",
-  next_year: "l'année à venir",
-};
+const relativeLabel = (key: string) => t(`filter.relative.${key}` as MessageKey);
+const periodLabel = (key: string) => t(`filter.period.${key}` as MessageKey);
 
 const control =
   "rounded border border-neutral-200 bg-transparent px-1.5 py-1 outline-none focus:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900";
@@ -139,7 +104,7 @@ export function ViewBar({
         ))}
         {editable && (
           <button
-            aria-label="Ajouter une vue"
+            aria-label={t("view.add")}
             onClick={(e) => setMenu({ kind: "add", anchor: e.currentTarget })}
             className="rounded p-1 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
           >
@@ -152,20 +117,20 @@ export function ViewBar({
           {editable && (
             <>
               <button className={tool(activeFilters > 0)} onClick={(e) => setMenu({ kind: "filter", anchor: e.currentTarget })}>
-                <ListFilter size={14} /> Filtrer{activeFilters > 0 && ` (${activeFilters})`}
+                <ListFilter size={14} /> {t("view.filter")}{activeFilters > 0 && ` (${activeFilters})`}
               </button>
               <button className={tool(sorts > 0)} onClick={(e) => setMenu({ kind: "sort", anchor: e.currentTarget })}>
-                <ArrowUpDown size={14} /> Trier{sorts > 0 && ` (${sorts})`}
+                <ArrowUpDown size={14} /> {t("view.sort")}{sorts > 0 && ` (${sorts})`}
               </button>
               <button className={tool(!!groupProp && view.type === "table")} onClick={(e) => setMenu({ kind: "group", anchor: e.currentTarget })}>
-                <Rows3 size={14} /> {view.type === "board" ? "Colonnes" : "Grouper"}
+                <Rows3 size={14} /> {view.type === "board" ? t("view.columns") : t("view.group")}
               </button>
               <button className={tool(false)} onClick={(e) => setMenu({ kind: "props", anchor: e.currentTarget })}>
-                <Eye size={14} /> Propriétés
+                <Eye size={14} /> {t("row.properties")}
               </button>
             </>
           )}
-          <button aria-label="Exporter ou importer" className={tool(false)} onClick={(e) => setMenu({ kind: "more", anchor: e.currentTarget })}>
+          <button aria-label={t("view.exportImport")} className={tool(false)} onClick={(e) => setMenu({ kind: "more", anchor: e.currentTarget })}>
             <MoreHorizontal size={16} />
           </button>
         </div>
@@ -173,13 +138,13 @@ export function ViewBar({
       {menu?.kind === "more" && actions && (
         <Popover anchor={menu.anchor} onClose={close} width={260}>
           <a className={menuItem} href={`/api/databases/${data.id}/export?viewId=${view.id}`} download onClick={close}>
-            <Download size={14} /> Exporter cette vue en CSV
+            <Download size={14} /> {t("view.exportCsv")}
           </a>
           <a className={menuItem} href={`/api/databases/${data.id}/export?viewId=${view.id}&sep=semicolon`} download onClick={close}>
-            <Download size={14} /> CSV pour Excel (séparateur ;)
+            <Download size={14} /> {t("view.exportExcel")}
           </a>
           <a className={menuItem} href={`/api/databases/${data.id}/export?format=json`} download onClick={close}>
-            <Download size={14} /> Exporter tout en JSON
+            <Download size={14} /> {t("view.exportJson")}
           </a>
           {editable && (
             <button
@@ -191,7 +156,7 @@ export function ViewBar({
                 });
               }}
             >
-              <Upload size={14} /> Importer un CSV…
+              <Upload size={14} /> {t("view.importCsv")}
             </button>
           )}
         </Popover>
@@ -204,7 +169,7 @@ export function ViewBar({
       )}
       {menu?.kind === "add" && actions && (
         <Popover anchor={menu.anchor} onClose={close} width={200}>
-          <div className="px-2 py-1 text-xs text-neutral-500">Nouvelle vue</div>
+          <div className="px-2 py-1 text-xs text-neutral-500">{t("view.new")}</div>
           {(["table", "board"] as const).map((type) => (
             <button
               key={type}
@@ -212,12 +177,12 @@ export function ViewBar({
               onClick={async () => {
                 close();
                 const count = data.views.filter((v) => v.type === type).length;
-                const name = count ? `${VIEW_TYPE_LABELS[type]} ${count + 1}` : VIEW_TYPE_LABELS[type];
+                const name = count ? `${viewTypeLabel(type)} ${count + 1}` : viewTypeLabel(type);
                 const { view: created } = await actions.createView.mutateAsync({ name, type });
                 onSelect(created.id);
               }}
             >
-              <ViewIcon type={type} /> {VIEW_TYPE_LABELS[type]}
+              <ViewIcon type={type} /> {viewTypeLabel(type)}
             </button>
           ))}
         </Popover>
@@ -234,11 +199,11 @@ export function ViewBar({
       )}
       {menu?.kind === "group" && (
         <Popover anchor={menu.anchor} onClose={close} width={240}>
-          <div className="px-2 py-1 text-xs text-neutral-500">{view.type === "board" ? "Une colonne par valeur de" : "Grouper par"}</div>
+          <div className="px-2 py-1 text-xs text-neutral-500">{view.type === "board" ? t("view.columnPerValue") : t("view.groupBy")}</div>
           <div className="max-h-72 overflow-y-auto">
             {view.type === "table" && (
               <button className={menuItem} onClick={() => (save({ groupBy: null, collapsedGroups: [] }), close())}>
-                <span className="w-3.5" /> Aucun {!groupProp && <span className="ml-auto text-blue-600">✓</span>}
+                <span className="w-3.5" /> {t("calc.none")} {!groupProp && <span className="ml-auto text-blue-600">✓</span>}
               </button>
             )}
             {data.properties
@@ -254,7 +219,7 @@ export function ViewBar({
       )}
       {menu?.kind === "props" && (
         <Popover anchor={menu.anchor} onClose={close} width={260}>
-          <div className="px-2 py-1 text-xs text-neutral-500">Propriétés affichées dans cette vue</div>
+          <div className="px-2 py-1 text-xs text-neutral-500">{t("view.shownProperties")}</div>
           <div className="max-h-80 overflow-y-auto">
             {orderedColumns(data.properties, config.columns)
               .filter((c) => c.prop.type !== "title")
@@ -265,7 +230,7 @@ export function ViewBar({
                   onClick={() => save({ columns: all.map((x) => (x.prop.id === c.prop.id ? { ...x.col, hidden: !x.col.hidden } : x.col)) })}
                 >
                   <PropertyIcon type={c.prop.type} /> <span className="truncate">{c.prop.name}</span>
-                  <span className="ml-auto text-neutral-400" aria-label={c.col.hidden ? "Masquée" : "Affichée"}>
+                  <span className="ml-auto text-neutral-400" aria-label={c.col.hidden ? t("view.hidden") : t("view.shown")}>
                     {c.col.hidden ? <EyeOff size={14} /> : <Eye size={14} />}
                   </span>
                 </button>
@@ -296,7 +261,7 @@ function ViewMenu({
     <div>
       <input
         autoFocus
-        aria-label="Nom de la vue"
+        aria-label={t("view.name")}
         value={name}
         onChange={(e) => setName(e.target.value)}
         onBlur={rename}
@@ -306,7 +271,7 @@ function ViewMenu({
       <div className="px-2 py-1 text-xs text-neutral-500">Disposition</div>
       {(["table", "board"] as const).map((type) => (
         <button key={type} className={menuItem} onClick={() => actions.updateView.mutate({ viewId: view.id, type })}>
-          <ViewIcon type={type} /> {VIEW_TYPE_LABELS[type]}
+          <ViewIcon type={type} /> {viewTypeLabel(type)}
           {view.type === type && <span className="ml-auto text-blue-600">✓</span>}
         </button>
       ))}
@@ -319,18 +284,18 @@ function ViewMenu({
           onDuplicated(copy.id);
         }}
       >
-        <Copy size={14} /> Dupliquer la vue
+        <Copy size={14} /> {t("view.duplicate")}
       </button>
       {canDelete && (
         <button
           className={`${menuItem} text-red-600`}
           onClick={() => {
-            if (!confirm(`Supprimer la vue « ${view.name} » ? Les données ne sont pas touchées.`)) return;
+            if (!confirm(t("view.confirmDelete", { name: view.name }))) return;
             actions.deleteView.mutate(view.id);
             onClose();
           }}
         >
-          <Trash2 size={14} /> Supprimer la vue
+          <Trash2 size={14} /> {t("view.delete")}
         </button>
       )}
     </div>
@@ -349,7 +314,7 @@ function PropertySelect({
   filter?: (p: DatabaseProperty) => boolean;
 }) {
   return (
-    <select aria-label="Propriété" value={value} onChange={(e) => onChange(e.target.value)} className={`${control} w-36 min-w-0`}>
+    <select aria-label={t("rollup.property")} value={value} onChange={(e) => onChange(e.target.value)} className={`${control} w-36 min-w-0`}>
       {properties.filter(filter ?? (() => true)).map((p) => (
         <option key={p.id} value={p.id}>
           {p.name}
@@ -368,29 +333,29 @@ function FilterEditor({ data, config, onChange }: { data: DatabaseData; config: 
 
   return (
     <div className="space-y-1.5 p-1">
-      {!filters.length && <p className="px-1 text-neutral-500">Aucun filtre. Seules les lignes qui correspondent aux filtres seront affichées.</p>}
+      {!filters.length && <p className="px-1 text-neutral-500">{t("filter.none")}</p>}
       {filters.map((f, i) => {
         const prop = data.properties.find((p) => p.id === f.propertyId);
         const kind = prop ? filterKind(prop, data) : "text";
         return (
-          <div key={i} role="group" aria-label={`Filtre ${i + 1}`} className="flex items-center gap-1.5">
+          <div key={i} role="group" aria-label={t("filter.number", { n: i + 1 })} className="flex items-center gap-1.5">
             <div className="w-14 shrink-0 text-right text-neutral-500">
               {i === 0 ? (
-                "Où"
+                t("filter.where")
               ) : i === 1 ? (
                 <select
-                  aria-label="Combinaison des filtres"
+                  aria-label={t("filter.combination")}
                   value={mode}
                   onChange={(e) => onChange({ filterMode: e.target.value as "and" | "or" })}
                   className={`${control} w-14`}
                 >
-                  <option value="and">Et</option>
-                  <option value="or">Ou</option>
+                  <option value="and">{t("filter.and")}</option>
+                  <option value="or">{t("filter.or")}</option>
                 </select>
               ) : mode === "and" ? (
-                "Et"
+                t("filter.and")
               ) : (
-                "Ou"
+                t("filter.or")
               )}
             </div>
             <PropertySelect
@@ -414,7 +379,7 @@ function FilterEditor({ data, config, onChange }: { data: DatabaseData; config: 
             >
               {FILTER_OPERATORS_BY_KIND[kind].map((op) => (
                 <option key={op} value={op}>
-                  {kind === "date" && op === "is" ? "est le" : OPERATOR_LABELS[op]}
+                  {kind === "date" && op === "is" ? t("filter.isOn") : operatorLabel(op)}
                 </option>
               ))}
             </select>
@@ -424,7 +389,7 @@ function FilterEditor({ data, config, onChange }: { data: DatabaseData; config: 
               )}
             </div>
             <button
-              aria-label="Retirer le filtre"
+              aria-label={t("filter.remove")}
               onClick={() => setFilters(filters.filter((_, j) => j !== i))}
               className="rounded p-1 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
             >
@@ -440,7 +405,7 @@ function FilterEditor({ data, config, onChange }: { data: DatabaseData; config: 
           setFilters([...filters, { propertyId: p.id, operator: firstOperator(p), value: null }]);
         }}
       >
-        <Plus size={14} /> Ajouter un filtre
+        <Plus size={14} /> {t("filter.add")}
       </button>
     </div>
   );
@@ -459,10 +424,10 @@ function DebouncedInput({ value, onChange, numeric }: { value: string; onChange:
   return (
     <input
       autoFocus
-      aria-label="Valeur du filtre"
+      aria-label={t("filter.value")}
       inputMode={numeric ? "decimal" : undefined}
       value={text}
-      placeholder="Valeur…"
+      placeholder={t("filter.valuePlaceholder")}
       onChange={(e) => {
         setText(e.target.value);
         clearTimeout(timer.current);
@@ -492,8 +457,8 @@ function FilterValue({
   const users = useUserDirectory();
   const value = filter.value ?? "";
   const select = (options: { value: string; label: string }[]) => (
-    <select aria-label="Valeur du filtre" value={String(value)} onChange={(e) => onChange(e.target.value || null)} className={`${control} w-full`}>
-      <option value="">Choisir…</option>
+    <select aria-label={t("filter.value")} value={String(value)} onChange={(e) => onChange(e.target.value || null)} className={`${control} w-full`}>
+      <option value="">{t("common.choose")}</option>
       {options.map((o) => (
         <option key={o.value} value={o.value}>
           {o.label}
@@ -505,28 +470,28 @@ function FilterValue({
   if (kind === "select" || kind === "multi_select") return select((prop.config.options ?? []).map((o) => ({ value: o.id, label: o.name })));
   if (kind === "people") return select([{ value: "me", label: "Moi" }, ...(users.data ?? []).map((u) => ({ value: u.id, label: u.name }))]);
   if (kind === "date") {
-    if (filter.operator === "within") return select(DATE_PERIODS.map((p) => ({ value: p, label: PERIOD_LABELS[p] })));
+    if (filter.operator === "within") return select(DATE_PERIODS.map((p) => ({ value: p, label: periodLabel(p) })));
     const relative = (RELATIVE_DATES as readonly string[]).includes(String(value));
     return (
       <div className="flex gap-1">
         <select
-          aria-label="Date de comparaison"
+          aria-label={t("filter.compareDate")}
           value={relative ? String(value) : "exact"}
           onChange={(e) => onChange(e.target.value === "exact" ? new Date().toISOString().slice(0, 10) : e.target.value)}
           className={`${control} min-w-0 flex-1`}
         >
-          {!value && <option value="">Choisir…</option>}
+          {!value && <option value="">{t("common.choose")}</option>}
           {RELATIVE_DATES.map((r) => (
             <option key={r} value={r}>
-              {RELATIVE_LABELS[r]}
+              {relativeLabel(r)}
             </option>
           ))}
-          <option value="exact">Date précise</option>
+          <option value="exact">{t("filter.exactDate")}</option>
         </select>
         {!relative && value !== "" && (
           <input
             type="date"
-            aria-label="Date précise"
+            aria-label={t("filter.exactDate")}
             value={String(value)}
             onChange={(e) => onChange(e.target.value || null)}
             className={`${control} min-w-0 flex-1`}
@@ -543,7 +508,7 @@ function SortEditor({ properties, sorts, onChange }: { properties: DatabasePrope
   const unused = properties.filter((p) => sortable(p) && !sorts.some((s) => s.propertyId === p.id));
   return (
     <div className="space-y-1.5 p-1">
-      {!sorts.length && <p className="px-1 text-neutral-500">Aucun tri. Les lignes restent dans leur ordre de création.</p>}
+      {!sorts.length && <p className="px-1 text-neutral-500">{t("sort.none")}</p>}
       {sorts.map((s, i) => (
         <div key={i} role="group" aria-label={`Tri ${i + 1}`} className="flex items-center gap-1.5">
           <PropertySelect
@@ -553,16 +518,16 @@ function SortEditor({ properties, sorts, onChange }: { properties: DatabasePrope
             onChange={(propertyId) => onChange(sorts.map((x, j) => (j === i ? { ...x, propertyId } : x)))}
           />
           <select
-            aria-label="Ordre"
+            aria-label={t("sort.direction")}
             value={s.direction}
             onChange={(e) => onChange(sorts.map((x, j) => (j === i ? { ...x, direction: e.target.value as "asc" | "desc" } : x)))}
             className={`${control} flex-1`}
           >
-            <option value="asc">Croissant</option>
-            <option value="desc">Décroissant</option>
+            <option value="asc">{t("sort.asc")}</option>
+            <option value="desc">{t("sort.desc")}</option>
           </select>
           <button
-            aria-label="Retirer le tri"
+            aria-label={t("sort.remove")}
             onClick={() => onChange(sorts.filter((_, j) => j !== i))}
             className="rounded p-1 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
           >
@@ -575,7 +540,7 @@ function SortEditor({ properties, sorts, onChange }: { properties: DatabasePrope
           className="flex items-center gap-1 rounded px-2 py-1 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
           onClick={() => onChange([...sorts, { propertyId: unused[0]!.id, direction: "asc" }])}
         >
-          <Plus size={14} /> Ajouter un tri
+          <Plus size={14} /> {t("sort.add")}
         </button>
       )}
     </div>
@@ -596,9 +561,9 @@ function importCsv(databaseId: string): Promise<boolean> {
           method: "POST",
           body: { csv: await file.text() },
         });
-        const lines = [`${res.imported} ligne${res.imported > 1 ? "s" : ""} importée${res.imported > 1 ? "s" : ""}.`];
-        if (res.createdColumns.length) lines.push(`Colonnes ajoutées : ${res.createdColumns.join(", ")}.`);
-        if (res.ignoredColumns.length) lines.push(`Colonnes ignorées (calculées ou en double) : ${res.ignoredColumns.join(", ")}.`);
+        const lines = [t("import.done", { count: res.imported })];
+        if (res.createdColumns.length) lines.push(t("import.created", { names: res.createdColumns.join(", ") }));
+        if (res.ignoredColumns.length) lines.push(t("import.ignored", { names: res.ignoredColumns.join(", ") }));
         alert(lines.join("\n"));
         resolve(true);
       } catch (e) {

@@ -7,6 +7,7 @@ import { notFound } from "../http.js";
 import { getChain, isTrashed } from "../permissions.js";
 import { getPageMeta, listDescendants, notRow, toSummary } from "../pages.js";
 import { enrichRows, listProperties, loadDatabase, toRow } from "../databases.js";
+import { t } from "@nootion/shared";
 
 /** Read-only access through a public link. No account needed. */
 export const publicRoutes: FastifyPluginAsync = async (app) => {
@@ -53,7 +54,7 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
       const pageId = typeof attrs.pageId === "string" ? attrs.pageId : null;
       if (!pageId || !inScope(link, pageId)) {
         attrs.pageId = null;
-        attrs.title = "Page privée";
+        attrs.title = t("page.private");
       }
     }
     if (attrs) {

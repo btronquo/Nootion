@@ -1,40 +1,58 @@
 import { z } from "zod";
+import { localized, t, type LocalizedText } from "./i18n/index.js";
 
 /** Plugin and block ids: lowercase letters, digits and "_" (they end up in node names and URLs). */
-const pluginId = z.string().regex(/^[a-z][a-z0-9_]{1,39}$/, "Identifiant invalide (minuscules, chiffres et _ ; 2 à 40 caractères).");
+const pluginId = z.string().regex(/^[a-z][a-z0-9_]{1,39}$/, { error: () => t("validation.pluginId") });
+
+/** A text of the manifest, either a plain string or one per language: { "en": "Embed", "fr": "Intégration" }. */
+const localizedText = (max: number) => z.union([z.string().max(max), z.record(z.string().regex(/^[a-z]{2}$/), z.string().max(max))]);
 
 export const PLUGIN_SETTING_TYPES = ["text", "password", "number", "boolean", "select"] as const;
 
 export const pluginSettingSchema = z.object({
   key: z.string().regex(/^[a-zA-Z][a-zA-Z0-9_]{0,39}$/),
-  label: z.string().min(1).max(100),
+  label: localizedText(100),
   type: z.enum(PLUGIN_SETTING_TYPES),
-  help: z.string().max(500).optional(),
+  help: localizedText(500).optional(),
   default: z.union([z.string(), z.number(), z.boolean()]).optional(),
   /** select: the choices. */
-  options: z.array(z.object({ value: z.string(), label: z.string() })).optional(),
+  options: z.array(z.object({ value: z.string(), label: localizedText(100) })).optional(),
 });
-export type PluginSetting = z.infer<typeof pluginSettingSchema>;
+type PluginSettingManifest = z.infer<typeof pluginSettingSchema>;
+
+/** A setting, with its texts in the reader's language. */
+export interface PluginSetting extends Omit<PluginSettingManifest, "label" | "help" | "options"> {
+  label: string;
+  help?: string;
+  options?: { value: string; label: string }[];
+}
 
 export const pluginBlockSchema = z.object({
   id: pluginId,
-  title: z.string().min(1).max(60),
-  description: z.string().max(200).default(""),
+  title: localizedText(60),
+  description: localizedText(200).default(""),
   /** An emoji shown in the "/" menu. */
   icon: z.string().max(8).default("🧩"),
   /** Extra words that find the block in the "/" menu. */
-  keywords: z.string().max(200).default(""),
+  keywords: localizedText(200).default(""),
   /** Data of a new block. */
   defaultData: z.record(z.string(), z.unknown()).default({}),
 });
-export type PluginBlock = z.infer<typeof pluginBlockSchema>;
+type PluginBlockManifest = z.infer<typeof pluginBlockSchema>;
+
+/** A block, with its texts in the reader's language (keywords in every language). */
+export interface PluginBlock extends Omit<PluginBlockManifest, "title" | "description" | "keywords"> {
+  title: string;
+  description: string;
+  keywords: string;
+}
 
 /** Content of a plugin's manifest.json. */
 export const pluginManifestSchema = z.object({
   id: pluginId,
-  name: z.string().min(1).max(100),
+  name: localizedText(100),
   version: z.string().min(1).max(40),
-  description: z.string().max(1000).default(""),
+  description: localizedText(1000).default(""),
   author: z.string().max(200).optional(),
   homepage: z.string().url().optional(),
   /** Server code (ES module), relative to the plugin folder. */
@@ -90,6 +108,22 @@ export const updatePluginInput = z.object({
   /** Values by setting key. A password left out keeps its current value; null clears it. */
   values: z.record(z.string(), z.union([z.string().max(5000), z.number(), z.boolean(), z.null()])).optional(),
 });
+
+/** A manifest's setting, in the current language. */
+export function localizeSetting(s: PluginSettingManifest): PluginSetting {
+  return {
+    ...s,
+    label: localized(s.label),
+    help: s.help === undefined ? undefined : localized(s.help),
+    options: s.options?.map((o) => ({ value: o.value, label: localized(o.label) })),
+  };
+}
+
+/** A manifest's block, in the current language. */
+export function localizeBlock(b: PluginBlockManifest): PluginBlock {
+  const all = (text: LocalizedText) => (typeof text === "string" ? text : Object.values(text).join(" "));
+  return { ...b, title: localized(b.title), description: localized(b.description), keywords: all(b.keywords) };
+}
 
 /** Name of the editor node of a plugin block. */
 export const pluginNodeName = (pluginId: string, blockId: string) => `plugin_${pluginId}__${blockId}`;

@@ -7,8 +7,8 @@ beforeEach(async () => {
   app = await makeApp();
 });
 
-describe("premier lancement", () => {
-  it("demande la création de l'admin puis se ferme", async () => {
+describe("first launch", () => {
+  it("asks to create the admin, then closes", async () => {
     const c = new Client(app);
     expect((await c.get("/api/setup")).json()).toEqual({ needsSetup: true });
 
@@ -23,25 +23,25 @@ describe("premier lancement", () => {
     expect(again.statusCode).toBe(409);
   });
 
-  it("refuse un mot de passe trop court", async () => {
+  it("refuses a password that is too short", async () => {
     const res = await new Client(app).post("/api/setup", { ...ADMIN, password: "court" });
     expect(res.statusCode).toBe(400);
   });
 });
 
-describe("connexion", () => {
+describe("sign in", () => {
   beforeEach(async () => {
     await setupAdmin(app);
   });
 
-  it("connecte avec les bons identifiants et normalise l'email", async () => {
+  it("signs in with the right credentials and normalizes the email", async () => {
     const c = new Client(app);
     const res = await c.post("/api/auth/login", { email: "  BORIS@example.com ", password: ADMIN.password });
     expect(res.statusCode).toBe(200);
     expect((await c.get("/api/auth/me")).json().user.email).toBe(ADMIN.email);
   });
 
-  it("refuse un mauvais mot de passe ou un email inconnu avec le même message", async () => {
+  it("refuses a wrong password or an unknown email with the same message", async () => {
     const bad = await new Client(app).post("/api/auth/login", { email: ADMIN.email, password: "nope-nope-nope" });
     const unknown = await new Client(app).post("/api/auth/login", { email: "x@example.com", password: "nope-nope-nope" });
     expect(bad.statusCode).toBe(401);
@@ -49,7 +49,7 @@ describe("connexion", () => {
     expect(bad.json().message).toBe(unknown.json().message);
   });
 
-  it("la déconnexion invalide la session", async () => {
+  it("signing out invalidates the session", async () => {
     const c = new Client(app);
     await c.post("/api/auth/login", { email: ADMIN.email, password: ADMIN.password });
     const stolen = c.cookie;
@@ -58,7 +58,7 @@ describe("connexion", () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it("refuse une mutation venant d'une autre origine", async () => {
+  it("refuses a mutation coming from another origin", async () => {
     const res = await new Client(app).post(
       "/api/auth/login",
       { email: ADMIN.email, password: ADMIN.password },
@@ -68,8 +68,8 @@ describe("connexion", () => {
   });
 });
 
-describe("invitations et administration", () => {
-  it("un invité crée son compte une seule fois avec le lien", async () => {
+describe("invitations and administration", () => {
+  it("an invited person creates their account once with the link", async () => {
     const admin = await setupAdmin(app);
     const inv = (await admin.post("/api/admin/invitations", {})).json();
     const token = inv.url.split("/invite/")[1];
@@ -84,7 +84,7 @@ describe("invitations et administration", () => {
     expect(reuse.statusCode).toBe(404);
   });
 
-  it("une invitation nominative n'accepte que son email", async () => {
+  it("an invitation for an email only accepts that email", async () => {
     const admin = await setupAdmin(app);
     const inv = (await admin.post("/api/admin/invitations", { email: "alice@example.com" })).json();
     const token = inv.url.split("/invite/")[1];
@@ -92,7 +92,7 @@ describe("invitations et administration", () => {
     expect(res.statusCode).toBe(400);
   });
 
-  it("un membre n'a pas accès à l'administration", async () => {
+  it("a member has no access to the administration", async () => {
     const admin = await setupAdmin(app);
     const alice = await inviteUser(app, admin, { name: "Alice", email: "alice@example.com", password: "alice-password" });
     expect((await alice.get("/api/admin/users")).statusCode).toBe(403);
@@ -100,7 +100,7 @@ describe("invitations et administration", () => {
     expect((await new Client(app).get("/api/admin/users")).statusCode).toBe(401);
   });
 
-  it("désactiver un compte coupe ses sessions", async () => {
+  it("disabling an account ends its sessions", async () => {
     const admin = await setupAdmin(app);
     const alice = await inviteUser(app, admin, { name: "Alice", email: "alice@example.com", password: "alice-password" });
     const aliceId = (await alice.get("/api/auth/me")).json().user.id;
@@ -110,7 +110,7 @@ describe("invitations et administration", () => {
     expect(login.statusCode).toBe(403);
   });
 
-  it("garde toujours au moins un administrateur", async () => {
+  it("always keeps at least one administrator", async () => {
     const admin = await setupAdmin(app);
     const adminId = (await admin.get("/api/auth/me")).json().user.id;
     const res = await admin.patch(`/api/admin/users/${adminId}`, { role: "member" });
@@ -118,8 +118,8 @@ describe("invitations et administration", () => {
   });
 });
 
-describe("espaces de travail", () => {
-  it("chaque utilisateur a son espace personnel et ne voit que les siens", async () => {
+describe("workspaces", () => {
+  it("each user has a personal space and only sees their own", async () => {
     const admin = await setupAdmin(app);
     const alice = await inviteUser(app, admin, { name: "Alice", email: "alice@example.com", password: "alice-password" });
     const a = (await admin.get("/api/workspaces")).json().workspaces;
@@ -132,7 +132,7 @@ describe("espaces de travail", () => {
   });
 });
 
-describe("mon compte", () => {
+describe("my account", () => {
   const avatarUpload = (c: Client, data: Buffer, type = "image/png") => {
     const boundary = "----nootion";
     const body = Buffer.concat([
@@ -144,7 +144,7 @@ describe("mon compte", () => {
   };
   const PNG = Buffer.from("89504e470d0a1a0a0000000d49484452", "hex");
 
-  it("change le prénom sans mot de passe, l'email et le mot de passe avec", async () => {
+  it("changes the name without the password, the email and the password with it", async () => {
     const boris = await setupAdmin(app);
     expect((await boris.patch("/api/auth/me", { name: "Boris T." })).json().user.name).toBe("Boris T.");
     expect((await boris.patch("/api/auth/me", { email: "b@example.com" })).statusCode).toBe(400);
@@ -162,13 +162,13 @@ describe("mon compte", () => {
     expect((await new Client(app).post("/api/auth/login", { email: "b@example.com", password: "nouveau-mot-de-passe" })).statusCode).toBe(200);
   });
 
-  it("refuse un email déjà pris", async () => {
+  it("refuses an email already in use", async () => {
     const boris = await setupAdmin(app);
     await inviteUser(app, boris, { name: "Alice", email: "alice@example.com", password: "alice-password" });
     expect((await boris.patch("/api/auth/me", { email: "alice@example.com", currentPassword: ADMIN.password })).statusCode).toBe(409);
   });
 
-  it("avatar : image vérifiée par son contenu, visible des autres comptes connectés", async () => {
+  it("avatar: image checked by its content, visible to other signed-in accounts", async () => {
     const boris = await setupAdmin(app);
     const alice = await inviteUser(app, boris, { name: "Alice", email: "alice@example.com", password: "alice-password" });
     expect((await avatarUpload(boris, Buffer.from("<svg onload=alert(1)>"), "image/png")).statusCode).toBe(400);

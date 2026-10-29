@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
 import type { FastifyPluginAsync } from "fastify";
-import { AVATAR_MAX_BYTES, loginInput, updateMeInput } from "@nootion/shared";
+import { AVATAR_MAX_BYTES, loginInput, t, updateMeInput } from "@nootion/shared";
 import { and, eq, ne } from "drizzle-orm";
 import { burnPasswordCheck, hashPassword, verifyPassword } from "../auth/password.js";
 import { deleteSession, deleteUserSessions, SESSION_COOKIE } from "../auth/sessions.js";
@@ -17,12 +17,12 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     const user = app.db.select().from(users).where(eq(users.email, input.email)).get();
     if (!user) {
       await burnPasswordCheck(input.password);
-      throw new HttpError(401, "bad_credentials", "Email ou mot de passe incorrect.");
+      throw new HttpError(401, "bad_credentials", t("error.badCredentials"));
     }
     if (!(await verifyPassword(user.passwordHash, input.password))) {
-      throw new HttpError(401, "bad_credentials", "Email ou mot de passe incorrect.");
+      throw new HttpError(401, "bad_credentials", t("error.badCredentials"));
     }
-    if (user.disabled) throw new HttpError(403, "disabled", "Ce compte est désactivé.");
+    if (user.disabled) throw new HttpError(403, "disabled", t("error.accountDisabled"));
     startSession(app, reply, user.id);
     return { user: toPublicUser(user) };
   });
@@ -42,14 +42,15 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     const changesEmail = input.email !== undefined && input.email !== user.email;
     if (changesEmail || input.newPassword) {
       if (!input.currentPassword || !(await verifyPassword(user.passwordHash, input.currentPassword))) {
-        throw new HttpError(400, "bad_password", "Mot de passe actuel incorrect.");
+        throw new HttpError(400, "bad_password", t("error.badCurrentPassword"));
       }
     }
     if (changesEmail && app.db.select({ id: users.id }).from(users).where(and(eq(users.email, input.email!), ne(users.id, user.id))).get()) {
-      throw new HttpError(409, "email_taken", "Cet email est déjà utilisé par un autre compte.");
+      throw new HttpError(409, "email_taken", t("error.emailUsed"));
     }
     const set: Partial<typeof users.$inferInsert> = {};
     if (input.name !== undefined) set.name = input.name;
+    if (input.locale !== undefined) set.locale = input.locale;
     if (changesEmail) set.email = input.email;
     if (input.newPassword) set.passwordHash = await hashPassword(input.newPassword);
     const updated = Object.keys(set).length ? app.db.update(users).set(set).where(eq(users.id, user.id)).returning().get() : user;
@@ -64,18 +65,18 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   app.post("/me/avatar", async (req) => {
     const user = requireUser(req);
     const file = await req.file();
-    if (!file) throw new HttpError(400, "no_file", "Aucun fichier reçu.");
+    if (!file) throw new HttpError(400, "no_file", t("error.noFile"));
     const chunks: Buffer[] = [];
     let size = 0;
     for await (const chunk of file.file) {
       size += chunk.length;
-      if (size > AVATAR_MAX_BYTES) throw new HttpError(413, "too_large", "Image trop volumineuse (max 2 Mo).");
+      if (size > AVATAR_MAX_BYTES) throw new HttpError(413, "too_large", t("error.imageTooLarge"));
       chunks.push(chunk);
     }
     const data = Buffer.concat(chunks);
     // The type comes from the file content, not from what the browser claims.
     const ext = imageExtension(data);
-    if (!ext) throw new HttpError(400, "bad_image", "Format non pris en charge (PNG, JPEG, WebP ou GIF).");
+    if (!ext) throw new HttpError(400, "bad_image", t("error.imageFormat"));
     const dir = avatarsDir(app.config.dataDir);
     fs.mkdirSync(dir, { recursive: true });
     const name = `${user.id}-${randomBytes(6).toString("hex")}${ext}`;

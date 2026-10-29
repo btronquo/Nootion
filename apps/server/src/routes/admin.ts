@@ -7,6 +7,7 @@ import { hashToken, newToken } from "../auth/tokens.js";
 import { invitations, users } from "../db/schema.js";
 import { HttpError, notFound, parseBody, requireAdmin } from "../http.js";
 import { toPublicUser } from "../users.js";
+import { t } from "@nootion/shared";
 
 export const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -44,10 +45,10 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
           .from(users)
           .where(and(eq(users.role, "admin"), eq(users.disabled, false), ne(users.id, target.id)))
           .get()?.n ?? 0;
-      if (otherAdmins === 0) throw new HttpError(409, "last_admin", "Il doit rester au moins un administrateur actif.");
+      if (otherAdmins === 0) throw new HttpError(409, "last_admin", t("error.lastAdmin"));
     }
     if (target.id === admin.id && input.disabled) {
-      throw new HttpError(409, "self_disable", "Vous ne pouvez pas désactiver votre propre compte.");
+      throw new HttpError(409, "self_disable", t("error.selfDisable"));
     }
 
     const updated = app.db.update(users).set(input).where(eq(users.id, target.id)).returning().get();

@@ -14,6 +14,8 @@ import type { Config } from "./config.js";
 import type { Db } from "./db/index.js";
 import { findSessionUser, SESSION_COOKIE } from "./auth/sessions.js";
 import { HttpError } from "./http.js";
+import { requestLocale, withLocale } from "./i18n.js";
+import { t } from "@nootion/shared";
 import type { UserRow } from "./users.js";
 import { setupRoutes } from "./routes/setup.js";
 import { authRoutes } from "./routes/auth.js";
@@ -68,12 +70,14 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean 
     if (!SAFE_METHODS.has(req.method) && req.url.startsWith("/api/")) {
       const origin = req.headers.origin;
       if (origin && origin !== opts.config.appUrl && origin !== `${req.protocol}://${req.host}`) {
-        throw new HttpError(403, "bad_origin", "Origine de la requête refusée.");
+        throw new HttpError(403, "bad_origin", withLocale(requestLocale(req), () => t("error.badOrigin")));
       }
     }
     const token = req.cookies[SESSION_COOKIE];
     if (token) req.user = findSessionUser(opts.db, token);
   });
+  // From here on (the body is parsed), t() speaks the user's language until the response is sent.
+  app.addHook("preValidation", (req, _reply, done) => withLocale(requestLocale(req), done));
 
   app.setErrorHandler((err, req, reply) => {
     if (err instanceof HttpError) {
@@ -84,7 +88,7 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean 
       return reply.status(statusCode).send({ error: "request_error", message });
     }
     req.log.error(err);
-    return reply.status(500).send({ error: "internal", message: "Erreur interne du serveur." });
+    return reply.status(500).send({ error: "internal", message: withLocale(requestLocale(req), () => t("error.internal")) });
   });
 
   // When access may have been taken away, drop live editing sessions: clients reconnect at once
@@ -137,10 +141,10 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean 
     // Single-page app: unknown non-API GET routes serve index.html.
     app.setNotFoundHandler((req, reply) => {
       if (req.method === "GET" && !req.url.startsWith("/api/")) return reply.sendFile("index.html");
-      return reply.status(404).send({ error: "not_found", message: "Ressource introuvable." });
+      return reply.status(404).send({ error: "not_found", message: withLocale(requestLocale(req), () => t("error.notFound")) });
     });
   } else {
-    app.setNotFoundHandler((_req, reply) => reply.status(404).send({ error: "not_found", message: "Ressource introuvable." }));
+    app.setNotFoundHandler((req, reply) => reply.status(404).send({ error: "not_found", message: withLocale(requestLocale(req), () => t("error.notFound")) }));
   }
 
   return app;

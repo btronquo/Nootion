@@ -13,12 +13,17 @@ import {
   type PageRole,
   type PluginFormulaFunction,
   type PluginManifest,
-  type PluginSetting,
+  localizeBlock,
+  localizeSetting,
+  localized,
+  currentLocale,
+  type Locale,
 } from "@nootion/shared";
 import type { Db } from "./db/index.js";
 import { plugins } from "./db/schema.js";
 import { HttpError, notFound, unauthorized } from "./http.js";
 import { getPageRole } from "./permissions.js";
+import { t } from "@nootion/shared";
 
 /** Built-in plugins ship next to the server code (src/ in dev, dist/ in the image). */
 export function builtinPluginsDir(): string {
@@ -56,6 +61,8 @@ export interface ServerPluginApi {
   pages: { role: (userId: string, pageId: string) => PageRole | null };
   /** Throw this from a route to answer with an error status and message. */
   HttpError: typeof HttpError;
+  /** Language of the user being served ("en", "fr"…), to write messages in it. */
+  locale: () => Locale;
 }
 
 interface Route {
@@ -106,13 +113,13 @@ export class PluginManager {
         if (!fs.existsSync(file)) continue;
         try {
           const manifest = pluginManifestSchema.parse(JSON.parse(fs.readFileSync(file, "utf8")));
-          if (this.installed.has(manifest.id)) throw new Error(`le plugin « ${manifest.id} » est déjà installé ailleurs`);
+          if (this.installed.has(manifest.id)) throw new Error(`plugin "${manifest.id}" is already installed elsewhere`);
           for (const f of [manifest.server, manifest.client]) if (f) this.resolveFile(dir, f);
           this.installed.set(manifest.id, { manifest, dir, builtin, runtime: null, error: null });
         } catch (e) {
           const error = e instanceof Error ? e.message : String(e);
           this.broken.push({ dir, error });
-          this.opts.log.warn(`Plugin ignoré (${dir}) : ${error}`);
+          this.opts.log.warn(`Plugin skipped (${dir}): ${error}`);
         }
       }
     }
@@ -126,7 +133,7 @@ export class PluginManager {
   /** A file of the plugin; refuses paths that leave its folder. */
   private resolveFile(dir: string, file: string): string {
     const full = path.resolve(dir, file);
-    if (!full.startsWith(dir + path.sep)) throw new Error(`fichier hors du dossier du plugin : ${file}`);
+    if (!full.startsWith(dir + path.sep)) throw new Error(`file outside the plugin folder: ${file}`);
     if (!fs.existsSync(full)) throw new Error(`fichier introuvable : ${file}`);
     return full;
   }
@@ -173,8 +180,8 @@ export class PluginManager {
     return out;
   }
 
-  private checkValue(s: PluginSetting, v: string | number | boolean): string | number | boolean {
-    const bad = () => new HttpError(400, "invalid_setting", `Valeur invalide pour « ${s.label} ».`);
+  private checkValue(s: PluginManifest["settings"][number], v: string | number | boolean): string | number | boolean {
+    const bad = () => new HttpError(400, "invalid_setting", t("error.invalidValue", { name: localized(s.label) }));
     switch (s.type) {
       case "boolean":
         if (typeof v !== "boolean") throw bad();
@@ -211,7 +218,7 @@ export class PluginManager {
         error: (m) => log.error(`[plugin ${id}] ${m}`),
       },
       route: (method, routePath, handler, opts) => {
-        if (!routePath.startsWith("/")) throw new Error("Le chemin d'une route commence par « / ».");
+        if (!routePath.startsWith("/")) throw new Error('A route path starts with "/".');
         runtime.routes.push({ method, parts: routePath.split("/").filter(Boolean), handler, public: !!opts?.public });
       },
       every: (ms, task) => {
@@ -219,7 +226,7 @@ export class PluginManager {
           () => {
             Promise.resolve()
               .then(task)
-              .catch((e) => log.error(`[plugin ${id}] tâche : ${e instanceof Error ? e.message : e}`));
+              .catch((e) => log.error(`[plugin ${id}] task: ${e instanceof Error ? e.message : e}`));
           },
           Math.max(1000, ms),
         );
@@ -232,20 +239,21 @@ export class PluginManager {
       },
       pages: { role: (userId, pageId) => getPageRole(this.db, userId, pageId) },
       HttpError,
+      locale: currentLocale,
     };
     try {
       fs.mkdirSync(dataDir, { recursive: true });
       // The query string makes Node load the code again after an update or a restart of the plugin.
       const mod = await import(`${pathToFileURL(this.resolveFile(p.dir, p.manifest.server)).href}?v=${Date.now()}`);
       const activate = mod.activate ?? mod.default;
-      if (typeof activate !== "function") throw new Error("le code serveur doit exporter une fonction activate(nootion)");
+      if (typeof activate !== "function") throw new Error("the server code must export an activate(nootion) function");
       const result = await activate(api);
       runtime.deactivate = typeof mod.deactivate === "function" ? mod.deactivate : typeof result === "function" ? result : undefined;
     } catch (e) {
       p.error = e instanceof Error ? e.message : String(e);
-      log.error(`Plugin ${id} : échec du démarrage : ${p.error}`);
+      log.error(`Plugin ${id}: failed to start: ${p.error}`);
       await this.deactivate(p);
-      p.error ??= "échec du démarrage";
+      p.error ??= "failed to start";
     }
   }
 
@@ -258,7 +266,7 @@ export class PluginManager {
     try {
       await r.deactivate?.();
     } catch (e) {
-      this.opts.log.warn(`Plugin ${p.manifest.id} : erreur à l'arrêt : ${e instanceof Error ? e.message : e}`);
+      this.opts.log.warn(`Plugin ${p.manifest.id}: error while stopping: ${e instanceof Error ? e.message : e}`);
     }
   }
 
@@ -274,15 +282,15 @@ export class PluginManager {
       }
       return {
         id: p.manifest.id,
-        name: p.manifest.name,
+        name: localized(p.manifest.name),
         version: p.manifest.version,
-        description: p.manifest.description,
+        description: localized(p.manifest.description),
         author: p.manifest.author ?? null,
         homepage: p.manifest.homepage ?? null,
         builtin: p.builtin,
         enabled: this.isEnabled(p),
         error: p.error,
-        settings: p.manifest.settings,
+        settings: p.manifest.settings.map(localizeSetting),
         values,
       };
     });
@@ -295,7 +303,7 @@ export class PluginManager {
     const settings = { ...(this.row(id)?.settings ?? {}) };
     for (const [key, v] of Object.entries(input.values ?? {})) {
       const s = p.manifest.settings.find((x) => x.key === key);
-      if (!s) throw new HttpError(400, "invalid_setting", `Réglage inconnu : ${key}.`);
+      if (!s) throw new HttpError(400, "invalid_setting", t("error.unknownSetting", { key }));
       if (v === null) delete settings[key];
       else if (s.type === "password") settings[key] = this.encrypt(String(this.checkValue(s, v)));
       else settings[key] = this.checkValue(s, v);
@@ -319,11 +327,11 @@ export class PluginManager {
       const enabled = !!p.runtime;
       return {
         id: p.manifest.id,
-        name: p.manifest.name,
+        name: localized(p.manifest.name),
         version: p.manifest.version,
         enabled,
         clientUrl: enabled && p.manifest.client ? `/api/plugins/${p.manifest.id}/client.js?v=${encodeURIComponent(p.manifest.version)}` : null,
-        blocks: p.manifest.blocks,
+        blocks: p.manifest.blocks.map(localizeBlock),
         formulaFunctions: p.runtime?.formulas.map((f) => f.info) ?? [],
       };
     });

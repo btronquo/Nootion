@@ -1,23 +1,25 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Monitor, Moon, Sun } from "lucide-react";
-import { AVATAR_MAX_BYTES, type PublicUser } from "@nootion/shared";
+import { AVATAR_MAX_BYTES, t, type Locale, type PublicUser } from "@nootion/shared";
 import { api, ApiError } from "../lib/api";
 import { useSession } from "../lib/session";
 import { getTheme, setTheme, type ThemeChoice } from "../lib/theme";
 import { pickFiles } from "../editor/upload";
 import { Avatar } from "../components/Avatar";
-import { Button, ErrorText, Field } from "../components/ui";
+import { Button, ErrorText, Field, LanguageSelect } from "../components/ui";
+import { setLocale } from "../lib/i18n";
 
 export function AccountPage() {
   const { user } = useSession();
   if (!user) return null;
   return (
     <div className="mx-auto max-w-2xl space-y-10 px-8 py-12">
-      <h1 className="text-2xl font-bold">Mon compte</h1>
+      <h1 className="text-2xl font-bold">{t("account.title")}</h1>
       <ProfileSection user={user} />
       <EmailSection user={user} />
       <PasswordSection />
+      <LanguageSection user={user} />
       <ThemeSection />
     </div>
   );
@@ -43,7 +45,7 @@ function useSetMe() {
 }
 
 function Saved({ show }: { show: boolean }) {
-  return show ? <span className="text-sm text-green-600 dark:text-green-400">Enregistré</span> : null;
+  return show ? <span className="text-sm text-green-600 dark:text-green-400">{t("common.saved")}</span> : null;
 }
 
 function ProfileSection({ user }: { user: PublicUser }) {
@@ -68,7 +70,7 @@ function ProfileSection({ user }: { user: PublicUser }) {
     const [file] = await pickFiles("image/png,image/jpeg,image/webp,image/gif");
     if (!file) return;
     setError(null);
-    if (file.size > AVATAR_MAX_BYTES) return setError(new Error("Image trop volumineuse (max 2 Mo)."));
+    if (file.size > AVATAR_MAX_BYTES) return setError(new Error(t("error.imageTooLarge")));
     setBusy(true);
     try {
       const form = new FormData();
@@ -89,23 +91,23 @@ function ProfileSection({ user }: { user: PublicUser }) {
   }
 
   return (
-    <Section title="Profil">
+    <Section title={t("account.profile")}>
       <div className="mb-4 flex items-center gap-4">
         <Avatar name={user.name} url={user.avatarUrl} size={64} />
         <div className="flex gap-2">
           <Button variant="ghost" onClick={upload} disabled={busy}>
-            {busy ? "Envoi…" : user.avatarUrl ? "Changer la photo" : "Ajouter une photo"}
+            {busy ? t("common.uploading") : user.avatarUrl ? t("account.changePhoto") : t("account.addPhoto")}
           </Button>
           {user.avatarUrl && (
             <Button variant="danger" onClick={removeAvatar}>
-              Retirer
+              {t("common.remove")}
             </Button>
           )}
         </div>
       </div>
       <form onSubmit={save} className="space-y-3">
         <Field
-          label="Prénom ou nom affiché"
+          label={t("account.displayName")}
           value={name}
           onChange={(e) => {
             setName(e.target.value);
@@ -117,7 +119,7 @@ function ProfileSection({ user }: { user: PublicUser }) {
         <ErrorText error={error} />
         <div className="flex items-center gap-3">
           <Button type="submit" disabled={!name.trim() || name.trim() === user.name}>
-            Enregistrer
+            {t("common.save")}
           </Button>
           <Saved show={saved} />
         </div>
@@ -146,16 +148,16 @@ function EmailSection({ user }: { user: PublicUser }) {
   }
 
   return (
-    <Section title="Email">
+    <Section title={t("auth.email")}>
       <form onSubmit={save} className="space-y-3">
-        <Field label="Adresse email" type="email" value={email} onChange={(e) => (setEmail(e.target.value), setSaved(false))} required autoComplete="email" />
+        <Field label={t("account.emailAddress")} type="email" value={email} onChange={(e) => (setEmail(e.target.value), setSaved(false))} required autoComplete="email" />
         {email.trim().toLowerCase() !== user.email && (
-          <Field label="Mot de passe actuel" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required autoComplete="current-password" />
+          <Field label={t("account.currentPassword")} type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required autoComplete="current-password" />
         )}
         <ErrorText error={error} />
         <div className="flex items-center gap-3">
           <Button type="submit" disabled={email.trim().toLowerCase() === user.email}>
-            Changer l'email
+            {t("account.changeEmail")}
           </Button>
           <Saved show={saved} />
         </div>
@@ -175,7 +177,7 @@ function PasswordSection() {
   async function save(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    if (newPassword !== confirm) return setError(new Error("Les deux mots de passe ne correspondent pas."));
+    if (newPassword !== confirm) return setError(new Error(t("account.passwordMismatch")));
     try {
       setMe((await api<{ user: PublicUser }>("/auth/me", { method: "PATCH", body: { currentPassword, newPassword } })).user);
       setCurrentPassword("");
@@ -188,15 +190,15 @@ function PasswordSection() {
   }
 
   return (
-    <Section title="Mot de passe">
+    <Section title={t("auth.password")}>
       <form onSubmit={save} className="space-y-3">
-        <Field label="Mot de passe actuel" type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required autoComplete="current-password" />
-        <Field label="Nouveau mot de passe" type="password" value={newPassword} onChange={(e) => (setNewPassword(e.target.value), setSaved(false))} required minLength={8} autoComplete="new-password" />
-        <Field label="Confirmer le nouveau mot de passe" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required minLength={8} autoComplete="new-password" />
-        <p className="text-xs text-neutral-500">Les autres appareils connectés à ce compte seront déconnectés.</p>
+        <Field label={t("account.currentPassword")} type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required autoComplete="current-password" />
+        <Field label={t("account.newPassword")} type="password" value={newPassword} onChange={(e) => (setNewPassword(e.target.value), setSaved(false))} required minLength={8} autoComplete="new-password" />
+        <Field label={t("account.confirmPassword")} type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required minLength={8} autoComplete="new-password" />
+        <p className="text-xs text-neutral-500">{t("account.otherDevices")}</p>
         <ErrorText error={error} />
         <div className="flex items-center gap-3">
-          <Button type="submit">Changer le mot de passe</Button>
+          <Button type="submit">{t("account.changePassword")}</Button>
           <Saved show={saved} />
         </div>
       </form>
@@ -204,34 +206,57 @@ function PasswordSection() {
   );
 }
 
-const THEMES: { value: ThemeChoice; label: string; icon: ReactNode }[] = [
-  { value: "light", label: "Clair", icon: <Sun size={18} /> },
-  { value: "dark", label: "Sombre", icon: <Moon size={18} /> },
-  { value: "system", label: "Système", icon: <Monitor size={18} /> },
+const THEMES: { value: ThemeChoice; label: () => string; icon: ReactNode }[] = [
+  { value: "light", label: () => t("account.themeLight"), icon: <Sun size={18} /> },
+  { value: "dark", label: () => t("account.themeDark"), icon: <Moon size={18} /> },
+  { value: "system", label: () => t("account.themeSystem"), icon: <Monitor size={18} /> },
 ];
+
+function LanguageSection({ user }: { user: PublicUser }) {
+  const [error, setError] = useState<unknown>(null);
+  async function change(locale: Locale) {
+    setError(null);
+    try {
+      await api("/auth/me", { method: "PATCH", body: { locale } });
+      setLocale(locale);
+      // Everything on screen (and plugins) is drawn again in the new language.
+      window.location.reload();
+    } catch (err) {
+      setError(err);
+    }
+  }
+  return (
+    <Section title={t("account.language")}>
+      <div className="max-w-xs">
+        <LanguageSelect value={user.locale} onChange={change} />
+      </div>
+      <ErrorText error={error} />
+    </Section>
+  );
+}
 
 function ThemeSection() {
   const [theme, setChoice] = useState(getTheme());
   return (
-    <Section title="Apparence">
-      <div role="radiogroup" aria-label="Thème" className="grid grid-cols-3 gap-2">
-        {THEMES.map((t) => (
+    <Section title={t("account.appearance")}>
+      <div role="radiogroup" aria-label={t("account.theme")} className="grid grid-cols-3 gap-2">
+        {THEMES.map((th) => (
           <button
-            key={t.value}
+            key={th.value}
             role="radio"
-            aria-checked={theme === t.value}
+            aria-checked={theme === th.value}
             onClick={() => {
-              setTheme(t.value);
-              setChoice(t.value);
+              setTheme(th.value);
+              setChoice(th.value);
             }}
-            className={`flex flex-col items-center gap-1.5 rounded-lg border px-3 py-3 text-sm ${theme === t.value ? "border-blue-500 ring-2 ring-blue-500/30" : "border-neutral-200 hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-800/60"}`}
+            className={`flex flex-col items-center gap-1.5 rounded-lg border px-3 py-3 text-sm ${theme === th.value ? "border-blue-500 ring-2 ring-blue-500/30" : "border-neutral-200 hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-800/60"}`}
           >
-            {t.icon}
-            {t.label}
+            {th.icon}
+            {th.label()}
           </button>
         ))}
       </div>
-      <p className="mt-2 text-xs text-neutral-500">« Système » suit le réglage de ton ordinateur. Le choix est mémorisé sur cet appareil.</p>
+      <p className="mt-2 text-xs text-neutral-500">{t("account.themeHelp")}</p>
     </Section>
   );
 }

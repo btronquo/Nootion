@@ -18,7 +18,7 @@ function findMigrationsDir(): string {
   for (const candidate of [path.join(here, "../../migrations"), path.join(here, "../migrations")]) {
     if (fs.existsSync(path.join(candidate, "meta/_journal.json"))) return candidate;
   }
-  throw new Error("Dossier des migrations introuvable.");
+  throw new Error("Migrations folder not found.");
 }
 
 /** Opens (or creates) the SQLite database and applies pending migrations. Use ":memory:" in tests. */

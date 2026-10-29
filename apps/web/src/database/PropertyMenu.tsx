@@ -1,7 +1,9 @@
 import { useMemo, useRef, useState } from "react";
 import { EyeOff, Trash2, X } from "lucide-react";
 import {
-  CALC_LABELS,
+  calcLabel,
+  type CalcFunction,
+  t,
   CREATABLE_TYPES,
   OPTION_COLORS,
   STRUCTURAL_TYPES,
@@ -15,7 +17,7 @@ import {
   type PropertyConfig,
   type PropertyType,
 } from "@nootion/shared";
-import { COLOR_LABELS, CURRENCIES, OPTION_CLASSES, TYPE_LABELS } from "./format";
+import { colorLabel, CURRENCIES, OPTION_CLASSES, typeLabel } from "./format";
 import { useDatabase } from "./hooks";
 import { pageTitle } from "../lib/tree";
 
@@ -48,7 +50,7 @@ export function PropertyMenu({
     <div className="space-y-2 p-1">
       <input
         autoFocus
-        aria-label="Nom de la colonne"
+        aria-label={t("property.name")}
         value={name}
         onChange={(e) => setName(e.target.value)}
         onBlur={commitName}
@@ -58,18 +60,18 @@ export function PropertyMenu({
       <label className="block">
         <span className="mb-0.5 block text-xs text-neutral-500">Type</span>
         <select
-          aria-label="Type de la colonne"
+          aria-label={t("property.type")}
           className={field}
           value={prop.type}
           disabled={prop.type === "title" || STRUCTURAL_TYPES.includes(prop.type)}
           onChange={(e) => {
             const next = e.target.value as PropertyType;
-            if (confirm(`Changer « ${prop.name} » en ${TYPE_LABELS[next]} ? Les valeurs existantes seront converties quand c'est possible.`)) onChangeType(next);
+            if (confirm(t("property.confirmType", { name: prop.name, type: typeLabel(next) }))) onChangeType(next);
           }}
         >
           {(prop.type === "title" || STRUCTURAL_TYPES.includes(prop.type) ? [prop.type] : CREATABLE_TYPES.filter((t) => !STRUCTURAL_TYPES.includes(t))).map((t) => (
             <option key={t} value={t}>
-              {TYPE_LABELS[t]}
+              {typeLabel(t)}
             </option>
           ))}
         </select>
@@ -88,7 +90,7 @@ export function PropertyMenu({
       )}
       {isNumeric && (
         <label className="block">
-          <span className="mb-0.5 block text-xs text-neutral-500">{prop.type === "formula" ? "Décimales (résultats numériques)" : "Décimales"}</span>
+          <span className="mb-0.5 block text-xs text-neutral-500">{prop.type === "formula" ? t("property.decimalsFormula") : t("property.decimals")}</span>
           <select
             className={field}
             value={prop.config.decimals ?? ""}
@@ -108,7 +110,7 @@ export function PropertyMenu({
       {prop.type === "date" && (
         <label className="flex items-center gap-2 px-1">
           <input type="checkbox" checked={!!prop.config.includeTime} onChange={(e) => onChangeConfig({ ...prop.config, includeTime: e.target.checked })} />
-          Inclure l'heure
+          {t("property.includeTime")}
         </label>
       )}
       {(prop.type === "select" || prop.type === "multi_select") && (
@@ -118,7 +120,7 @@ export function PropertyMenu({
             {(prop.config.options ?? []).map((o) => (
               <div key={o.id} className="flex items-center gap-1">
                 <select
-                  aria-label={`Couleur de ${o.name}`}
+                  aria-label={t("option.colorOf", { name: o.name })}
                   value={o.color}
                   onChange={(e) =>
                     onChangeConfig({ ...prop.config, options: prop.config.options!.map((x) => (x.id === o.id ? { ...x, color: e.target.value as OptionColor } : x)) })
@@ -127,13 +129,13 @@ export function PropertyMenu({
                 >
                   {OPTION_COLORS.map((c) => (
                     <option key={c} value={c}>
-                      {COLOR_LABELS[c]}
+                      {colorLabel(c)}
                     </option>
                   ))}
                 </select>
                 <input
                   defaultValue={o.name}
-                  aria-label="Nom de l'option"
+                  aria-label={t("option.name")}
                   onBlur={(e) => {
                     const v = e.target.value.trim();
                     if (v && v !== o.name) onChangeConfig({ ...prop.config, options: prop.config.options!.map((x) => (x.id === o.id ? { ...x, name: v } : x)) });
@@ -141,10 +143,10 @@ export function PropertyMenu({
                   className="min-w-0 flex-1 rounded border border-transparent bg-transparent px-1 py-0.5 hover:border-neutral-200 focus:border-neutral-400 dark:hover:border-neutral-700"
                 />
                 <button
-                  title="Supprimer l'option"
+                  title={t("option.delete")}
                   className="text-neutral-400 hover:text-red-600"
                   onClick={() =>
-                    confirm(`Supprimer l'option « ${o.name} » ? Elle sera retirée des lignes qui l'utilisent.`) &&
+                    confirm(t("option.confirmDelete", { name: o.name })) &&
                     onChangeConfig({ ...prop.config, options: prop.config.options!.filter((x) => x.id !== o.id) })
                   }
                 >
@@ -152,7 +154,7 @@ export function PropertyMenu({
                 </button>
               </div>
             ))}
-            {!prop.config.options?.length && <p className="px-1 text-xs text-neutral-500">Les options se créent en tapant dans une cellule.</p>}
+            {!prop.config.options?.length && <p className="px-1 text-xs text-neutral-500">{t("option.help")}</p>}
           </div>
         </div>
       )}
@@ -160,15 +162,15 @@ export function PropertyMenu({
       <div className="border-t border-neutral-200 pt-1 dark:border-neutral-700">
         {onHide && (
           <button onClick={onHide} className="flex w-full items-center gap-2 rounded px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800">
-            <EyeOff size={14} /> Masquer dans cette vue
+            <EyeOff size={14} /> {t("property.hideInView")}
           </button>
         )}
         {prop.type !== "title" && (
           <button
-            onClick={() => confirm(`Supprimer la colonne « ${prop.name} » et toutes ses valeurs ?`) && onDelete()}
+            onClick={() => confirm(t("property.confirmDelete", { name: prop.name })) && onDelete()}
             className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
           >
-            <Trash2 size={14} /> Supprimer la colonne
+            <Trash2 size={14} /> {t("property.delete")}
           </button>
         )}
       </div>
@@ -180,8 +182,9 @@ function RelationInfo({ prop }: { prop: DatabaseProperty }) {
   const target = useDatabase(prop.config.databaseId ?? "");
   return (
     <p className="px-1 text-xs text-neutral-500">
-      Liée à <span className="font-medium text-neutral-700 dark:text-neutral-200">{target.data ? pageTitle(target.data.title) : "une database inaccessible"}</span>
-      {prop.config.twinPropertyId ? ", dans les deux sens." : ", dans un seul sens."}
+      {t("relation.linkedTo")}{" "}
+      <span className="font-medium text-neutral-700 dark:text-neutral-200">{target.data ? pageTitle(target.data.title) : t("relation.unavailable")}</span>
+      {prop.config.twinPropertyId ? t("relation.twoWay") : t("relation.oneWay")}
     </p>
   );
 }
@@ -203,18 +206,18 @@ function RollupSettings({
   const targets = (target.data?.properties ?? []).filter((p) => p.type !== "relation" && p.type !== "rollup");
   const targetProp = targets.find((p) => p.id === prop.config.targetPropertyId);
   const functions = targetProp ? ["show_original", ...calcFunctionsFor(targetProp.type)] : [];
-  if (!relations.length) return <p className="px-1 text-xs text-neutral-500">Ajoutez d'abord une colonne Relation à cette database.</p>;
+  if (!relations.length) return <p className="px-1 text-xs text-neutral-500">{t("rollup.needsRelation")}</p>;
   return (
     <div className="space-y-2">
       <label className="block">
-        <span className="mb-0.5 block text-xs text-neutral-500">Relation</span>
+        <span className="mb-0.5 block text-xs text-neutral-500">{t("type.relation")}</span>
         <select
-          aria-label="Relation du rollup"
+          aria-label={t("rollup.relationLabel")}
           className={field}
           value={prop.config.relationPropertyId ?? ""}
           onChange={(e) => onChange({ ...prop.config, relationPropertyId: e.target.value, targetPropertyId: undefined, rollupFunction: undefined })}
         >
-          <option value="">Choisir…</option>
+          <option value="">{t("common.choose")}</option>
           {relations.map((r) => (
             <option key={r.id} value={r.id}>
               {r.name}
@@ -224,14 +227,14 @@ function RollupSettings({
       </label>
       {relation && (
         <label className="block">
-          <span className="mb-0.5 block text-xs text-neutral-500">Propriété</span>
+          <span className="mb-0.5 block text-xs text-neutral-500">{t("rollup.property")}</span>
           <select
-            aria-label="Propriété du rollup"
+            aria-label={t("rollup.propertyLabel")}
             className={field}
             value={prop.config.targetPropertyId ?? ""}
             onChange={(e) => onChange({ ...prop.config, targetPropertyId: e.target.value, rollupFunction: prop.config.rollupFunction ?? "show_original" })}
           >
-            <option value="">Choisir…</option>
+            <option value="">{t("common.choose")}</option>
             {targets.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -244,14 +247,14 @@ function RollupSettings({
         <label className="block">
           <span className="mb-0.5 block text-xs text-neutral-500">Calcul</span>
           <select
-            aria-label="Calcul du rollup"
+            aria-label={t("rollup.calcLabel")}
             className={field}
             value={prop.config.rollupFunction ?? "show_original"}
             onChange={(e) => onChange({ ...prop.config, rollupFunction: e.target.value })}
           >
             {functions.map((f) => (
               <option key={f} value={f}>
-                {f === "show_original" ? "Afficher les valeurs" : CALC_LABELS[f as keyof typeof CALC_LABELS]}
+                {f === "show_original" ? t("rollup.showOriginal") : calcLabel(f as CalcFunction)}
               </option>
             ))}
           </select>
@@ -261,11 +264,7 @@ function RollupSettings({
   );
 }
 
-const FORMATS = [
-  { value: "number", label: "Nombre" },
-  { value: "currency", label: "Montant (devise)" },
-  { value: "percent", label: "Pourcentage" },
-] as const;
+const FORMATS = ["number", "currency", "percent"] as const;
 
 /** Problem in a formula as typed, checked in the browser before saving. */
 function formulaProblem(expression: string, properties: DatabaseProperty[]): string | null {
@@ -273,9 +272,9 @@ function formulaProblem(expression: string, properties: DatabaseProperty[]): str
   try {
     const names = new Set(properties.map((p) => p.name));
     const unknown = formulaReferences(parseFormula(expression)).find((n) => !names.has(n));
-    return unknown ? `Colonne inconnue « ${unknown} ».` : null;
+    return unknown ? t("formula.error.unknownColumn", { name: unknown }) : null;
   } catch (e) {
-    if (e instanceof FormulaError) return e.position !== undefined ? `${e.message} (caractère ${e.position + 1})` : e.message;
+    if (e instanceof FormulaError) return e.position !== undefined ? t("formula.error.atChar", { message: e.message, position: e.position + 1 }) : e.message;
     throw e;
   }
 }
@@ -312,10 +311,10 @@ function FormulaEditor({
   return (
     <div className="space-y-2">
       <label className="block">
-        <span className="mb-0.5 block text-xs text-neutral-500">Formule</span>
+        <span className="mb-0.5 block text-xs text-neutral-500">{t("type.formula")}</span>
         <textarea
           ref={area}
-          aria-label="Expression de la formule"
+          aria-label={t("formula.expression")}
           value={expression}
           onChange={(e) => setExpression(e.target.value)}
           onKeyDown={(e) => {
@@ -330,7 +329,7 @@ function FormulaEditor({
       {problem ? <p className="px-1 text-xs text-red-600 dark:text-red-400">{problem}</p> : null}
       <div className="flex items-center justify-between gap-2">
         <button type="button" onClick={() => setHelp(!help)} className="text-xs text-blue-600 hover:underline dark:text-blue-400">
-          {help ? "Masquer l'aide" : "Fonctions disponibles"}
+          {help ? t("formula.hideHelp") : t("formula.showHelp")}
         </button>
         <button
           type="button"
@@ -338,11 +337,11 @@ function FormulaEditor({
           onClick={() => onChange({ ...prop.config, expression })}
           className="rounded bg-neutral-900 px-3 py-1 text-xs text-white enabled:hover:bg-neutral-700 disabled:opacity-40 dark:bg-white dark:text-neutral-900"
         >
-          Enregistrer la formule
+          {t("formula.save")}
         </button>
       </div>
       <div>
-        <span className="mb-0.5 block text-xs text-neutral-500">Colonnes (clic pour insérer)</span>
+        <span className="mb-0.5 block text-xs text-neutral-500">{t("formula.columns")}</span>
         <div className="flex max-h-24 flex-wrap gap-1 overflow-y-auto">
           {columns.map((p) => (
             <button
@@ -358,7 +357,7 @@ function FormulaEditor({
       </div>
       {help && (
         <ul className="max-h-48 space-y-1 overflow-y-auto rounded border border-neutral-200 p-2 text-xs dark:border-neutral-700">
-          <li className="text-neutral-500">Opérateurs : + - * / % ^, == != &gt; &lt; &gt;= &lt;=, and, or, not, condition ? a : b</li>
+          <li className="text-neutral-500">{t("formula.operators")}</li>
           {Object.entries(FUNCTIONS).map(([name, f]) => (
             <li key={name}>
               <button type="button" onClick={() => insert(`${name}(`)} className="text-left font-mono hover:underline">
@@ -369,9 +368,9 @@ function FormulaEditor({
         </ul>
       )}
       <label className="block">
-        <span className="mb-0.5 block text-xs text-neutral-500">Affichage des nombres</span>
+        <span className="mb-0.5 block text-xs text-neutral-500">{t("formula.numberFormat")}</span>
         <select
-          aria-label="Affichage des nombres"
+          aria-label={t("formula.numberFormat")}
           className={field}
           value={prop.config.formulaFormat ?? "number"}
           onChange={(e) => {
@@ -380,8 +379,8 @@ function FormulaEditor({
           }}
         >
           {FORMATS.map((f) => (
-            <option key={f.value} value={f.value}>
-              {f.label}
+            <option key={f} value={f}>
+              {typeLabel(f)}
             </option>
           ))}
         </select>

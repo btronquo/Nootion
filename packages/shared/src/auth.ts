@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { LOCALES, t, type Locale } from "./i18n/index.js";
 
 export const USER_ROLES = ["admin", "member"] as const;
 export type UserRole = (typeof USER_ROLES)[number];
@@ -6,14 +7,17 @@ export type UserRole = (typeof USER_ROLES)[number];
 export const emailSchema = z.string().trim().toLowerCase().email().max(254);
 export const passwordSchema = z
   .string()
-  .min(8, "Le mot de passe doit faire au moins 8 caractères")
+  .min(8, { error: () => t("auth.passwordTooShort") })
   .max(256);
 export const nameSchema = z.string().trim().min(1).max(100);
+
+export const localeSchema = z.enum(LOCALES);
 
 export const setupInput = z.object({
   name: nameSchema,
   email: emailSchema,
   password: passwordSchema,
+  locale: localeSchema.optional(),
 });
 export type SetupInput = z.infer<typeof setupInput>;
 
@@ -33,6 +37,7 @@ export const acceptInvitationInput = z.object({
   name: nameSchema,
   email: emailSchema,
   password: passwordSchema,
+  locale: localeSchema.optional(),
 });
 export type AcceptInvitationInput = z.infer<typeof acceptInvitationInput>;
 
@@ -49,6 +54,7 @@ export const updateMeInput = z
     email: emailSchema.optional(),
     newPassword: passwordSchema.optional(),
     currentPassword: z.string().max(256).optional(),
+    locale: localeSchema.optional(),
   })
   .strict();
 export type UpdateMeInput = z.infer<typeof updateMeInput>;
@@ -64,6 +70,8 @@ export interface PublicUser {
   avatarUrl: string | null;
   role: UserRole;
   disabled: boolean;
+  /** Interface language. */
+  locale: Locale;
   createdAt: string;
 }
 

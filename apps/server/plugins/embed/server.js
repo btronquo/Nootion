@@ -1,4 +1,4 @@
-// Plugin « embed », côté serveur : aperçu d'un lien (titre, description, image) lu dans la page visée.
+// "embed" plugin, server side: preview of a link (title, description, image) read from the linked page.
 import { lookup } from "node:dns/promises";
 import net from "node:net";
 
@@ -11,7 +11,7 @@ export function activate(nootion) {
 
   nootion.route("GET", "/preview", async ({ query }) => {
     const url = parseUrl(query.url);
-    if (!url) throw new nootion.HttpError(400, "bad_url", "Adresse invalide (http ou https uniquement).");
+    if (!url) throw new nootion.HttpError(400, "bad_url", nootion.locale() === "fr" ? "Adresse invalide (http ou https uniquement)." : "Invalid address (http or https only).");
     const hit = cache.get(url.href);
     if (hit && Date.now() - hit.at < 60 * 60 * 1000) return hit.data;
     const data = await preview(url, allowPrivate);
@@ -65,8 +65,8 @@ async function checkHost(url, allowPrivate) {
   if (allowPrivate) return;
   const host = url.hostname.replace(/^\[|\]$/g, "");
   const addresses = net.isIP(host) ? [host] : (await lookup(host, { all: true }).catch(() => [])).map((a) => a.address);
-  if (!addresses.length) throw new Error("adresse introuvable");
-  if (addresses.some(isPrivateAddress)) throw new Error("adresse du réseau local refusée");
+  if (!addresses.length) throw new Error("address not found");
+  if (addresses.some(isPrivateAddress)) throw new Error("local network address refused");
 }
 
 async function preview(start, allowPrivate) {

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { FormulaError, evaluateFormula, makeDate, parseFormula, renameFormulaReference, toFormulaResult, type FValue } from "@nootion/shared";
+import { setLocaleResolver } from "@nootion/shared";
+
+// These tests check French messages and formats.
+setLocaleResolver(() => "fr");
 
 const run = (src: string, props: Record<string, FValue> = {}) =>
   toFormulaResult(
@@ -9,8 +13,8 @@ const run = (src: string, props: Record<string, FValue> = {}) =>
     }),
   );
 
-describe("formules", () => {
-  it("calcul et priorité des opérateurs", () => {
+describe("formulas", () => {
+  it("arithmetic and operator precedence", () => {
     expect(run('prop("HT") * 1.2', { HT: 100 })).toEqual({ kind: "number", value: 120 });
     expect(run("1 + 2 * 3 ^ 2")).toEqual({ kind: "number", value: 19 });
     expect(run("-2 ^ 2")).toEqual({ kind: "number", value: -4 });
@@ -19,7 +23,7 @@ describe("formules", () => {
     expect(run("0.1 + 0.2")).toEqual({ kind: "number", value: 0.3 });
   });
 
-  it("conditions et textes", () => {
+  it("conditions and texts", () => {
     expect(run('if(prop("Payée"), "OK", "À payer")', { Payée: false })).toEqual({ kind: "text", value: "À payer" });
     expect(run('prop("Payée") ? "OK" : "non"', { Payée: true })).toEqual({ kind: "text", value: "OK" });
     expect(run('ifs(prop("n") > 10, "grand", prop("n") > 5, "moyen", "petit")', { n: 7 })).toEqual({ kind: "text", value: "moyen" });
@@ -40,7 +44,7 @@ describe("formules", () => {
     expect(run('dateEnd(prop("D"))', { D: makeDate("2026-01-01", "2026-01-15") })).toEqual({ kind: "date", value: "2026-01-15" });
   });
 
-  it("erreurs claires", () => {
+  it("clear errors", () => {
     expect(() => parseFormula('prop("a" * 2')).toThrow(FormulaError);
     expect(() => parseFormula("Montant * 2")).toThrow(/prop\("Montant"\)/);
     expect(() => parseFormula("foo(1)")).toThrow(/Fonction inconnue/);
@@ -51,7 +55,7 @@ describe("formules", () => {
     expect(() => run('prop("Inconnue")')).toThrow(/Colonne inconnue/);
   });
 
-  it("suit le renommage d'une colonne", () => {
+  it("follows a column rename", () => {
     expect(renameFormulaReference('prop("HT") * prop( "HT" ) + prop("HTX")', "HT", "Montant HT")).toBe('prop("Montant HT") * prop("Montant HT") + prop("HTX")');
   });
 });

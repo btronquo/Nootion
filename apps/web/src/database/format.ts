@@ -1,26 +1,6 @@
-import type { CalcResult, CellValue, DatabaseProperty, DateValue, FileValue, OptionColor, PropertyType } from "@nootion/shared";
+import { intlLocale, t, type CalcResult, type CellValue, type DatabaseProperty, type DateValue, type FileValue, type MessageKey, type OptionColor, type PropertyType } from "@nootion/shared";
 
-export const TYPE_LABELS: Record<PropertyType, string> = {
-  title: "Titre",
-  text: "Texte",
-  number: "Nombre",
-  currency: "Montant (devise)",
-  percent: "Pourcentage",
-  date: "Date",
-  select: "Sélection",
-  multi_select: "Sélection multiple",
-  checkbox: "Case à cocher",
-  url: "Lien (URL)",
-  email: "Email",
-  person: "Personne",
-  file: "Fichiers",
-  created_time: "Date de création",
-  last_edited_time: "Dernière modification",
-  created_by: "Créé par",
-  relation: "Relation",
-  rollup: "Rollup",
-  formula: "Formule",
-};
+export const typeLabel = (type: PropertyType) => t(`type.${type}` as MessageKey);
 
 export const OPTION_CLASSES: Record<OptionColor, string> = {
   gray: "bg-neutral-200 text-neutral-800 dark:bg-neutral-700 dark:text-neutral-100",
@@ -34,36 +14,26 @@ export const OPTION_CLASSES: Record<OptionColor, string> = {
   red: "bg-red-200 text-red-900 dark:bg-red-900/60 dark:text-red-100",
 };
 
-export const COLOR_LABELS: Record<OptionColor, string> = {
-  gray: "Gris",
-  brown: "Marron",
-  orange: "Orange",
-  yellow: "Jaune",
-  green: "Vert",
-  blue: "Bleu",
-  purple: "Violet",
-  pink: "Rose",
-  red: "Rouge",
-};
+export const colorLabel = (color: OptionColor) => t(`color.${color}` as MessageKey);
 
 export const CURRENCIES = ["EUR", "USD", "GBP", "CHF", "CAD", "JPY"];
 
 export function formatNumber(value: number, prop: DatabaseProperty): string {
   const decimals = prop.config.decimals;
   const opts: Intl.NumberFormatOptions = decimals !== undefined ? { minimumFractionDigits: decimals, maximumFractionDigits: decimals } : { maximumFractionDigits: 10 };
-  if (prop.type === "currency") return new Intl.NumberFormat("fr-FR", { style: "currency", currency: prop.config.currency ?? "EUR", ...opts }).format(value);
-  if (prop.type === "percent") return new Intl.NumberFormat("fr-FR", { style: "percent", ...opts }).format(value / 100);
-  return new Intl.NumberFormat("fr-FR", opts).format(value);
+  if (prop.type === "currency") return new Intl.NumberFormat(intlLocale(), { style: "currency", currency: prop.config.currency ?? "EUR", ...opts }).format(value);
+  if (prop.type === "percent") return new Intl.NumberFormat(intlLocale(), { style: "percent", ...opts }).format(value / 100);
+  return new Intl.NumberFormat(intlLocale(), opts).format(value);
 }
 
-const dateFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", year: "numeric" });
-const dateTimeFmt = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+const dateFmt = () => new Intl.DateTimeFormat(intlLocale(), { day: "numeric", month: "short", year: "numeric" });
+const dateTimeFmt = () => new Intl.DateTimeFormat(intlLocale(), { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
 export function formatDateString(iso: string): string {
   const hasTime = iso.length > 10;
   const d = hasTime ? new Date(iso) : new Date(`${iso}T00:00:00`);
   if (Number.isNaN(d.getTime())) return iso;
-  return (hasTime ? dateTimeFmt : dateFmt).format(d);
+  return (hasTime ? dateTimeFmt : dateFmt)().format(d);
 }
 
 export function formatDate(v: DateValue): string {
@@ -111,19 +81,19 @@ export function formatCalc(r: CalcResult, prop: DatabaseProperty | null | undefi
   const fmt = prop ? numberFormatOf(prop) : null;
   switch (r.kind) {
     case "number":
-      return fmt && NUMERIC.includes(fmt.type) ? formatNumber(r.value, fmt) : new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 }).format(r.value);
+      return fmt && NUMERIC.includes(fmt.type) ? formatNumber(r.value, fmt) : new Intl.NumberFormat(intlLocale(), { maximumFractionDigits: 2 }).format(r.value);
     case "count":
-      return new Intl.NumberFormat("fr-FR").format(r.value);
+      return new Intl.NumberFormat(intlLocale()).format(r.value);
     case "percent":
-      return new Intl.NumberFormat("fr-FR", { style: "percent", maximumFractionDigits: 1 }).format(r.value / 100);
+      return new Intl.NumberFormat(intlLocale(), { style: "percent", maximumFractionDigits: 1 }).format(r.value / 100);
     case "days":
-      return `${r.value} jour${r.value > 1 ? "s" : ""}`;
+      return t("calc.days", { count: r.value });
     case "date":
       return formatDateString(r.value);
   }
 }
 
-/** Parses a number typed the French way ("1 234,5", "12 €", "20 %"). */
+/** Parses a typed number, with a decimal point or comma ("1 234,5", "12.5 €", "20 %"). */
 export function parseNumberInput(s: string): number | null {
   const cleaned = s.replace(/[\s €$£%]/g, "").replace(",", ".");
   if (cleaned === "") return null;

@@ -3,6 +3,7 @@ import type { PageRole } from "./pages.js";
 import { CALC_FUNCTIONS, type CalcFunction, type CalcResult } from "./calculations.js";
 import type { FormulaResult } from "./formula.js";
 import { VIEW_TYPES, viewFilterSchema, viewSortSchema, type ViewFilter, type ViewSort, type ViewType } from "./views.js";
+import { t } from "./i18n/index.js";
 
 export const PROPERTY_TYPES = [
   "title",
@@ -97,7 +98,7 @@ export type RollupValue =
 /** Value stored in a cell, by property type. `null` means empty. Relations hold row ids. */
 export type CellValue = string | number | boolean | string[] | DateValue | FileValue[] | RollupValue | FormulaResult | null;
 
-const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?)?$/, "Date invalide");
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?)?$/, { error: () => t("validation.invalidDate") });
 
 /** Validation of a value written by a user, per property type. */
 export function valueSchema(type: PropertyType): z.ZodType<CellValue> {
@@ -225,7 +226,7 @@ export const createDatabaseInput = z.object({
 
 export const createPropertyInput = z.object({
   name: z.string().trim().min(1).max(100),
-  type: z.enum(PROPERTY_TYPES).refine((t) => t !== "title", "Une database n'a qu'une colonne titre"),
+  type: z.enum(PROPERTY_TYPES).refine((type) => type !== "title", { error: () => t("validation.oneTitleColumn") }),
   config: propertyConfigSchema.default({}),
   /** relation: also add a matching property to the related database. */
   twoWay: z.boolean().optional(),

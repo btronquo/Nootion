@@ -4,6 +4,7 @@ import { inArray } from "drizzle-orm";
 import yazl from "yazl";
 import {
   applyView,
+  t,
   cellText,
   type CellValue,
   type DatabaseData,
@@ -27,18 +28,18 @@ import { getPageRole } from "./permissions.js";
 
 /** A cell as text, the way a spreadsheet shows it (CSV, front matter). */
 export function exportText(prop: DatabaseProperty, value: CellValue, data: DatabaseData): string {
-  if (value === null || value === undefined) return prop.type === "checkbox" ? "Non" : "";
+  if (value === null || value === undefined) return prop.type === "checkbox" ? t("common.no") : "";
   switch (prop.type) {
     case "checkbox":
-      return value === true ? "Oui" : "Non";
+      return value === true ? t("common.yes") : t("common.no");
     case "date": {
       const d = value as DateValue;
       return d.end ? `${d.start} → ${d.end}` : d.start;
     }
     case "formula": {
       const f = value as FormulaResult;
-      if (f.kind === "boolean") return f.value ? "Oui" : "Non";
-      if (f.kind === "error") return `#ERREUR ${f.value}`;
+      if (f.kind === "boolean") return f.value ? t("common.yes") : t("common.no");
+      if (f.kind === "error") return `#${t("export.error")} ${f.value}`;
       return cellText(prop, value, data);
     }
     default:
@@ -132,7 +133,7 @@ export function databaseJson(data: DatabaseData, viewId?: string) {
 // --- Markdown export of pages -----------------------------------------------------------------
 
 /** A file or folder name that works on Windows, macOS and Linux. */
-export function safeName(title: string, fallback = "Sans titre"): string {
+export function safeName(title: string, fallback = t("common.untitled")): string {
   const name = title
     .replace(/[\\/:*?"<>|\u0000-\u001f]/g, " ")
     .replace(/\s+/g, " ")
@@ -181,7 +182,7 @@ export function exportPagesZip(db: Db, dataDir: string, userId: string, roots: P
 
   const ids = [...paths.keys()];
   const files = ids.length ? db.select().from(attachments).where(inArray(attachments.pageId, ids)).all() : [];
-  const filePaths = new Map(files.map((f) => [f.id, `fichiers/${f.id.slice(0, 8)}-${safeName(f.filename, "fichier")}`]));
+  const filePaths = new Map(files.map((f) => [f.id, `${t("export.filesFolder")}/${f.id.slice(0, 8)}-${safeName(f.filename, t("export.file"))}`]));
   const content = new Map(
     (ids.length ? db.select({ id: pages.id, json: pages.contentJson, props: pages.props }).from(pages).where(inArray(pages.id, ids)).all() : []).map(
       (r) => [r.id, r],
@@ -215,7 +216,7 @@ export function exportPagesZip(db: Db, dataDir: string, userId: string, roots: P
       page: (id: string) => (paths.has(id) ? relative(file, fileOf(readable.get(id)!)) : null),
     };
     const meta: Record<string, unknown> = {
-      title: p.title || "Sans titre",
+      title: p.title || t("common.untitled"),
       icon: p.icon,
       created: p.createdAt.toISOString(),
       updated: p.updatedAt.toISOString(),
@@ -227,7 +228,7 @@ export function exportPagesZip(db: Db, dataDir: string, userId: string, roots: P
       if (row) for (const prop of data.properties) if (prop.type !== "title") meta[prop.name] = exportText(prop, cellOf(prop, row), data);
     }
     const body = toMarkdown(content.get(p.id)?.json as ProseMirrorNode | null, links);
-    zip.addBuffer(Buffer.from(`${frontMatter(meta)}\n# ${p.title || "Sans titre"}\n\n${body}\n`), file);
+    zip.addBuffer(Buffer.from(`${frontMatter(meta)}\n# ${p.title || t("common.untitled")}\n\n${body}\n`), file);
   }
   for (const f of files) {
     const source = attachmentPath(dataDir, f.id);

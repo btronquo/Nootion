@@ -6,8 +6,9 @@ import { WORKSPACE_ROLES, type WorkspaceMember, type WorkspaceRole } from "@noot
 import { api } from "../lib/api";
 import { keys, useUserDirectory, useWorkspaces } from "../lib/queries";
 import { useSession } from "../lib/session";
-import { WORKSPACE_ROLE_LABELS } from "../lib/labels";
+import { workspaceRoleLabel } from "../lib/labels";
 import { Button, ErrorText, Field, Select } from "../components/ui";
+import { t } from "@nootion/shared";
 
 export function WorkspacePage() {
   const { id = "" } = useParams();
@@ -62,13 +63,13 @@ export function WorkspacePage() {
   return (
     <div className="mx-auto max-w-3xl space-y-10 px-8 py-12">
       <div>
-        <p className="text-sm text-neutral-500">Espace partagé</p>
+        <p className="text-sm text-neutral-500">{t("workspace.shared")}</p>
         <h1 className="text-2xl font-bold">{ws.name}</h1>
       </div>
 
       {isOwner && (
         <section>
-          <h2 className="mb-3 text-lg font-semibold">Nom</h2>
+          <h2 className="mb-3 text-lg font-semibold">{t("auth.name")}</h2>
           <form
             className="flex items-end gap-2"
             onSubmit={(e) => {
@@ -77,10 +78,10 @@ export function WorkspacePage() {
             }}
           >
             <div className="flex-1">
-              <Field label="Nom de l'espace" value={name ?? ws.name} onChange={(e) => setName(e.target.value)} />
+              <Field label={t("workspace.name")} value={name ?? ws.name} onChange={(e) => setName(e.target.value)} />
             </div>
             <Button type="submit" disabled={!name || name === ws.name}>
-              Renommer
+              {t("common.rename")}
             </Button>
           </form>
           <ErrorText error={rename.error} />
@@ -88,9 +89,9 @@ export function WorkspacePage() {
       )}
 
       <section>
-        <h2 className="mb-1 text-lg font-semibold">Membres</h2>
+        <h2 className="mb-1 text-lg font-semibold">{t("workspace.members")}</h2>
         <p className="mb-3 text-sm text-neutral-500">
-          Les membres voient toutes les pages de l'espace. Éditeur : peut tout modifier et partager. Commentateur et lecteur : lecture seule pour l'instant.
+          {t("workspace.membersHelp")}
         </p>
         {isOwner && (
           <form
@@ -100,23 +101,23 @@ export function WorkspacePage() {
               if (newUser) setMember.mutate({ userId: newUser, role: newRole });
             }}
           >
-            <Select className="min-w-0 flex-1" value={newUser} onChange={(e) => setNewUser(e.target.value)} aria-label="Personne">
-              <option value="">Ajouter une personne…</option>
+            <Select className="min-w-0 flex-1" value={newUser} onChange={(e) => setNewUser(e.target.value)} aria-label={t("workspace.person")}>
+              <option value="">{t("workspace.addPerson")}</option>
               {candidates.map((u) => (
                 <option key={u.id} value={u.id}>
                   {u.name} ({u.email})
                 </option>
               ))}
             </Select>
-            <Select value={newRole} onChange={(e) => setNewRole(e.target.value as WorkspaceRole)} aria-label="Rôle">
+            <Select value={newRole} onChange={(e) => setNewRole(e.target.value as WorkspaceRole)} aria-label={t("admin.role")}>
               {WORKSPACE_ROLES.map((r) => (
                 <option key={r} value={r}>
-                  {WORKSPACE_ROLE_LABELS[r]}
+                  {workspaceRoleLabel(r)}
                 </option>
               ))}
             </Select>
             <Button type="submit" disabled={!newUser}>
-              Ajouter
+              {t("common.add")}
             </Button>
           </form>
         )}
@@ -126,27 +127,27 @@ export function WorkspacePage() {
             <li key={m.userId} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
               <div className="min-w-0">
                 <div className="truncate font-medium">
-                  {m.name} {m.userId === me?.id && <span className="text-neutral-400">(vous)</span>}
+                  {m.name} {m.userId === me?.id && <span className="text-neutral-400">({t("common.youLower")})</span>}
                 </div>
                 <div className="truncate text-xs text-neutral-500">{m.email}</div>
               </div>
               {isOwner ? (
                 <div className="flex items-center gap-1">
-                  <Select value={m.role} onChange={(e) => setMember.mutate({ userId: m.userId, role: e.target.value as WorkspaceRole })} aria-label={`Rôle de ${m.name}`}>
+                  <Select value={m.role} onChange={(e) => setMember.mutate({ userId: m.userId, role: e.target.value as WorkspaceRole })} aria-label={t("workspace.roleOf", { name: m.name })}>
                     {WORKSPACE_ROLES.map((r) => (
                       <option key={r} value={r}>
-                        {WORKSPACE_ROLE_LABELS[r]}
+                        {workspaceRoleLabel(r)}
                       </option>
                     ))}
                   </Select>
                   {m.userId !== me?.id && (
-                    <Button variant="ghost" onClick={() => removeMember.mutate(m.userId)} title="Retirer de l'espace">
+                    <Button variant="ghost" onClick={() => removeMember.mutate(m.userId)} title={t("workspace.removeMember")}>
                       <X size={16} />
                     </Button>
                   )}
                 </div>
               ) : (
-                <span className="text-neutral-500">{WORKSPACE_ROLE_LABELS[m.role]}</span>
+                <span className="text-neutral-500">{workspaceRoleLabel(m.role)}</span>
               )}
             </li>
           ))}
@@ -154,15 +155,15 @@ export function WorkspacePage() {
       </section>
 
       <section className="space-y-2 border-t border-neutral-200 pt-6 dark:border-neutral-800">
-        <Button variant="danger" onClick={() => confirm("Quitter cet espace ?") && removeMember.mutate(me!.id)}>
-          Quitter l'espace
+        <Button variant="danger" onClick={() => confirm(t("workspace.confirmLeave")) && removeMember.mutate(me!.id)}>
+          {t("workspace.leave")}
         </Button>
         {isOwner && (
           <Button
             variant="danger"
-            onClick={() => confirm(`Supprimer définitivement « ${ws.name} » et toutes ses pages ?`) && remove.mutate()}
+            onClick={() => confirm(t("workspace.confirmDelete", { name: ws.name })) && remove.mutate()}
           >
-            Supprimer l'espace et ses pages
+            {t("workspace.delete")}
           </Button>
         )}
         <ErrorText error={remove.error} />

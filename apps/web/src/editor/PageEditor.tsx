@@ -17,6 +17,7 @@ import { mentionItems, slashItems, type CommandContext } from "./commands";
 import { insertFiles } from "./upload";
 import { usePlugins } from "../plugins/registry";
 import type { ClientPluginInfo } from "@nootion/shared";
+import { t } from "@nootion/shared";
 
 const COLORS = ["#e11d48", "#ea580c", "#ca8a04", "#16a34a", "#0891b2", "#2563eb", "#7c3aed", "#c026d3"];
 export function colorFor(id: string): string {
@@ -49,7 +50,7 @@ export function PageEditor({ page, canEdit }: { page: PageDetail; canEdit: boole
     };
   }, [page.id]);
   // The editor's schema needs the plugins' blocks: without them, their blocks would be dropped from the page.
-  if (plugins.isError) return <p className="text-sm text-red-600">Impossible de charger les plugins : la page ne peut pas s'ouvrir. Rechargez la page.</p>;
+  if (plugins.isError) return <p className="text-sm text-red-600">{t("editor.pluginsFailed")}</p>;
   if (!collab || !plugins.data) return null;
   return <CollabEditor key={page.id} page={page} canEdit={canEdit} doc={collab.doc} provider={collab.provider} plugins={plugins.data} />;
 }
@@ -112,11 +113,11 @@ function CollabEditor({
         ...baseExtensions({ collaborative: true, plugins }),
         Collaboration.configure({ document: doc }),
         CollaborationCaret.configure({ provider, user: { name: user?.name ?? "?", color: colorFor(user?.id ?? "") } }),
-        createSuggestionExtension("slashCommands", "/", slashItems(ctx), "Aucune commande"),
-        createSuggestionExtension("pageMentions", "@", mentionItems(ctx), "Aucune page trouvée"),
+        createSuggestionExtension("slashCommands", "/", slashItems(ctx), t("editor.noCommand")),
+        createSuggestionExtension("pageMentions", "@", mentionItems(ctx), t("editor.noPage")),
       ],
       editorProps: {
-        attributes: { class: "nootion-content", "aria-label": "Contenu de la page" },
+        attributes: { class: "nootion-content", "aria-label": t("editor.content") },
         handlePaste: (view, event) => {
           const files = Array.from(event.clipboardData?.files ?? []);
           if (!files.length || !canEdit) return false;
@@ -145,11 +146,11 @@ function CollabEditor({
     <div>
       <div className="mb-2 flex h-6 items-center justify-end gap-2 text-xs text-neutral-400">
         {peers.map((p) => (
-          <span key={p.clientId} className="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold text-white" style={{ background: p.color }} title={`${p.name} est sur la page`}>
+          <span key={p.clientId} className="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold text-white" style={{ background: p.color }} title={t("editor.presence", { name: p.name })}>
             {p.name.slice(0, 1).toUpperCase()}
           </span>
         ))}
-        {!connected ? <span className="text-amber-600">Hors ligne, reconnexion…</span> : !synced ? <span>Chargement…</span> : null}
+        {!connected ? <span className="text-amber-600">{t("editor.offline")}</span> : !synced ? <span>{t("common.loading")}</span> : null}
       </div>
       {editor && canEdit && <FormatMenu editor={editor} />}
       {editor && canEdit && <TableMenu editor={editor} />}
@@ -177,16 +178,16 @@ function FormatMenu({ editor }: { editor: Editor }) {
       shouldShow={({ editor: e, from, to }) => from !== to && !(e.state.selection instanceof NodeSelection) && !e.isActive("image") && !e.isActive("fileAttachment") && !e.isActive("pageLink")}
       className="flex items-center gap-0.5 rounded-lg border border-neutral-200 bg-white p-1 shadow-lg dark:border-neutral-700 dark:bg-neutral-900"
     >
-      <button className={btn(state.bold)} onClick={() => editor.chain().focus().toggleBold().run()} title="Gras (Ctrl+B)">
+      <button className={btn(state.bold)} onClick={() => editor.chain().focus().toggleBold().run()} title={t("editor.bold")}>
         <Bold size={15} />
       </button>
-      <button className={btn(state.italic)} onClick={() => editor.chain().focus().toggleItalic().run()} title="Italique (Ctrl+I)">
+      <button className={btn(state.italic)} onClick={() => editor.chain().focus().toggleItalic().run()} title={t("editor.italic")}>
         <Italic size={15} />
       </button>
-      <button className={btn(state.underline)} onClick={() => editor.chain().focus().toggleUnderline().run()} title="Souligné (Ctrl+U)">
+      <button className={btn(state.underline)} onClick={() => editor.chain().focus().toggleUnderline().run()} title={t("editor.underline")}>
         <Underline size={15} />
       </button>
-      <button className={btn(state.strike)} onClick={() => editor.chain().focus().toggleStrike().run()} title="Barré">
+      <button className={btn(state.strike)} onClick={() => editor.chain().focus().toggleStrike().run()} title={t("editor.strike")}>
         <Strikethrough size={15} />
       </button>
       <button className={btn(state.code)} onClick={() => editor.chain().focus().toggleCode().run()} title="Code">
@@ -194,10 +195,10 @@ function FormatMenu({ editor }: { editor: Editor }) {
       </button>
       <button
         className={btn(state.link)}
-        title="Lien"
+        title={t("editor.link")}
         onClick={() => {
           if (state.link) return editor.chain().focus().unsetLink().run();
-          const url = prompt("Adresse du lien");
+          const url = prompt(t("editor.linkPrompt"));
           if (url) editor.chain().focus().setLink({ href: /^[a-z]+:/i.test(url) ? url : `https://${url}` }).run();
         }}
       >
@@ -213,12 +214,12 @@ function TableMenu({ editor }: { editor: Editor }) {
   const b = "rounded px-2 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-800";
   return (
     <div className="sticky top-0 z-10 mb-2 flex flex-wrap gap-1 rounded-lg border border-neutral-200 bg-white p-1 text-xs shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
-      <button className={b} onClick={() => editor.chain().focus().addRowAfter().run()}>+ Ligne</button>
-      <button className={b} onClick={() => editor.chain().focus().addColumnAfter().run()}>+ Colonne</button>
-      <button className={b} onClick={() => editor.chain().focus().deleteRow().run()}>− Ligne</button>
-      <button className={b} onClick={() => editor.chain().focus().deleteColumn().run()}>− Colonne</button>
-      <button className={b} onClick={() => editor.chain().focus().toggleHeaderRow().run()}>En-tête</button>
-      <button className={`${b} text-red-600`} onClick={() => editor.chain().focus().deleteTable().run()}>Supprimer le tableau</button>
+      <button className={b} onClick={() => editor.chain().focus().addRowAfter().run()}>+ {t("editor.row")}</button>
+      <button className={b} onClick={() => editor.chain().focus().addColumnAfter().run()}>+ {t("editor.column")}</button>
+      <button className={b} onClick={() => editor.chain().focus().deleteRow().run()}>− {t("editor.row")}</button>
+      <button className={b} onClick={() => editor.chain().focus().deleteColumn().run()}>− {t("editor.column")}</button>
+      <button className={b} onClick={() => editor.chain().focus().toggleHeaderRow().run()}>{t("editor.header")}</button>
+      <button className={`${b} text-red-600`} onClick={() => editor.chain().focus().deleteTable().run()}>{t("editor.deleteTable")}</button>
     </div>
   );
 }
