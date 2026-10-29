@@ -92,6 +92,13 @@
       "when": 1793300203378,
       "tag": "0012_home_page",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1793303092650,
+      "tag": "0013_templates",
+      "breakpoints": true
     }
   ]
 }

@@ -16,7 +16,7 @@ import {
 import type { Db } from "../db/index.js";
 import { attachments, databaseProperties, databaseViews, notionLinks, notionPropertyLinks, pages, users } from "../db/schema.js";
 import { attachmentPath, uploadsDir } from "../attachments.js";
-import { encodeContent, setProsemirrorJSON, type Collab, type ProseMirrorNode } from "../collab.js";
+import { encodeContent, setProsemirrorJSON, writeContent, type Collab, type ProseMirrorNode } from "../collab.js";
 import { checkFormula, listProperties } from "../databases.js";
 import { nextPosition } from "../pages.js";
 import {
@@ -683,19 +683,3 @@ async function cellValue(schema: NotionPropertySchema, v: NotionPropertyValue, p
   }
 }
 
-/** Replaces a page's content, through the live editing server when someone has it open. */
-async function writeContent(collab: Collab, db: Db, pageId: string, doc: ProseMirrorNode) {
-  if (collab.documents.has(pageId)) {
-    const connection = await collab.openDirectConnection(pageId);
-    await connection.transact((d) => setProsemirrorJSON(d, doc));
-    await connection.disconnect();
-    return;
-  }
-  const y = new Y.Doc();
-  setProsemirrorJSON(y, doc);
-  const { state, json, text } = encodeContent(y);
-  db.update(pages)
-    .set({ contentState: state, contentJson: json, contentText: text })
-    .where(and(eq(pages.id, pageId)))
-    .run();
-}

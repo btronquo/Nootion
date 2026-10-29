@@ -217,6 +217,16 @@ export interface DatabaseData {
   related: Record<string, RelatedRow>;
   /** For each rollup property: the property it computes, or null when unavailable. */
   rollupTargets: Record<string, DatabaseProperty | null>;
+  /** Row templates, offered when adding a row. */
+  templates: RowTemplate[];
+  /** Template new rows start from, unless another (or a blank row) is chosen. */
+  defaultTemplateId: string | null;
+}
+
+export interface RowTemplate {
+  id: string;
+  title: string;
+  icon: string | null;
 }
 
 export interface RelatedRow {
@@ -257,6 +267,8 @@ export const updatePropertyInput = z.object({
 export const rowInput = z.object({
   title: z.string().max(500).optional(),
   values: z.record(z.string(), z.unknown()).default({}),
+  /** New rows: the template to start from. Absent: the database's default template; null: a blank row. */
+  templateId: z.string().min(1).max(64).nullable().optional(),
 });
 
 export const updateViewInput = z.object({

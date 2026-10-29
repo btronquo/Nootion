@@ -4,6 +4,7 @@ import {
   Copy,
   Download,
   Eye,
+  LayoutTemplate,
   EyeOff,
   ListFilter,
   MoreHorizontal,
@@ -41,6 +42,7 @@ import {
   type ViewType,
 } from "@nootion/shared";
 import { Popover } from "./Popover";
+import { TemplatesMenu } from "./TemplatesMenu";
 import { PropertyIcon } from "./icons";
 import { parseNumberInput } from "./format";
 import { orderedColumns } from "./DatabaseTable";
@@ -84,7 +86,7 @@ export function ViewBar({
   actions?: Actions;
   editable: boolean;
 }) {
-  const [menu, setMenu] = useState<{ kind: "view" | "add" | "filter" | "sort" | "group" | "date" | "props" | "more"; anchor: HTMLElement } | null>(null);
+  const [menu, setMenu] = useState<{ kind: "view" | "add" | "filter" | "sort" | "group" | "date" | "props" | "more" | "templates"; anchor: HTMLElement } | null>(null);
   const close = () => setMenu(null);
   const config = view.config;
   const save = (patch: Partial<ViewConfig>) => actions?.updateView.mutate({ viewId: view.id, config: { ...config, ...patch } });
@@ -145,6 +147,9 @@ export function ViewBar({
               <button className={tool(false)} onClick={(e) => setMenu({ kind: "props", anchor: e.currentTarget })}>
                 <Eye size={14} /> {t("row.properties")}
               </button>
+              <button className={tool(data.templates.length > 0)} onClick={(e) => setMenu({ kind: "templates", anchor: e.currentTarget })}>
+                <LayoutTemplate size={14} /> {t("template.button")}
+              </button>
             </>
           )}
           <button aria-label={t("view.exportImport")} className={tool(false)} onClick={(e) => setMenu({ kind: "more", anchor: e.currentTarget })}>
@@ -152,6 +157,7 @@ export function ViewBar({
           </button>
         </div>
       )}
+      {menu?.kind === "templates" && <TemplatesMenu data={data} anchor={menu.anchor} onClose={close} />}
       {menu?.kind === "more" && actions && (
         <Popover anchor={menu.anchor} onClose={close} width={260}>
           <a className={menuItem} href={`/api/databases/${data.id}/export?viewId=${view.id}`} download onClick={close}>

@@ -22,6 +22,7 @@ import { databaseProperties, databaseViews, pages } from "../db/schema.js";
 import { HttpError, notFound, parseBody, requireUser } from "../http.js";
 import { CAN_CREATE_ROOT_PAGES, getPageRole, requirePageRole, requireWorkspaceRole } from "../permissions.js";
 import { nextPosition } from "../pages.js";
+import { copyTree } from "../templates.js";
 import {
   collectPeople,
   convertColumn,
@@ -31,6 +32,7 @@ import {
   enrichRows,
   listProperties,
   listRowPages,
+  listRowTemplates,
   loadDatabase,
   syncTwin,
   toRow,
@@ -310,8 +312,30 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     const properties = listProperties(db, database.id);
     checkRelationAccess(user.id, properties, input.values);
     const { values, title } = validateValues(db, properties, null, input.values);
-    const id = randomUUID();
+    const position = nextPosition(db, database.workspaceId, database.id);
+    // Without a choice, new rows start from the database's default template.
+    const templateId = input.templateId === undefined ? database.defaultTemplateId : input.templateId;
+    const template = templateId ? listRowTemplates(db, database.id).find((tpl) => tpl.id === templateId) : undefined;
+    if (input.templateId && !template) throw notFound();
+    let id: string = randomUUID();
+    if (template) {
+      id = await copyTree(db, app.collab, app.config.dataDir, template.id, { workspaceId: database.workspaceId, parentId: database.id, position, userId: user.id });
+    }
     db.transaction((tx) => {
+      if (template) {
+        const copy = tx.select({ props: pages.props, title: pages.title }).from(pages).where(eq(pages.id, id)).get()!;
+        const props = { ...(copy.props ?? {}) } as Record<string, CellValue>;
+        for (const [k, v] of Object.entries(values)) {
+          if (v === null) delete props[k];
+          else props[k] = v;
+        }
+        tx.update(pages)
+          .set({ props, title: title ?? input.title ?? copy.title })
+          .where(eq(pages.id, id))
+          .run();
+        for (const p of properties) if (p.type === "relation" && props[p.id]) syncTwin(tx, p, id, [], props[p.id] as string[]);
+        return;
+      }
       tx.insert(pages)
         .values({
           id,
@@ -320,13 +344,35 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
           parentId: database.id,
           title: title ?? input.title ?? "",
           props: values,
-          position: nextPosition(db, database.workspaceId, database.id),
+          position,
           createdBy: user.id,
         })
         .run();
       for (const p of properties) if (p.type === "relation" && values[p.id]) syncTwin(tx, p, id, [], values[p.id] as string[]);
     });
     return rowResponse(user.id, database.id, id);
+  });
+
+  // --- Row templates ---
+
+  // A new, empty template; it is then edited like a row.
+  app.post<{ Params: { id: string } }>("/:id/templates", async (req) => {
+    const user = requireUser(req);
+    const { page: database } = requireDatabase(db, user.id, req.params.id, "editor");
+    const id = randomUUID();
+    db.insert(pages)
+      .values({ id, kind: "row", template: true, workspaceId: database.workspaceId, parentId: database.id, title: "", props: {}, createdBy: user.id })
+      .run();
+    return { template: { id, title: "", icon: null } };
+  });
+
+  app.put<{ Params: { id: string } }>("/:id/default-template", async (req) => {
+    const user = requireUser(req);
+    const { templateId } = parseBody(z.object({ templateId: z.string().min(1).nullable() }), req.body);
+    requireDatabase(db, user.id, req.params.id, "editor");
+    if (templateId && !listRowTemplates(db, req.params.id).some((tpl) => tpl.id === templateId)) throw notFound();
+    db.update(pages).set({ defaultTemplateId: templateId }).where(eq(pages.id, req.params.id)).run();
+    return { ok: true };
   });
 
   app.get<{ Params: { id: string; rowId: string } }>("/:id/rows/:rowId", async (req) => {
