@@ -110,7 +110,7 @@ Three gaps that Notion and the self-hosted alternatives leave open.
 
 What makes everyday use comfortable, in this order (quick wins first, then what builds on them).
 
-1. **Favorites.** A star on each page and database; a "Favorites" section at the top of the sidebar, per user,
+1. **Favorites** (done). A star on each page and database; a "Favorites" section at the top of the sidebar, per user,
    reorderable by drag and drop. Also in the mobile drawer.
 2. **Cover images.** A cover at the top of a page (uploaded image or link, a few built-in gradients),
    repositioned by dragging, shown on public pages. The Notion import brings covers in.
