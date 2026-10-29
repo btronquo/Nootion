@@ -127,11 +127,17 @@ What makes everyday use comfortable, in this order (quick wins first, then what 
 6. **Templates.** Page templates and database row templates (content and default values), chosen when creating.
 7. **Page history.** Snapshots of each page kept over time, compared and restored (built on Yjs).
 8. **Backlinks.** "Linked from" at the bottom of a page: the pages that link or mention it.
-9. **API with personal tokens.** A documented REST API (read and write pages, query and fill databases, search),
+9. **Search inside attached files.** Text of PDFs and of images (OCR, e.g. scanned bills), indexed when the file
+   arrives, in a background job; results point to the page holding the file.
+10. **Dates in plain words and reminders.** Typing `@tomorrow`, `@friday`, `@15/11 9:00` in the editor inserts a date;
+    a date can carry a reminder, shown in the app (and as a notification of the installed app) when it is due.
+11. **API with personal tokens.** A documented REST API (read and write pages, query and fill databases, search),
    with tokens created in "My account", each limited to some spaces and read-only or read-write.
    It is what the V2 MCP server builds on.
 
-Possible later in 1.x: comments and @mentions with notifications, search in database values, page titles updated
+Possible later in 1.x: comments and @mentions with notifications, search in database values with filters
+(`status:paid`) and saved searches, a command palette (Ctrl+K also runs actions), one view of all the to-dos of all
+pages, a Markdown mirror (every page kept as a `.md` file in a folder of the NAS, readable by other tools), page titles updated
 live for other users, chart view, OIDC sign-in (Authentik, Nextcloud…), scheduled Markdown export to a NAS folder,
 more interface languages.
 
@@ -140,6 +146,8 @@ more interface languages.
 - **MCP server**, so that Claude (or another assistant) can work with Nootion: search, read and write pages, query
   databases and add or change rows, within the rights of the token's owner. Served by Nootion itself over HTTP
   (remote MCP), connected to Claude as a custom connector with a token from "My account".
+  Each agent token is limited to some spaces and to reading or writing; what an agent changed is logged, and text
+  written by an AI is marked as such.
 - **Nextcloud** plugin (pick a Nextcloud file and insert it in a page or a "file" property) and **Google Calendar** plugin
   (syncing a database's date property with a calendar).
 - Per-user plugin credentials (OAuth, Nextcloud account), stored encrypted, and plugin property types.
