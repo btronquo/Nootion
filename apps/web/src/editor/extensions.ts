@@ -30,7 +30,8 @@ export function baseExtensions(opts: {
     Image,
     Callout,
     Toggle,
-    DetailsSummary,
+    // Its placeholder is shown by CSS (the Placeholder extension only handles top-level blocks).
+    DetailsSummary.configure({ HTMLAttributes: { "data-placeholder": t("toggle.placeholder") } }),
     DetailsContent,
     Columns,
     Column,
@@ -40,9 +41,9 @@ export function baseExtensions(opts: {
     ...pluginNodes(opts.plugins),
     Placeholder.configure({
       placeholder: ({ node }) =>
-        node.type.name === "detailsSummary" ? t("toggle.placeholder") : node.type.name === "heading" ? t("editor.headingPlaceholder") : t("editor.placeholder"),
+        node.type.name === "heading" ? t("editor.headingPlaceholder") : t("editor.placeholder"),
+      // Only top-level blocks: with includeChildren, placeholders stay on lines the cursor has left.
       showOnlyCurrent: true,
-      includeChildren: true,
     }),
   ];
 }
