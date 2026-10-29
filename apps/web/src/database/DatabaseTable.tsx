@@ -75,7 +75,13 @@ export function DatabaseViews(props: ViewProps) {
   return (
     <div>
       {view && <ViewBar data={data} view={view} onSelect={select} actions={actions} editable={editable} />}
-      {view?.type === "board" ? <BoardView {...props} view={view} ctx={ctx} rows={rows} editable={editable} /> : <TableView {...props} view={view} ctx={ctx} rows={rows} />}
+      {view?.type === "board" ? (
+        <div className="pt-2">
+          <BoardView {...props} view={view} ctx={ctx} rows={rows} editable={editable} />
+        </div>
+      ) : (
+        <TableView {...props} view={view} ctx={ctx} rows={rows} />
+      )}
     </div>
   );
 }
@@ -294,7 +300,7 @@ export function TableView({
       <div className={`thin-scroll overflow-x-auto ${compact ? "" : "pb-2"}`}>
         <div role="grid" aria-label={data.title || t("common.database")} className="inline-block min-w-full align-top">
           {/* Header */}
-          <div role="row" className="flex border-y border-neutral-200 text-neutral-500 dark:border-neutral-800">
+          <div role="row" className="flex border-b border-neutral-200 text-neutral-500 dark:border-neutral-800">
             <div className={`${gutter} flex items-center justify-center`}>
               {editable && (
                 <input

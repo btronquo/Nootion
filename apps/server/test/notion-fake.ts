@@ -38,6 +38,7 @@ const titleProp = (text: string) => ({ id: "title", type: "title", title: [rt(te
 export function fakeNotion() {
   let notesEdited = "2024-01-02T10:00:00.000Z";
   let notesText = "First notes.";
+  let breakContent = false;
   const page = (id: string, parent: unknown, title: string, edited: string, icon: unknown = null) => ({
     object: "page",
     id,
@@ -271,6 +272,7 @@ export function fakeNotion() {
     let m = /^\/v1\/databases\/([^/]+)\/query$/.exec(p);
     if (m) return send(200, list(m[1] === IDS.tasks ? [...tasksRows(), wiki()] : m[1] === IDS.wiki ? [] : projectRows(), cursor));
     m = /^\/v1\/blocks\/([^/]+)\/children$/.exec(p);
+    if (m && breakContent) return send(400, { code: "validation_error", message: "Broken on purpose." });
     if (m) return send(200, list(blocksOf(m[1]!).map(strip), cursor));
     m = /^\/v1\/pages\/([^/]+)\/properties\/([^/]+)$/.exec(p);
     if (m) return send(200, list([{ object: "property_item", type: "relation", relation: { id: IDS.house } }], cursor));
@@ -284,6 +286,10 @@ export function fakeNotion() {
       return base;
     },
     stop: () => new Promise<void>((r) => server.close(() => r())),
+    /** Page contents fail to load, which stops an import halfway. */
+    breakContent(broken: boolean) {
+      breakContent = broken;
+    },
     editNotes(text: string) {
       notesText = text;
       notesEdited = "2024-02-01T10:00:00.000Z";

@@ -274,6 +274,8 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
           .values({ id: randomUUID(), databaseId: pageId, name: t("view.defaultTable"), type: "table", position: 0 })
           .run();
       }
+      // Linked at once, as not finished: an import that stops halfway picks these pages up again instead of duplicating them.
+      db.insert(notionLinks).values({ workspaceId: o.workspaceId, notionId: id, pageId, notionEditedAt: null }).onConflictDoUpdate({ target: [notionLinks.workspaceId, notionLinks.notionId], set: { pageId, notionEditedAt: null } }).run();
       target.set(id, { id: pageId, title, isNew: true, changed: true });
       report[item.kind === "database" ? "databases" : item.kind === "row" ? "rows" : "pages"]++;
     }
@@ -520,7 +522,7 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
     job.done++;
   }
 
-  // --- 6. Remembered for the next import ---------------------------------------------------------
+  // --- 6. Remembered for the next import, as finished ----------------------------------------------
   for (const [id, item] of items) {
     db.insert(notionLinks)
       .values({ workspaceId: o.workspaceId, notionId: id, pageId: target.get(id)!.id, notionEditedAt: editedAt(item) })

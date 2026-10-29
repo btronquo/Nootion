@@ -101,7 +101,7 @@ export function RowCards({
 
   const movable = !!groupProp && canMoveBetweenGroups(groupProp.type);
   return (
-    <div className="text-sm">
+    <div className="pt-2 text-sm">
       {groups ? (
         groups.map((g) => (
           <section key={g.key} aria-label={t("table.group", { name: g.label })} className="mb-3">
