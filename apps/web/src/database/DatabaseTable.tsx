@@ -36,6 +36,7 @@ import { ViewBar } from "./ViewBar";
 import { BoardView } from "./BoardView";
 import { RowCards } from "./RowCards";
 import { CalendarView, GalleryView, ListView } from "./MoreViews";
+import { TimelineView } from "./TimelineView";
 import { useIsMobile } from "../lib/mobile";
 import { OptionChip } from "./OptionPicker";
 import { useSession } from "../lib/session";
@@ -87,6 +88,10 @@ export function DatabaseViews(props: ViewProps) {
       ) : view?.type === "gallery" ? (
         <div className="pt-3">
           <GalleryView {...props} view={view} ctx={ctx} rows={rows} editable={editable} />
+        </div>
+      ) : view?.type === "timeline" ? (
+        <div className="pt-2">
+          <TimelineView {...props} view={view} ctx={ctx} rows={rows} editable={editable} />
         </div>
       ) : view?.type === "calendar" ? (
         <div className="pt-2">
