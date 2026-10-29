@@ -59,6 +59,8 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
         attrs.title = t("page.private");
       }
     }
+    // Who set a reminder, and when, is nobody else's business.
+    if (attrs && node.type === "dateMention") Object.assign(attrs, { reminder: null, remindAt: null, remindUser: null });
     if (attrs) {
       for (const key of ["src", "url"]) {
         const value = attrs[key];

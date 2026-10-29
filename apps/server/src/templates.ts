@@ -17,9 +17,17 @@ export interface CopyTarget {
   template?: boolean;
 }
 
-/** Calendar blocks get a new id, so iCal links of the original don't follow the copy. */
+/**
+ * Calendar blocks get a new id, so iCal links of the original don't follow the copy. Dates lose their reminder:
+ * it was set for the original.
+ */
 function renewBlockIds(node: ProseMirrorNode): ProseMirrorNode {
-  const attrs = node.type === "calendarBlock" && node.attrs ? { ...node.attrs, id: randomUUID() } : node.attrs;
+  const attrs =
+    node.type === "calendarBlock" && node.attrs
+      ? { ...node.attrs, id: randomUUID() }
+      : node.type === "dateMention" && node.attrs
+        ? { ...node.attrs, id: randomUUID(), reminder: null, remindAt: null, remindUser: null }
+        : node.attrs;
   return { ...node, ...(attrs ? { attrs } : {}), ...(node.content ? { content: node.content.map(renewBlockIds) } : {}) };
 }
 

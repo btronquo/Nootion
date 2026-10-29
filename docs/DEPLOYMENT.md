@@ -121,6 +121,15 @@ Pages and databases already opened on a device stay available without network, i
   (for example a row deleted meanwhile).
 - Signing out removes everything kept on the device for that account.
 
+### Notifications
+
+Reminders set on dates in pages ("@remind tomorrow 9am") show as notifications. While Nootion is open, the app shows
+them itself. To receive them with the app closed, open **Reminders** in the sidebar on each device and choose *Get
+notifications on this device*. This uses Web Push, which also needs **HTTPS**; on iPhone and iPad, Nootion must first
+be added to the home screen (iOS 16.4 or later). The server makes its push keys on first use and keeps them in
+`/data/vapid.json` (part of the backup): if that file is lost, each device has to turn notifications on again.
+The server must be able to reach the browsers' push services (Google, Mozilla, Apple) over HTTPS.
+
 ## Importing from Notion
 
 *My account › Import › Import from Notion* copies a Notion workspace into a Nootion space

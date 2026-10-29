@@ -34,3 +34,14 @@ describe("ProseMirror JSON to Yjs", () => {
     expect(yDocToProsemirrorJSON(doc).content).toHaveLength(1);
   });
 });
+
+describe("Notion dates", () => {
+  it("become dates of the text", async () => {
+    const { richText } = await import("../src/notion/blocks.js");
+    const ann = { bold: false, italic: false, strikethrough: false, underline: false, code: false, color: "default" };
+    const mention = (start: string, end: string | null = null) => ({ type: "mention" as const, plain_text: start, href: null, annotations: ann, mention: { type: "date", date: { start, end } } });
+    const out = richText([mention("2026-11-15"), mention("2026-11-15T09:30:00.000+01:00"), mention("2026-11-15", "2026-11-17")], { pageFor: () => null, note: () => {} });
+    expect(out.map((n) => n.attrs?.date ?? n.text)).toEqual(["2026-11-15", "2026-11-15T09:30", "2026-11-15"]);
+    expect(out.map((n) => n.type)).toEqual(["dateMention", "dateMention", "text"]);
+  });
+});
