@@ -416,4 +416,36 @@ describe("colonnes formule", () => {
     expect(data.rows[0].values[total.id]).toEqual({ kind: "number", value: 36 });
     expect(data.rows[0].values[count.id]).toEqual({ kind: "text", value: "2 factures, 36 €" });
   });
+
+  it("vues : créer, dupliquer, configurer, supprimer", async () => {
+    const d = await createDb(boris);
+    const first = d.views[0];
+    const tag = d.properties[1];
+    const config = { filters: [{ propertyId: tag.id, operator: "is_not_empty" }], sorts: [{ propertyId: d.properties[0].id, direction: "desc" }], groupBy: tag.id };
+    expect((await boris.patch(`/api/databases/${d.id}/views/${first.id}`, { config })).statusCode).toBe(200);
+    // Bad settings are refused.
+    const bad = await boris.patch(`/api/databases/${d.id}/views/${first.id}`, { config: { filters: [{ propertyId: tag.id, operator: "nope" }] } });
+    expect(bad.statusCode).toBe(400);
+
+    const board = await boris.post(`/api/databases/${d.id}/views`, { name: "Kanban", type: "board" });
+    expect(board.statusCode, board.body).toBe(200);
+    const copy = (await boris.post(`/api/databases/${d.id}/views`, { name: "Copie", duplicateOf: first.id })).json().view;
+    expect(copy.config).toEqual(config);
+    expect((await boris.post(`/api/databases/${d.id}/views`, { name: "x", type: "calendar" })).statusCode).toBe(400);
+    // Alice can't touch the views of a database she can't see.
+    expect((await alice.post(`/api/databases/${d.id}/views`, { name: "x" })).statusCode).toBe(404);
+
+    let data = await getDb(boris, d.id);
+    expect(data.views.map((v) => [v.name, v.type])).toEqual([
+      ["Tableau", "table"],
+      ["Kanban", "board"],
+      ["Copie", "table"],
+    ]);
+    expect((await boris.delete(`/api/databases/${d.id}/views/${first.id}`)).statusCode).toBe(200);
+    expect((await boris.delete(`/api/databases/${d.id}/views/${copy.id}`)).statusCode).toBe(200);
+    // The last view stays.
+    expect((await boris.delete(`/api/databases/${d.id}/views/${board.json().view.id}`)).statusCode).toBe(400);
+    data = await getDb(boris, d.id);
+    expect(data.views.map((v) => v.name)).toEqual(["Kanban"]);
+  });
 });

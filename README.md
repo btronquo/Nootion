@@ -3,7 +3,7 @@
 Application de prise de notes open source façon Notion, auto-hébergeable, dont le point fort est les **databases**
 (relations, rollups, formules, filtres, agrégations).
 
-> Statut : en développement (V1, étape 6 sur 10 : formules). Voir [PLAN.md](PLAN.md).
+> Statut : en développement (V1, étape 7 sur 10 : filtres, tris, groupes et vues). Voir [PLAN.md](PLAN.md).
 
 ## Ce qui marche aujourd'hui
 
@@ -26,6 +26,8 @@ Application de prise de notes open source façon Notion, auto-hébergeable, dont
   (ex. total des factures d'un fournisseur).
 - Formules façon Notion : `prop("Montant") * 1.2`, `if(prop("Payé"), "OK", "À payer")`, `dateBetween(now(), prop("Échéance"), "days")`…
   Éditeur avec vérification en direct et aide sur les fonctions ; les formules marchent avec les relations, les rollups et les calculs.
+- Plusieurs vues par database (tableau ou Kanban), chacune avec ses filtres (et / ou, dates relatives comme
+  « la semaine à venir »), ses tris, ses groupes et ses colonnes affichées. Glisser-déposer entre colonnes du Kanban.
 - Page « Mon compte » : nom, email, mot de passe, photo de profil, thème clair / sombre / système.
 - Option « Pleine largeur » par page.
 - Image Docker unique, données dans `/data`.

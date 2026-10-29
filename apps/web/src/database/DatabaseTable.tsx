@@ -1,7 +1,14 @@
-import { useMemo, useRef, useState } from "react";
+import { Fragment, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { Maximize2, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Maximize2, Plus, Trash2 } from "lucide-react";
 import {
+  applyView,
+  canGroupBy,
+  canMoveBetweenGroups,
+  groupRows,
+  initialValues,
+  type DatabaseViewInfo,
+  type ViewContext,
   CALC_LABELS,
   calcFunctionsFor,
   computeCalc,
@@ -22,7 +29,11 @@ import { PropertyIcon } from "./icons";
 import { Popover } from "./Popover";
 import { newOption } from "./OptionPicker";
 import { formatCalc, numberFormatOf, TYPE_LABELS } from "./format";
-import { useDatabase, useDatabaseActions, useDatabaseList } from "./hooks";
+import { useActiveView, useDatabase, useDatabaseActions, useDatabaseList } from "./hooks";
+import { ViewBar } from "./ViewBar";
+import { BoardView } from "./BoardView";
+import { OptionChip } from "./OptionPicker";
+import { useSession } from "../lib/session";
 import { pageTitle } from "../lib/tree";
 import { CREATABLE_TYPES } from "@nootion/shared";
 
@@ -35,10 +46,35 @@ export function DatabaseTable({ id, compact }: { id: string; compact?: boolean }
   const actions = useDatabaseActions(id);
   if (db.isLoading) return <div className="py-4 text-sm text-neutral-400">Chargement…</div>;
   if (db.isError || !db.data) return <div className="py-4 text-sm text-neutral-500">Base de données introuvable ou non partagée.</div>;
-  return <TableView data={db.data} actions={actions} compact={compact} rowHref={(r) => `/page/${r.id}`} />;
+  return <DatabaseViews data={db.data} actions={actions} compact={compact} rowHref={(r) => `/page/${r.id}`} />;
 }
 
 type Actions = ReturnType<typeof useDatabaseActions>;
+
+interface ViewProps {
+  data: DatabaseData;
+  /** Absent: read-only (public page). */
+  actions?: Actions;
+  compact?: boolean;
+  rowHref: (row: DatabaseRow) => string;
+  fileUrl?: (id: string) => string;
+}
+
+/** A database with its view tabs: the chosen view filters, sorts and groups the rows, as a table or a board. */
+export function DatabaseViews(props: ViewProps) {
+  const { data, actions } = props;
+  const [view, select] = useActiveView(data.id, data.views);
+  const editable = !!actions && (data.role === "editor" || data.role === "full");
+  const me = useSession().user?.id ?? null;
+  const ctx: ViewContext = useMemo(() => ({ ...data, me }), [data, me]);
+  const rows = useMemo(() => applyView(ctx, view?.config ?? {}), [ctx, view?.config]);
+  return (
+    <div>
+      {view && <ViewBar data={data} view={view} onSelect={select} actions={actions} editable={editable} />}
+      {view?.type === "board" ? <BoardView {...props} view={view} ctx={ctx} rows={rows} editable={editable} /> : <TableView {...props} view={view} ctx={ctx} rows={rows} />}
+    </div>
+  );
+}
 
 /** Orders the properties by the view settings; properties missing from the view come last. */
 export function orderedColumns(properties: DatabaseProperty[], columns: ViewColumn[] = []) {
@@ -62,16 +98,21 @@ export function TableView({
   compact,
   rowHref,
   fileUrl,
-}: {
-  data: DatabaseData;
-  /** Absent: read-only (public page). */
-  actions?: Actions;
-  compact?: boolean;
-  rowHref: (row: DatabaseRow) => string;
-  fileUrl?: (id: string) => string;
-}) {
+  view,
+  ctx,
+  rows,
+}: ViewProps & { view: DatabaseViewInfo | undefined; ctx: ViewContext; rows: DatabaseRow[] }) {
   const editable = !!actions && (data.role === "editor" || data.role === "full");
-  const view = data.views[0];
+  const groupProp = data.properties.find((p) => p.id === view?.config.groupBy && canGroupBy(p.type));
+  // Empty groups are left out of tables (boards show them, to drop cards in).
+  const groups = useMemo(() => (groupProp ? groupRows(groupProp, rows, ctx).filter((g) => g.rows.length) : null), [groupProp, rows, ctx]);
+  const collapsed = new Set(view?.config.collapsedGroups ?? []);
+  const toggleGroup = (key: string) => {
+    if (!view || !actions) return;
+    const next = collapsed.has(key) ? [...collapsed].filter((k) => k !== key) : [...collapsed, key];
+    actions.updateView.mutate({ viewId: view.id, config: { ...view.config, collapsedGroups: next } });
+  };
+  const addRow = (group?: { prop: DatabaseProperty; key: string }) => actions!.addRow.mutate(initialValues(ctx, view?.config ?? {}, group));
   const columns = useMemo(() => orderedColumns(data.properties, view?.config.columns), [data.properties, view?.config.columns]);
   const visible = columns.filter((c) => !c.col.hidden);
   const hidden = columns.filter((c) => c.col.hidden);
@@ -127,83 +168,10 @@ export function TableView({
   };
 
   const menuProp = menu && data.properties.find((p) => p.id === menu.propId);
-  const allSelected = data.rows.length > 0 && data.rows.every((r) => selected.has(r.id));
+  const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id));
   const gutter = editable ? "w-8 shrink-0" : "w-0 shrink-0";
 
-  return (
-    <div className="text-sm">
-      {editable && selected.size > 0 && (
-        <div className="mb-1 flex items-center gap-2 text-neutral-600 dark:text-neutral-300">
-          <span>{selected.size} sélectionnée{selected.size > 1 ? "s" : ""}</span>
-          <button
-            onClick={() => {
-              if (!confirm(`Mettre ${selected.size} ligne${selected.size > 1 ? "s" : ""} à la corbeille ?`)) return;
-              actions!.deleteRows.mutate([...selected]);
-              setSelected(new Set());
-            }}
-            className="flex items-center gap-1 rounded px-2 py-0.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
-          >
-            <Trash2 size={14} /> Supprimer
-          </button>
-        </div>
-      )}
-      <div className={`thin-scroll overflow-x-auto ${compact ? "" : "pb-2"}`}>
-        <div role="grid" aria-label={data.title || "Base de données"} className="inline-block min-w-full align-top">
-          {/* Header */}
-          <div role="row" className="flex border-y border-neutral-200 text-neutral-500 dark:border-neutral-800">
-            <div className={`${gutter} flex items-center justify-center`}>
-              {editable && (
-                <input
-                  type="checkbox"
-                  aria-label="Tout sélectionner"
-                  className="h-3.5 w-3.5 accent-blue-600 opacity-40 hover:opacity-100 checked:opacity-100"
-                  checked={allSelected}
-                  onChange={() => setSelected(allSelected ? new Set() : new Set(data.rows.map((r) => r.id)))}
-                />
-              )}
-            </div>
-            {visible.map((c) => (
-              <div
-                key={c.prop.id}
-                role="columnheader"
-                style={{ width: widthOf(c) }}
-                draggable={editable && c.prop.type !== "title"}
-                onDragStart={() => (drag.current = c.prop.id)}
-                onDragOver={(e) => editable && drag.current && c.prop.type !== "title" && e.preventDefault()}
-                onDrop={() => drag.current && move(drag.current, c.prop.id)}
-                onDragEnd={() => (drag.current = null)}
-                className="relative shrink-0 border-r border-neutral-200 dark:border-neutral-800"
-              >
-                <button
-                  disabled={!editable}
-                  onClick={(e) => setMenu({ propId: c.prop.id, anchor: e.currentTarget })}
-                  className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left enabled:hover:bg-neutral-100 dark:enabled:hover:bg-neutral-800"
-                >
-                  <PropertyIcon type={c.prop.type} size={14} />
-                  <span className="truncate">{c.prop.name}</span>
-                </button>
-                {editable && (
-                  <div
-                    onPointerDown={(e) => startResize(e, c.prop.id, widthOf(c))}
-                    className="absolute -right-1 top-0 z-10 h-full w-2 cursor-col-resize hover:bg-blue-400/40"
-                  />
-                )}
-              </div>
-            ))}
-            {editable && (
-              <button aria-label="Ajouter une propriété" onClick={(e) => setAdding(e.currentTarget)} className="flex w-10 shrink-0 items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800">
-                <Plus size={16} />
-              </button>
-            )}
-            {hidden.length > 0 && (
-              <button onClick={(e) => setShowHidden(e.currentTarget)} className="shrink-0 px-2 text-xs hover:text-neutral-800 dark:hover:text-neutral-200">
-                {hidden.length} masquée{hidden.length > 1 ? "s" : ""}
-              </button>
-            )}
-          </div>
-
-          {/* Rows */}
-          {data.rows.map((row) => (
+  const renderRow = (row: DatabaseRow) => (
             <div key={row.id} role="row" className="group flex border-b border-neutral-200 dark:border-neutral-800">
               <div className={`${gutter} flex items-center justify-center`}>
                 {editable && (
@@ -251,16 +219,15 @@ export function TableView({
                 </div>
               ))}
             </div>
-          ))}
-          {data.rows.length === 0 && !editable && <div className="px-3 py-2 text-neutral-400">Aucune ligne</div>}
+  );
 
-          {/* Calculations */}
-          {(editable || Object.keys(view?.config.calculations ?? {}).length > 0) && (
+  const renderCalcs = (calcRows: DatabaseRow[]) =>
+    (editable || Object.keys(view?.config.calculations ?? {}).length > 0) && (
             <div role="row" aria-label="Calculs" className="group/calc flex">
               <div className={gutter} />
               {visible.map((c) => {
                 const fn = view?.config.calculations?.[c.prop.id];
-                const result = fn ? calcColumn(data, c.prop, fn) : null;
+                const result = fn ? calcColumn(data, c.prop, fn, calcRows) : null;
                 return (
                   <button
                     key={c.prop.id}
@@ -282,19 +249,132 @@ export function TableView({
                 );
               })}
             </div>
+          );
+
+  return (
+    <div className="text-sm">
+      {editable && selected.size > 0 && (
+        <div className="mb-1 flex items-center gap-2 text-neutral-600 dark:text-neutral-300">
+          <span>{selected.size} sélectionnée{selected.size > 1 ? "s" : ""}</span>
+          <button
+            onClick={() => {
+              if (!confirm(`Mettre ${selected.size} ligne${selected.size > 1 ? "s" : ""} à la corbeille ?`)) return;
+              actions!.deleteRows.mutate([...selected]);
+              setSelected(new Set());
+            }}
+            className="flex items-center gap-1 rounded px-2 py-0.5 text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+          >
+            <Trash2 size={14} /> Supprimer
+          </button>
+        </div>
+      )}
+      <div className={`thin-scroll overflow-x-auto ${compact ? "" : "pb-2"}`}>
+        <div role="grid" aria-label={data.title || "Base de données"} className="inline-block min-w-full align-top">
+          {/* Header */}
+          <div role="row" className="flex border-y border-neutral-200 text-neutral-500 dark:border-neutral-800">
+            <div className={`${gutter} flex items-center justify-center`}>
+              {editable && (
+                <input
+                  type="checkbox"
+                  aria-label="Tout sélectionner"
+                  className="h-3.5 w-3.5 accent-blue-600 opacity-40 hover:opacity-100 checked:opacity-100"
+                  checked={allSelected}
+                  onChange={() => setSelected(allSelected ? new Set() : new Set(rows.map((r) => r.id)))}
+                />
+              )}
+            </div>
+            {visible.map((c) => (
+              <div
+                key={c.prop.id}
+                role="columnheader"
+                style={{ width: widthOf(c) }}
+                draggable={editable && c.prop.type !== "title"}
+                onDragStart={() => (drag.current = c.prop.id)}
+                onDragOver={(e) => editable && drag.current && c.prop.type !== "title" && e.preventDefault()}
+                onDrop={() => drag.current && move(drag.current, c.prop.id)}
+                onDragEnd={() => (drag.current = null)}
+                className="relative shrink-0 border-r border-neutral-200 dark:border-neutral-800"
+              >
+                <button
+                  disabled={!editable}
+                  onClick={(e) => setMenu({ propId: c.prop.id, anchor: e.currentTarget })}
+                  className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left enabled:hover:bg-neutral-100 dark:enabled:hover:bg-neutral-800"
+                >
+                  <PropertyIcon type={c.prop.type} size={14} />
+                  <span className="truncate">{c.prop.name}</span>
+                </button>
+                {editable && (
+                  <div
+                    onPointerDown={(e) => startResize(e, c.prop.id, widthOf(c))}
+                    className="absolute -right-1 top-0 z-10 h-full w-2 cursor-col-resize hover:bg-blue-400/40"
+                  />
+                )}
+              </div>
+            ))}
+            {editable && (
+              <button aria-label="Ajouter une propriété" onClick={(e) => setAdding(e.currentTarget)} className="flex w-10 shrink-0 items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800">
+                <Plus size={16} />
+              </button>
+            )}
+            {hidden.length > 0 && (
+              <button onClick={(e) => setShowHidden(e.currentTarget)} className="shrink-0 px-2 text-xs hover:text-neutral-800 dark:hover:text-neutral-200">
+                {hidden.length} masquée{hidden.length > 1 ? "s" : ""}
+              </button>
+            )}
+          </div>
+
+          {groups ? (
+            groups.map((g) => {
+              const open = !collapsed.has(g.key);
+              return (
+                <Fragment key={g.key}>
+                  <div role="row" aria-label={`Groupe ${g.label}`} className="flex items-center gap-1.5 border-b border-neutral-200 py-1.5 pl-1 dark:border-neutral-800">
+                    <button
+                      aria-label={open ? "Replier le groupe" : "Déplier le groupe"}
+                      aria-expanded={open}
+                      onClick={() => toggleGroup(g.key)}
+                      disabled={!actions}
+                      className="sticky left-1 flex items-center gap-1.5 rounded px-1 py-0.5 enabled:hover:bg-neutral-100 dark:enabled:hover:bg-neutral-800"
+                    >
+                      {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                      {g.option ? <OptionChip option={g.option} /> : <span className="font-medium">{g.label}</span>}
+                      <span className="text-xs text-neutral-400">{g.rows.length}</span>
+                    </button>
+                  </div>
+                  {open && g.rows.map(renderRow)}
+                  {open && editable && canMoveBetweenGroups(groupProp!.type) && (
+                    <button
+                      onClick={() => addRow({ prop: groupProp!, key: g.key })}
+                      className="sticky left-0 flex items-center gap-1.5 px-2 py-1 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+                    >
+                      <Plus size={14} /> Nouvelle ligne
+                    </button>
+                  )}
+                  {open && renderCalcs(g.rows)}
+                </Fragment>
+              );
+            })
+          ) : (
+            <>
+              {rows.map(renderRow)}
+              {renderCalcs(rows)}
+            </>
           )}
+          {rows.length === 0 && !editable && <div className="px-3 py-2 text-neutral-400">Aucune ligne</div>}
+
         </div>
       </div>
-      {editable && (
+      {editable && !(groups && canMoveBetweenGroups(groupProp!.type)) && (
         <button
-          onClick={() => actions!.addRow.mutate({})}
+          onClick={() => addRow()}
           className="flex w-full items-center gap-1.5 px-2 py-1.5 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
         >
           <Plus size={14} /> Nouvelle ligne
         </button>
       )}
       <div className="px-2 pt-1 text-xs text-neutral-400">
-        {data.rows.length} ligne{data.rows.length > 1 ? "s" : ""}
+        {rows.length} ligne{rows.length > 1 ? "s" : ""}
+        {rows.length !== data.rows.length && ` sur ${data.rows.length}`}
       </div>
 
       {menu && menuProp && actions && (
@@ -441,8 +521,8 @@ const CALC_SHORT: Record<CalcFunction, string> = {
   percent_unchecked: "Non cochées",
 };
 
-function columnValues(data: DatabaseData, prop: DatabaseProperty): { values: CellValue[]; type: PropertyType } {
-  const values = data.rows.map((r) => (prop.type === "title" ? r.title : (r.values[prop.id] ?? null)));
+function columnValues(data: DatabaseData, prop: DatabaseProperty, rows = data.rows): { values: CellValue[]; type: PropertyType } {
+  const values = rows.map((r) => (prop.type === "title" ? r.title : (r.values[prop.id] ?? null)));
   if (prop.type === "rollup") return rollupCalcInput(values, data.rollupTargets[prop.id] ?? null);
   if (prop.type === "formula") return formulaCalcInput(values);
   return { values, type: prop.type };
@@ -453,8 +533,8 @@ function calcType(data: DatabaseData, prop: DatabaseProperty): PropertyType {
   return columnValues(data, prop).type;
 }
 
-function calcColumn(data: DatabaseData, prop: DatabaseProperty, fn: CalcFunction) {
-  const { values, type } = columnValues(data, prop);
+function calcColumn(data: DatabaseData, prop: DatabaseProperty, fn: CalcFunction, rows: DatabaseRow[]) {
+  const { values, type } = columnValues(data, prop, rows);
   return calcFunctionsFor(type).includes(fn) ? computeCalc(fn, values, type) : null;
 }
 

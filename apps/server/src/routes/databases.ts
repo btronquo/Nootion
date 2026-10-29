@@ -7,6 +7,7 @@ import {
   rowInput,
   updatePropertyInput,
   updateViewInput,
+  createViewInput,
   STRUCTURAL_TYPES,
   renameFormulaReference,
   atLeast,
@@ -400,10 +401,42 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     db.update(databaseViews)
       .set({
         ...(input.name ? { name: input.name } : {}),
+        ...(input.type ? { type: input.type } : {}),
         ...(input.config ? { config: input.config } : {}),
+        ...(input.position !== undefined ? { position: input.position } : {}),
       })
       .where(eq(databaseViews.id, view.id))
       .run();
+    return { ok: true };
+  });
+
+  app.post<{ Params: { id: string } }>("/:id/views", async (req) => {
+    const user = requireUser(req);
+    const input = parseBody(createViewInput, req.body);
+    requireDatabase(db, user.id, req.params.id, "editor");
+    let config: Record<string, unknown> = {};
+    if (input.duplicateOf) {
+      const source = db
+        .select()
+        .from(databaseViews)
+        .where(and(eq(databaseViews.id, input.duplicateOf), eq(databaseViews.databaseId, req.params.id)))
+        .get();
+      if (!source) throw notFound();
+      config = source.config;
+    }
+    const last = db.select({ p: max(databaseViews.position) }).from(databaseViews).where(eq(databaseViews.databaseId, req.params.id)).get();
+    const view = { id: randomUUID(), databaseId: req.params.id, name: input.name, type: input.type, config, position: (last?.p ?? -1) + 1 };
+    db.insert(databaseViews).values(view).run();
+    return { view: { id: view.id, name: view.name, type: view.type, config: view.config, position: view.position } };
+  });
+
+  app.delete<{ Params: { id: string; viewId: string } }>("/:id/views/:viewId", async (req) => {
+    const user = requireUser(req);
+    requireDatabase(db, user.id, req.params.id, "editor");
+    const views = db.select({ id: databaseViews.id }).from(databaseViews).where(eq(databaseViews.databaseId, req.params.id)).all();
+    if (!views.some((v) => v.id === req.params.viewId)) throw notFound();
+    if (views.length === 1) throw new HttpError(400, "last_view", "Une database garde au moins une vue.");
+    db.delete(databaseViews).where(eq(databaseViews.id, req.params.viewId)).run();
     return { ok: true };
   });
 };

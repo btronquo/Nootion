@@ -5,3 +5,4 @@ export * from "./users.js";
 export * from "./databases.js";
 export * from "./calculations.js";
 export * from "./formula.js";
+export * from "./views.js";
