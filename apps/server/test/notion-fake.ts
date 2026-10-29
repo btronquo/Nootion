@@ -198,6 +198,7 @@ export function fakeNotion() {
     block("b4", "bulleted_list_item", { rich_text: [rt("two")] }),
     block("b5", "to_do", { rich_text: [rt("done task")], checked: true }),
     block("b6", "toggle", { rich_text: [rt("More")] }, [block("b6a", "paragraph", { rich_text: [rt("Hidden text")] })]),
+    block("b6b", "heading_2", { rich_text: [rt("Folded")], is_toggleable: true }, [block("b6c", "paragraph", { rich_text: [rt("Under the heading")] })]),
     block("b7", "callout", { rich_text: [rt("Careful")], icon: { type: "emoji", emoji: "⚠️" } }),
     block("b8", "code", { rich_text: [rt("let x = 1;")], language: "javascript" }),
     block("b9", "quote", { rich_text: [rt("Quoted")] }),

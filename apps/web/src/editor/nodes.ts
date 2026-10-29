@@ -1,4 +1,6 @@
-import { mergeAttributes, Node } from "@tiptap/core";
+import { mergeAttributes, Node, type Editor } from "@tiptap/core";
+import { TextSelection } from "@tiptap/pm/state";
+import { Details } from "@tiptap/extension-details";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import { PageLinkView } from "./PageLinkView";
 import { DatabaseBlockView } from "../database/DatabaseBlockView";
@@ -10,6 +12,8 @@ declare module "@tiptap/core" {
     fileAttachment: { insertFile: (attrs: { url: string; name: string; size: number; mimeType: string }) => ReturnType };
     pageLink: { insertPageLink: (attrs: { pageId: string; title: string }) => ReturnType };
     databaseBlock: { insertDatabase: (pageId: string) => ReturnType };
+    toggle: { insertToggle: (level?: 1 | 2 | 3) => ReturnType };
+    columns: { insertColumns: (count: number) => ReturnType };
   }
 }
 
@@ -149,5 +153,151 @@ export const DatabaseBlock = Node.create<{ publicToken: string | null }>({
         ({ commands }) =>
           commands.insertContent([{ type: this.name, attrs: { pageId } }, { type: "paragraph" }]),
     };
+  },
+});
+
+/**
+ * Collapsible block (Notion's toggle), optionally with a heading as its summary. Whether it is open is
+ * kept by each reader, not in the page: opening it doesn't change the page for others.
+ */
+export const Toggle = Details.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      level: {
+        default: null,
+        parseHTML: (el) => Number((el as HTMLElement).dataset.level) || null,
+        renderHTML: (attrs) => (attrs.level ? { "data-level": attrs.level } : {}),
+      },
+    };
+  },
+  addCommands() {
+    return {
+      ...this.parent?.(),
+      insertToggle:
+        (level) =>
+        ({ editor, chain }) => {
+          const ok = chain()
+            .insertContent({ type: this.name, attrs: { level: level ?? null }, content: [{ type: "detailsSummary" }, { type: "detailsContent", content: [{ type: "paragraph" }] }] })
+            .run();
+          // A new toggle opens at once, ready to be filled.
+          if (ok) requestAnimationFrame(() => openToggleAtCursor(editor));
+          return ok;
+        },
+    };
+  },
+  addKeyboardShortcuts() {
+    return {
+      ...this.parent?.(),
+      // Enter in the summary of an open toggle whose content is empty goes to that content, instead of adding a line.
+      Enter: ({ editor }) => {
+        const { $head } = editor.state.selection;
+        if ($head.parent.type.name !== "detailsSummary") return this.parent?.().Enter?.({ editor }) ?? false;
+        const content = editor.state.doc.nodeAt($head.after());
+        const first = content?.firstChild;
+        const dom = editor.view.nodeDOM($head.before(-1)) as HTMLElement | null;
+        if (dom?.classList.contains("is-open") && content?.childCount === 1 && first?.type.name === "paragraph" && !first.content.size) {
+          return editor.commands.setTextSelection($head.after() + 2);
+        }
+        return this.parent?.().Enter?.({ editor }) ?? false;
+      },
+    };
+  },
+}).configure({
+  persist: false,
+  renderToggleButton: ({ element, isOpen }) => {
+    element.setAttribute("aria-label", isOpen ? t("toggle.collapse") : t("toggle.expand"));
+    element.setAttribute("aria-expanded", String(isOpen));
+  },
+});
+
+/** Opens the toggle the cursor is in (or just after), and puts the cursor in its summary. */
+function openToggleAtCursor(editor: Editor) {
+  const { $from } = editor.state.selection;
+  let pos: number | null = null;
+  for (let d = $from.depth; d > 0 && pos === null; d--) if ($from.node(d).type.name === "details") pos = $from.before(d);
+  if (pos === null && $from.nodeBefore?.type.name === "details") pos = $from.pos - $from.nodeBefore.nodeSize;
+  if (pos === null) return;
+  const dom = editor.view.nodeDOM(pos) as HTMLElement | null;
+  const button = dom?.querySelector<HTMLButtonElement>(":scope > button");
+  if (button && !dom!.classList.contains("is-open")) button.click();
+  editor.commands.focus(pos + 2);
+}
+
+/** Blocks side by side. Put one under the other on narrow screens. */
+export const Columns = Node.create({
+  name: "columns",
+  group: "block",
+  content: "column+",
+  isolating: true,
+  defining: true,
+  parseHTML() {
+    return [{ tag: "div[data-columns]" }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ["div", mergeAttributes(HTMLAttributes, { "data-columns": "", class: "columns" }), 0];
+  },
+  addCommands() {
+    return {
+      insertColumns:
+        (count) =>
+        ({ chain, tr }) => {
+          const at = tr.selection.from;
+          return chain()
+            .insertContent([{ type: this.name, content: Array.from({ length: count }, () => ({ type: "column", content: [{ type: "paragraph" }] })) }, { type: "paragraph" }])
+            .command(({ tr }) => {
+              // The cursor goes into the first column.
+              let columns: number | null = null;
+              tr.doc.nodesBetween(Math.max(0, at - 2), Math.min(tr.doc.content.size, at + 2), (node, pos) => {
+                if (columns === null && node.type.name === this.name) columns = pos;
+              });
+              if (columns !== null) tr.setSelection(TextSelection.create(tr.doc, columns + 3));
+              return true;
+            })
+            .run();
+        },
+    };
+  },
+  addKeyboardShortcuts() {
+    return {
+      // Backspace in an empty column removes it; with a single column left, its blocks take the place of the columns.
+      Backspace: ({ editor }) => {
+        const { selection } = editor.state;
+        const { $from, empty } = selection;
+        if (!empty || $from.parentOffset !== 0 || $from.depth < 3) return false;
+        const column = $from.node(-1);
+        if (column.type.name !== "column" || $from.index(-1) !== 0) return false;
+        if (column.childCount > 1 || column.firstChild!.content.size > 0 || column.firstChild!.type.name !== "paragraph") return false;
+        const columns = $from.node(-2);
+        const columnsPos = $from.before(-2);
+        const index = $from.index(-2);
+        const tr = editor.state.tr;
+        if (columns.childCount <= 2) {
+          const rest = columns.child(index === 0 ? 1 : 0);
+          tr.replaceWith(columnsPos, columnsPos + columns.nodeSize, rest.content);
+          tr.setSelection(TextSelection.near(tr.doc.resolve(columnsPos + 1)));
+        } else {
+          const from = $from.before(-1);
+          tr.delete(from, from + column.nodeSize);
+          // The cursor goes to the end of the previous column, or the start of the next one.
+          tr.setSelection(TextSelection.near(tr.doc.resolve(index > 0 ? from - 1 : from + 1), index > 0 ? -1 : 1));
+        }
+        editor.view.dispatch(tr.scrollIntoView());
+        return true;
+      },
+    };
+  },
+});
+
+export const Column = Node.create({
+  name: "column",
+  content: "block+",
+  isolating: true,
+  defining: true,
+  parseHTML() {
+    return [{ tag: "div[data-column]" }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ["div", mergeAttributes(HTMLAttributes, { "data-column": "", class: "column" }), 0];
   },
 });
