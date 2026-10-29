@@ -1,5 +1,4 @@
-# Nootion: build and run from the source code (PC, other NAS, tests).
-# For TrueNAS with the published image, use deploy/truenas.yaml instead (see docs/DEPLOYMENT.md).
+# Nootion: build and run from the source code. See docs/DEPLOYMENT.md.
 services:
   nootion:
     image: nootion:local
@@ -8,9 +7,9 @@ services:
       dockerfile: docker/Dockerfile
     container_name: nootion
     restart: unless-stopped
-    # The image runs as UID 1000 ("node" user) by default.
-    # On TrueNAS, uncomment the next line ("apps" user, UID/GID 568).
-    # user: "568:568"
+    # The image runs as UID 1000 ("node" user) by default. With a host folder owned by
+    # another user, run as that user instead, e.g.:
+    # user: "1001:1001"
     ports:
       - "3000:3000"
     environment:

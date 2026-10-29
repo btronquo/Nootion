@@ -3,7 +3,7 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and version numbers follow
 [Semantic Versioning](https://semver.org/).
 
-## [1.1.0] - unreleased
+## [1.1.0] - 2026-10-29
 
 ### Mobile
 
@@ -40,7 +40,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   imported differently (toggles shown open, columns put one under the other…).
 - Importing again brings in what changed in Notion without creating duplicates. The integration secret is stored encrypted.
 
-## [1.0.0] - unreleased
+### Fixes and documentation
+
+- Database tables show one line above the column headers instead of two.
+- File sizes are shown in the interface's language.
+- The deployment guide is no longer specific to TrueNAS: it describes running with Docker Compose on any host.
+
+## [1.0.0] - 2026-10-29
 
 First public version.
 
@@ -75,4 +81,5 @@ First public version.
 - Markdown (.zip), CSV and JSON export, CSV import, full backup download.
 - Single Docker image (amd64 and arm64), data in `/data`, migrations applied at startup.
 
+[1.1.0]: ../../releases/tag/v1.1.0
 [1.0.0]: ../../releases/tag/v1.0.0

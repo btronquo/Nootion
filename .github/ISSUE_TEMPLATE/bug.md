@@ -14,5 +14,5 @@ labels: bug
 
 **Environment**
 - Nootion version (at the bottom of the Administration page):
-- Setup (TrueNAS, Docker…):
+- Setup (Docker version, system, reverse proxy…):
 - Browser:

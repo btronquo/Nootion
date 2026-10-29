@@ -1,14 +1,34 @@
 # Nootion
 
-An open-source, self-hosted note-taking app in the spirit of Notion, whose strong point is **databases**
-(relations, rollups, formulas, filters, calculations).
+**An open-source, self-hosted alternative to Notion, Capacities and Docmost**: pages, wikis and real databases,
+on your own server, in a single Docker container.
 
-> Status: version 1.0.0. See [CHANGELOG.md](CHANGELOG.md) for details and [PLAN.md](PLAN.md) for what comes next.
+> Version 1.1.0. See [CHANGELOG.md](CHANGELOG.md) for what changed and [PLAN.md](PLAN.md) for what comes next.
 
-The interface is available in English and French; each user picks their language when creating their account
-and can change it in **My account**.
+## Why Nootion
 
-## Features
+Notion and Capacities are closed cloud services: your notes live on their servers, under their terms and prices.
+Docmost is open source and self-hosted, but is built for wikis and documentation. Nootion brings the two together:
+the freedom of an open-source app you host yourself, and the databases that make Notion so useful.
+
+- **Your data stays at home.** One container and one data folder (a SQLite file and your attached files):
+  backing up Nootion is copying a folder. No telemetry, no external service needed.
+- **Real databases.** Typed columns, relations in both directions, rollups, Notion-like formulas, filters, sorts,
+  groups and calculations, table and board views, embedded in any page. Enough to run invoices, projects,
+  a reading list or a CRM.
+- **Leave Notion without losing anything.** The Notion import brings pages, databases, relations, rollups,
+  formulas, files and links between pages, and can run again to fetch what changed.
+- **Write together.** Real-time collaborative editing, shared spaces with roles, page sharing and read-only
+  public links, with every access checked on the server.
+- **On the phone, even offline.** Installs as an app on phones and computers; pages already opened stay readable
+  and editable offline and sync when the connection comes back, merged with others' changes.
+- **Yours to extend.** Plugins add editor blocks, API routes, scheduled tasks and formula functions.
+- **Open for good.** Licensed under the AGPL-3.0: the code, and the code of any hosted version of it, stays open.
+- **Light.** Runs on a small home server or NAS (amd64 and arm64), no separate database server or Redis.
+
+The interface is available in English and French; each user picks their language.
+
+## All features
 
 - First launch: creation of the administrator account.
 - Sign in / sign out, secure sessions (httpOnly cookie, argon2 password hashes).
@@ -48,13 +68,17 @@ and can change it in **My account**.
 - "Full width" option per page.
 - Single Docker image (amd64 and arm64), data in `/data`.
 
-## Run with Docker
-
-See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) (TrueNAS SCALE and plain Docker).
+## Getting started
 
 ```bash
+git clone <repository-url> nootion && cd nootion
+# Set APP_URL and APP_SECRET in docker-compose.yml, then:
 docker compose up -d --build
 ```
+
+Then open `APP_URL` and create the administrator account. [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) covers
+the settings, backups, HTTPS, installing the app on a phone, offline use and the Notion import.
+A prebuilt image will be published with the first public release.
 
 ## Development
 
@@ -81,7 +105,6 @@ apps/server      Fastify API + Drizzle + SQLite
 apps/web         React + Vite + Tailwind interface
 packages/shared  Types, validation, formulas, views and translations shared by both
 docker/          Dockerfile
-deploy/          TrueNAS install file
 docs/            Documentation (deployment, plugins)
 ```
 
