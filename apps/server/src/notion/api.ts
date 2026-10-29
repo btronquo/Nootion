@@ -37,7 +37,7 @@ export interface NotionPage {
   archived?: boolean;
   in_trash?: boolean;
   icon: NotionIcon;
-  cover: unknown;
+  cover: NotionCover;
   properties: Record<string, NotionPropertyValue>;
   url?: string;
 }
@@ -52,10 +52,13 @@ export interface NotionDatabase {
   in_trash?: boolean;
   is_inline?: boolean;
   icon: NotionIcon;
+  cover?: NotionCover;
   title: RichText[];
   description?: RichText[];
   properties: Record<string, NotionPropertySchema>;
 }
+
+export type NotionCover = { type: "external"; external: { url: string } } | { type: "file"; file: { url: string } } | null;
 
 export interface NotionOption {
   id: string;

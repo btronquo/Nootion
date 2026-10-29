@@ -51,7 +51,7 @@ describe("Notion import", () => {
     const status = await runImport();
     expect(status.connected).toBe(true);
     const report = status.job.report;
-    expect(report).toMatchObject({ pages: 2, databases: 3, rows: 3, files: 1 });
+    expect(report).toMatchObject({ pages: 2, databases: 3, rows: 3, files: 2 });
     expect(Object.keys(report.notes)).toEqual(expect.arrayContaining(["toggle", "columns", "table_of_contents"]));
     expect(report.formulas).toEqual([expect.objectContaining({ database: "Tasks", name: "Weird" })]);
 
@@ -64,6 +64,12 @@ describe("Notion import", () => {
     expect(byTitle("Projects")).toMatchObject({ parentId: null, kind: "database" });
     // A database inside a database goes next to it.
     expect(byTitle("Glossary")).toMatchObject({ parentId: home.id, kind: "database" });
+
+    // Covers: Notion's files are copied, links are kept.
+    const detail = async (id: string) => (await boris.get(`/api/pages/${id}`)).json().page;
+    expect((await detail(home.id)).cover).toMatch(/^\/api\/attachments\/[0-9a-f-]{36}$/);
+    expect((await detail(byTitle("Notes").id)).cover).toBe("https://www.notion.so/images/page-cover/gradients_8.png");
+    expect((await detail(byTitle("Tasks").id)).cover).toBeNull();
 
     // Home's content, with its links pointing to the imported pages.
     const doc = content(home.id);
