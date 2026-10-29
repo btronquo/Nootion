@@ -19,6 +19,7 @@ export const TYPE_LABELS: Record<PropertyType, string> = {
   created_by: "Créé par",
   relation: "Relation",
   rollup: "Rollup",
+  formula: "Formule",
 };
 
 export const OPTION_CLASSES: Record<OptionColor, string> = {
@@ -101,10 +102,16 @@ export function formatValue(prop: DatabaseProperty, value: CellValue, people: Re
 const NUMERIC: PropertyType[] = ["number", "currency", "percent"];
 
 /** Text of a calculation result; numbers take the format of `prop` (currency…) when it is numeric. */
+/** The property whose number format applies: a formula is shown with its chosen format. */
+export function numberFormatOf(prop: DatabaseProperty): DatabaseProperty {
+  return prop.type === "formula" ? { ...prop, type: prop.config.formulaFormat ?? "number" } : prop;
+}
+
 export function formatCalc(r: CalcResult, prop: DatabaseProperty | null | undefined): string {
+  const fmt = prop ? numberFormatOf(prop) : null;
   switch (r.kind) {
     case "number":
-      return prop && NUMERIC.includes(prop.type) ? formatNumber(r.value, prop) : new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 }).format(r.value);
+      return fmt && NUMERIC.includes(fmt.type) ? formatNumber(r.value, fmt) : new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 }).format(r.value);
     case "count":
       return new Intl.NumberFormat("fr-FR").format(r.value);
     case "percent":

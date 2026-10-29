@@ -5,6 +5,7 @@ import {
   CALC_LABELS,
   calcFunctionsFor,
   computeCalc,
+  formulaCalcInput,
   rollupCalcInput,
   type CalcFunction,
   type CellValue,
@@ -20,7 +21,7 @@ import { PropertyMenu } from "./PropertyMenu";
 import { PropertyIcon } from "./icons";
 import { Popover } from "./Popover";
 import { newOption } from "./OptionPicker";
-import { formatCalc, TYPE_LABELS } from "./format";
+import { formatCalc, numberFormatOf, TYPE_LABELS } from "./format";
 import { useDatabase, useDatabaseActions, useDatabaseList } from "./hooks";
 import { pageTitle } from "../lib/tree";
 import { CREATABLE_TYPES } from "@nootion/shared";
@@ -297,7 +298,7 @@ export function TableView({
       </div>
 
       {menu && menuProp && actions && (
-        <Popover anchor={menu.anchor} onClose={() => setMenu(null)} width={260}>
+        <Popover anchor={menu.anchor} onClose={() => setMenu(null)} width={menuProp.type === "formula" ? 420 : 260}>
           <PropertyMenu
             key={menuProp.id}
             prop={menuProp}
@@ -375,8 +376,8 @@ export function TableView({
                   const anchor = adding;
                   setAdding(null);
                   const { property } = await actions.addProperty.mutateAsync({ name: uniqueName(data, TYPE_LABELS[type]), type });
-                  // A rollup is useless until configured: open its settings right away.
-                  if (type === "rollup") setMenu({ propId: property.id, anchor });
+                  // Rollups and formulas need their settings first: open them right away.
+                  if (type === "rollup" || type === "formula") setMenu({ propId: property.id, anchor });
                 }}
                 className="flex w-full items-center gap-2 rounded px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800"
               >
@@ -442,7 +443,9 @@ const CALC_SHORT: Record<CalcFunction, string> = {
 
 function columnValues(data: DatabaseData, prop: DatabaseProperty): { values: CellValue[]; type: PropertyType } {
   const values = data.rows.map((r) => (prop.type === "title" ? r.title : (r.values[prop.id] ?? null)));
-  return prop.type === "rollup" ? rollupCalcInput(values, data.rollupTargets[prop.id] ?? null) : { values, type: prop.type };
+  if (prop.type === "rollup") return rollupCalcInput(values, data.rollupTargets[prop.id] ?? null);
+  if (prop.type === "formula") return formulaCalcInput(values);
+  return { values, type: prop.type };
 }
 
 /** Type that decides which calculations a column offers (rollups use what they compute). */
@@ -457,7 +460,8 @@ function calcColumn(data: DatabaseData, prop: DatabaseProperty, fn: CalcFunction
 
 /** Property whose number format applies to a column's result (a rollup's target for rollups). */
 function calcFormatProp(data: DatabaseData, prop: DatabaseProperty) {
-  return prop.type === "rollup" ? (data.rollupTargets[prop.id] ?? null) : prop;
+  const p = prop.type === "rollup" ? (data.rollupTargets[prop.id] ?? null) : prop;
+  return p && numberFormatOf(p);
 }
 
 function RelationSetup({ data, onCreate }: { data: DatabaseData; onCreate: (databaseId: string, name: string, twoWay: boolean) => void }) {

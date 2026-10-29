@@ -1,11 +1,15 @@
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { EyeOff, Trash2, X } from "lucide-react";
 import {
   CALC_LABELS,
   CREATABLE_TYPES,
   OPTION_COLORS,
   STRUCTURAL_TYPES,
+  FUNCTIONS,
+  FormulaError,
   calcFunctionsFor,
+  formulaReferences,
+  parseFormula,
   type DatabaseProperty,
   type OptionColor,
   type PropertyConfig,
@@ -36,7 +40,8 @@ export function PropertyMenu({
 }) {
   const [name, setName] = useState(prop.name);
   const commitName = () => name.trim() && name.trim() !== prop.name && onRename(name.trim());
-  const isNumeric = prop.type === "number" || prop.type === "currency" || prop.type === "percent";
+  const isNumeric = prop.type === "number" || prop.type === "currency" || prop.type === "percent" || prop.type === "formula";
+  const isCurrency = prop.type === "currency" || (prop.type === "formula" && prop.config.formulaFormat === "currency");
   const field = "w-full rounded border border-neutral-200 bg-transparent px-2 py-1 outline-none focus:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900";
 
   return (
@@ -70,7 +75,8 @@ export function PropertyMenu({
         </select>
       </label>
 
-      {prop.type === "currency" && (
+      {prop.type === "formula" && <FormulaEditor prop={prop} properties={properties} onChange={onChangeConfig} field={field} />}
+      {isCurrency && (
         <label className="block">
           <span className="mb-0.5 block text-xs text-neutral-500">Devise</span>
           <select className={field} value={prop.config.currency ?? "EUR"} onChange={(e) => onChangeConfig({ ...prop.config, currency: e.target.value })}>
@@ -82,7 +88,7 @@ export function PropertyMenu({
       )}
       {isNumeric && (
         <label className="block">
-          <span className="mb-0.5 block text-xs text-neutral-500">Décimales</span>
+          <span className="mb-0.5 block text-xs text-neutral-500">{prop.type === "formula" ? "Décimales (résultats numériques)" : "Décimales"}</span>
           <select
             className={field}
             value={prop.config.decimals ?? ""}
@@ -251,6 +257,135 @@ function RollupSettings({
           </select>
         </label>
       )}
+    </div>
+  );
+}
+
+const FORMATS = [
+  { value: "number", label: "Nombre" },
+  { value: "currency", label: "Montant (devise)" },
+  { value: "percent", label: "Pourcentage" },
+] as const;
+
+/** Problem in a formula as typed, checked in the browser before saving. */
+function formulaProblem(expression: string, properties: DatabaseProperty[]): string | null {
+  if (!expression.trim()) return null;
+  try {
+    const names = new Set(properties.map((p) => p.name));
+    const unknown = formulaReferences(parseFormula(expression)).find((n) => !names.has(n));
+    return unknown ? `Colonne inconnue « ${unknown} ».` : null;
+  } catch (e) {
+    if (e instanceof FormulaError) return e.position !== undefined ? `${e.message} (caractère ${e.position + 1})` : e.message;
+    throw e;
+  }
+}
+
+function FormulaEditor({
+  prop,
+  properties,
+  onChange,
+  field,
+}: {
+  prop: DatabaseProperty;
+  properties: DatabaseProperty[];
+  onChange: (config: PropertyConfig) => void;
+  field: string;
+}) {
+  const [expression, setExpression] = useState(prop.config.expression ?? "");
+  const [help, setHelp] = useState(false);
+  const area = useRef<HTMLTextAreaElement>(null);
+  const problem = useMemo(() => formulaProblem(expression, properties), [expression, properties]);
+  const dirty = expression !== (prop.config.expression ?? "");
+  const columns = properties.filter((p) => p.id !== prop.id);
+
+  const insert = (text: string) => {
+    const el = area.current;
+    const start = el?.selectionStart ?? expression.length;
+    const end = el?.selectionEnd ?? expression.length;
+    setExpression(expression.slice(0, start) + text + expression.slice(end));
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(start + text.length, start + text.length);
+    });
+  };
+
+  return (
+    <div className="space-y-2">
+      <label className="block">
+        <span className="mb-0.5 block text-xs text-neutral-500">Formule</span>
+        <textarea
+          ref={area}
+          aria-label="Expression de la formule"
+          value={expression}
+          onChange={(e) => setExpression(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !problem) onChange({ ...prop.config, expression });
+          }}
+          rows={3}
+          spellCheck={false}
+          placeholder={'prop("Montant") * 1.2'}
+          className={`${field} font-mono text-xs`}
+        />
+      </label>
+      {problem ? <p className="px-1 text-xs text-red-600 dark:text-red-400">{problem}</p> : null}
+      <div className="flex items-center justify-between gap-2">
+        <button type="button" onClick={() => setHelp(!help)} className="text-xs text-blue-600 hover:underline dark:text-blue-400">
+          {help ? "Masquer l'aide" : "Fonctions disponibles"}
+        </button>
+        <button
+          type="button"
+          disabled={!dirty || !!problem}
+          onClick={() => onChange({ ...prop.config, expression })}
+          className="rounded bg-neutral-900 px-3 py-1 text-xs text-white enabled:hover:bg-neutral-700 disabled:opacity-40 dark:bg-white dark:text-neutral-900"
+        >
+          Enregistrer la formule
+        </button>
+      </div>
+      <div>
+        <span className="mb-0.5 block text-xs text-neutral-500">Colonnes (clic pour insérer)</span>
+        <div className="flex max-h-24 flex-wrap gap-1 overflow-y-auto">
+          {columns.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => insert(`prop("${p.name}")`)}
+              className="rounded bg-neutral-100 px-1.5 py-0.5 text-xs hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700"
+            >
+              {p.name}
+            </button>
+          ))}
+        </div>
+      </div>
+      {help && (
+        <ul className="max-h-48 space-y-1 overflow-y-auto rounded border border-neutral-200 p-2 text-xs dark:border-neutral-700">
+          <li className="text-neutral-500">Opérateurs : + - * / % ^, == != &gt; &lt; &gt;= &lt;=, and, or, not, condition ? a : b</li>
+          {Object.entries(FUNCTIONS).map(([name, f]) => (
+            <li key={name}>
+              <button type="button" onClick={() => insert(`${name}(`)} className="text-left font-mono hover:underline">
+                {f.help}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <label className="block">
+        <span className="mb-0.5 block text-xs text-neutral-500">Affichage des nombres</span>
+        <select
+          aria-label="Affichage des nombres"
+          className={field}
+          value={prop.config.formulaFormat ?? "number"}
+          onChange={(e) => {
+            const formulaFormat = e.target.value as "number" | "currency" | "percent";
+            onChange({ ...prop.config, formulaFormat, ...(formulaFormat === "currency" && !prop.config.currency ? { currency: "EUR", decimals: 2 } : {}) });
+          }}
+        >
+          {FORMATS.map((f) => (
+            <option key={f.value} value={f.value}>
+              {f.label}
+            </option>
+          ))}
+        </select>
+      </label>
     </div>
   );
 }

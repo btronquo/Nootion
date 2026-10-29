@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { PageRole } from "./pages.js";
 import { CALC_FUNCTIONS, type CalcFunction, type CalcResult } from "./calculations.js";
+import type { FormulaResult } from "./formula.js";
 
 export const PROPERTY_TYPES = [
   "title",
@@ -21,13 +22,14 @@ export const PROPERTY_TYPES = [
   "created_by",
   "relation",
   "rollup",
+  "formula",
 ] as const;
 export type PropertyType = (typeof PROPERTY_TYPES)[number];
 
 /** Types computed by the server; their cells cannot be edited. */
-export const COMPUTED_TYPES: readonly PropertyType[] = ["created_time", "last_edited_time", "created_by", "rollup"];
+export const COMPUTED_TYPES: readonly PropertyType[] = ["created_time", "last_edited_time", "created_by", "rollup", "formula"];
 /** Types that need their own settings: a column can't be converted to or from them. */
-export const STRUCTURAL_TYPES: readonly PropertyType[] = ["relation", "rollup"];
+export const STRUCTURAL_TYPES: readonly PropertyType[] = ["relation", "rollup", "formula"];
 /** Types that can be created by users (the title column always exists, exactly once). */
 export const CREATABLE_TYPES = PROPERTY_TYPES.filter((t) => t !== "title");
 
@@ -61,6 +63,10 @@ export const propertyConfigSchema = z
     targetPropertyId: z.string().min(1).optional(),
     /** rollup: what to compute */
     rollupFunction: z.enum(["show_original", ...CALC_FUNCTIONS] as [string, ...string[]]).optional(),
+    /** formula: the expression, e.g. prop("Montant") * 1.2 */
+    expression: z.string().max(5000).optional(),
+    /** formula: how a number result is shown (with currency / decimals above) */
+    formulaFormat: z.enum(["number", "currency", "percent"]).optional(),
   })
   .strict();
 export type PropertyConfig = z.infer<typeof propertyConfigSchema>;
@@ -88,7 +94,7 @@ export type RollupValue =
   | CalcResult;
 
 /** Value stored in a cell, by property type. `null` means empty. Relations hold row ids. */
-export type CellValue = string | number | boolean | string[] | DateValue | FileValue[] | RollupValue | null;
+export type CellValue = string | number | boolean | string[] | DateValue | FileValue[] | RollupValue | FormulaResult | null;
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?)?$/, "Date invalide");
 

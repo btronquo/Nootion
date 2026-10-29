@@ -7,6 +7,7 @@ import {
   type DatabaseProperty,
   type DateValue,
   type FileValue,
+  type FormulaResult,
   type RelatedRow,
   type RollupValue,
   type SelectOption,
@@ -14,7 +15,7 @@ import {
 import { useUserDirectory } from "../lib/queries";
 import { uploadFile } from "../editor/upload";
 import { pickFiles } from "../editor/upload";
-import { formatCalc, formatDate, formatDateString, formatNumber, parseNumberInput } from "./format";
+import { formatCalc, formatDate, formatDateString, formatNumber, numberFormatOf, parseNumberInput } from "./format";
 import { useDatabase } from "./hooks";
 import { pageTitle } from "../lib/tree";
 import { OptionChip, OptionPicker } from "./OptionPicker";
@@ -164,6 +165,27 @@ function Display(props: CellProps) {
           ))}
         </div>
       );
+    case "formula": {
+      const f = value as FormulaResult;
+      switch (f.kind) {
+        case "number":
+          return <div className={`tabular-nums ${variant !== "panel" ? "text-right" : ""}`}>{formatNumber(f.value, numberFormatOf(prop))}</div>;
+        case "boolean":
+          return <span>{f.value ? "☑" : "☐"}</span>;
+        case "date":
+          return <span>{formatDateString(f.value)}</span>;
+        case "list":
+          return <span className="block truncate">{f.value.join(", ")}</span>;
+        case "error":
+          return (
+            <span title={f.value} className="block truncate text-red-600 dark:text-red-400">
+              ⚠ {f.value}
+            </span>
+          );
+        default:
+          return <span className={variant === "panel" ? "whitespace-pre-wrap" : "block truncate"}>{f.value}</span>;
+      }
+    }
     case "rollup": {
       const r = value as RollupValue;
       const target = props.rollupTarget;
