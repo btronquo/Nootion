@@ -54,6 +54,54 @@ export function yDocToProsemirrorJSON(doc: Y.Doc, field = CONTENT_FIELD): ProseM
   return { type: "doc", content: yToJson(doc.getXmlFragment(field)) };
 }
 
+/** Writes ProseMirror JSON into a Yjs element the way y-prosemirror does (the editor reads it back as is). */
+function fillY(parent: Y.XmlFragment | Y.XmlElement, nodes: ProseMirrorNode[]) {
+  let run: ProseMirrorNode[] = [];
+  const items: (Y.XmlElement | Y.XmlText)[] = [];
+  const pending: { el: Y.XmlElement; node: ProseMirrorNode }[] = [];
+  const texts: { el: Y.XmlText; run: ProseMirrorNode[] }[] = [];
+  const flush = () => {
+    if (!run.length) return;
+    const el = new Y.XmlText();
+    items.push(el);
+    texts.push({ el, run });
+    run = [];
+  };
+  for (const node of nodes) {
+    if (node.type === "text") {
+      if (node.text) run.push(node);
+      continue;
+    }
+    flush();
+    const el = new Y.XmlElement(node.type);
+    items.push(el);
+    pending.push({ el, node });
+  }
+  flush();
+  parent.insert(parent.length, items);
+  for (const { el, run } of texts) {
+    let at = 0;
+    for (const n of run) {
+      const attrs = Object.fromEntries((n.marks ?? []).map((m) => [m.type, m.attrs ?? {}]));
+      el.insert(at, n.text!, attrs);
+      at += n.text!.length;
+    }
+  }
+  for (const { el, node } of pending) {
+    for (const [key, value] of Object.entries(node.attrs ?? {})) if (value !== null && value !== undefined) el.setAttribute(key, value as string);
+    if (node.content?.length) fillY(el, node.content);
+  }
+}
+
+/** Replaces the body of a Yjs document with ProseMirror JSON. */
+export function setProsemirrorJSON(doc: Y.Doc, json: ProseMirrorNode, field = CONTENT_FIELD) {
+  const fragment = doc.getXmlFragment(field);
+  doc.transact(() => {
+    fragment.delete(0, fragment.length);
+    fillY(fragment, json.content ?? []);
+  });
+}
+
 const BLOCK_TYPES = new Set(["paragraph", "heading", "listItem", "taskItem", "blockquote", "codeBlock", "tableCell", "tableHeader", "callout"]);
 
 /** Plain text of a document, one line per block. Used for search. */

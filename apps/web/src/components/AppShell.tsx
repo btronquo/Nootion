@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { Link, NavLink, Outlet, useMatch, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { LogOut, Plus, Settings, Share2, Trash2, Users, User, Download, Search } from "lucide-react";
+import { LogOut, Plus, Settings, Share2, Trash2, Users, User, Download, Search, Import } from "lucide-react";
 import { t, type PageSummary, type WorkspaceSummary } from "@nootion/shared";
 import { workspaceName } from "../lib/labels";
 import { api, isOfflineError } from "../lib/api";
@@ -82,6 +82,9 @@ export function AppShell() {
         </button>
       </nav>
       <div className="space-y-0.5 border-t border-neutral-200 p-2 dark:border-neutral-800">
+        <NavLink to="/import/notion" className={linkClass}>
+          <Import size={16} /> {t("notion.title")}
+        </NavLink>
         <NavLink to="/trash" className={linkClass}>
           <Trash2 size={16} /> {t("trash.title")}
         </NavLink>

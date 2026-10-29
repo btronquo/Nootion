@@ -55,7 +55,7 @@ export function WorkspacePage() {
   });
 
   if (workspaces.isLoading) return null;
-  if (!ws || ws.kind !== "shared") return <div className="p-16 text-neutral-500">Espace introuvable.</div>;
+  if (!ws || ws.kind !== "shared") return <div className="p-16 text-neutral-500">{t("workspace.notFound")}</div>;
   const isOwner = ws.role === "owner";
   const memberIds = new Set(members.data?.map((m) => m.userId));
   const candidates = directory.data?.filter((u) => !memberIds.has(u.id)) ?? [];

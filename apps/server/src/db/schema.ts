@@ -191,3 +191,46 @@ export const plugins = sqliteTable("plugins", {
   settings: text("settings", { mode: "json" }).$type<Record<string, unknown>>().notNull().default({}),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
 });
+
+/** Notion workspace imported into a Nootion space: its integration token, for importing again. */
+export const notionConnections = sqliteTable("notion_connections", {
+  workspaceId: text("workspace_id")
+    .primaryKey()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  // Encrypted with APP_SECRET.
+  token: text("token").notNull(),
+  createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+  lastImportAt: integer("last_import_at", { mode: "timestamp_ms" }),
+});
+
+/** Which Nootion page each imported Notion page, database or row became: a new import updates them. */
+export const notionLinks = sqliteTable(
+  "notion_links",
+  {
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    notionId: text("notion_id").notNull(),
+    pageId: text("page_id")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    // Notion's last_edited_time when it was imported: unchanged pages are skipped next time.
+    notionEditedAt: text("notion_edited_at"),
+  },
+  (t) => [primaryKey({ columns: [t.workspaceId, t.notionId] }), index("notion_links_page_idx").on(t.pageId)],
+);
+
+/** Which Nootion column each imported Notion database property became. */
+export const notionPropertyLinks = sqliteTable(
+  "notion_property_links",
+  {
+    propertyId: text("property_id")
+      .primaryKey()
+      .references(() => databaseProperties.id, { onDelete: "cascade" }),
+    databaseId: text("database_id")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    notionPropertyId: text("notion_property_id").notNull(),
+  },
+  (t) => [uniqueIndex("notion_property_links_unique").on(t.databaseId, t.notionPropertyId)],
+);

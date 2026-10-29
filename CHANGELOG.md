@@ -22,6 +22,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Badge showing the offline state, the changes waiting and those the server refused.
 - Signing out removes the offline copy of the account from the device.
 
+### Import from Notion
+
+- "Import from Notion" screen: imports the pages and databases shared with a Notion integration into a space.
+- Page tree, emoji icons, text with its formatting, lists, to-dos, quotes, callouts, code, tables, images and files
+  (copied to Nootion), mentions and links between pages.
+- Databases with their columns (select options, number formats, people matched by email), rows and their content,
+  two-way relations, rollups and formulas translated to Nootion's formula language.
+- Formulas Nootion can't compute keep their values in a text column; a report lists them along with what was
+  imported differently (toggles shown open, columns put one under the other…).
+- Importing again brings in what changed in Notion without creating duplicates. The integration secret is stored encrypted.
+
 ## [1.0.0] - unreleased
 
 First public version.
