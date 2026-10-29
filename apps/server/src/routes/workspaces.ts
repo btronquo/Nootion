@@ -15,6 +15,7 @@ import { HttpError, notFound, parseBody, requireUser } from "../http.js";
 import { getPageRole, requireWorkspaceRole } from "../permissions.js";
 import { listWorkspacePages, toSummary } from "../pages.js";
 import { t } from "@nootion/shared";
+import { homePageOf } from "../home.js";
 
 const ANY_ROLE = ["owner", "editor", "commenter", "viewer"] as const;
 
@@ -139,7 +140,9 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
   app.get<{ Params: { id: string } }>("/:id/pages", async (req) => {
     const user = requireUser(req);
     requireWorkspaceRole(db, user.id, req.params.id, ANY_ROLE);
-    return { pages: listWorkspacePages(db, req.params.id).map(toSummary) };
+    // The home page is reached from "Home", not from the tree.
+    const home = homePageOf(db, user.id);
+    return { pages: listWorkspacePages(db, req.params.id).filter((p) => p.id !== home).map(toSummary) };
   });
 
   // Pages put in the trash in this workspace that the user is allowed to restore or delete.

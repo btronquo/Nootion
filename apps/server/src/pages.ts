@@ -10,7 +10,7 @@ export function toSummary(p: Pick<PageRow, "id" | "kind" | "workspaceId" | "pare
   return { id: p.id, kind: p.kind, workspaceId: p.workspaceId, parentId: p.parentId, title: p.title, icon: p.icon, position: p.position };
 }
 
-export function toDetail(p: PageMeta, role: PageRole, breadcrumb: PageDetail["breadcrumb"]): PageDetail {
+export function toDetail(p: PageMeta, role: PageRole, breadcrumb: PageDetail["breadcrumb"], home = false): PageDetail {
   return {
     ...toSummary(p),
     role,
@@ -20,6 +20,7 @@ export function toDetail(p: PageMeta, role: PageRole, breadcrumb: PageDetail["br
     coverPosition: p.coverPosition,
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
+    home,
   };
 }
 

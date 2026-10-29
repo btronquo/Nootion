@@ -19,9 +19,12 @@ import { dbKey } from "../database/hooks";
 import { Popover } from "../database/Popover";
 import { MenuButton } from "../components/SidebarLayout";
 import { SyncStatus } from "../components/SyncStatus";
+import { useSession } from "../lib/session";
 
-export function PagePage() {
-  const { id = "" } = useParams();
+/** A page, by the id in the address (or the one given, for the home page). */
+export function PagePage({ id: given }: { id?: string }) {
+  const { id: param = "" } = useParams();
+  const id = given ?? param;
   const page = usePage(id);
   if (page.isLoading) return null;
   if (page.isError || !page.data) {
@@ -35,7 +38,14 @@ export function PagePage() {
   return <PageView key={page.data.id} page={page.data} />;
 }
 
+/** "Good morning" to "Good evening", by the time of day. */
+function greeting(name: string) {
+  const hour = new Date().getHours();
+  return t(hour >= 5 && hour < 12 ? "home.morning" : hour >= 12 && hour < 18 ? "home.afternoon" : "home.evening", { name });
+}
+
 function PageView({ page }: { page: PageDetail }) {
+  const { user } = useSession();
   const canEdit = atLeast(page.role, "editor");
   const canManage = page.role === "full";
   const [title, setTitle] = useState(page.title);
@@ -101,7 +111,7 @@ function PageView({ page }: { page: PageDetail }) {
         </nav>
         <div className="flex shrink-0 items-center gap-1">
           <SyncStatus />
-          <FavoriteButton page={page} />
+          {!page.home && <FavoriteButton page={page} />}
           <Button variant="ghost" onClick={(e) => setMenu(e.currentTarget)} title={t("page.options")} aria-label={t("page.options")}>
             <MoreHorizontal size={16} />
           </Button>
@@ -110,7 +120,7 @@ function PageView({ page }: { page: PageDetail }) {
               <Lock size={12} /> <span className="hidden sm:inline">{pageRoleLabel(page.role)}</span>
             </span>
           )}
-          {canManage && (
+          {canManage && !page.home && (
             <>
               <Button variant="ghost" onClick={() => setSharing(true)} aria-label={t("share.button")}>
                 <Share2 size={16} /> <span className="hidden sm:inline">{t("share.button")}</span>
@@ -128,9 +138,15 @@ function PageView({ page }: { page: PageDetail }) {
         className={`mx-auto px-5 pb-24 ${page.cover ? "pt-6" : "pt-8 sm:pt-16"} sm:px-12 ${page.fullWidth ? "max-w-none sm:px-24" : page.kind === "database" ? "max-w-6xl" : "max-w-3xl"}`}
       >
         <div className="flex flex-wrap items-end gap-1">
-          <IconPicker icon={page.icon} editable={canEdit} onChange={(icon) => save({ icon })} />
+          {!page.home && <IconPicker icon={page.icon} editable={canEdit} onChange={(icon) => save({ icon })} />}
           {canEdit && !page.cover && <AddCoverButton pageId={page.id} onChange={save} />}
         </div>
+        {page.home ? (
+          <>
+            <h1 className="text-3xl font-bold sm:text-4xl">{greeting(user?.name ?? "")}</h1>
+            <p className="mt-2 text-sm text-neutral-500">{t("home.hint")}</p>
+          </>
+        ) : (
         <textarea
           ref={titleRef}
           rows={1}
@@ -147,6 +163,7 @@ function PageView({ page }: { page: PageDetail }) {
           aria-label={t("page.titleLabel")}
           className="w-full resize-none overflow-hidden bg-transparent text-3xl font-bold sm:text-4xl outline-none placeholder:text-neutral-300 dark:placeholder:text-neutral-600"
         />
+        )}
         {page.kind === "row" && page.parentId && <RowProperties databaseId={page.parentId} rowId={page.id} />}
         <div className="mt-4">
           {page.kind === "database" ? <DatabaseTable id={page.id} /> : <PageEditor page={page} canEdit={canEdit} />}

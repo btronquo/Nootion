@@ -25,6 +25,7 @@ import {
 } from "../permissions.js";
 import { breadcrumbFor, getPageMeta, notRow, pageMeta, listDescendants, nextPosition, placeAmongSiblings, toDetail, toSummary } from "../pages.js";
 import { t } from "@nootion/shared";
+import { homePageOf, recordVisit } from "../home.js";
 
 export const pageRoutes: FastifyPluginAsync = async (app) => {
   const db = app.db;
@@ -106,7 +107,8 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
       visibleFrom = Math.max(...chain.map((c, i) => (shared.has(c.id) ? i + 1 : 0)));
     }
     const breadcrumb = breadcrumbFor(chain, (c) => chain.indexOf(c) < visibleFrom);
-    return { page: toDetail(page, role, breadcrumb) };
+    recordVisit(db, user.id, page.id);
+    return { page: toDetail(page, role, breadcrumb, homePageOf(db, user.id) === page.id) };
   });
 
   app.patch<{ Params: { id: string } }>("/:id", async (req) => {
@@ -154,6 +156,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
   app.delete<{ Params: { id: string } }>("/:id", async (req) => {
     const user = requireUser(req);
     requirePageRole(db, user.id, req.params.id, "full");
+    if (homePageOf(db, user.id) === req.params.id) throw new HttpError(400, "home_page", t("error.homePage"));
     db.update(pages).set({ deletedAt: new Date(), deletedBy: user.id }).where(eq(pages.id, req.params.id)).run();
     return { ok: true };
   });

@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { Link, NavLink, Outlet, useMatch, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { LogOut, Plus, Settings, Share2, Trash2, Users, User, Download, Search, Star, X, Database, FileText } from "lucide-react";
+import { LogOut, Plus, Settings, Share2, Trash2, Users, User, Download, Search, Star, X, Database, FileText, Home } from "lucide-react";
 import { t, type PageSummary, type WorkspaceSummary } from "@nootion/shared";
 import { workspaceName } from "../lib/labels";
 import { api, isOfflineError } from "../lib/api";
@@ -28,7 +28,10 @@ export function AppShell() {
   const [searching, setSearching] = useState(false);
   const touch = useIsTouch();
   // Pages have their own header, with the menu button.
-  const onPage = useMatch("/page/:id");
+  // Pages (and the home page) have their own header with the menu button.
+  const onPageRoute = useMatch("/page/:id");
+  const onHome = useMatch({ path: "/", end: true });
+  const onPage = onPageRoute || onHome;
   useSearchShortcut(useCallback(() => setSearching(true), []));
 
   async function logout() {
@@ -69,6 +72,15 @@ export function AppShell() {
           </kbd>
         )}
       </button>
+      <NavLink
+        to="/"
+        end
+        className={({ isActive }) =>
+          `mx-2 mb-1 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-neutral-200/50 dark:hover:bg-neutral-800/60 ${isActive ? "bg-neutral-200/70 font-medium text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100" : "text-neutral-600 dark:text-neutral-400"}`
+        }
+      >
+        <Home size={16} /> {t("home.title")}
+      </NavLink>
       <nav className="flex-1 space-y-5 overflow-y-auto px-2 py-2">
         <FavoritesSection />
         {workspaces.data?.map((ws) => (

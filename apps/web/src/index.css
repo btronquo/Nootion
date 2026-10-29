@@ -34,7 +34,7 @@ body {
 .nootion-content h3 {
   @apply mt-4 text-xl font-semibold;
 }
-.nootion-content a:not(.page-link):not(.file-attachment) {
+.nootion-content a:not(.page-link):not(.file-attachment):not(.home-widget a):not(.calendar-block a) {
   @apply text-blue-600 underline decoration-blue-300 underline-offset-2 dark:text-blue-400;
 }
 .nootion-content ul {
