@@ -41,6 +41,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   most while people type, and when the last of them leaves), with who edited. Each version shows what changed
   (added lines in green, removed ones struck in red) or the page as it was, and can be restored; the current
   content stays in the history. All versions of the last day are kept, then one a day for a month, then one a week.
+- Backlinks: "Linked from" at the bottom of a page lists the pages that link to it or mention it (with the
+  sentence around the link), among those the reader can open.
 
 ### Fixed
 

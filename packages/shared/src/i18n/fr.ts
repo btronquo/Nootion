@@ -67,6 +67,7 @@ export const fr: Messages = {
   "auth.newPassword": "Mot de passe (8 caractères min.)",
   "auth.password": "Mot de passe",
   "auth.passwordTooShort": "Le mot de passe doit faire au moins 8 caractères",
+  "backlinks.title": { one: "Mentionnée dans {count} page", other: "Mentionnée dans {count} pages" },
   "board.column": "Colonne {name}",
   "board.new": "Nouvelle",
   "board.noGroup":

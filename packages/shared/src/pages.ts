@@ -157,3 +157,9 @@ export interface PageVersion {
   /** Set when this version came from restoring an older one: when that one was made. */
   restoredFrom: string | null;
 }
+
+/** A page that links to or mentions another one. */
+export interface Backlink extends PageSummary {
+  /** Text around the link, to see what it says. */
+  excerpt: string;
+}

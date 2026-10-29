@@ -29,6 +29,7 @@ import { breadcrumbFor, getPageMeta, notRow, pageMeta, listDescendants, nextPosi
 import { t } from "@nootion/shared";
 import { homePageOf, recordVisit } from "../home.js";
 import { copyTree } from "../templates.js";
+import { listBacklinks } from "../backlinks.js";
 import { getSnapshot, listVersions, recordSnapshot } from "../history.js";
 import { writeContent, type ProseMirrorNode } from "../collab.js";
 
@@ -124,6 +125,12 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
       { pageId: page.id, title: page.title, icon: page.icon, cover: page.cover },
     );
     return { ok: true };
+  });
+
+  app.get<{ Params: { id: string } }>("/:id/backlinks", async (req) => {
+    const user = requireUser(req);
+    requirePageRole(db, user.id, req.params.id, "viewer");
+    return { pages: listBacklinks(db, user.id, req.params.id) };
   });
 
   // --- History ---
