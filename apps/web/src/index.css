@@ -148,3 +148,13 @@ body {
 .thin-scroll:focus-within {
   scrollbar-color: rgb(163 163 163 / 0.6) transparent;
 }
+
+/* Plugin blocks: elements marked "nootion-hover-only" show when the block is hovered or focused. */
+.plugin-block .nootion-hover-only {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.plugin-block:hover .nootion-hover-only,
+.plugin-block:focus-within .nootion-hover-only {
+  opacity: 1;
+}

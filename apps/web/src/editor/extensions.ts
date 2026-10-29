@@ -4,10 +4,17 @@ import { TaskItem, TaskList } from "@tiptap/extension-list";
 import { TableKit } from "@tiptap/extension-table";
 import Image from "@tiptap/extension-image";
 import { Placeholder } from "@tiptap/extensions";
+import type { ClientPluginInfo } from "@nootion/shared";
 import { Callout, DatabaseBlock, FileAttachment, PageLink } from "./nodes";
+import { pluginNodes } from "../plugins/nodes";
 
 /** Extensions shared by the collaborative editor and the read-only public view. Keep both schemas identical. */
-export function baseExtensions(opts: { collaborative: boolean; pageLink?: Parameters<typeof PageLink.configure>[0]; publicToken?: string }): AnyExtension[] {
+export function baseExtensions(opts: {
+  collaborative: boolean;
+  plugins: ClientPluginInfo[];
+  pageLink?: Parameters<typeof PageLink.configure>[0];
+  publicToken?: string;
+}): AnyExtension[] {
   return [
     StarterKit.configure({
       // Yjs has its own undo history.
@@ -23,6 +30,7 @@ export function baseExtensions(opts: { collaborative: boolean; pageLink?: Parame
     FileAttachment,
     PageLink.configure(opts.pageLink ?? {}),
     DatabaseBlock.configure({ publicToken: opts.publicToken ?? null }),
+    ...pluginNodes(opts.plugins),
     Placeholder.configure({
       placeholder: ({ node }) => (node.type.name === "heading" ? "Titre" : "Écrivez, ou tapez « / » pour les commandes…"),
       showOnlyCurrent: true,

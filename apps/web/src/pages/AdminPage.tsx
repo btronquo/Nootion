@@ -5,6 +5,7 @@ import type { InvitationInfo, PublicUser, UserRole } from "@nootion/shared";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
 import { Button, ErrorText, Field } from "../components/ui";
+import { PluginsAdmin } from "./PluginsAdmin";
 
 const dateFmt = new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium" });
 
@@ -128,6 +129,8 @@ export function AdminPage() {
           </ul>
         )}
       </section>
+
+      <PluginsAdmin />
     </div>
   );
 }

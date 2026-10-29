@@ -23,12 +23,15 @@ import { workspaceRoutes } from "./routes/workspaces.js";
 import { pageRoutes } from "./routes/pages.js";
 import { userRoutes } from "./routes/users.js";
 import { publicRoutes } from "./routes/public.js";
+import { pluginAdminRoutes, pluginRoutes } from "./routes/plugins.js";
+import { builtinPluginsDir, PluginManager } from "./plugins.js";
 
 declare module "fastify" {
   interface FastifyInstance {
     db: Db;
     config: Config;
     collab: Collab;
+    plugins: PluginManager;
   }
   interface FastifyRequest {
     user: UserRow | null;
@@ -105,7 +108,24 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean 
   await app.register(publicRoutes, { prefix: "/api/public" });
   await app.register(attachmentRoutes, { prefix: "/api" });
   await app.register(databaseRoutes, { prefix: "/api/databases" });
+  const pluginManager = new PluginManager(opts.db, {
+    dirs: [
+      { path: builtinPluginsDir(), builtin: true },
+      { path: path.join(opts.config.dataDir, "plugins"), builtin: false },
+    ],
+    dataDir: opts.config.dataDir,
+    appSecret: opts.config.appSecret,
+    log: app.log,
+  });
+  app.decorate("plugins", pluginManager);
+  app.addHook("onClose", () => pluginManager.stop());
+
+  await app.register(pluginRoutes, { prefix: "/api/plugins" });
+  await app.register(pluginAdminRoutes, { prefix: "/api/admin/plugins" });
   await registerCollabRoute(app, collab);
+  await pluginManager.start();
+
+
 
   const webDir = opts.config.webDir;
   if (webDir && fs.existsSync(path.join(webDir, "index.html"))) {
