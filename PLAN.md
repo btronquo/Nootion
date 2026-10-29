@@ -124,7 +124,7 @@ What makes everyday use comfortable, in this order (quick wins first, then what 
 5. **Calendar widget** (done). A `/calendar` block for any page that gathers the dated rows of one or several databases
    (tasks, appointments, bills due…), each with its colour. Read-only iCal feed (private link) to see these dates
    in a phone or desktop calendar.
-6. **Personal home page.** A home page per user, opened at sign-in (and from "Home" in the sidebar), made of widgets
+6. **Personal home page** (done). A home page per user, opened at sign-in (and from "Home" in the sidebar), made of widgets
    each user arranges: a greeting, recently visited pages (cards with their cover), favorites, upcoming events (the
    calendar block's rows, next days first), the first rows of a database view (e.g. the 5 open to-dos), and any page
    content (it is an ordinary page underneath, so every block works there). Builds on the calendar widget and the

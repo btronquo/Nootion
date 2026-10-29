@@ -26,9 +26,24 @@ import { colorLabel, OPTION_CLASSES } from "./format";
 import { dbKey, useDatabaseList } from "./hooks";
 import { Popover } from "./Popover";
 
-interface Loaded {
+export interface Loaded {
   source: CalendarSource;
   data: DatabaseData;
+}
+
+/** Databases of calendar sources, as the reader sees them; `hidden` counts those they can't open. */
+export function useSourceDatabases(sources: CalendarSource[], token: string | null) {
+  const queries = useQueries({
+    queries: sources.map((s) => ({
+      queryKey: token ? ["public", token, "database", s.databaseId] : dbKey(s.databaseId),
+      queryFn: async () =>
+        (await api<{ database: DatabaseData }>(token ? `/public/${token}/databases/${s.databaseId}` : `/databases/${s.databaseId}`)).database,
+      retry: false,
+      refetchInterval: () => (document.visibilityState === "visible" && !token ? 5000 : false),
+    })),
+  });
+  const loaded: Loaded[] = sources.flatMap((source, i) => (queries[i]?.data ? [{ source, data: queries[i].data }] : []));
+  return { loaded, hidden: queries.every((q) => !q.isLoading) ? sources.length - loaded.length : 0 };
 }
 
 /** Calendar block: the dated rows of one or several databases, each in its colour, on one calendar. */
@@ -45,16 +60,7 @@ export function CalendarBlockView({ node, updateAttributes, editor, extension }:
 
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const queries = useQueries({
-    queries: sources.map((s) => ({
-      queryKey: token ? ["public", token, "database", s.databaseId] : dbKey(s.databaseId),
-      queryFn: async () =>
-        (await api<{ database: DatabaseData }>(token ? `/public/${token}/databases/${s.databaseId}` : `/databases/${s.databaseId}`)).database,
-      retry: false,
-      refetchInterval: () => (document.visibilityState === "visible" && !token ? 5000 : false),
-    })),
-  });
-  const loaded: Loaded[] = sources.flatMap((source, i) => (queries[i]?.data ? [{ source, data: queries[i].data }] : []));
+  const { loaded, hidden } = useSourceDatabases(sources, token);
 
   const entries = (() => {
     const map = new Map<string, CalendarEntry[]>();
@@ -132,7 +138,7 @@ export function CalendarBlockView({ node, updateAttributes, editor, extension }:
               </Link>
             );
           })}
-          {sources.length > loaded.length && queries.every((q) => !q.isLoading) && (
+          {hidden > 0 && (
             <span className="text-neutral-400">🔒 {t("calendarBlock.hidden", { count: sources.length - loaded.length })}</span>
           )}
         </div>
@@ -195,7 +201,7 @@ export function CalendarBlockView({ node, updateAttributes, editor, extension }:
   );
 }
 
-function SourcesPanel({
+export function SourcesPanel({
   anchor,
   sources,
   loaded,

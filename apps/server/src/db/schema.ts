@@ -19,6 +19,8 @@ export const users = sqliteTable(
     avatar: text("avatar"),
     // Interface language ("en", "fr"…).
     locale: text("locale").notNull().default("en"),
+    // The user's home page (a page of their personal workspace), created on first visit.
+    homePageId: text("home_page_id"),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("users_email_unique").on(t.email)],
@@ -272,4 +274,19 @@ export const calendarFeeds = sqliteTable(
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("calendar_feeds_block_unique").on(t.userId, t.pageId, t.blockId)],
+);
+
+/** Last time each user opened each page, for "Recently visited". */
+export const pageVisits = sqliteTable(
+  "page_visits",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    pageId: text("page_id")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    visitedAt: integer("visited_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.pageId] }), index("page_visits_recent_idx").on(t.userId, t.visitedAt)],
 );

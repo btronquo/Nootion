@@ -5,6 +5,7 @@ import { ReactNodeViewRenderer } from "@tiptap/react";
 import { PageLinkView } from "./PageLinkView";
 import { DatabaseBlockView } from "../database/DatabaseBlockView";
 import { CalendarBlockView } from "../database/CalendarBlockView";
+import { DatabaseRowsView, FavoritesListView, RecentPagesView, UpcomingEventsView } from "./HomeWidgets";
 import { intlLocale, t } from "@nootion/shared";
 
 declare module "@tiptap/core" {
@@ -14,6 +15,7 @@ declare module "@tiptap/core" {
     pageLink: { insertPageLink: (attrs: { pageId: string; title: string }) => ReturnType };
     databaseBlock: { insertDatabase: (pageId: string) => ReturnType };
     calendarBlock: { insertCalendar: () => ReturnType };
+    widget: { insertWidget: (name: WidgetName) => ReturnType };
     toggle: { insertToggle: (level?: 1 | 2 | 3) => ReturnType };
     columns: { insertColumns: (count: number) => ReturnType };
   }
@@ -204,6 +206,69 @@ export const CalendarBlock = Node.create<{ pageId: string | null; publicToken: s
         () =>
         ({ commands }) =>
           commands.insertContent([{ type: this.name, attrs: { id: crypto.randomUUID(), sources: [] } }, { type: "paragraph" }]),
+    };
+  },
+});
+
+export type WidgetName = "recentPages" | "favoritesList" | "upcomingEvents" | "databaseRows";
+
+/** A widget block (home page): no content of its own, it shows live data from its attributes. */
+function widget(name: WidgetName, view: Parameters<typeof ReactNodeViewRenderer>[0], attrs: Record<string, unknown> = {}) {
+  return Node.create<{ publicToken: string | null }>({
+    name,
+    group: "block",
+    atom: true,
+    draggable: true,
+    selectable: true,
+    addOptions() {
+      return { publicToken: null };
+    },
+    addAttributes() {
+      return Object.fromEntries(
+        Object.entries(attrs).map(([key, value]) => [
+          key,
+          Array.isArray(value)
+            ? {
+                default: value,
+                parseHTML: (el: HTMLElement) => {
+                  try {
+                    return JSON.parse(el.dataset[key] ?? "[]") as unknown;
+                  } catch {
+                    return value;
+                  }
+                },
+                renderHTML: (a: Record<string, unknown>) => ({ [`data-${key}`]: JSON.stringify(a[key] ?? value) }),
+              }
+            : { default: value },
+        ]),
+      );
+    },
+    parseHTML() {
+      return [{ tag: `div[data-widget="${name}"]` }];
+    },
+    renderHTML({ HTMLAttributes }) {
+      return ["div", mergeAttributes(HTMLAttributes, { "data-widget": name })];
+    },
+    addNodeView() {
+      return ReactNodeViewRenderer(view, { stopEvent: () => true });
+    },
+  });
+}
+
+export const RecentPages = widget("recentPages", RecentPagesView);
+export const FavoritesList = widget("favoritesList", FavoritesListView);
+export const UpcomingEvents = widget("upcomingEvents", UpcomingEventsView, { sources: [], days: 14 });
+export const DatabaseRows = widget("databaseRows", DatabaseRowsView, { databaseId: null, viewId: null, limit: 5 });
+
+/** Inserts any widget (command shared by the widget nodes). */
+export const WidgetCommands = Node.create({
+  name: "widgetCommands",
+  addCommands() {
+    return {
+      insertWidget:
+        (name) =>
+        ({ commands }) =>
+          commands.insertContent([{ type: name }, { type: "paragraph" }]),
     };
   },
 });

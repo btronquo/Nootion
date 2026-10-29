@@ -29,6 +29,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   database, and readers only see the databases they can open. "Subscribe" gives each user a private, read-only
   iCal link (renewable, can be turned off) for phone and desktop calendars. Public links show the databases they
   publish.
+- Personal home page, opened at sign-in and from "Home" in the sidebar: a greeting, then widgets each user
+  arranges like blocks of a page ("/" to add one, drag to reorder): recently visited pages (cards with their
+  cover), favorites, upcoming events of chosen databases (next 7 to 90 days), and the first rows of a database view
+  (a checkbox column can be ticked from there). It is an ordinary page underneath, so any other block works too.
 
 ### Fixed
 
