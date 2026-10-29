@@ -242,3 +242,114 @@ describe("databases et droits", () => {
     expect((await anon.get(`/api/public/${link.token}/pages/${secretRow.id}`)).statusCode).toBe(404);
   });
 });
+
+describe("relations et rollups", () => {
+  async function setup() {
+    const fournisseurs = await createDb(boris, "Fournisseurs");
+    const factures = await createDb(boris, "Factures");
+    const montant = await addProp(boris, factures.id, "Montant", "currency");
+    const payee = await addProp(boris, factures.id, "Payée", "checkbox");
+    const res = await boris.post(`/api/databases/${factures.id}/properties`, {
+      name: "Fournisseur",
+      type: "relation",
+      config: { databaseId: fournisseurs.id },
+      twoWay: true,
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    const relation: DatabaseProperty = res.json().property;
+    const twin = (await getDb(boris, fournisseurs.id)).properties.find((p) => p.type === "relation")!;
+    expect(twin.name).toBe("Factures");
+    expect(twin.config).toMatchObject({ databaseId: factures.id, twinPropertyId: relation.id });
+    expect(relation.config.twinPropertyId).toBe(twin.id);
+    const title = (d: DatabaseData) => d.properties[0].id;
+    const free = (await boris.post(`/api/databases/${fournisseurs.id}/rows`, { values: { [title(fournisseurs)]: "Free" } })).json().row;
+    const edf = (await boris.post(`/api/databases/${fournisseurs.id}/rows`, { values: { [title(fournisseurs)]: "EDF" } })).json().row;
+    const add = async (name: string, amount: number, paid: boolean, to: string) =>
+      (
+        await boris.post(`/api/databases/${factures.id}/rows`, {
+          values: { [title(factures)]: name, [montant.id]: amount, [payee.id]: paid, [relation.id]: [to] },
+        })
+      ).json();
+    return { fournisseurs, factures, montant, payee, relation, twin, free, edf, add };
+  }
+
+  it("relation dans les deux sens, gardée à jour des deux côtés", async () => {
+    const s = await setup();
+    const f1 = await s.add("F1", 29.99, true, s.free.id);
+    expect(f1.related[s.free.id].title).toBe("Free");
+    await s.add("F2", 30, false, s.free.id);
+    let fournisseurs = await getDb(boris, s.fournisseurs.id);
+    expect(fournisseurs.rows.find((r) => r.id === s.free.id)!.values[s.twin.id]).toHaveLength(2);
+    expect(fournisseurs.related[f1.row.id].title).toBe("F1");
+
+    // Moving F1 to EDF updates both suppliers.
+    await boris.patch(`/api/databases/${s.factures.id}/rows/${f1.row.id}`, { values: { [s.relation.id]: [s.edf.id] } });
+    fournisseurs = await getDb(boris, s.fournisseurs.id);
+    expect(fournisseurs.rows.find((r) => r.id === s.free.id)!.values[s.twin.id]).toHaveLength(1);
+    expect(fournisseurs.rows.find((r) => r.id === s.edf.id)!.values[s.twin.id]).toEqual([f1.row.id]);
+
+    // A row of another database is refused.
+    const other = await createDb(boris, "Autre");
+    const stranger = (await boris.post(`/api/databases/${other.id}/rows`, {})).json().row;
+    expect((await boris.patch(`/api/databases/${s.factures.id}/rows/${f1.row.id}`, { values: { [s.relation.id]: [stranger.id] } })).statusCode).toBe(400);
+
+    // Trashed rows disappear from relations.
+    await boris.post(`/api/databases/${s.factures.id}/rows/delete`, { ids: [f1.row.id] });
+    fournisseurs = await getDb(boris, s.fournisseurs.id);
+    expect(fournisseurs.rows.find((r) => r.id === s.edf.id)!.values[s.twin.id]).toBeNull();
+
+    // Deleting one side keeps the other as a one-way relation.
+    await boris.delete(`/api/databases/${s.factures.id}/properties/${s.relation.id}`);
+    const twin = (await getDb(boris, s.fournisseurs.id)).properties.find((p) => p.id === s.twin.id)!;
+    expect(twin.config.twinPropertyId).toBeNull();
+  });
+
+  it("rollups : somme, % coché, valeurs d'origine", async () => {
+    const s = await setup();
+    await s.add("F1", 29.99, true, s.free.id);
+    await s.add("F2", 30.01, false, s.free.id);
+    await s.add("F3", 84.5, true, s.edf.id);
+    const rollup = async (name: string, targetPropertyId: string, rollupFunction: string) => {
+      const res = await boris.post(`/api/databases/${s.fournisseurs.id}/properties`, {
+        name,
+        type: "rollup",
+        config: { relationPropertyId: s.twin.id, targetPropertyId, rollupFunction },
+      });
+      expect(res.statusCode, res.body).toBe(200);
+      return res.json().property as DatabaseProperty;
+    };
+    const total = await rollup("Total", s.montant.id, "sum");
+    const pct = await rollup("Payées", s.payee.id, "percent_checked");
+    const names = await rollup("Noms", s.factures.properties[0].id, "show_original");
+    const d = await getDb(boris, s.fournisseurs.id);
+    const free = d.rows.find((r) => r.id === s.free.id)!;
+    expect(free.values[total.id]).toEqual({ kind: "number", value: 60 });
+    expect(free.values[pct.id]).toEqual({ kind: "percent", value: 50 });
+    expect(free.values[names.id]).toEqual({ kind: "list", values: ["F1", "F2"] });
+    expect(d.rollupTargets[total.id]?.type).toBe("currency");
+    // Rollup values can't be written, and a rollup must follow a relation.
+    expect((await boris.patch(`/api/databases/${s.fournisseurs.id}/rows/${s.free.id}`, { values: { [total.id]: 1 } })).statusCode).toBe(400);
+    expect(
+      (await boris.post(`/api/databases/${s.fournisseurs.id}/properties`, { name: "x", type: "rollup", config: { relationPropertyId: d.properties[0].id } }))
+        .statusCode,
+    ).toBe(400);
+    // Relations and rollups don't convert to other types.
+    expect((await boris.patch(`/api/databases/${s.fournisseurs.id}/properties/${total.id}`, { type: "number" })).statusCode).toBe(400);
+  });
+
+  it("droits : pas de relation vers une database invisible, rien ne fuit à la lecture", async () => {
+    const s = await setup();
+    await s.add("F1", 29.99, true, s.free.id);
+    // Alice can see the invoices but not the suppliers.
+    await boris.put(`/api/pages/${s.factures.id}/shares`, { userId: await alice.id(), role: "editor" });
+    const seen = await getDb(alice, s.factures.id);
+    expect(seen.rows[0].values[s.relation.id]).toBeNull();
+    expect(Object.keys(seen.related)).toHaveLength(0);
+    // She can't link to rows she can't see.
+    expect((await alice.patch(`/api/databases/${s.factures.id}/rows/${seen.rows[0].id}`, { values: { [s.relation.id]: [s.edf.id] } })).statusCode).toBe(404);
+    // Nor create a relation to a database she can't see.
+    const mine = await createDb(alice, "Mes notes");
+    expect((await alice.post(`/api/databases/${mine.id}/properties`, { name: "r", type: "relation", config: { databaseId: s.fournisseurs.id } })).statusCode).toBe(404);
+    expect((await alice.get("/api/databases")).json().databases.map((d: { id: string }) => d.id)).not.toContain(s.fournisseurs.id);
+  });
+});

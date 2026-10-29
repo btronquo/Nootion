@@ -1,11 +1,24 @@
 import { useState } from "react";
 import { EyeOff, Trash2, X } from "lucide-react";
-import { CREATABLE_TYPES, OPTION_COLORS, type DatabaseProperty, type OptionColor, type PropertyConfig, type PropertyType } from "@nootion/shared";
+import {
+  CALC_LABELS,
+  CREATABLE_TYPES,
+  OPTION_COLORS,
+  STRUCTURAL_TYPES,
+  calcFunctionsFor,
+  type DatabaseProperty,
+  type OptionColor,
+  type PropertyConfig,
+  type PropertyType,
+} from "@nootion/shared";
 import { COLOR_LABELS, CURRENCIES, OPTION_CLASSES, TYPE_LABELS } from "./format";
+import { useDatabase } from "./hooks";
+import { pageTitle } from "../lib/tree";
 
 /** Settings of a column: name, type, type options, hide, delete. */
 export function PropertyMenu({
   prop,
+  properties,
   onRename,
   onChangeType,
   onChangeConfig,
@@ -13,6 +26,8 @@ export function PropertyMenu({
   onDelete,
 }: {
   prop: DatabaseProperty;
+  /** Every column of the database (rollups pick one of its relations). */
+  properties: DatabaseProperty[];
   onRename: (name: string) => void;
   onChangeType: (type: PropertyType) => void;
   onChangeConfig: (config: PropertyConfig) => void;
@@ -41,13 +56,13 @@ export function PropertyMenu({
           aria-label="Type de la colonne"
           className={field}
           value={prop.type}
-          disabled={prop.type === "title"}
+          disabled={prop.type === "title" || STRUCTURAL_TYPES.includes(prop.type)}
           onChange={(e) => {
             const next = e.target.value as PropertyType;
             if (confirm(`Changer « ${prop.name} » en ${TYPE_LABELS[next]} ? Les valeurs existantes seront converties quand c'est possible.`)) onChangeType(next);
           }}
         >
-          {(prop.type === "title" ? (["title"] as PropertyType[]) : CREATABLE_TYPES).map((t) => (
+          {(prop.type === "title" || STRUCTURAL_TYPES.includes(prop.type) ? [prop.type] : CREATABLE_TYPES.filter((t) => !STRUCTURAL_TYPES.includes(t))).map((t) => (
             <option key={t} value={t}>
               {TYPE_LABELS[t]}
             </option>
@@ -82,6 +97,8 @@ export function PropertyMenu({
           </select>
         </label>
       )}
+      {prop.type === "relation" && <RelationInfo prop={prop} />}
+      {prop.type === "rollup" && <RollupSettings prop={prop} properties={properties} onChange={onChangeConfig} field={field} />}
       {prop.type === "date" && (
         <label className="flex items-center gap-2 px-1">
           <input type="checkbox" checked={!!prop.config.includeTime} onChange={(e) => onChangeConfig({ ...prop.config, includeTime: e.target.checked })} />
@@ -149,6 +166,91 @@ export function PropertyMenu({
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+function RelationInfo({ prop }: { prop: DatabaseProperty }) {
+  const target = useDatabase(prop.config.databaseId ?? "");
+  return (
+    <p className="px-1 text-xs text-neutral-500">
+      Liée à <span className="font-medium text-neutral-700 dark:text-neutral-200">{target.data ? pageTitle(target.data.title) : "une database inaccessible"}</span>
+      {prop.config.twinPropertyId ? ", dans les deux sens." : ", dans un seul sens."}
+    </p>
+  );
+}
+
+function RollupSettings({
+  prop,
+  properties,
+  onChange,
+  field,
+}: {
+  prop: DatabaseProperty;
+  properties: DatabaseProperty[];
+  onChange: (config: PropertyConfig) => void;
+  field: string;
+}) {
+  const relations = properties.filter((p) => p.type === "relation");
+  const relation = relations.find((p) => p.id === prop.config.relationPropertyId);
+  const target = useDatabase(relation?.config.databaseId ?? "");
+  const targets = (target.data?.properties ?? []).filter((p) => p.type !== "relation" && p.type !== "rollup");
+  const targetProp = targets.find((p) => p.id === prop.config.targetPropertyId);
+  const functions = targetProp ? ["show_original", ...calcFunctionsFor(targetProp.type)] : [];
+  if (!relations.length) return <p className="px-1 text-xs text-neutral-500">Ajoutez d'abord une colonne Relation à cette database.</p>;
+  return (
+    <div className="space-y-2">
+      <label className="block">
+        <span className="mb-0.5 block text-xs text-neutral-500">Relation</span>
+        <select
+          aria-label="Relation du rollup"
+          className={field}
+          value={prop.config.relationPropertyId ?? ""}
+          onChange={(e) => onChange({ ...prop.config, relationPropertyId: e.target.value, targetPropertyId: undefined, rollupFunction: undefined })}
+        >
+          <option value="">Choisir…</option>
+          {relations.map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      {relation && (
+        <label className="block">
+          <span className="mb-0.5 block text-xs text-neutral-500">Propriété</span>
+          <select
+            aria-label="Propriété du rollup"
+            className={field}
+            value={prop.config.targetPropertyId ?? ""}
+            onChange={(e) => onChange({ ...prop.config, targetPropertyId: e.target.value, rollupFunction: prop.config.rollupFunction ?? "show_original" })}
+          >
+            <option value="">Choisir…</option>
+            {targets.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      {targetProp && (
+        <label className="block">
+          <span className="mb-0.5 block text-xs text-neutral-500">Calcul</span>
+          <select
+            aria-label="Calcul du rollup"
+            className={field}
+            value={prop.config.rollupFunction ?? "show_original"}
+            onChange={(e) => onChange({ ...prop.config, rollupFunction: e.target.value })}
+          >
+            {functions.map((f) => (
+              <option key={f} value={f}>
+                {f === "show_original" ? "Afficher les valeurs" : CALC_LABELS[f as keyof typeof CALC_LABELS]}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
     </div>
   );
 }

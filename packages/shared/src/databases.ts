@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { PageRole } from "./pages.js";
+import { CALC_FUNCTIONS, type CalcFunction, type CalcResult } from "./calculations.js";
 
 export const PROPERTY_TYPES = [
   "title",
@@ -18,11 +19,15 @@ export const PROPERTY_TYPES = [
   "created_time",
   "last_edited_time",
   "created_by",
+  "relation",
+  "rollup",
 ] as const;
 export type PropertyType = (typeof PROPERTY_TYPES)[number];
 
 /** Types computed by the server; their cells cannot be edited. */
-export const COMPUTED_TYPES: readonly PropertyType[] = ["created_time", "last_edited_time", "created_by"];
+export const COMPUTED_TYPES: readonly PropertyType[] = ["created_time", "last_edited_time", "created_by", "rollup"];
+/** Types that need their own settings: a column can't be converted to or from them. */
+export const STRUCTURAL_TYPES: readonly PropertyType[] = ["relation", "rollup"];
 /** Types that can be created by users (the title column always exists, exactly once). */
 export const CREATABLE_TYPES = PROPERTY_TYPES.filter((t) => t !== "title");
 
@@ -46,6 +51,16 @@ export const propertyConfigSchema = z
     decimals: z.number().int().min(0).max(8).optional(),
     /** date */
     includeTime: z.boolean().optional(),
+    /** relation: the related database. Set at creation. */
+    databaseId: z.string().min(1).optional(),
+    /** relation: the matching property in the related database, for two-way relations. Managed by the server. */
+    twinPropertyId: z.string().min(1).nullable().optional(),
+    /** rollup: relation of this database to follow */
+    relationPropertyId: z.string().min(1).optional(),
+    /** rollup: property of the related database to compute */
+    targetPropertyId: z.string().min(1).optional(),
+    /** rollup: what to compute */
+    rollupFunction: z.enum(["show_original", ...CALC_FUNCTIONS] as [string, ...string[]]).optional(),
   })
   .strict();
 export type PropertyConfig = z.infer<typeof propertyConfigSchema>;
@@ -67,8 +82,13 @@ export interface FileValue {
   name: string;
 }
 
-/** Value stored in a cell, by property type. `null` means empty. */
-export type CellValue = string | number | boolean | string[] | DateValue | FileValue[] | null;
+/** Computed value of a rollup cell. */
+export type RollupValue =
+  | { kind: "list"; values: CellValue[] }
+  | CalcResult;
+
+/** Value stored in a cell, by property type. `null` means empty. Relations hold row ids. */
+export type CellValue = string | number | boolean | string[] | DateValue | FileValue[] | RollupValue | null;
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?)?$/, "Date invalide");
 
@@ -86,6 +106,8 @@ export function valueSchema(type: PropertyType): z.ZodType<CellValue> {
       return z.object({ start: isoDate, end: isoDate.nullable().optional() }).nullable() as z.ZodType<CellValue>;
     case "select":
       return z.string().min(1).max(64).nullable() as z.ZodType<CellValue>;
+    case "relation":
+      return z.array(z.string().min(1).max(64)).max(500).nullable() as z.ZodType<CellValue>;
     case "multi_select":
     case "person":
       return z.array(z.string().min(1).max(64)).max(100).nullable() as z.ZodType<CellValue>;
@@ -111,6 +133,8 @@ export interface ViewColumn {
 export interface ViewConfig {
   /** Column order and display settings. Properties missing from the list are shown at the end. */
   columns?: ViewColumn[];
+  /** Calculation shown under each column, by property id. */
+  calculations?: Record<string, CalcFunction>;
 }
 
 export const viewConfigSchema = z
@@ -119,6 +143,7 @@ export const viewConfigSchema = z
       .array(z.object({ propertyId: z.string().min(1), width: z.number().int().min(60).max(1200).optional(), hidden: z.boolean().optional() }))
       .max(500)
       .optional(),
+    calculations: z.record(z.string(), z.enum(CALC_FUNCTIONS)).optional(),
   })
   .passthrough();
 
@@ -151,6 +176,24 @@ export interface DatabaseData {
   rows: DatabaseRow[];
   /** Names of the people referenced by person / created_by cells. */
   people: Record<string, string>;
+  /** Rows referenced by relation cells, when the reader can see their database. */
+  related: Record<string, RelatedRow>;
+  /** For each rollup property: the property it computes, or null when unavailable. */
+  rollupTargets: Record<string, DatabaseProperty | null>;
+}
+
+export interface RelatedRow {
+  title: string;
+  icon: string | null;
+  databaseId: string;
+}
+
+/** A database the user can link to. */
+export interface DatabaseSummary {
+  id: string;
+  title: string;
+  icon: string | null;
+  workspaceId: string;
 }
 
 export const createDatabaseInput = z.object({
@@ -163,6 +206,8 @@ export const createPropertyInput = z.object({
   name: z.string().trim().min(1).max(100),
   type: z.enum(PROPERTY_TYPES).refine((t) => t !== "title", "Une database n'a qu'une colonne titre"),
   config: propertyConfigSchema.default({}),
+  /** relation: also add a matching property to the related database. */
+  twoWay: z.boolean().optional(),
 });
 
 export const updatePropertyInput = z.object({

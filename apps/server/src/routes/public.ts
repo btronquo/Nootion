@@ -6,7 +6,7 @@ import type { ProseMirrorNode } from "../collab.js";
 import { notFound } from "../http.js";
 import { getChain, isTrashed } from "../permissions.js";
 import { getPageMeta, listDescendants, notRow, toSummary } from "../pages.js";
-import { listProperties, loadDatabase, toRow } from "../databases.js";
+import { enrichRows, listProperties, loadDatabase, toRow } from "../databases.js";
 
 /** Read-only access through a public link. No account needed. */
 export const publicRoutes: FastifyPluginAsync = async (app) => {
@@ -72,7 +72,9 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
     let row = null;
     if (p.kind === "row" && p.parentId) {
       const properties = listProperties(db, p.parentId);
-      row = { properties, values: toRow(p, properties).values };
+      const data = toRow(p, properties);
+      const { related, rollupTargets } = enrichRows(db, properties, [data], (id) => inScope(link, id));
+      row = { properties, values: data.values, related, rollupTargets };
     }
     return {
       ...toSummary(p),
@@ -105,7 +107,7 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
     if (!inScope(link, req.params.id)) throw notFound();
     const meta = getPageMeta(db, req.params.id);
     if (!meta || meta.kind !== "database") throw notFound();
-    return { database: { ...loadDatabase(db, meta, "viewer"), people: {} } };
+    return { database: { ...loadDatabase(db, meta, "viewer", (id) => inScope(link, id)), people: {} } };
   });
 
   app.get<{ Params: { token: string; id: string } }>("/:token/attachments/:id", async (req, reply) => {

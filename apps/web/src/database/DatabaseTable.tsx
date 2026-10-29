@@ -1,14 +1,28 @@
 import { useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Maximize2, Plus, Trash2 } from "lucide-react";
-import type { CellValue, DatabaseData, DatabaseProperty, DatabaseRow, PropertyType, SelectOption, ViewColumn } from "@nootion/shared";
+import {
+  CALC_LABELS,
+  calcFunctionsFor,
+  computeCalc,
+  rollupCalcInput,
+  type CalcFunction,
+  type CellValue,
+  type DatabaseData,
+  type DatabaseProperty,
+  type DatabaseRow,
+  type PropertyType,
+  type SelectOption,
+  type ViewColumn,
+} from "@nootion/shared";
 import { Cell } from "./Cell";
 import { PropertyMenu } from "./PropertyMenu";
 import { PropertyIcon } from "./icons";
 import { Popover } from "./Popover";
 import { newOption } from "./OptionPicker";
-import { TYPE_LABELS } from "./format";
-import { useDatabase, useDatabaseActions } from "./hooks";
+import { formatCalc, TYPE_LABELS } from "./format";
+import { useDatabase, useDatabaseActions, useDatabaseList } from "./hooks";
+import { pageTitle } from "../lib/tree";
 import { CREATABLE_TYPES } from "@nootion/shared";
 
 const DEFAULT_WIDTH = 180;
@@ -63,6 +77,8 @@ export function TableView({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [menu, setMenu] = useState<{ propId: string; anchor: HTMLElement } | null>(null);
   const [adding, setAdding] = useState<HTMLElement | null>(null);
+  const [addingRelation, setAddingRelation] = useState(false);
+  const [calcMenu, setCalcMenu] = useState<{ propId: string; anchor: HTMLElement } | null>(null);
   const [showHidden, setShowHidden] = useState<HTMLElement | null>(null);
   const [widths, setWidths] = useState<Record<string, number>>({});
   const drag = useRef<string | null>(null);
@@ -215,6 +231,9 @@ export function TableView({
                     people={data.people}
                     editable={editable}
                     fileUrl={fileUrl}
+                    related={data.related}
+                    rollupTarget={data.rollupTargets[c.prop.id]}
+                    rowHref={(id) => rowHref({ id } as DatabaseRow)}
                     onChange={(value: CellValue) => actions?.updateCell.mutate({ rowId: row.id, propId: c.prop.id, value })}
                     onCreateOption={createOption(c.prop)}
                   />
@@ -233,6 +252,36 @@ export function TableView({
             </div>
           ))}
           {data.rows.length === 0 && !editable && <div className="px-3 py-2 text-neutral-400">Aucune ligne</div>}
+
+          {/* Calculations */}
+          {(editable || Object.keys(view?.config.calculations ?? {}).length > 0) && (
+            <div role="row" aria-label="Calculs" className="group/calc flex">
+              <div className={gutter} />
+              {visible.map((c) => {
+                const fn = view?.config.calculations?.[c.prop.id];
+                const result = fn ? calcColumn(data, c.prop, fn) : null;
+                return (
+                  <button
+                    key={c.prop.id}
+                    style={{ width: widthOf(c) }}
+                    disabled={!editable}
+                    aria-label={`Calcul de ${c.prop.name}`}
+                    onClick={(e) => setCalcMenu({ propId: c.prop.id, anchor: e.currentTarget })}
+                    className="flex shrink-0 items-center justify-end gap-1 truncate px-2 py-1.5 text-xs text-neutral-500 enabled:hover:bg-neutral-100 dark:enabled:hover:bg-neutral-800"
+                  >
+                    {fn ? (
+                      <>
+                        <span className="truncate text-neutral-400">{CALC_SHORT[fn]}</span>
+                        <span className="font-medium tabular-nums text-neutral-800 dark:text-neutral-200">{result ? formatCalc(result, calcFormatProp(data, c.prop)) : "—"}</span>
+                      </>
+                    ) : (
+                      <span className="opacity-0 group-hover/calc:opacity-100">Calculer</span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
       {editable && (
@@ -252,6 +301,7 @@ export function TableView({
           <PropertyMenu
             key={menuProp.id}
             prop={menuProp}
+            properties={data.properties}
             onRename={(name) => actions.updateProperty.mutate({ propId: menuProp.id, name })}
             onChangeType={(type) => actions.updateProperty.mutate({ propId: menuProp.id, type })}
             onChangeConfig={(config) => actions.updateProperty.mutate({ propId: menuProp.id, config })}
@@ -264,7 +314,6 @@ export function TableView({
                   }
             }
             onDelete={() => {
-              if (!confirm(`Supprimer la colonne « ${menuProp.name} » et toutes ses valeurs ?`)) return;
               actions.deleteProperty.mutate(menuProp.id);
               setMenu(null);
             }}
@@ -272,20 +321,62 @@ export function TableView({
         </Popover>
       )}
 
-      {adding && actions && (
+      {calcMenu && view && actions && (
+        <Popover anchor={calcMenu.anchor} onClose={() => setCalcMenu(null)} width={240}>
+          <div className="max-h-80 overflow-y-auto">
+            {[null, ...calcFunctionsFor(calcType(data, data.properties.find((p) => p.id === calcMenu.propId)!))].map((fn) => (
+              <button
+                key={fn ?? "none"}
+                onClick={() => {
+                  const calculations = { ...(view.config.calculations ?? {}) };
+                  if (fn) calculations[calcMenu.propId] = fn;
+                  else delete calculations[calcMenu.propId];
+                  actions.updateView.mutate({ viewId: view.id, config: { ...view.config, calculations } });
+                  setCalcMenu(null);
+                }}
+                className="flex w-full items-center rounded px-2 py-1.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              >
+                {fn ? CALC_LABELS[fn] : "Aucun"}
+              </button>
+            ))}
+          </div>
+        </Popover>
+      )}
+
+      {adding && actions && addingRelation && (
+        <Popover
+          anchor={adding}
+          onClose={() => {
+            setAdding(null);
+            setAddingRelation(false);
+          }}
+          width={280}
+        >
+          <RelationSetup
+            data={data}
+            onCreate={(databaseId, title, twoWay) => {
+              actions.addProperty.mutate({ name: title, type: "relation", config: { databaseId }, twoWay });
+              setAdding(null);
+              setAddingRelation(false);
+            }}
+          />
+        </Popover>
+      )}
+
+      {adding && actions && !addingRelation && (
         <Popover anchor={adding} onClose={() => setAdding(null)} width={220}>
           <div className="max-h-80 overflow-y-auto">
             <div className="px-2 py-1 text-xs text-neutral-500">Type de la nouvelle colonne</div>
             {CREATABLE_TYPES.map((type: PropertyType) => (
               <button
                 key={type}
-                onClick={() => {
-                  const base = TYPE_LABELS[type];
-                  const names = new Set(data.properties.map((p) => p.name));
-                  let name = base;
-                  for (let i = 2; names.has(name); i++) name = `${base} ${i}`;
-                  actions.addProperty.mutate({ name, type });
+                onClick={async () => {
+                  if (type === "relation") return setAddingRelation(true);
+                  const anchor = adding;
                   setAdding(null);
+                  const { property } = await actions.addProperty.mutateAsync({ name: uniqueName(data, TYPE_LABELS[type]), type });
+                  // A rollup is useless until configured: open its settings right away.
+                  if (type === "rollup") setMenu({ propId: property.id, anchor });
                 }}
                 className="flex w-full items-center gap-2 rounded px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800"
               >
@@ -314,6 +405,118 @@ export function TableView({
           ))}
         </Popover>
       )}
+    </div>
+  );
+}
+
+function uniqueName(data: DatabaseData, base: string) {
+  const names = new Set(data.properties.map((p) => p.name));
+  let name = base;
+  for (let i = 2; names.has(name); i++) name = `${base} ${i}`;
+  return name;
+}
+
+/** Short labels shown before the result under a column. */
+const CALC_SHORT: Record<CalcFunction, string> = {
+  count_all: "Total",
+  count_values: "Valeurs",
+  count_unique: "Uniques",
+  count_empty: "Vides",
+  count_not_empty: "Non vides",
+  percent_empty: "Vides",
+  percent_not_empty: "Non vides",
+  sum: "Somme",
+  average: "Moyenne",
+  median: "Médiane",
+  min: "Min",
+  max: "Max",
+  range: "Écart",
+  earliest: "Plus ancienne",
+  latest: "Plus récente",
+  date_range: "Plage",
+  checked: "Cochées",
+  unchecked: "Non cochées",
+  percent_checked: "Cochées",
+  percent_unchecked: "Non cochées",
+};
+
+function columnValues(data: DatabaseData, prop: DatabaseProperty): { values: CellValue[]; type: PropertyType } {
+  const values = data.rows.map((r) => (prop.type === "title" ? r.title : (r.values[prop.id] ?? null)));
+  return prop.type === "rollup" ? rollupCalcInput(values, data.rollupTargets[prop.id] ?? null) : { values, type: prop.type };
+}
+
+/** Type that decides which calculations a column offers (rollups use what they compute). */
+function calcType(data: DatabaseData, prop: DatabaseProperty): PropertyType {
+  return columnValues(data, prop).type;
+}
+
+function calcColumn(data: DatabaseData, prop: DatabaseProperty, fn: CalcFunction) {
+  const { values, type } = columnValues(data, prop);
+  return calcFunctionsFor(type).includes(fn) ? computeCalc(fn, values, type) : null;
+}
+
+/** Property whose number format applies to a column's result (a rollup's target for rollups). */
+function calcFormatProp(data: DatabaseData, prop: DatabaseProperty) {
+  return prop.type === "rollup" ? (data.rollupTargets[prop.id] ?? null) : prop;
+}
+
+function RelationSetup({ data, onCreate }: { data: DatabaseData; onCreate: (databaseId: string, name: string, twoWay: boolean) => void }) {
+  const list = useDatabaseList();
+  const [query, setQuery] = useState("");
+  const [picked, setPicked] = useState<{ id: string; title: string } | null>(null);
+  const [twoWay, setTwoWay] = useState(true);
+  const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  if (picked) {
+    const self = picked.id === data.id;
+    return (
+      <div className="space-y-2 p-1">
+        <p>
+          Relation vers <span className="font-medium">{pageTitle(picked.title)}</span>
+        </p>
+        <label className="flex items-start gap-2">
+          <input type="checkbox" className="mt-1" checked={twoWay} onChange={(e) => setTwoWay(e.target.checked)} />
+          <span>
+            Afficher aussi dans {self ? "cette database" : <span className="font-medium">{pageTitle(picked.title)}</span>}
+            <span className="block text-xs text-neutral-500">Ajoute une colonne « {pageTitle(data.title)} » de l'autre côté, tenue à jour automatiquement.</span>
+          </span>
+        </label>
+        <div className="flex justify-end gap-2">
+          <button onClick={() => setPicked(null)} className="rounded px-2 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-800">
+            Retour
+          </button>
+          <button
+            onClick={() => onCreate(picked.id, uniqueName(data, pageTitle(picked.title)), twoWay)}
+            className="rounded bg-neutral-900 px-3 py-1 text-white hover:bg-neutral-700 dark:bg-white dark:text-neutral-900"
+          >
+            Créer la relation
+          </button>
+        </div>
+      </div>
+    );
+  }
+  const databases = (list.data ?? []).filter((d) => norm(pageTitle(d.title)).includes(norm(query)));
+  return (
+    <div>
+      <div className="px-2 py-1 text-xs text-neutral-500">Relier à quelle database ?</div>
+      <input
+        autoFocus
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Chercher une database…"
+        className="mb-1 w-full rounded border border-neutral-200 bg-transparent px-2 py-1.5 outline-none focus:border-neutral-400 dark:border-neutral-700"
+      />
+      <div className="max-h-64 overflow-y-auto">
+        {databases.map((d) => (
+          <button key={d.id} onClick={() => setPicked(d)} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800">
+            <span className="w-4 text-center">{d.icon ?? "🗃"}</span>
+            <span className="truncate">
+              {pageTitle(d.title)}
+              {d.id === data.id && <span className="text-neutral-400"> (cette database)</span>}
+            </span>
+          </button>
+        ))}
+        {list.data && !databases.length && <p className="px-2 py-1 text-neutral-500">Aucune database.</p>}
+      </div>
     </div>
   );
 }

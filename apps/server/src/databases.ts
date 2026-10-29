@@ -2,7 +2,11 @@ import { randomUUID } from "node:crypto";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import {
   COMPUTED_TYPES,
+  computeCalc,
   valueSchema,
+  type CalcFunction,
+  type RelatedRow,
+  type RollupValue,
   type CellValue,
   type DatabaseData,
   type DatabaseProperty,
@@ -94,11 +98,23 @@ export function toRow(r: RowPage, properties: DatabaseProperty[]): DatabaseRow {
 }
 
 /** Names of the users referenced in person and "created by" cells. */
-export function collectPeople(db: DbLike, properties: DatabaseProperty[], rows: DatabaseRow[]): Record<string, string> {
+export function collectPeople(
+  db: DbLike,
+  properties: DatabaseProperty[],
+  rows: DatabaseRow[],
+  rollupTargets: Record<string, DatabaseProperty | null> = {},
+): Record<string, string> {
   const personIds = new Set<string>();
+  const isPeople = (t: PropertyType | undefined) => t === "person" || t === "created_by";
   for (const p of properties) {
-    if (p.type !== "person" && p.type !== "created_by") continue;
-    for (const r of rows) for (const id of (r.values[p.id] as string[] | null) ?? []) personIds.add(id);
+    if (isPeople(p.type)) {
+      for (const r of rows) for (const id of (r.values[p.id] as string[] | null) ?? []) personIds.add(id);
+    } else if (p.type === "rollup" && isPeople(rollupTargets[p.id]?.type)) {
+      for (const r of rows) {
+        const v = r.values[p.id] as RollupValue | null;
+        if (v?.kind === "list") for (const ids of v.values as string[][]) for (const id of ids) personIds.add(id);
+      }
+    }
   }
   const people: Record<string, string> = {};
   if (personIds.size) {
@@ -107,11 +123,73 @@ export function collectPeople(db: DbLike, properties: DatabaseProperty[], rows: 
   return people;
 }
 
-export function loadDatabase(db: Db, page: PageMeta, role: PageRole): DatabaseData {
+/** Whether the reader may see the rows of a database (used for relations and rollups). */
+export type CanRead = (databaseId: string) => boolean;
+
+export function loadDatabase(db: Db, page: PageMeta, role: PageRole, canRead: CanRead): DatabaseData {
   const properties = listProperties(db, page.id);
   const rows = listRowPages(db, page.id).map((r) => toRow(r, properties));
-  const people = collectPeople(db, properties, rows);
-  return { id: page.id, title: page.title, icon: page.icon, role, properties, views: listViews(db, page.id), rows, people };
+  const { related, rollupTargets } = enrichRows(db, properties, rows, canRead);
+  const people = collectPeople(db, properties, rows, rollupTargets);
+  return { id: page.id, title: page.title, icon: page.icon, role, properties, views: listViews(db, page.id), rows, people, related, rollupTargets };
+}
+
+/**
+ * Fills relation and rollup cells. Relations keep only live rows of databases the reader can see;
+ * rollups follow a relation and compute a property of the related rows.
+ */
+export function enrichRows(db: DbLike, properties: DatabaseProperty[], rows: DatabaseRow[], canRead: CanRead) {
+  const related: Record<string, RelatedRow> = {};
+  const rollupTargets: Record<string, DatabaseProperty | null> = {};
+  const targetCache = new Map<string, { properties: DatabaseProperty[]; rows: Map<string, DatabaseRow> } | null>();
+  const target = (databaseId: string) => {
+    if (!targetCache.has(databaseId)) {
+      const isDatabase = db.select({ id: pages.id }).from(pages).where(and(eq(pages.id, databaseId), eq(pages.kind, "database"), isNull(pages.deletedAt))).get();
+      if (!isDatabase || !canRead(databaseId)) targetCache.set(databaseId, null);
+      else {
+        const props = listProperties(db, databaseId);
+        targetCache.set(databaseId, { properties: props, rows: new Map(listRowPages(db, databaseId).map((r) => [r.id, toRow(r, props)])) });
+      }
+    }
+    return targetCache.get(databaseId)!;
+  };
+
+  for (const prop of properties) {
+    if (prop.type !== "relation") continue;
+    const t = prop.config.databaseId ? target(prop.config.databaseId) : null;
+    for (const row of rows) {
+      const ids = (row.values[prop.id] as string[] | null) ?? [];
+      const live = t ? ids.filter((id) => t.rows.has(id)) : [];
+      row.values[prop.id] = live.length ? live : null;
+      for (const id of live) {
+        const r = t!.rows.get(id)!;
+        related[id] = { title: r.title, icon: r.icon, databaseId: prop.config.databaseId! };
+      }
+    }
+  }
+
+  for (const prop of properties) {
+    if (prop.type !== "rollup") continue;
+    const relation = properties.find((p) => p.id === prop.config.relationPropertyId && p.type === "relation");
+    const t = relation?.config.databaseId ? target(relation.config.databaseId) : null;
+    const targetProp = t?.properties.find((p) => p.id === prop.config.targetPropertyId && p.type !== "rollup" && p.type !== "relation") ?? null;
+    const fn = prop.config.rollupFunction as CalcFunction | "show_original" | undefined;
+    rollupTargets[prop.id] = targetProp;
+    for (const row of rows) {
+      if (!relation || !t || !targetProp || !fn) {
+        row.values[prop.id] = null;
+        continue;
+      }
+      const values = ((row.values[relation.id] as string[] | null) ?? []).map((id) => t.rows.get(id)!.values[targetProp.id] ?? null);
+      let value: RollupValue | null;
+      if (fn === "show_original") {
+        const shown = values.filter((v) => v !== null && !(Array.isArray(v) && v.length === 0));
+        value = shown.length ? { kind: "list", values: shown } : null;
+      } else value = computeCalc(fn, values, targetProp.type);
+      row.values[prop.id] = value;
+    }
+  }
+  return { related, rollupTargets };
 }
 
 /**
@@ -148,6 +226,18 @@ export function validateValues(db: DbLike, properties: DatabaseProperty[], rowId
       const ids = [...new Set(value as string[])];
       const found = db.select({ id: users.id }).from(users).where(inArray(users.id, ids)).all();
       if (found.length !== ids.length) throw new HttpError(400, "unknown_user", `Personne inconnue pour « ${prop.name} ».`);
+      value = ids;
+    }
+    if (prop.type === "relation" && value !== null) {
+      const ids = [...new Set(value as string[])];
+      const found = prop.config.databaseId
+        ? db
+            .select({ id: pages.id })
+            .from(pages)
+            .where(and(inArray(pages.id, ids), eq(pages.parentId, prop.config.databaseId), eq(pages.kind, "row"), isNull(pages.deletedAt)))
+            .all()
+        : [];
+      if (found.length !== ids.length) throw new HttpError(400, "unknown_row", `Ligne inconnue pour « ${prop.name} ».`);
       value = ids;
     }
     if (prop.type === "file" && value !== null) {
@@ -274,5 +364,26 @@ export function defaultConfig(type: PropertyType): PropertyConfig {
       return { decimals: 0 };
     default:
       return {};
+  }
+}
+
+/**
+ * Keeps a two-way relation consistent: rows added to (or removed from) a relation cell get this row
+ * added to (or removed from) the matching cell on their side.
+ */
+export function syncTwin(db: DbLike, prop: DatabaseProperty, rowId: string, before: string[], after: string[]) {
+  const twin = prop.config.twinPropertyId;
+  if (!twin) return;
+  const added = after.filter((id) => !before.includes(id));
+  const removed = before.filter((id) => !after.includes(id));
+  for (const id of [...added, ...removed]) {
+    const r = db.select({ props: pages.props }).from(pages).where(eq(pages.id, id)).get();
+    if (!r) continue;
+    const props = { ...(r.props ?? {}) } as Record<string, CellValue>;
+    const current = (props[twin] as string[] | null) ?? [];
+    const next = added.includes(id) ? [...new Set([...current, rowId])] : current.filter((x) => x !== rowId);
+    if (next.length) props[twin] = next;
+    else delete props[twin];
+    db.update(pages).set({ props, updatedAt: new Date() }).where(eq(pages.id, id)).run();
   }
 }

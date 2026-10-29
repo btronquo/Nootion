@@ -1,10 +1,22 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Paperclip, Upload, X } from "lucide-react";
-import { COMPUTED_TYPES, type CellValue, type DatabaseProperty, type DateValue, type FileValue, type SelectOption } from "@nootion/shared";
+import { Link } from "react-router-dom";
+import { Check, FileText, Paperclip, Upload, X } from "lucide-react";
+import {
+  COMPUTED_TYPES,
+  type CellValue,
+  type DatabaseProperty,
+  type DateValue,
+  type FileValue,
+  type RelatedRow,
+  type RollupValue,
+  type SelectOption,
+} from "@nootion/shared";
 import { useUserDirectory } from "../lib/queries";
 import { uploadFile } from "../editor/upload";
 import { pickFiles } from "../editor/upload";
-import { formatDate, formatDateString, formatNumber, parseNumberInput } from "./format";
+import { formatCalc, formatDate, formatDateString, formatNumber, parseNumberInput } from "./format";
+import { useDatabase } from "./hooks";
+import { pageTitle } from "../lib/tree";
 import { OptionChip, OptionPicker } from "./OptionPicker";
 import { Popover } from "./Popover";
 
@@ -20,6 +32,12 @@ export interface CellProps {
   variant?: "table" | "panel";
   /** Address of an attached file (differs on public pages). */
   fileUrl?: (id: string) => string;
+  /** Titles of the rows that relation cells point to. */
+  related?: Record<string, RelatedRow>;
+  /** Property computed by a rollup column. */
+  rollupTarget?: DatabaseProperty | null;
+  /** Address of a related row's page (differs on public pages). */
+  rowHref?: (id: string) => string;
 }
 
 const EMPTY = <span className="text-neutral-300 dark:text-neutral-600">Vide</span>;
@@ -77,12 +95,15 @@ export function Cell(props: CellProps) {
   );
 }
 
-function Display({ prop, value, people, variant, fileUrl = (id) => `/api/attachments/${id}` }: CellProps) {
+function Display(props: CellProps) {
+  const { prop, value, people, variant, fileUrl = (id) => `/api/attachments/${id}`, related = {}, rowHref = (id) => `/page/${id}` } = props;
   const wrap = variant === "panel" ? "flex flex-wrap gap-1" : "flex gap-1 overflow-hidden whitespace-nowrap";
   if (value === null || value === undefined || value === "" || (Array.isArray(value) && value.length === 0)) return variant === "panel" ? EMPTY : null;
   switch (prop.type) {
     case "title":
       return <span className="font-medium">{String(value)}</span>;
+    case "checkbox":
+      return <span>{value ? "☑" : "☐"}</span>;
     case "number":
     case "currency":
     case "percent":
@@ -128,6 +149,39 @@ function Display({ prop, value, people, variant, fileUrl = (id) => `/api/attachm
           ))}
         </div>
       );
+    case "relation":
+      return (
+        <div className={wrap}>
+          {(value as string[]).map((id) => (
+            <Link
+              key={id}
+              to={rowHref(id)}
+              onClick={(e) => e.stopPropagation()}
+              className="flex max-w-full items-center gap-1 truncate rounded bg-neutral-100 px-1.5 py-0.5 text-xs underline-offset-2 hover:underline dark:bg-neutral-800"
+            >
+              {related[id]?.icon ?? <FileText size={11} className="shrink-0" />} <span className="truncate">{pageTitle(related[id]?.title ?? "")}</span>
+            </Link>
+          ))}
+        </div>
+      );
+    case "rollup": {
+      const r = value as RollupValue;
+      const target = props.rollupTarget;
+      if (r.kind === "list") {
+        if (!target) return null;
+        return (
+          <div className={wrap}>
+            {r.values.map((v, i) => (
+              <span key={i} className="max-w-full truncate">
+                <Display {...props} prop={target} value={v} variant="panel" />
+              </span>
+            ))}
+          </div>
+        );
+      }
+      const numeric = r.kind === "number" || r.kind === "count" || r.kind === "percent" || r.kind === "days";
+      return <div className={`tabular-nums ${numeric && variant !== "panel" ? "text-right" : ""}`}>{formatCalc(r, target)}</div>;
+    }
     case "file":
       return (
         <div className={wrap}>
@@ -198,9 +252,46 @@ function PopupEditor(props: CellProps) {
     const selected = value === null || value === undefined ? [] : multi ? (value as string[]) : [value as string];
     return <OptionPicker prop={prop} multi={multi} selected={selected} onChange={(ids) => onChange(multi ? (ids.length ? ids : null) : (ids[0] ?? null))} onCreate={onCreateOption} />;
   }
+  if (prop.type === "relation") return <RelationPicker {...props} />;
   if (prop.type === "person") return <PersonPicker selected={(value as string[] | null) ?? []} onChange={(ids) => onChange(ids.length ? ids : null)} />;
   if (prop.type === "file") return <FileEditor {...props} />;
   return null;
+}
+
+function RelationPicker({ prop, value, onChange }: CellProps) {
+  const target = useDatabase(prop.config.databaseId ?? "");
+  const [query, setQuery] = useState("");
+  const selected = (value as string[] | null) ?? [];
+  const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const rows = (target.data?.rows ?? []).filter((r) => norm(pageTitle(r.title)).includes(norm(query)));
+  return (
+    <div>
+      <input
+        autoFocus
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder={`Chercher dans ${pageTitle(target.data?.title ?? "")}…`}
+        className="mb-1 w-full rounded border border-neutral-200 bg-transparent px-2 py-1.5 outline-none focus:border-neutral-400 dark:border-neutral-700"
+      />
+      <div className="max-h-64 overflow-y-auto">
+        {target.isError && <p className="px-2 py-1 text-neutral-500">Database liée inaccessible.</p>}
+        {rows.map((r) => (
+          <button
+            key={r.id}
+            onClick={() => onChange(selected.includes(r.id) ? selected.filter((s) => s !== r.id) : [...selected, r.id])}
+            className="flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+          >
+            <span className="flex min-w-0 items-center gap-1.5">
+              {r.icon ?? <FileText size={14} className="shrink-0 text-neutral-400" />}
+              <span className="truncate">{pageTitle(r.title)}</span>
+            </span>
+            {selected.includes(r.id) && <Check size={14} />}
+          </button>
+        ))}
+        {target.data && !rows.length && <p className="px-2 py-1 text-neutral-500">Aucune ligne.</p>}
+      </div>
+    </div>
+  );
 }
 
 function PersonPicker({ selected, onChange }: { selected: string[]; onChange: (ids: string[]) => void }) {
