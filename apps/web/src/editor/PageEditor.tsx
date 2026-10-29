@@ -121,6 +121,7 @@ function CollabEditor({
       pageId: page.id,
       workspaceId: page.workspaceId,
       plugins,
+      userId: user?.id ?? null,
       onPageCreated: () => void refreshPages(),
       linkablePages: () => {
         const seen = new Map<string, PageSummary>();
@@ -129,7 +130,7 @@ function CollabEditor({
         return [...seen.values()];
       },
     }),
-    [page.id, page.workspaceId, qc, refreshPages, plugins],
+    [page.id, page.workspaceId, qc, refreshPages, plugins, user?.id],
   );
 
   const editor = useEditor(

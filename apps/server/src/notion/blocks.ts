@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { ProseMirrorNode } from "../collab.js";
 import type { NotionBlock, NotionFile, RichText } from "./api.js";
 
@@ -37,6 +38,13 @@ export function richText(items: RichText[] | undefined, ctx: Pick<ConvertContext
         out.push({ type: "pageLink", attrs: { pageId: target.id, title: target.title || item.plain_text } });
         continue;
       }
+    }
+    // A single date becomes a date of the text, as written: its day, and its time if it has one.
+    const date = item.type === "mention" && item.mention?.type === "date" && !item.mention.date?.end ? item.mention.date?.start : null;
+    const m = date?.match(/^(\d{4}-\d{2}-\d{2})(?:T(\d{2}:\d{2}))?/);
+    if (m) {
+      out.push({ type: "dateMention", attrs: { id: randomUUID(), date: m[2] ? `${m[1]}T${m[2]}` : m[1], reminder: null, remindAt: null, remindUser: null } });
+      continue;
     }
     if (item.type === "equation") ctx.note("equation");
     // Notion's own links to its pages point to the imported page.

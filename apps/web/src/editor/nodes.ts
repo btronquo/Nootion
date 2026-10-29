@@ -5,8 +5,10 @@ import { ReactNodeViewRenderer } from "@tiptap/react";
 import { PageLinkView } from "./PageLinkView";
 import { DatabaseBlockView } from "../database/DatabaseBlockView";
 import { CalendarBlockView } from "../database/CalendarBlockView";
+import { DateMentionView } from "./DateMentionView";
 import { DatabaseRowsView, FavoritesListView, RecentPagesView, UpcomingEventsView } from "./HomeWidgets";
-import { intlLocale, t } from "@nootion/shared";
+import { intlLocale, reminderTime, t } from "@nootion/shared";
+import { formatMentionDate } from "../lib/reminders";
 
 declare module "@tiptap/core" {
   interface Commands<ReturnType> {
@@ -18,6 +20,7 @@ declare module "@tiptap/core" {
     widget: { insertWidget: (name: WidgetName) => ReturnType };
     toggle: { insertToggle: (level?: 1 | 2 | 3) => ReturnType };
     columns: { insertColumns: (count: number) => ReturnType };
+    dateMention: { insertDate: (attrs: { date: string; reminder?: number | null; remindUser?: string | null }) => ReturnType };
   }
 }
 
@@ -120,6 +123,55 @@ export const PageLink = Node.create<{ live: boolean; hrefFor: (pageId: string) =
         (attrs) =>
         ({ commands }) =>
           commands.insertContent([{ type: this.name, attrs }, { type: "text", text: " " }]),
+    };
+  },
+});
+
+/**
+ * A date written in the text ("@tomorrow 9am"). `date` is a day ("2026-11-15") or a day and time ("2026-11-15T09:00").
+ * A reminder goes to `remindUser`, `reminder` minutes before the date; `remindAt` is that moment, worked out in the
+ * time zone of the person who set it. `id` names the date for its reminder.
+ */
+export const DateMention = Node.create({
+  name: "dateMention",
+  group: "inline",
+  inline: true,
+  atom: true,
+  selectable: true,
+  addAttributes() {
+    return { id: { default: null }, date: { default: null }, reminder: { default: null }, remindAt: { default: null }, remindUser: { default: null } };
+  },
+  parseHTML() {
+    return [{ tag: "span[data-date-mention]", getAttrs: (el) => ({ date: (el as HTMLElement).dataset.date || null }) }];
+  },
+  renderHTML({ node }) {
+    const date = node.attrs.date as string | null;
+    return ["span", { "data-date-mention": "", "data-date": date ?? "", class: "date-mention" }, date ? formatMentionDate(date) : ""];
+  },
+  renderText({ node }) {
+    return node.attrs.date ? formatMentionDate(node.attrs.date) : "";
+  },
+  addNodeView() {
+    return ReactNodeViewRenderer(DateMentionView, { as: "span" });
+  },
+  addCommands() {
+    return {
+      insertDate:
+        ({ date, reminder = null, remindUser = null }) =>
+        ({ commands }) =>
+          commands.insertContent([
+            {
+              type: this.name,
+              attrs: {
+                id: crypto.randomUUID(),
+                date,
+                reminder: remindUser ? reminder : null,
+                remindAt: remindUser && reminder !== null ? reminderTime(date, reminder).toISOString() : null,
+                remindUser: reminder !== null ? remindUser : null,
+              },
+            },
+            { type: "text", text: " " },
+          ]),
     };
   },
 });

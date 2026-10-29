@@ -47,6 +47,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   files is read in the background when they arrive, existing files included. Search finds them by their words or
   their name; the result opens the page holding the file, with a link to the file itself. The Docker image now
   includes poppler and tesseract (`OCR_LANGS` sets the OCR languages).
+- Dates in plain words: typing "@" followed by a date in French or in English inserts it in the text, whatever the
+  interface language: `@demain 9h`, `@tomorrow at 2pm`, `@vendredi`, `@next monday`, `@dans 3 jours`, `@in 2 weeks`,
+  `@15 novembre`, `@nov 15`, `@15/11` (`11/15` in English), `@2026-11-15`… A date shows as "Tomorrow at 9:00 AM" and
+  opens to change its day, its time and its reminder. The Notion import brings Notion's dates in, search finds pages
+  by their dates (`2026-11-15`), and the Markdown export writes them as such.
+- Reminders: a date can remind the person who set it (`@rappel demain 9h`, `@remind friday`, or from the date itself),
+  at the time or some minutes, hours or days before (9:00 for a day without a time). "Reminders" in the sidebar lists
+  them, with the number of those due; each is marked as done from there. The app shows a notification when one falls
+  due, and devices where "Get notifications on this device" is turned on receive it even with the app closed (Web
+  Push; needs HTTPS, and on iPhone the app added to the home screen).
 
 ### Fixed
 

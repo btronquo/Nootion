@@ -34,6 +34,8 @@ import { notionRoutes } from "./routes/notion.js";
 import { searchRoutes } from "./routes/search.js";
 import { builtinPluginsDir, PluginManager } from "./plugins.js";
 import { createExtractor, type Extractor } from "./extract.js";
+import { createNotifier, type Notifier, type PushSender } from "./reminders.js";
+import { reminderRoutes } from "./routes/reminders.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -42,6 +44,7 @@ declare module "fastify" {
     collab: Collab;
     plugins: PluginManager;
     extractor: Extractor;
+    notifier: Notifier;
   }
   interface FastifyRequest {
     user: UserRow | null;
@@ -50,7 +53,7 @@ declare module "fastify" {
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
-export async function buildApp(opts: { db: Db; config: Config; logger?: boolean }): Promise<FastifyInstance> {
+export async function buildApp(opts: { db: Db; config: Config; logger?: boolean; pushSender?: PushSender }): Promise<FastifyInstance> {
   const app = Fastify({
     logger: opts.logger ?? false,
     trustProxy: true,
@@ -70,6 +73,10 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean 
   app.decorate("extractor", extractor);
   app.addHook("onReady", async () => extractor.wake());
   app.addHook("onClose", async () => extractor.stop());
+  // Sends reminders to the devices of their users as they fall due.
+  const notifier = createNotifier(opts.db, { dataDir: opts.config.dataDir, appUrl: opts.config.appUrl, log: app.log, send: opts.pushSender });
+  app.decorate("notifier", notifier);
+  app.addHook("onClose", async () => notifier.stop());
 
   await app.register(cookie, { secret: opts.config.appSecret });
   await app.register(rateLimit, { global: false });
@@ -126,6 +133,7 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean 
   await app.register(calendarFeedRoutes, { prefix: "/api/calendar-feeds" });
   await app.register(icalRoutes, { prefix: "/api/ical" });
   await app.register(homeRoutes, { prefix: "/api" });
+  await app.register(reminderRoutes, { prefix: "/api/reminders" });
   await app.register(userRoutes, { prefix: "/api/users" });
   await app.register(publicRoutes, { prefix: "/api/public" });
   await app.register(attachmentRoutes, { prefix: "/api" });

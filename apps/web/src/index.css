@@ -162,6 +162,16 @@ body {
 .nootion-content .page-link-private {
   @apply cursor-default text-neutral-400 no-underline;
 }
+/* A date in the text: "@tomorrow 9am". */
+.nootion-content .date-mention {
+  @apply cursor-pointer whitespace-nowrap rounded px-0.5 text-neutral-500 before:content-['@'] hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800;
+}
+.nootion-content .date-mention-remind {
+  @apply text-blue-600 before:content-none dark:text-blue-400;
+}
+.nootion-content .date-mention-past {
+  @apply text-red-600 before:content-none dark:text-red-400;
+}
 .nootion-content table {
   @apply my-4 w-full border-collapse table-fixed;
 }
