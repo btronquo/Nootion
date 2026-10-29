@@ -99,3 +99,15 @@ export const movePageInput = z.object({
 export const sharePageInput = z.object({ userId: z.string().min(1), role: z.enum(PAGE_ROLES) });
 
 export const publicLinkInput = z.object({ includeSubpages: z.boolean().default(true) });
+
+/** A page found by the search. */
+export interface SearchResult {
+  id: string;
+  title: string;
+  icon: string | null;
+  kind: "page" | "database" | "row";
+  /** Titles of the parent pages the user can see, from the top. */
+  path: string[];
+  /** Extract of the content; matched words are between \u0001 and \u0002. */
+  snippet: string;
+}

@@ -3,9 +3,9 @@
 Application de prise de notes open source façon Notion, auto-hébergeable, dont le point fort est les **databases**
 (relations, rollups, formules, filtres, agrégations).
 
-> Statut : en développement (V1, étape 9 sur 10 : export, import et sauvegarde). Voir [PLAN.md](PLAN.md).
+> Statut : version 1.0.0. Voir [CHANGELOG.md](CHANGELOG.md) pour le détail et [PLAN.md](PLAN.md) pour la suite.
 
-## Ce qui marche aujourd'hui
+## Fonctionnalités
 
 - Premier lancement : création du compte administrateur.
 - Connexion / déconnexion, sessions sécurisées (cookie httpOnly, mots de passe argon2).
@@ -34,9 +34,11 @@ Application de prise de notes open source façon Notion, auto-hébergeable, dont
 - Export d'une page ou d'un espace en Markdown (.zip : sous-pages, fichiers joints, databases en CSV et JSON),
   export d'une database en CSV (ou CSV pour Excel) et JSON avec les formules calculées, import de CSV dans une database
   (colonnes et options créées au besoin), sauvegarde complète téléchargeable par l'admin.
+- Recherche plein texte dans les titres et le contenu des pages (Ctrl+K ou ⌘K), insensible aux accents,
+  limitée aux pages que l'utilisateur peut lire.
 - Page « Mon compte » : nom, email, mot de passe, photo de profil, thème clair / sombre / système.
 - Option « Pleine largeur » par page.
-- Image Docker unique, données dans `/data`.
+- Image Docker unique (amd64 et arm64), données dans `/data`.
 
 ## Lancer avec Docker
 
@@ -68,8 +70,14 @@ apps/server      API Fastify + Drizzle + SQLite
 apps/web         Interface React + Vite + Tailwind
 packages/shared  Types et schémas de validation partagés
 docker/          Dockerfile
+deploy/          Fichier d'installation TrueNAS
 docs/            Documentation (déploiement…)
 ```
+
+## Contribuer
+
+Les bugs, idées et pull requests sont les bienvenus : voir [CONTRIBUTING.md](CONTRIBUTING.md).
+Pour une faille de sécurité : [SECURITY.md](SECURITY.md).
 
 ## Licence
 
