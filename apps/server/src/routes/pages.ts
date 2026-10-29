@@ -29,6 +29,8 @@ import { breadcrumbFor, getPageMeta, notRow, pageMeta, listDescendants, nextPosi
 import { t } from "@nootion/shared";
 import { homePageOf, recordVisit } from "../home.js";
 import { copyTree } from "../templates.js";
+import { getSnapshot, listVersions, recordSnapshot } from "../history.js";
+import { writeContent, type ProseMirrorNode } from "../collab.js";
 
 export const pageRoutes: FastifyPluginAsync = async (app) => {
   const db = app.db;
@@ -121,6 +123,37 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
       { workspaceId: page.workspaceId, parentId: page.id, position: 0, userId: user.id },
       { pageId: page.id, title: page.title, icon: page.icon, cover: page.cover },
     );
+    return { ok: true };
+  });
+
+  // --- History ---
+
+  app.get<{ Params: { id: string } }>("/:id/history", async (req) => {
+    const user = requireUser(req);
+    requirePageRole(db, user.id, req.params.id, "viewer");
+    return { versions: listVersions(db, req.params.id) };
+  });
+
+  app.get<{ Params: { id: string; versionId: string } }>("/:id/history/:versionId", async (req) => {
+    const user = requireUser(req);
+    requirePageRole(db, user.id, req.params.id, "viewer");
+    const snapshot = getSnapshot(db, req.params.id, req.params.versionId);
+    if (!snapshot) throw notFound();
+    return { content: snapshot.content, title: snapshot.title };
+  });
+
+  // Puts an older version back. The current content is saved as a version first, so nothing is lost.
+  app.post<{ Params: { id: string; versionId: string } }>("/:id/history/:versionId/restore", async (req) => {
+    const user = requireUser(req);
+    const { page } = requirePageRole(db, user.id, req.params.id, "editor");
+    if (page.kind === "database") throw notFound();
+    const snapshot = getSnapshot(db, req.params.id, req.params.versionId);
+    if (!snapshot) throw notFound();
+    const current = db.select({ content: pages.contentJson }).from(pages).where(eq(pages.id, page.id)).get();
+    if (current?.content) recordSnapshot(db, page.id, { content: current.content as ProseMirrorNode, force: true });
+    await writeContent(app.collab, db, page.id, snapshot.content as ProseMirrorNode);
+    db.update(pages).set({ title: snapshot.title, updatedAt: new Date() }).where(eq(pages.id, page.id)).run();
+    recordSnapshot(db, page.id, { content: snapshot.content as ProseMirrorNode, authors: [user.id], force: true, restoredFrom: snapshot.createdAt });
     return { ok: true };
   });
 
