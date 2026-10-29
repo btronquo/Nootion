@@ -88,6 +88,10 @@ export const pages = sqliteTable(
     title: text("title").notNull().default(""),
     icon: text("icon"),
     fullWidth: integer("full_width", { mode: "boolean" }).notNull().default(false),
+    /** Banner at the top of the page: an attachment, an image link or a built-in gradient (see coverSchema). */
+    cover: text("cover"),
+    /** Vertical position of the cover image, from 0 (top) to 100 (bottom). */
+    coverPosition: integer("cover_position").notNull().default(50),
     // Fractional-free ordering: siblings are sorted by position, then creation time.
     position: integer("position").notNull().default(0),
     createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),

@@ -47,6 +47,8 @@ export interface PageDetail extends PageSummary {
   breadcrumb: { id: string; title: string; icon: string | null }[];
   /** Content uses the whole window width instead of a centered column. */
   fullWidth: boolean;
+  cover: string | null;
+  coverPosition: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -76,6 +78,21 @@ export interface TrashedPage {
 export const titleSchema = z.string().max(500);
 export const iconSchema = z.string().max(64).nullable();
 
+/** Built-in cover gradients, stored as "gradient:<name>". */
+export const COVER_GRADIENTS = ["sunset", "ocean", "forest", "dusk", "peach", "slate"] as const;
+
+/** A page cover: an attachment of the page, an https image link, or "gradient:<name>". */
+export const coverSchema = z
+  .string()
+  .max(2048)
+  .refine(
+    (v) =>
+      /^\/api\/attachments\/[0-9a-f-]{36}$/.test(v) ||
+      /^https?:\/\/\S+$/.test(v) ||
+      (v.startsWith("gradient:") && (COVER_GRADIENTS as readonly string[]).includes(v.slice(9))),
+  )
+  .nullable();
+
 export const createPageInput = z.object({
   workspaceId: z.string().min(1),
   parentId: z.string().min(1).nullable().default(null),
@@ -88,6 +105,8 @@ export const updatePageInput = z.object({
   title: titleSchema.optional(),
   icon: iconSchema.optional(),
   fullWidth: z.boolean().optional(),
+  cover: coverSchema.optional(),
+  coverPosition: z.number().int().min(0).max(100).optional(),
 });
 
 export const movePageInput = z.object({

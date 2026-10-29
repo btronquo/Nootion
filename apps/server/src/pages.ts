@@ -16,6 +16,8 @@ export function toDetail(p: PageMeta, role: PageRole, breadcrumb: PageDetail["br
     role,
     breadcrumb,
     fullWidth: p.fullWidth,
+    cover: p.cover,
+    coverPosition: p.coverPosition,
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
   };
@@ -59,6 +61,8 @@ export const pageMeta = {
   title: pages.title,
   icon: pages.icon,
   fullWidth: pages.fullWidth,
+  cover: pages.cover,
+  coverPosition: pages.coverPosition,
   position: pages.position,
   createdBy: pages.createdBy,
   createdAt: pages.createdAt,

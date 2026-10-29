@@ -71,6 +71,13 @@
       "when": 1793293079650,
       "tag": "0009_favorites",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1793293630529,
+      "tag": "0010_covers",
+      "breakpoints": true
     }
   ]
 }

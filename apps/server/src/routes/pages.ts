@@ -13,7 +13,7 @@ import {
 } from "@nootion/shared";
 import { and, eq, inArray } from "drizzle-orm";
 import { newToken } from "../auth/tokens.js";
-import { pagePermissions, pages, publicLinks, users, workspaceMembers } from "../db/schema.js";
+import { attachments, pagePermissions, pages, publicLinks, users, workspaceMembers } from "../db/schema.js";
 import { HttpError, notFound, parseBody, requireUser } from "../http.js";
 import {
   CAN_CREATE_ROOT_PAGES,
@@ -113,6 +113,11 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     const user = requireUser(req);
     const input = parseBody(updatePageInput, req.body);
     requirePageRole(db, user.id, req.params.id, "editor");
+    // An uploaded cover must be a file of this page: its access follows the page's.
+    const coverFile = input.cover?.match(/^\/api\/attachments\/(.+)$/)?.[1];
+    if (coverFile && db.select({ pageId: attachments.pageId }).from(attachments).where(eq(attachments.id, coverFile)).get()?.pageId !== req.params.id) {
+      throw new HttpError(400, "bad_cover", t("error.badCover"));
+    }
     const page = db
       .update(pages)
       .set({ ...input, updatedAt: new Date() })
