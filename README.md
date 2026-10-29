@@ -72,6 +72,7 @@ offline use and the Notion import.
   offered on any empty page, copied with their subpages, databases and files.
 - Page history: versions kept automatically with their authors, changes highlighted, any version restored.
 - Backlinks: each page lists the pages that mention it.
+- Search inside attached files: PDFs, images and scans (OCR), text files.
 - Plugins: editor blocks, API routes, scheduled tasks and formula functions, turned on and set up in the
   administration. Ships with the "Embeds" plugin (`/embed`: YouTube, Vimeo, Spotify, Google Maps, Figma,
   link previews). See [docs/PLUGINS.md](docs/PLUGINS.md) to write your own.

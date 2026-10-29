@@ -133,7 +133,7 @@ export async function copyTree(
       if (!fs.existsSync(from)) continue;
       fs.copyFileSync(from, attachmentPath(dataDir, id));
       tx.insert(attachments)
-        .values({ id, pageId: ids.get(f.pageId)!, filename: f.filename, mimeType: f.mimeType, size: f.size, createdBy: target.userId })
+        .values({ id, pageId: ids.get(f.pageId)!, filename: f.filename, mimeType: f.mimeType, size: f.size, createdBy: target.userId, text: f.text, textStatus: f.textStatus })
         .run();
     }
     if (into) {

@@ -633,6 +633,7 @@ export const en = {
   "search.hintOpen": "Enter to open",
   "search.label": "Search pages",
   "search.noResults": "No results",
+  "search.openFile": "Open the file",
   "search.placeholder": "Search pages…",
   "search.title": "Search",
   "setup.submit": "Create account",
