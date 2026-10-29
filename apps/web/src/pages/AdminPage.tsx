@@ -130,6 +130,21 @@ export function AdminPage() {
         )}
       </section>
 
+      <section>
+        <h2 className="mb-1 text-lg font-semibold">Sauvegarde</h2>
+        <p className="mb-3 text-sm text-neutral-500">
+          Télécharge tout Nootion dans un fichier .zip : la base (comptes, pages, databases), les fichiers joints, les photos de profil et les
+          plugins. Pour restaurer, décompressez-le dans le dossier <code>/data</code> à la place de l'ancien, conteneur arrêté.
+        </p>
+        <a
+          href="/api/admin/backup"
+          download
+          className="inline-flex items-center gap-2 rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-700 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+        >
+          Télécharger une sauvegarde
+        </a>
+      </section>
+
       <PluginsAdmin />
     </div>
   );

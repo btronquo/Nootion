@@ -1,5 +1,20 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowUpDown, Copy, Eye, EyeOff, ListFilter, Plus, Rows3, SquareKanban, Table2, Trash2, X } from "lucide-react";
+import {
+  ArrowUpDown,
+  Copy,
+  Download,
+  Eye,
+  EyeOff,
+  ListFilter,
+  MoreHorizontal,
+  Plus,
+  Rows3,
+  SquareKanban,
+  Table2,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react";
 import {
   DATE_PERIODS,
   FILTER_OPERATORS_BY_KIND,
@@ -24,6 +39,7 @@ import { orderedColumns } from "./DatabaseTable";
 import { boardGroupProp } from "./BoardView";
 import type { useDatabaseActions } from "./hooks";
 import { useUserDirectory } from "../lib/queries";
+import { api } from "../lib/api";
 
 type Actions = ReturnType<typeof useDatabaseActions>;
 
@@ -94,7 +110,7 @@ export function ViewBar({
   actions?: Actions;
   editable: boolean;
 }) {
-  const [menu, setMenu] = useState<{ kind: "view" | "add" | "filter" | "sort" | "group" | "props"; anchor: HTMLElement } | null>(null);
+  const [menu, setMenu] = useState<{ kind: "view" | "add" | "filter" | "sort" | "group" | "props" | "more"; anchor: HTMLElement } | null>(null);
   const close = () => setMenu(null);
   const config = view.config;
   const save = (patch: Partial<ViewConfig>) => actions?.updateView.mutate({ viewId: view.id, config: { ...config, ...patch } });
@@ -105,7 +121,7 @@ export function ViewBar({
     `flex items-center gap-1 rounded px-1.5 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-800 ${on ? "text-blue-600 dark:text-blue-400" : "text-neutral-500"}`;
 
   // Only one tab row when there is a single view and nothing to configure.
-  if (!editable && data.views.length < 2) return null;
+  if (!actions && data.views.length < 2) return null;
 
   return (
     <div className="mb-1 flex flex-wrap items-center gap-1 border-b border-neutral-200 pb-1 text-sm dark:border-neutral-800">
@@ -131,21 +147,54 @@ export function ViewBar({
           </button>
         )}
       </div>
-      {editable && (
+      {actions && (
         <div className="ml-auto flex items-center gap-0.5">
-          <button className={tool(activeFilters > 0)} onClick={(e) => setMenu({ kind: "filter", anchor: e.currentTarget })}>
-            <ListFilter size={14} /> Filtrer{activeFilters > 0 && ` (${activeFilters})`}
-          </button>
-          <button className={tool(sorts > 0)} onClick={(e) => setMenu({ kind: "sort", anchor: e.currentTarget })}>
-            <ArrowUpDown size={14} /> Trier{sorts > 0 && ` (${sorts})`}
-          </button>
-          <button className={tool(!!groupProp && view.type === "table")} onClick={(e) => setMenu({ kind: "group", anchor: e.currentTarget })}>
-            <Rows3 size={14} /> {view.type === "board" ? "Colonnes" : "Grouper"}
-          </button>
-          <button className={tool(false)} onClick={(e) => setMenu({ kind: "props", anchor: e.currentTarget })}>
-            <Eye size={14} /> Propriétés
+          {editable && (
+            <>
+              <button className={tool(activeFilters > 0)} onClick={(e) => setMenu({ kind: "filter", anchor: e.currentTarget })}>
+                <ListFilter size={14} /> Filtrer{activeFilters > 0 && ` (${activeFilters})`}
+              </button>
+              <button className={tool(sorts > 0)} onClick={(e) => setMenu({ kind: "sort", anchor: e.currentTarget })}>
+                <ArrowUpDown size={14} /> Trier{sorts > 0 && ` (${sorts})`}
+              </button>
+              <button className={tool(!!groupProp && view.type === "table")} onClick={(e) => setMenu({ kind: "group", anchor: e.currentTarget })}>
+                <Rows3 size={14} /> {view.type === "board" ? "Colonnes" : "Grouper"}
+              </button>
+              <button className={tool(false)} onClick={(e) => setMenu({ kind: "props", anchor: e.currentTarget })}>
+                <Eye size={14} /> Propriétés
+              </button>
+            </>
+          )}
+          <button aria-label="Exporter ou importer" className={tool(false)} onClick={(e) => setMenu({ kind: "more", anchor: e.currentTarget })}>
+            <MoreHorizontal size={16} />
           </button>
         </div>
+      )}
+      {menu?.kind === "more" && actions && (
+        <Popover anchor={menu.anchor} onClose={close} width={260}>
+          <a className={menuItem} href={`/api/databases/${data.id}/export?viewId=${view.id}`} download onClick={close}>
+            <Download size={14} /> Exporter cette vue en CSV
+          </a>
+          <a className={menuItem} href={`/api/databases/${data.id}/export?viewId=${view.id}&sep=semicolon`} download onClick={close}>
+            <Download size={14} /> CSV pour Excel (séparateur ;)
+          </a>
+          <a className={menuItem} href={`/api/databases/${data.id}/export?format=json`} download onClick={close}>
+            <Download size={14} /> Exporter tout en JSON
+          </a>
+          {editable && (
+            <button
+              className={menuItem}
+              onClick={() => {
+                close();
+                void importCsv(data.id).then((done) => {
+                  if (done) void actions.refresh();
+                });
+              }}
+            >
+              <Upload size={14} /> Importer un CSV…
+            </button>
+          )}
+        </Popover>
       )}
 
       {menu?.kind === "view" && actions && (
@@ -531,4 +580,32 @@ function SortEditor({ properties, sorts, onChange }: { properties: DatabasePrope
       )}
     </div>
   );
+}
+
+/** Asks for a CSV file and adds its rows to the database. */
+function importCsv(databaseId: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".csv,text/csv,text/plain";
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return resolve(false);
+      try {
+        const res = await api<{ imported: number; createdColumns: string[]; ignoredColumns: string[] }>(`/databases/${databaseId}/import`, {
+          method: "POST",
+          body: { csv: await file.text() },
+        });
+        const lines = [`${res.imported} ligne${res.imported > 1 ? "s" : ""} importée${res.imported > 1 ? "s" : ""}.`];
+        if (res.createdColumns.length) lines.push(`Colonnes ajoutées : ${res.createdColumns.join(", ")}.`);
+        if (res.ignoredColumns.length) lines.push(`Colonnes ignorées (calculées ou en double) : ${res.ignoredColumns.join(", ")}.`);
+        alert(lines.join("\n"));
+        resolve(true);
+      } catch (e) {
+        alert(e instanceof Error ? e.message : String(e));
+        resolve(false);
+      }
+    };
+    input.click();
+  });
 }

@@ -3,7 +3,7 @@
 Application de prise de notes open source façon Notion, auto-hébergeable, dont le point fort est les **databases**
 (relations, rollups, formules, filtres, agrégations).
 
-> Statut : en développement (V1, étape 8 sur 10 : plugins). Voir [PLAN.md](PLAN.md).
+> Statut : en développement (V1, étape 9 sur 10 : export, import et sauvegarde). Voir [PLAN.md](PLAN.md).
 
 ## Ce qui marche aujourd'hui
 
@@ -31,6 +31,9 @@ Application de prise de notes open source façon Notion, auto-hébergeable, dont
 - Plugins : blocs pour l'éditeur, routes API, tâches planifiées et fonctions de formule, activés et réglés
   dans l'administration. Livré avec le plugin « Intégrations » (`/embed` : YouTube, Vimeo, Spotify, Google Maps,
   Figma, aperçu de liens). Voir [docs/PLUGINS.md](docs/PLUGINS.md) pour écrire le vôtre.
+- Export d'une page ou d'un espace en Markdown (.zip : sous-pages, fichiers joints, databases en CSV et JSON),
+  export d'une database en CSV (ou CSV pour Excel) et JSON avec les formules calculées, import de CSV dans une database
+  (colonnes et options créées au besoin), sauvegarde complète téléchargeable par l'admin.
 - Page « Mon compte » : nom, email, mot de passe, photo de profil, thème clair / sombre / système.
 - Option « Pleine largeur » par page.
 - Image Docker unique, données dans `/data`.

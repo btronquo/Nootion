@@ -14,6 +14,7 @@ Toutes les données sont dans le dossier monté sur `/data` :
 **Sauvegarder Nootion = sauvegarder ce dossier.** Sur TrueNAS, un snapshot ZFS périodique du dataset suffit
 (*Data Protection > Periodic Snapshot Tasks*). Les exports `.md` (pages) et CSV/JSON (databases) se téléchargent
 depuis l'interface ; ils servent à récupérer ses données dans un format lisible, pas à remplacer la sauvegarde.
+L'admin peut aussi télécharger une sauvegarde complète depuis **Administration › Sauvegarde** (un .zip à décompresser dans `/data`, conteneur arrêté, pour restaurer).
 
 ## Variables d'environnement
 
