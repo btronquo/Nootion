@@ -1,5 +1,5 @@
 import type { ProseMirrorNode } from "./collab.js";
-import { t as translate } from "@nootion/shared";
+import { calendarSources, t as translate } from "@nootion/shared";
 
 /** How links of an exported page point to the other files of the export. */
 export interface MarkdownLinks {
@@ -138,6 +138,12 @@ function block(n: ProseMirrorNode, links: MarkdownLinks): string {
       const target = id ? links.page(id) : null;
       return target ? `[🗃 ${translate("common.database")}](${dest(target)})` : "";
     }
+    case "calendarBlock":
+      return calendarSources(n.attrs?.sources)
+        .map((s) => links.page(s.databaseId))
+        .filter((target): target is string => !!target)
+        .map((target) => `[📅 ${translate("common.database")}](${dest(target)})`)
+        .join("\n\n");
     default: {
       // Plugin blocks keep a link when their data has one (embeds…).
       if (n.type.startsWith("plugin_")) {

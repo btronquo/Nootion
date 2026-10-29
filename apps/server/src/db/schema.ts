@@ -254,3 +254,22 @@ export const notionPropertyLinks = sqliteTable(
   },
   (t) => [uniqueIndex("notion_property_links_unique").on(t.databaseId, t.notionPropertyId)],
 );
+
+/** Private iCal links: a user's read-only feed of the dates shown by one calendar block. */
+export const calendarFeeds = sqliteTable(
+  "calendar_feeds",
+  {
+    // Random and unguessable; calendar apps keep the whole link, so it is stored as is, like public links.
+    token: text("token").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    pageId: text("page_id")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    // The block's id attribute, in the page content.
+    blockId: text("block_id").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("calendar_feeds_block_unique").on(t.userId, t.pageId, t.blockId)],
+);

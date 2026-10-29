@@ -35,7 +35,8 @@ import { useActiveView, useDatabase, useDatabaseActions, useDatabaseList } from 
 import { ViewBar } from "./ViewBar";
 import { BoardView } from "./BoardView";
 import { RowCards } from "./RowCards";
-import { CalendarView, GalleryView, ListView } from "./MoreViews";
+import { GalleryView, ListView } from "./MoreViews";
+import { CalendarView } from "./Calendar";
 import { TimelineView } from "./TimelineView";
 import { useIsMobile } from "../lib/mobile";
 import { OptionChip } from "./OptionPicker";

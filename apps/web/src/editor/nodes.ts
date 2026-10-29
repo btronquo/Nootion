@@ -4,6 +4,7 @@ import { Details } from "@tiptap/extension-details";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import { PageLinkView } from "./PageLinkView";
 import { DatabaseBlockView } from "../database/DatabaseBlockView";
+import { CalendarBlockView } from "../database/CalendarBlockView";
 import { intlLocale, t } from "@nootion/shared";
 
 declare module "@tiptap/core" {
@@ -12,6 +13,7 @@ declare module "@tiptap/core" {
     fileAttachment: { insertFile: (attrs: { url: string; name: string; size: number; mimeType: string }) => ReturnType };
     pageLink: { insertPageLink: (attrs: { pageId: string; title: string }) => ReturnType };
     databaseBlock: { insertDatabase: (pageId: string) => ReturnType };
+    calendarBlock: { insertCalendar: () => ReturnType };
     toggle: { insertToggle: (level?: 1 | 2 | 3) => ReturnType };
     columns: { insertColumns: (count: number) => ReturnType };
   }
@@ -152,6 +154,56 @@ export const DatabaseBlock = Node.create<{ publicToken: string | null }>({
         (pageId) =>
         ({ commands }) =>
           commands.insertContent([{ type: this.name, attrs: { pageId } }, { type: "paragraph" }]),
+    };
+  },
+});
+
+/**
+ * Calendar gathering the dated rows of several databases. `sources` lists them (see CalendarSource);
+ * `id` names the block for its iCal feeds. `pageId` is the page being edited, `publicToken` the public link.
+ */
+export const CalendarBlock = Node.create<{ pageId: string | null; publicToken: string | null }>({
+  name: "calendarBlock",
+  group: "block",
+  atom: true,
+  draggable: true,
+  selectable: true,
+  addOptions() {
+    return { pageId: null, publicToken: null };
+  },
+  addAttributes() {
+    return {
+      id: { default: null },
+      sources: {
+        default: [],
+        parseHTML: (el) => {
+          try {
+            return JSON.parse(el.dataset.sources ?? "[]") as unknown;
+          } catch {
+            return [];
+          }
+        },
+        renderHTML: (attrs) => ({ "data-sources": JSON.stringify(attrs.sources ?? []) }),
+      },
+      mode: { default: "month" },
+    };
+  },
+  parseHTML() {
+    return [{ tag: "div[data-calendar]", getAttrs: (el) => ({ id: (el as HTMLElement).dataset.calendar || null }) }];
+  },
+  renderHTML({ node, HTMLAttributes }) {
+    return ["div", mergeAttributes(HTMLAttributes, { "data-calendar": node.attrs.id ?? "" }), t("command.calendar")];
+  },
+  addNodeView() {
+    // The calendar handles its own clicks, drags and keys.
+    return ReactNodeViewRenderer(CalendarBlockView, { stopEvent: () => true });
+  },
+  addCommands() {
+    return {
+      insertCalendar:
+        () =>
+        ({ commands }) =>
+          commands.insertContent([{ type: this.name, attrs: { id: crypto.randomUUID(), sources: [] } }, { type: "paragraph" }]),
     };
   },
 });

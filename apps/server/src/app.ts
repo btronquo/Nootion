@@ -20,6 +20,7 @@ import type { UserRow } from "./users.js";
 import { setupRoutes } from "./routes/setup.js";
 import { authRoutes } from "./routes/auth.js";
 import { favoriteRoutes } from "./routes/favorites.js";
+import { calendarFeedRoutes, icalRoutes } from "./routes/calendar.js";
 import { adminRoutes } from "./routes/admin.js";
 import { invitationRoutes } from "./routes/invitations.js";
 import { workspaceRoutes } from "./routes/workspaces.js";
@@ -114,6 +115,8 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean 
   await app.register(workspaceRoutes, { prefix: "/api/workspaces" });
   await app.register(pageRoutes, { prefix: "/api/pages" });
   await app.register(favoriteRoutes, { prefix: "/api/favorites" });
+  await app.register(calendarFeedRoutes, { prefix: "/api/calendar-feeds" });
+  await app.register(icalRoutes, { prefix: "/api/ical" });
   await app.register(userRoutes, { prefix: "/api/users" });
   await app.register(publicRoutes, { prefix: "/api/public" });
   await app.register(attachmentRoutes, { prefix: "/api" });
