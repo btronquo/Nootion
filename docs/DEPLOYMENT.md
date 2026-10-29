@@ -30,26 +30,60 @@ If Nootion sits behind an HTTPS reverse proxy, put the `https://…` URL in `APP
 The proxy must let **WebSockets** through on `/collab` (real-time collaborative editing): in Nginx Proxy Manager, tick *Websockets Support*.
 Also check its upload size limit (`client_max_body_size` in Nginx) for attached files.
 
-## Running with Docker Compose
+## Installing with Docker
 
-A prebuilt image will be published with the first public release; until then, the image is built from the source code.
+The image is published on GitHub's registry for amd64 and arm64: `ghcr.io/btronquo/nootion`.
+Tags: `latest` (last release), `1.1.0`, `1.1` (last 1.1.x), and `main` (development version, to try what's coming).
+
+### With Docker Compose (recommended)
 
 ```bash
-git clone https://github.com/btronquo/Nootion.git nootion
-cd nootion
-# Edit APP_URL and APP_SECRET in docker-compose.yml, then:
-docker compose up -d --build
+mkdir nootion && cd nootion
+curl -O https://raw.githubusercontent.com/btronquo/Nootion/main/docker-compose.yml
+# Edit APP_URL and APP_SECRET in docker-compose.yml (openssl rand -hex 32 gives a good secret), then:
+docker compose up -d
 ```
 
 Open `APP_URL` in the browser: the page that creates the administrator account shows up, with a choice of language.
 
-The repository's [`docker-compose.yml`](../docker-compose.yml) keeps the data in a named Docker volume,
-`nootion-data`. To keep it in a folder of the host instead (easier to back up), replace the volume with
+[`docker-compose.yml`](../docker-compose.yml) keeps the data in a named Docker volume, `nootion-data`.
+To keep it in a folder of the host instead (easier to back up), replace the volume with
 `- /path/to/nootion-data:/data`. The container runs as UID 1000: give it the folder (`chown -R 1000:1000 /path/to/nootion-data`),
 or run it as the folder's owner with `user: "UID:GID"`. Otherwise it stops at startup with a message explaining why.
 
-**Updating**: get the new code (`git pull`), then `docker compose up -d --build`. Database migrations are applied
-automatically at startup. Back up the data folder before a major update.
+### With docker run
+
+```bash
+docker run -d --name nootion --restart unless-stopped \
+  -p 3000:3000 \
+  -e APP_URL=http://localhost:3000 \
+  -e APP_SECRET=$(openssl rand -hex 32) \
+  -e TZ=Europe/Paris \
+  -v nootion-data:/data \
+  ghcr.io/btronquo/nootion:latest
+```
+
+Keep the generated `APP_SECRET` (`docker inspect nootion` shows it): the same one must be given again when the
+container is recreated.
+
+### Updating
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+Database migrations are applied automatically at startup. Back up the data folder before a major update, and
+read the [CHANGELOG](../CHANGELOG.md). To stay on a version, use its tag (`ghcr.io/btronquo/nootion:1.1.0`)
+instead of `latest`.
+
+### Building the image from the source code
+
+```bash
+git clone https://github.com/btronquo/Nootion.git nootion && cd nootion
+```
+
+In `docker-compose.yml`, replace the `image:` line with the `build:` block given in comments, then
+`docker compose up -d --build`. To update: `git pull`, then the same command.
 
 ## Installing the app on a phone or computer
 
