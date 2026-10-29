@@ -214,14 +214,19 @@ function CoverPicker({
 
 /** Read-only banner, for public pages. */
 export function CoverBanner({ cover, position }: { cover: string; position: number }) {
-  const gradient = gradientOf(cover);
   return (
     <div className={BANNER}>
-      {gradient ? (
-        <div className="h-full w-full" style={{ background: gradient }} />
-      ) : (
-        <img src={cover} alt="" className="h-full w-full object-cover" style={{ objectPosition: `center ${position}%` }} />
-      )}
+      <CoverFill cover={cover} position={position} />
     </div>
+  );
+}
+
+/** A cover filling its box: a gradient, or an image cropped at the chosen position. */
+export function CoverFill({ cover, position }: { cover: string; position: number }) {
+  const gradient = gradientOf(cover);
+  return gradient ? (
+    <div className="h-full w-full" style={{ background: gradient }} />
+  ) : (
+    <img src={cover} alt="" loading="lazy" className="h-full w-full object-cover" style={{ objectPosition: `center ${position}%` }} />
   );
 }

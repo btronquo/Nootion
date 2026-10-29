@@ -431,7 +431,7 @@ describe("formula columns", () => {
     expect(board.statusCode, board.body).toBe(200);
     const copy = (await boris.post(`/api/databases/${d.id}/views`, { name: "Copie", duplicateOf: first.id })).json().view;
     expect(copy.config).toEqual(config);
-    expect((await boris.post(`/api/databases/${d.id}/views`, { name: "x", type: "calendar" })).statusCode).toBe(400);
+    expect((await boris.post(`/api/databases/${d.id}/views`, { name: "x", type: "timeline" })).statusCode).toBe(400);
     // Alice can't touch the views of a database she can't see.
     expect((await alice.post(`/api/databases/${d.id}/views`, { name: "x" })).statusCode).toBe(404);
 
@@ -447,5 +447,30 @@ describe("formula columns", () => {
     expect((await boris.delete(`/api/databases/${d.id}/views/${board.json().view.id}`)).statusCode).toBe(400);
     data = await getDb(boris, d.id);
     expect(data.views.map((v) => v.name)).toEqual(["Kanban"]);
+  });
+
+  it("gallery cards show the row's cover, or else the first image of its content", async () => {
+    const d = await createDb(boris);
+    const row = async (title: string) => (await boris.post(`/api/databases/${d.id}/rows`, { values: { [d.properties[0].id]: title } })).json().row.id as string;
+    const [withCover, withImage, plain] = [await row("A"), await row("B"), await row("C")];
+    await boris.patch(`/api/pages/${withCover}`, { cover: "gradient:ocean" });
+    const content = [
+      { type: "paragraph", content: [{ type: "text", text: "src" }] },
+      { type: "image", attrs: { src: "https://example.org/first.png", alt: null } },
+      { type: "image", attrs: { src: "https://example.org/second.png" } },
+    ];
+    app.db.update(pages).set({ contentJson: { type: "doc", content } }).where(eq(pages.id, withImage)).run();
+    const covers = async () => Object.fromEntries((await getDb(boris, d.id)).rows.map((r) => [r.title, r.cover]));
+    // Without a gallery, content isn't read.
+    expect(await covers()).toEqual({ A: "gradient:ocean", B: null, C: null });
+    const gallery = await boris.post(`/api/databases/${d.id}/views`, { name: "Galerie", type: "gallery" });
+    expect(gallery.statusCode).toBe(200);
+    expect(await covers()).toEqual({ A: "gradient:ocean", B: "https://example.org/first.png", C: null });
+    expect(plain).toBeTruthy();
+
+    const calendar = await boris.post(`/api/databases/${d.id}/views`, { name: "Agenda", type: "calendar" });
+    const id = calendar.json().view.id;
+    expect((await boris.patch(`/api/databases/${d.id}/views/${id}`, { config: { calendarMode: "week", dateProperty: "x" } })).statusCode).toBe(200);
+    expect((await boris.patch(`/api/databases/${d.id}/views/${id}`, { config: { calendarMode: "year" } })).statusCode).toBe(400);
   });
 });

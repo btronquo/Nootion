@@ -152,6 +152,12 @@ export interface ViewConfig {
   groupBy?: string | null;
   /** Groups folded away (table) or hidden (board), by group key. */
   collapsedGroups?: string[];
+  /** Calendar: the date column rows are placed on (else the first date column). */
+  dateProperty?: string | null;
+  /** Calendar: a month or a week at a time. */
+  calendarMode?: "month" | "week";
+  /** Gallery: shows the row's cover or first image at the top of its card (default true). */
+  showPreview?: boolean;
 }
 
 export const viewConfigSchema = z
@@ -166,6 +172,9 @@ export const viewConfigSchema = z
     sorts: z.array(viewSortSchema).max(20).optional(),
     groupBy: z.string().min(1).max(64).nullable().optional(),
     collapsedGroups: z.array(z.string().max(500)).max(500).optional(),
+    dateProperty: z.string().min(1).max(64).nullable().optional(),
+    calendarMode: z.enum(["month", "week"]).optional(),
+    showPreview: z.boolean().optional(),
   })
   .passthrough();
 
@@ -183,6 +192,9 @@ export interface DatabaseRow {
   icon: string | null;
   /** Values by property id, computed properties included. */
   values: Record<string, CellValue>;
+  /** The row page's cover, or (for galleries) the first image of its content. */
+  cover: string | null;
+  coverPosition: number;
   createdAt: string;
   updatedAt: string;
   createdBy: string | null;
