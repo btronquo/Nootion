@@ -47,7 +47,7 @@ importers:
         specifier: ^5.6.1
         version: 5.12.7
       web-push:
-        specifier: 3.6.7
+        specifier: ^3.6.7
         version: 3.6.7
       ws:
         specifier: ^8.22.0
