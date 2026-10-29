@@ -133,7 +133,7 @@ function CollabEditor({
     {
       editable: canEdit,
       extensions: [
-        ...baseExtensions({ collaborative: true, plugins }),
+        ...baseExtensions({ collaborative: true, plugins, pageId: page.id }),
         Collaboration.configure({ document: doc }),
         CollaborationCaret.configure({ provider, user: { name: user?.name ?? "?", color: colorFor(user?.id ?? "") } }),
         createSuggestionExtension("slashCommands", "/", slashItems(ctx), t("editor.noCommand")),

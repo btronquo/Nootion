@@ -6,7 +6,7 @@ import Image from "@tiptap/extension-image";
 import { Placeholder } from "@tiptap/extensions";
 import type { ClientPluginInfo } from "@nootion/shared";
 import { DetailsContent, DetailsSummary } from "@tiptap/extension-details";
-import { Callout, Column, Columns, DatabaseBlock, FileAttachment, PageLink, Toggle } from "./nodes";
+import { CalendarBlock, Callout, Column, Columns, DatabaseBlock, FileAttachment, PageLink, Toggle } from "./nodes";
 import { pluginNodes } from "../plugins/nodes";
 import { t } from "@nootion/shared";
 
@@ -16,6 +16,8 @@ export function baseExtensions(opts: {
   plugins: ClientPluginInfo[];
   pageLink?: Parameters<typeof PageLink.configure>[0];
   publicToken?: string;
+  /** The page being edited, for calendar feeds. */
+  pageId?: string;
 }): AnyExtension[] {
   return [
     StarterKit.configure({
@@ -38,6 +40,7 @@ export function baseExtensions(opts: {
     FileAttachment,
     PageLink.configure(opts.pageLink ?? {}),
     DatabaseBlock.configure({ publicToken: opts.publicToken ?? null }),
+    CalendarBlock.configure({ pageId: opts.pageId ?? null, publicToken: opts.publicToken ?? null }),
     ...pluginNodes(opts.plugins),
     Placeholder.configure({
       placeholder: ({ node }) =>
