@@ -80,6 +80,14 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
     return { ok: true };
   });
 
+  // Deletes every page of the workspace, trash included, for good. The workspace and its members stay.
+  app.delete<{ Params: { id: string } }>("/:id/content", async (req) => {
+    const user = requireUser(req);
+    requireWorkspaceRole(db, user.id, req.params.id, ["owner"]);
+    const deleted = db.delete(pages).where(eq(pages.workspaceId, req.params.id)).run().changes;
+    return { ok: true, deleted };
+  });
+
   app.get<{ Params: { id: string } }>("/:id/members", async (req) => {
     const user = requireUser(req);
     requireWorkspaceRole(db, user.id, req.params.id, ANY_ROLE);

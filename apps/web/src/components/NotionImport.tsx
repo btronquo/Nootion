@@ -5,11 +5,12 @@ import { intlLocale, t, type NotionImportJob, type NotionImportStatus, type Mess
 import { api } from "../lib/api";
 import { useRefreshPages, useWorkspaces } from "../lib/queries";
 import { workspaceName } from "../lib/labels";
-import { Button, ErrorText, Field, Rich, Select } from "../components/ui";
+import { Button, ErrorText, Field, Rich, Select } from "./ui";
 
 const COUNTS = ["pages", "databases", "rows", "files", "updated", "unchanged"] as const;
 
-export function NotionImportPage() {
+/** Import from Notion, in "My account". */
+export function NotionImport() {
   const workspaces = useWorkspaces();
   const editable = (workspaces.data ?? []).filter((w) => w.role === "owner" || w.role === "editor");
   const [chosen, setChosen] = useState("");
@@ -54,10 +55,10 @@ export function NotionImportPage() {
   const askToken = !status.data?.connected || newToken;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8 px-5 py-8 sm:px-8 sm:py-12">
+    <div id="notion" className="space-y-6 rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
       <div>
-        <h1 className="mb-2 text-2xl font-bold">{t("notion.title")}</h1>
-        <p className="text-neutral-600 dark:text-neutral-400">{t("notion.intro")}</p>
+        <h3 className="mb-1 font-semibold">{t("notion.title")}</h3>
+        <p className="text-sm text-neutral-600 dark:text-neutral-400">{t("notion.intro")}</p>
       </div>
 
       {editable.length === 0 ? (
@@ -77,7 +78,7 @@ export function NotionImportPage() {
 
           {askToken && (
             <section className="space-y-3">
-              <h2 className="text-lg font-semibold">{t("notion.howTo")}</h2>
+              <h4 className="text-sm font-semibold">{t("notion.howTo")}</h4>
               <ol className="list-decimal space-y-1.5 pl-5 text-sm text-neutral-700 dark:text-neutral-300">
                 {(["notion.step1", "notion.step2", "notion.step3", "notion.step4"] as const).map((k) => (
                   <li key={k}>

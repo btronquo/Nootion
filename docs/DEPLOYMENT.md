@@ -128,7 +128,7 @@ Pages and databases already opened on a device stay available without network, i
 
 ## Importing from Notion
 
-The *Import from Notion* link at the bottom of the sidebar copies a Notion workspace into a Nootion space
+*My account › Import › Import from Notion* copies a Notion workspace into a Nootion space
 (the personal space or a shared space you can edit). It reads Notion through its API, so the server needs
 internet access to `api.notion.com` and to Notion's file storage.
 
