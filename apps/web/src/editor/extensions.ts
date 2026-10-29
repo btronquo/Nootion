@@ -5,7 +5,8 @@ import { TableKit } from "@tiptap/extension-table";
 import Image from "@tiptap/extension-image";
 import { Placeholder } from "@tiptap/extensions";
 import type { ClientPluginInfo } from "@nootion/shared";
-import { Callout, DatabaseBlock, FileAttachment, PageLink } from "./nodes";
+import { DetailsContent, DetailsSummary } from "@tiptap/extension-details";
+import { Callout, Column, Columns, DatabaseBlock, FileAttachment, PageLink, Toggle } from "./nodes";
 import { pluginNodes } from "../plugins/nodes";
 import { t } from "@nootion/shared";
 
@@ -28,13 +29,20 @@ export function baseExtensions(opts: {
     TableKit.configure({ table: { resizable: true } }),
     Image,
     Callout,
+    Toggle,
+    DetailsSummary,
+    DetailsContent,
+    Columns,
+    Column,
     FileAttachment,
     PageLink.configure(opts.pageLink ?? {}),
     DatabaseBlock.configure({ publicToken: opts.publicToken ?? null }),
     ...pluginNodes(opts.plugins),
     Placeholder.configure({
-      placeholder: ({ node }) => (node.type.name === "heading" ? t("editor.headingPlaceholder") : t("editor.placeholder")),
+      placeholder: ({ node }) =>
+        node.type.name === "detailsSummary" ? t("toggle.placeholder") : node.type.name === "heading" ? t("editor.headingPlaceholder") : t("editor.placeholder"),
       showOnlyCurrent: true,
+      includeChildren: true,
     }),
   ];
 }

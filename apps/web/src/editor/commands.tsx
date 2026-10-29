@@ -17,6 +17,9 @@ import {
   Text,
   Lightbulb,
   Database,
+  ListCollapse,
+  Columns2,
+  Columns3,
 } from "lucide-react";
 import { pluginNodeName, type ClientPluginInfo, type PageSummary } from "@nootion/shared";
 import { api } from "../lib/api";
@@ -50,6 +53,12 @@ export function slashItems(ctx: CommandContext) {
     item("To-do list", t("command.todo"), <CheckSquare size={16} />, (e, r) => del(e, r).toggleTaskList().run(), "todo task checkbox"),
     item("Quote", t("command.quote"), <Quote size={16} />, (e, r) => del(e, r).toggleBlockquote().run(), "blockquote"),
     item("Callout", t("command.callout"), <Lightbulb size={16} />, (e, r) => del(e, r).setCallout().run(), "note info"),
+    item("Toggle", t("command.toggle"), <ListCollapse size={16} />, (e, r) => del(e, r).insertToggle().run(), "collapse details fold"),
+    item("Toggle heading 1", t("command.toggleH1"), <ListCollapse size={16} />, (e, r) => del(e, r).insertToggle(1).run(), "collapse h1"),
+    item("Toggle heading 2", t("command.toggleH2"), <ListCollapse size={16} />, (e, r) => del(e, r).insertToggle(2).run(), "collapse h2"),
+    item("Toggle heading 3", t("command.toggleH3"), <ListCollapse size={16} />, (e, r) => del(e, r).insertToggle(3).run(), "collapse h3"),
+    item("2 columns", t("command.columns2"), <Columns2 size={16} />, (e, r) => del(e, r).insertColumns(2).run(), "columns side layout"),
+    item("3 columns", t("command.columns3"), <Columns3 size={16} />, (e, r) => del(e, r).insertColumns(3).run(), "columns side layout"),
     item("Code", t("command.code"), <Code size={16} />, (e, r) => del(e, r).toggleCodeBlock().run(), "codeblock"),
     item("Table", t("command.table"), <Table size={16} />, (e, r) => del(e, r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(), "grid"),
     item("Divider", t("command.divider"), <Minus size={16} />, (e, r) => del(e, r).setHorizontalRule().run(), "hr separator"),
@@ -120,9 +129,12 @@ export function slashItems(ctx: CommandContext) {
     const q = norm(query).trim();
     // Typing on past a non-matching command closes the menu.
     if (q.length > 25) return [];
-    // "/heading1" and "/heading 1" both match "Heading 1".
+    // Searched in English and in the user's language. "/heading1" and "/heading 1" both match "Heading 1".
     const compact = q.replace(/[\s-]/g, "");
-    return all.filter((i) => norm(`${i.title} ${i.keywords}`).includes(q) || norm(i.title).replace(/[\s-]/g, "").includes(compact));
+    const found = all.filter((i) => norm(`${i.title} ${i.hint} ${i.keywords}`).includes(q) || norm(`${i.title}|${i.hint}`).replace(/[\s-]/g, "").includes(compact));
+    // Names starting with what was typed come first: "/2 col" puts "2 columns" before "Toggle heading 2".
+    const starts = (i: (typeof all)[number]) => norm(i.title).startsWith(q) || norm(i.hint ?? "").startsWith(q);
+    return [...found.filter(starts), ...found.filter((i) => !starts(i))];
   };
 }
 

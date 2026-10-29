@@ -102,7 +102,7 @@ export function setProsemirrorJSON(doc: Y.Doc, json: ProseMirrorNode, field = CO
   });
 }
 
-const BLOCK_TYPES = new Set(["paragraph", "heading", "listItem", "taskItem", "blockquote", "codeBlock", "tableCell", "tableHeader", "callout"]);
+const BLOCK_TYPES = new Set(["paragraph", "heading", "listItem", "taskItem", "blockquote", "codeBlock", "tableCell", "tableHeader", "callout", "detailsSummary"]);
 
 /** Plain text of a document, one line per block. Used for search. */
 export function prosemirrorToText(node: ProseMirrorNode): string {

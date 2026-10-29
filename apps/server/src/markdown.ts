@@ -106,6 +106,12 @@ function block(n: ProseMirrorNode, links: MarkdownLinks): string {
         .split("\n")
         .map((l) => (l ? `> ${l}` : ">"))
         .join("\n");
+    case "details": {
+      // HTML <details>, which most Markdown readers show as a toggle.
+      const [summary, body] = n.content ?? [];
+      const inner = body ? block(body, links) : "";
+      return `<details>\n<summary>${inline(summary?.content, links)}</summary>\n\n${inner}\n\n</details>`;
+    }
     case "codeBlock": {
       const code = (n.content ?? []).map((t) => t.text ?? "").join("");
       const fence = code.includes("```") ? "~~~~" : "```";

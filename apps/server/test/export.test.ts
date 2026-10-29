@@ -148,6 +148,17 @@ describe("export", () => {
         ],
       },
       { type: "plugin_embed__embed", attrs: { data: JSON.stringify({ url: "https://youtu.be/dQw4w9WgXcQ", title: "Vidéo" }) } },
+      {
+        type: "details",
+        content: [
+          { type: "detailsSummary", content: [{ type: "text", text: "Détails" }] },
+          { type: "detailsContent", content: [{ type: "paragraph", content: [{ type: "text", text: "Caché" }] }] },
+        ],
+      },
+      {
+        type: "columns",
+        content: ["Gauche", "Droite"].map((t) => ({ type: "column", content: [{ type: "paragraph", content: [{ type: "text", text: t }] }] })),
+      },
     ]);
     setContent(child, [{ type: "codeBlock", attrs: { language: "js" }, content: [{ type: "text", text: "const a = 1;" }] }]);
 
@@ -172,6 +183,8 @@ describe("export", () => {
     expect(md).toContain("[🗃 Base de données](<Maison 2026/Factures.csv>)");
     expect(md).toContain("| Poste | Prix |\n| --- | --- |\n| Toit | 8 000 € |");
     expect(md).toContain("[Vidéo](https://youtu.be/dQw4w9WgXcQ)");
+    expect(md).toContain("<details>\n<summary>Détails</summary>\n\nCaché\n\n</details>");
+    expect(md).toContain("Gauche\n\nDroite");
     expect(files["Maison 2026/Travaux.md"]).toContain("```js\nconst a = 1;\n```");
     // Rows keep their properties in the front matter.
     expect(files["Maison 2026/Factures/EDF, octobre.md"]).toContain('Montant: "100"\nPayée: "Oui"');

@@ -92,6 +92,67 @@ body {
 .nootion-content .callout > * {
   @apply flex-1;
 }
+.nootion-content [data-type="details"] {
+  @apply my-1 flex gap-1;
+}
+.nootion-content [data-type="details"] > button {
+  @apply mt-[3px] flex h-6 w-6 shrink-0 items-center justify-center rounded text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800;
+}
+.nootion-content [data-type="details"] > button::before {
+  content: "▶";
+  @apply text-[10px] transition-transform;
+}
+.nootion-content [data-type="details"].is-open > button::before {
+  @apply rotate-90;
+}
+.nootion-content [data-type="details"] > div {
+  @apply min-w-0 flex-1;
+}
+.nootion-content [data-type="details"] summary {
+  @apply list-none py-0.5;
+}
+.nootion-content [data-type="details"] summary::-webkit-details-marker {
+  display: none;
+}
+.nootion-content [data-type="details"][data-level="1"] summary {
+  @apply text-3xl font-bold;
+}
+.nootion-content [data-type="details"][data-level="2"] summary {
+  @apply text-2xl font-semibold;
+}
+.nootion-content [data-type="details"][data-level="3"] summary {
+  @apply text-xl font-semibold;
+}
+.nootion-content [data-type="details"][data-level="1"] > button {
+  @apply mt-2;
+}
+.nootion-content [data-type="details"][data-level="2"] > button {
+  @apply mt-1.5;
+}
+.nootion-content [data-type="details"][data-level="3"] > button {
+  @apply mt-1;
+}
+.nootion-content [data-type="detailsContent"][hidden] {
+  display: none;
+}
+.nootion-content .columns {
+  @apply my-2 grid gap-6;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+}
+@media (max-width: 639px) {
+  .nootion-content .columns {
+    @apply gap-2;
+    grid-auto-flow: row;
+  }
+}
+.nootion-content .column > :first-child {
+  @apply mt-0;
+}
+.nootion-content .column > * + *,
+.nootion-content [data-type="detailsContent"] > * + * {
+  @apply mt-2;
+}
 .nootion-content .file-attachment {
   @apply flex w-fit items-center gap-2 rounded-md border border-neutral-200 px-3 py-2 text-sm no-underline hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800;
 }
@@ -124,7 +185,8 @@ body {
 .nootion-content p.is-empty::before,
 .nootion-content h1.is-empty::before,
 .nootion-content h2.is-empty::before,
-.nootion-content h3.is-empty::before {
+.nootion-content h3.is-empty::before,
+.nootion-content summary.is-empty::before {
   content: attr(data-placeholder);
   @apply pointer-events-none float-left h-0 text-neutral-400;
 }

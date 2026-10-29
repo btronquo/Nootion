@@ -94,6 +94,21 @@ async function convertBlocks(blocks: BlockTree[], ctx: ConvertContext): Promise<
 
 const LISTS = new Set(["bulletList", "orderedList", "taskList"]);
 
+/** Toggle block: its summary holds plain text only (links to pages keep their title). */
+function toggle(summary: ProseMirrorNode[], content: ProseMirrorNode[], level?: number): ProseMirrorNode {
+  const texts = summary.flatMap((n): ProseMirrorNode[] =>
+    n.type === "text" ? [n] : n.attrs?.title ? [{ type: "text", text: String(n.attrs.title), ...(n.marks ? { marks: n.marks } : {}) }] : [],
+  );
+  return {
+    type: "details",
+    ...(level ? { attrs: { level } } : {}),
+    content: [
+      { type: "detailsSummary", ...(texts.length ? { content: texts } : {}) },
+      { type: "detailsContent", content: content.length ? content : [paragraph()] },
+    ],
+  };
+}
+
 async function convertBlock(block: BlockTree, ctx: ConvertContext): Promise<ProseMirrorNode[]> {
   const data = (block[block.type] ?? {}) as { rich_text?: RichText[]; color?: string; [key: string]: unknown };
   const inline = () => richText(data.rich_text, ctx);
@@ -110,8 +125,7 @@ async function convertBlock(block: BlockTree, ctx: ConvertContext): Promise<Pros
     case "heading_3": {
       const level = Number(block.type.slice(-1));
       const heading: ProseMirrorNode = { type: "heading", attrs: { level }, ...(inline().length ? { content: inline() } : {}) };
-      // Toggle headings show their content below them.
-      if (data.is_toggleable) ctx.note("toggle");
+      if (data.is_toggleable) return [toggle(inline(), await children(), level)];
       return [heading, ...(await children())];
     }
     case "bulleted_list_item":
@@ -123,13 +137,8 @@ async function convertBlock(block: BlockTree, ctx: ConvertContext): Promise<Pros
       const item: ProseMirrorNode = { type: "taskItem", attrs: { checked: !!data.checked }, content: [paragraph(inline()), ...(await children())] };
       return [{ type: "taskList", content: [item] }];
     }
-    case "toggle": {
-      // No toggles in Nootion: the summary in bold, then the content in a quote.
-      ctx.note("toggle");
-      const summary = inline().map((n) => (n.type === "text" ? { ...n, marks: [...(n.marks ?? []), { type: "bold" }] } : n));
-      const nested = await children();
-      return [paragraph([text("▸ "), ...summary]), ...(nested.length ? [{ type: "blockquote", content: nested }] : [])];
-    }
+    case "toggle":
+      return [toggle(inline(), await children())];
     case "quote": {
       return [{ type: "blockquote", content: [paragraph(inline()), ...(await children())] }];
     }
@@ -238,12 +247,17 @@ async function convertBlock(block: BlockTree, ctx: ConvertContext): Promise<Pros
         ? [paragraph([{ type: "pageLink", attrs: { pageId: target.id, title: target.title } }])]
         : [{ type: "databaseBlock", attrs: { pageId: target.id } }];
     }
-    case "column_list":
-    case "column":
+    case "column_list": {
+      const columns = (await children()).filter((n) => n.type === "column");
+      return columns.length ? [{ type: "columns", content: columns }] : [];
+    }
+    case "column": {
+      const nested = await children();
+      return [{ type: "column", content: nested.length ? nested : [paragraph()] }];
+    }
     case "synced_block":
     case "template":
-      // Columns are put one after the other; synced blocks keep their content.
-      if (block.type === "column_list") ctx.note("columns");
+      // Synced blocks keep their content.
       return children();
     case "table_of_contents":
     case "breadcrumb":
