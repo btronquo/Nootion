@@ -1,10 +1,10 @@
 # Nootion: design and roadmap
 
-> Status: **V1 done** (version 1.0.0). This document records the original design and what comes next.
+> Status: **V1.1 done** (version 1.1.0). This document records the original design and what comes next.
 
 ## 1. Vision
 
-An open-source note-taking app in the spirit of Notion and Docmost, self-hostable on a NAS (TrueNAS) with Docker,
+An open-source note-taking app in the spirit of Notion and Docmost, self-hostable with Docker (home server, NAS or VPS),
 whose flagship feature is **databases**: typed tables, relations between databases, formulas, filters, sorts,
 groups and calculations (for example, an invoice log related to a suppliers database, with the total per supplier and per year).
 
@@ -46,7 +46,7 @@ All **TypeScript**, in a monorepo (front end, back end, formula engine and plugi
 | Files | `/data/uploads` folder, served only after an access check | Simple, included in backups |
 | Auth | Local accounts (argon2 password hashes) + session cookie | Enough for self-hosting; OIDC later, as a plugin |
 | Translations | In-house catalogue in `packages/shared/src/i18n` | Typed keys, shared by the server (errors, exports) and the browser |
-| Deployment | **Single Docker image** + `docker-compose.yml` | Installs as a YAML "Custom App" on TrueNAS SCALE |
+| Deployment | **Single Docker image** + `docker-compose.yml` | Runs anywhere Docker runs (home server, NAS, VPS), amd64 and arm64 |
 
 ## 4. Users, spaces and permissions
 
@@ -78,7 +78,7 @@ No marketplace: plugins are installed on trust, as on any personal server. See [
 
 ## 6. V1 scope (delivered)
 
-1. **Foundation**: monorepo, Fastify + SQLite, accounts, sessions, Docker image running on the NAS.
+1. **Foundation**: monorepo, Fastify + SQLite, accounts, sessions, Docker image.
 2. **Spaces and permissions**: spaces, roles, sharing, public links, with access tests from the start.
 3. **Pages**: page tree, TipTap editor, collaborative editing (Yjs).
 4. **Databases**: typed properties, table view, inline editing.
