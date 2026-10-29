@@ -21,6 +21,8 @@ Application de prise de notes open source façon Notion, auto-hébergeable, dont
   (ordre, largeur et masquage des colonnes), chaque ligne s'ouvre comme une page avec ses propriétés.
   Une database peut être une page à part ou intégrée dans une page (commande `/database`), et s'affiche
   en lecture seule sur les liens publics.
+- Page « Mon compte » : nom, email, mot de passe, photo de profil, thème clair / sombre / système.
+- Option « Pleine largeur » par page.
 - Image Docker unique, données dans `/data`.
 
 ## Lancer avec Docker

@@ -138,3 +138,13 @@ body {
 .collaboration-carets__label {
   @apply absolute -top-5 -left-px rounded rounded-bl-none px-1.5 py-0.5 text-xs font-semibold whitespace-nowrap text-white select-none;
 }
+
+/* ---------- Discreet scrollbars (wide database tables) ---------- */
+.thin-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.thin-scroll:hover,
+.thin-scroll:focus-within {
+  scrollbar-color: rgb(163 163 163 / 0.6) transparent;
+}

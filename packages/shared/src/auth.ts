@@ -42,10 +42,26 @@ export const updateUserInput = z.object({
 });
 export type UpdateUserInput = z.infer<typeof updateUserInput>;
 
+/** Changes to one's own account. Changing the email or the password requires the current password. */
+export const updateMeInput = z
+  .object({
+    name: nameSchema.optional(),
+    email: emailSchema.optional(),
+    newPassword: passwordSchema.optional(),
+    currentPassword: z.string().max(256).optional(),
+  })
+  .strict();
+export type UpdateMeInput = z.infer<typeof updateMeInput>;
+
+export const AVATAR_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"] as const;
+export const AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+
 export interface PublicUser {
   id: string;
   name: string;
   email: string;
+  /** URL of the profile picture, or null. */
+  avatarUrl: string | null;
   role: UserRole;
   disabled: boolean;
   createdAt: string;

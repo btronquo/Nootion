@@ -6,10 +6,9 @@ import { SessionProvider } from "./lib/session";
 import { App } from "./App";
 import "./index.css";
 
-const prefersDark = window.matchMedia("(prefers-color-scheme: dark)");
-const applyTheme = () => document.documentElement.classList.toggle("dark", prefersDark.matches);
-applyTheme();
-prefersDark.addEventListener("change", applyTheme);
+import { initTheme } from "./lib/theme";
+
+initTheme();
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } } });
 

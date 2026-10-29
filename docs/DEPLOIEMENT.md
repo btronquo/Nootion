@@ -7,6 +7,7 @@ Toutes les données sont dans le dossier monté sur `/data` :
 |---|---|
 | `nootion.db` (+ `-wal`, `-shm` quand l'app tourne) | La base SQLite : comptes, pages, databases, partages |
 | `uploads/` | Fichiers joints aux pages (images, PDF…) et plus tard aux databases. Un fichier par pièce jointe, nommé par son identifiant. |
+| `avatars/` | Photos de profil des comptes |
 | `plugins/` (à venir) | Plugins installés à la main |
 
 **Sauvegarder Nootion = sauvegarder ce dossier.** Sur TrueNAS, un snapshot ZFS périodique du dataset suffit

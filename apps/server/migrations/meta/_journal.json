@@ -29,6 +29,13 @@
       "when": 1793215338732,
       "tag": "0003_databases",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1793257381499,
+      "tag": "0004_account_and_full_width",
+      "breakpoints": true
     }
   ]
 }
