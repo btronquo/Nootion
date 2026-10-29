@@ -64,6 +64,13 @@
       "when": 1793276754623,
       "tag": "0008_notion_import",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1793293079650,
+      "tag": "0009_favorites",
+      "breakpoints": true
     }
   ]
 }

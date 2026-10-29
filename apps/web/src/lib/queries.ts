@@ -9,6 +9,7 @@ export const keys = {
   shared: ["shared"] as const,
   page: (id: string) => ["page", id] as const,
   users: ["users"] as const,
+  favorites: ["favorites"] as const,
 };
 
 export function useWorkspaces() {
@@ -44,6 +45,11 @@ export function usePage(id: string) {
   });
 }
 
+/** The current user's starred pages, in their chosen order. */
+export function useFavorites() {
+  return useQuery({ queryKey: keys.favorites, queryFn: async () => (await api<{ pages: PageSummary[] }>("/favorites")).pages });
+}
+
 export function useUserDirectory() {
   return useQuery({ queryKey: keys.users, queryFn: async () => (await api<{ users: UserDirectoryEntry[] }>("/users")).users });
 }
@@ -57,5 +63,6 @@ export function useRefreshPages() {
       qc.invalidateQueries({ queryKey: keys.shared }),
       qc.invalidateQueries({ queryKey: ["page"] }),
       qc.invalidateQueries({ queryKey: ["trash"] }),
+      qc.invalidateQueries({ queryKey: keys.favorites }),
     ]);
 }

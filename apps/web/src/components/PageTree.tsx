@@ -7,7 +7,7 @@ import { useRefreshPages } from "../lib/queries";
 import { pageTitle, type TreeNode } from "../lib/tree";
 import { t } from "@nootion/shared";
 
-const DRAG_TYPE = "application/x-nootion-page";
+export const DRAG_TYPE = "application/x-nootion-page";
 
 type DropZone = "before" | "inside" | "after";
 
