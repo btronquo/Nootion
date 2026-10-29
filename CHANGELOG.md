@@ -24,6 +24,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Timeline view: rows as bars from their start date to their end date, by days, weeks or months. Bars are dragged
   to move them and by their ends to change the start or the end (on phones too); a row without a date gets one by
   clicking on its line.
+- Calendar block ("/" menu): the dated rows of one or several databases on one month or week calendar, each
+  database in its colour and with its date column. Rows are dragged to another day, "+" adds a row in the chosen
+  database, and readers only see the databases they can open. "Subscribe" gives each user a private, read-only
+  iCal link (renewable, can be turned off) for phone and desktop calendars. Public links show the databases they
+  publish.
 
 ### Fixed
 

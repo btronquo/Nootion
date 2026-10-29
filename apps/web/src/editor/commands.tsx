@@ -20,6 +20,7 @@ import {
   ListCollapse,
   Columns2,
   Columns3,
+  CalendarDays,
 } from "lucide-react";
 import { pluginNodeName, type ClientPluginInfo, type PageSummary } from "@nootion/shared";
 import { api } from "../lib/api";
@@ -106,6 +107,7 @@ export function slashItems(ctx: CommandContext) {
       },
       "db table",
     ),
+    item("Calendar", t("command.calendar"), <CalendarDays size={16} />, (e, r) => del(e, r).insertCalendar().run(), "agenda events dates ical"),
     item("Link to page", t("command.link"), <Link2 size={16} />, (e, r) => del(e, r).insertContent("@").run(), "mention"),
     // Blocks of enabled plugins.
     ...ctx.plugins
