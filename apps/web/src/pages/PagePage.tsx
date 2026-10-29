@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, LayoutTemplate, Lock, MoreHorizontal, Share2, Star, Trash2 } from "lucide-react";
+import { ChevronRight, History, LayoutTemplate, Lock, MoreHorizontal, Share2, Star, Trash2 } from "lucide-react";
 import { atLeast, t, type PageDetail, type PageSummary } from "@nootion/shared";
 import { api } from "../lib/api";
 import { sendOrQueue } from "../lib/offline";
@@ -10,6 +10,7 @@ import { pageRoleLabel } from "../lib/labels";
 import { pageTitle } from "../lib/tree";
 import { Button } from "../components/ui";
 import { ShareDialog } from "../components/ShareDialog";
+import { HistoryDialog } from "../components/HistoryDialog";
 import { IconPicker } from "../components/IconPicker";
 import { AddCoverButton, PageCover } from "../components/PageCover";
 import { PageEditor } from "../editor/PageEditor";
@@ -50,6 +51,7 @@ function PageView({ page }: { page: PageDetail }) {
   const canManage = page.role === "full";
   const [title, setTitle] = useState(page.title);
   const [sharing, setSharing] = useState(false);
+  const [history, setHistory] = useState(false);
   const [menu, setMenu] = useState<HTMLElement | null>(null);
   const qc = useQueryClient();
   const refresh = useRefreshPages();
@@ -117,6 +119,11 @@ function PageView({ page }: { page: PageDetail }) {
         </nav>
         <div className="flex shrink-0 items-center gap-1">
           <SyncStatus />
+          {page.kind !== "database" && (
+            <Button variant="ghost" onClick={() => setHistory(true)} title={t("history.title")} aria-label={t("history.title")}>
+              <History size={16} />
+            </Button>
+          )}
           {!page.home && <FavoriteButton page={page} />}
           <Button variant="ghost" onClick={(e) => setMenu(e.currentTarget)} title={t("page.options")} aria-label={t("page.options")}>
             <MoreHorizontal size={16} />
@@ -212,6 +219,7 @@ function PageView({ page }: { page: PageDetail }) {
         </Popover>
       )}
       {sharing && <ShareDialog page={page} onClose={() => setSharing(false)} />}
+      {history && <HistoryDialog page={page} onClose={() => setHistory(false)} />}
     </div>
   );
 }

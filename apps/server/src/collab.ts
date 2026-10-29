@@ -8,6 +8,7 @@ import type { Db } from "./db/index.js";
 import { pages } from "./db/schema.js";
 import { findSessionUser, SESSION_COOKIE } from "./auth/sessions.js";
 import { getPageRole } from "./permissions.js";
+import { recordSnapshot } from "./history.js";
 
 /** Name of the Y.XmlFragment holding the page body (TipTap's default). */
 export const CONTENT_FIELD = "default";
@@ -123,6 +124,8 @@ export function encodeContent(doc: Y.Doc) {
  */
 export function createCollab(db: Db) {
   const sockets = new Set<WebSocketLike & { close(code?: number, reason?: string): void }>();
+  // Who edited each open page since its last version.
+  const editors = new Map<string, Set<string>>();
   const hocuspocus = new Hocuspocus<CollabContext>({
     debounce: 1500,
     maxDebounce: 10000,
@@ -136,9 +139,19 @@ export function createCollab(db: Db) {
     },
 
     async onLoadDocument({ document, documentName }) {
-      const row = db.select({ state: pages.contentState }).from(pages).where(eq(pages.id, documentName)).get();
+      const row = db.select({ state: pages.contentState, json: pages.contentJson }).from(pages).where(eq(pages.id, documentName)).get();
       if (row?.state) Y.applyUpdate(document, new Uint8Array(row.state));
+      // The content as it was before anyone edits it, if the history doesn't have it yet.
+      if (row?.json) recordSnapshot(db, documentName, { content: row.json as ProseMirrorNode });
       return document;
+    },
+
+    async onChange({ documentName, context }) {
+      const userId = (context as CollabContext | undefined)?.userId;
+      if (!userId) return;
+      let set = editors.get(documentName);
+      if (!set) editors.set(documentName, (set = new Set()));
+      set.add(userId);
     },
 
     async onStoreDocument({ document, documentName }) {
@@ -147,6 +160,14 @@ export function createCollab(db: Db) {
         .set({ contentState: state, contentJson: json, contentText: text, updatedAt: new Date() })
         .where(eq(pages.id, documentName))
         .run();
+      // A version every few minutes while people edit.
+      if (recordSnapshot(db, documentName, { content: json, authors: editors.get(documentName) })) editors.delete(documentName);
+    },
+
+    // And one when the last of them leaves.
+    async beforeUnloadDocument({ document, documentName }) {
+      recordSnapshot(db, documentName, { content: encodeContent(document).json, authors: editors.get(documentName), force: true });
+      editors.delete(documentName);
     },
   });
   return Object.assign(hocuspocus, {
