@@ -9,6 +9,7 @@ import { pages } from "./db/schema.js";
 import { findSessionUser, SESSION_COOKIE } from "./auth/sessions.js";
 import { getPageRole } from "./permissions.js";
 import { recordSnapshot } from "./history.js";
+import { syncReminders } from "./reminders.js";
 
 /** Name of the Y.XmlFragment holding the page body (TipTap's default). */
 export const CONTENT_FIELD = "default";
@@ -109,6 +110,7 @@ const BLOCK_TYPES = new Set(["paragraph", "heading", "listItem", "taskItem", "bl
 export function prosemirrorToText(node: ProseMirrorNode): string {
   if (node.type === "text") return node.text ?? "";
   if (node.type === "pageLink" || node.type === "pageMention") return String(node.attrs?.title ?? "");
+  if (node.type === "dateMention") return String(node.attrs?.date ?? "").replace("T", " ");
   const inner = (node.content ?? []).map(prosemirrorToText).join(BLOCK_TYPES.has(node.type) ? "" : "\n");
   return inner.replace(/\n{2,}/g, "\n");
 }
@@ -160,6 +162,7 @@ export function createCollab(db: Db) {
         .set({ contentState: state, contentJson: json, contentText: text, updatedAt: new Date() })
         .where(eq(pages.id, documentName))
         .run();
+      syncReminders(db, documentName, json);
       // A version every few minutes while people edit.
       if (recordSnapshot(db, documentName, { content: json, authors: editors.get(documentName) })) editors.delete(documentName);
     },
@@ -225,4 +228,5 @@ export async function writeContent(collab: Collab, db: Db, pageId: string, doc: 
     .set({ contentState: state, contentJson: json, contentText: text })
     .where(eq(pages.id, pageId))
     .run();
+  syncReminders(db, pageId, json);
 }

@@ -100,3 +100,34 @@ self.addEventListener("fetch", (event) => {
       .catch(() => caches.match(req).then((r) => r || Response.error())),
   );
 });
+
+// Reminders sent by the server (Web Push), shown even with the app closed.
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    // Not one of ours.
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title || "Nootion", {
+      body: data.body || "",
+      tag: data.tag,
+      icon: "/icon-192.png",
+      data: { url: data.url || "/" },
+    }),
+  );
+});
+
+// Opens the page of the reminder, in the app's window if one is open.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = new URL((event.notification.data && event.notification.data.url) || "/", self.location.origin).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((wins) => {
+      const win = wins.find((w) => new URL(w.url).origin === self.location.origin);
+      if (win) return win.focus().then(() => win.navigate(url).catch(() => self.clients.openWindow(url)));
+      return self.clients.openWindow(url);
+    }),
+  );
+});
