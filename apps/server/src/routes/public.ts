@@ -7,7 +7,7 @@ import { notFound } from "../http.js";
 import { getChain, isTrashed } from "../permissions.js";
 import { getPageMeta, listDescendants, notRow, toSummary } from "../pages.js";
 import { enrichRows, listProperties, loadDatabase, toRow } from "../databases.js";
-import { t } from "@nootion/shared";
+import { calendarSources, t } from "@nootion/shared";
 
 /** Read-only access through a public link. No account needed. */
 export const publicRoutes: FastifyPluginAsync = async (app) => {
@@ -50,6 +50,8 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
     const out: ProseMirrorNode = { ...node };
     const attrs = node.attrs ? { ...node.attrs } : undefined;
     if (attrs && node.type === "databaseBlock" && (typeof attrs.pageId !== "string" || !inScope(link, attrs.pageId))) attrs.pageId = null;
+    // Calendars only show the databases the link already publishes.
+    if (attrs && node.type === "calendarBlock") attrs.sources = calendarSources(attrs.sources).filter((s) => inScope(link, s.databaseId));
     if (attrs && (node.type === "pageLink" || node.type === "pageMention")) {
       const pageId = typeof attrs.pageId === "string" ? attrs.pageId : null;
       if (!pageId || !inScope(link, pageId)) {
