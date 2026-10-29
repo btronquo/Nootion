@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, Lock, MoreHorizontal, Share2, Star, Trash2 } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ChevronRight, LayoutTemplate, Lock, MoreHorizontal, Share2, Star, Trash2 } from "lucide-react";
 import { atLeast, t, type PageDetail, type PageSummary } from "@nootion/shared";
 import { api } from "../lib/api";
 import { sendOrQueue } from "../lib/offline";
@@ -56,6 +56,12 @@ function PageView({ page }: { page: PageDetail }) {
   const navigate = useNavigate();
   const saveTimer = useRef<number | undefined>(undefined);
   const titleRef = useRef<HTMLTextAreaElement>(null);
+  const [empty, setEmpty] = useState(false);
+  // An empty page can start from a template.
+  const offerTemplates = canEdit && page.kind === "page" && !page.template && !page.home;
+
+  // The title can change elsewhere too (a template applied to the page).
+  useEffect(() => setTitle(page.title), [page.title]);
 
   useEffect(() => {
     if (canEdit && !page.title) titleRef.current?.focus();
@@ -69,7 +75,7 @@ function PageView({ page }: { page: PageDetail }) {
     }
   }, [title]);
 
-  async function save(patch: { title?: string; icon?: string | null; fullWidth?: boolean; cover?: string | null; coverPosition?: number }) {
+  async function save(patch: { title?: string; icon?: string | null; fullWidth?: boolean; cover?: string | null; coverPosition?: number; template?: boolean }) {
     // Kept for later when the server can't be reached.
     await sendOrQueue(`/pages/${page.id}`, patch);
     qc.setQueryData(keys.page(page.id), { ...page, ...patch });
@@ -159,14 +165,16 @@ function PageView({ page }: { page: PageDetail }) {
               document.querySelector<HTMLElement>(".nootion-content")?.focus();
             }
           }}
-          placeholder={t("common.untitled")}
+          placeholder={page.template ? t("template.untitled") : t("common.untitled")}
           aria-label={t("page.titleLabel")}
           className="w-full resize-none overflow-hidden bg-transparent text-3xl font-bold sm:text-4xl outline-none placeholder:text-neutral-300 dark:placeholder:text-neutral-600"
         />
         )}
+        {page.template && <TemplateBanner page={page} />}
         {page.kind === "row" && page.parentId && <RowProperties databaseId={page.parentId} rowId={page.id} />}
+        {offerTemplates && empty && <TemplatePicker page={page} />}
         <div className="mt-4">
-          {page.kind === "database" ? <DatabaseTable id={page.id} /> : <PageEditor page={page} canEdit={canEdit} />}
+          {page.kind === "database" ? <DatabaseTable id={page.id} /> : <PageEditor page={page} canEdit={canEdit} onEmpty={offerTemplates ? setEmpty : undefined} />}
         </div>
       </div>
 
@@ -176,6 +184,21 @@ function PageView({ page }: { page: PageDetail }) {
             <label className="flex cursor-pointer items-center justify-between gap-2 rounded px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800">
               {t("page.fullWidth")}
               <input type="checkbox" role="switch" className="h-4 w-4 accent-blue-600" checked={page.fullWidth} onChange={(e) => save({ fullWidth: e.target.checked })} />
+            </label>
+          )}
+          {canEdit && page.kind === "page" && !page.home && (
+            <label className="flex cursor-pointer items-center justify-between gap-2 rounded px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800">
+              {t("template.pageToggle")}
+              <input
+                type="checkbox"
+                role="switch"
+                className="h-4 w-4 accent-blue-600"
+                checked={page.template}
+                onChange={async (e) => {
+                  await save({ template: e.target.checked });
+                  await qc.invalidateQueries({ queryKey: ["page-templates"] });
+                }}
+              />
             </label>
           )}
           <a
@@ -209,5 +232,68 @@ function FavoriteButton({ page }: { page: PageDetail }) {
     <Button variant="ghost" onClick={toggle} title={label} aria-label={label} aria-pressed={starred}>
       <Star size={16} className={starred ? "fill-amber-400 text-amber-400" : ""} />
     </Button>
+  );
+}
+
+/** Says that the page is a template, and what it is for. */
+function TemplateBanner({ page }: { page: PageDetail }) {
+  const database = page.kind === "row" ? page.breadcrumb[page.breadcrumb.length - 1] : undefined;
+  return (
+    <div className="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200" data-template-banner>
+      <LayoutTemplate size={16} className="mt-0.5 shrink-0" />
+      <span>
+        {database ? (
+          <>
+            {t("template.rowBanner", { database: pageTitle(database.title) })}{" "}
+            <Link to={`/page/${database.id}`} className="underline">
+              {t("template.backToDatabase")}
+            </Link>
+          </>
+        ) : (
+          t("template.pageBanner")
+        )}
+      </span>
+    </div>
+  );
+}
+
+/** Page templates offered on an empty page. */
+function TemplatePicker({ page }: { page: PageDetail }) {
+  const qc = useQueryClient();
+  const refresh = useRefreshPages();
+  const templates = useQuery({ queryKey: ["page-templates"], queryFn: async () => (await api<{ pages: PageSummary[] }>("/pages/templates")).pages });
+  const [applying, setApplying] = useState<string | null>(null);
+  const list = (templates.data ?? []).filter((tpl) => tpl.id !== page.id);
+  if (!list.length) return null;
+
+  async function apply(templateId: string) {
+    setApplying(templateId);
+    try {
+      await api(`/pages/${page.id}/apply-template`, { method: "POST", body: { templateId } });
+      await Promise.all([qc.invalidateQueries({ queryKey: keys.page(page.id) }), refresh()]);
+    } finally {
+      setApplying(null);
+    }
+  }
+
+  return (
+    <div className="mt-4 text-sm" data-template-picker>
+      <div className="mb-2 flex items-center gap-1.5 text-neutral-500">
+        <LayoutTemplate size={14} /> {t("template.startFrom")}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {list.map((tpl) => (
+          <button
+            key={tpl.id}
+            disabled={!!applying}
+            onClick={() => apply(tpl.id)}
+            className="flex items-center gap-2 rounded-lg border border-neutral-200 px-3 py-2 hover:bg-neutral-50 disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
+          >
+            <span>{tpl.icon ?? "📄"}</span>
+            <span className="max-w-48 truncate">{applying === tpl.id ? t("template.applying") : pageTitle(tpl.title)}</span>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

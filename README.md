@@ -68,6 +68,8 @@ offline use and the Notion import.
   with a private iCal link to follow them in a phone or desktop calendar (Google, Apple, Outlook, Thunderbird).
 - A personal home page with widgets: recently visited pages, favorites, upcoming events, the first rows of a
   database view (e.g. the open to-dos), arranged by each user.
+- Templates: row templates (content and default values, one used for every new row if chosen) and page templates
+  offered on any empty page, copied with their subpages, databases and files.
 - Plugins: editor blocks, API routes, scheduled tasks and formula functions, turned on and set up in the
   administration. Ships with the "Embeds" plugin (`/embed`: YouTube, Vimeo, Spotify, Google Maps, Figma,
   link previews). See [docs/PLUGINS.md](docs/PLUGINS.md) to write your own.

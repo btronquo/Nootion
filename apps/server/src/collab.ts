@@ -188,3 +188,20 @@ export async function registerCollabRoute(app: FastifyInstance, collab: Collab) 
     });
   });
 }
+
+/** Replaces a page's content, through the live editing server when someone has it open. */
+export async function writeContent(collab: Collab, db: Db, pageId: string, doc: ProseMirrorNode) {
+  if (collab.documents.has(pageId)) {
+    const connection = await collab.openDirectConnection(pageId);
+    await connection.transact((d) => setProsemirrorJSON(d, doc));
+    await connection.disconnect();
+    return;
+  }
+  const y = new Y.Doc();
+  setProsemirrorJSON(y, doc);
+  const { state, json, text } = encodeContent(y);
+  db.update(pages)
+    .set({ contentState: state, contentJson: json, contentText: text })
+    .where(eq(pages.id, pageId))
+    .run();
+}

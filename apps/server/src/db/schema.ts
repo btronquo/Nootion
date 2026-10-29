@@ -111,6 +111,10 @@ export const pages = sqliteTable(
     contentText: text("content_text"),
     // Rows only: cell values by property id.
     props: text("props", { mode: "json" }).$type<Record<string, unknown>>(),
+    // A page template (offered when starting an empty page), or a row template of its database (hidden from its rows).
+    template: integer("template", { mode: "boolean" }).notNull().default(false),
+    // Databases only: the row template new rows start from, if any.
+    defaultTemplateId: text("default_template_id"),
   },
   (t) => [index("pages_workspace_idx").on(t.workspaceId), index("pages_parent_idx").on(t.parentId)],
 );

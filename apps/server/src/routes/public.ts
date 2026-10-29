@@ -112,7 +112,7 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
     if (!inScope(link, req.params.id)) throw notFound();
     const meta = getPageMeta(db, req.params.id);
     if (!meta || meta.kind !== "database") throw notFound();
-    return { database: { ...loadDatabase(db, meta, "viewer", (id) => inScope(link, id)), people: {} } };
+    return { database: { ...loadDatabase(db, meta, "viewer", (id) => inScope(link, id)), people: {}, templates: [], defaultTemplateId: null } };
   });
 
   app.get<{ Params: { token: string; id: string } }>("/:token/attachments/:id", async (req, reply) => {
