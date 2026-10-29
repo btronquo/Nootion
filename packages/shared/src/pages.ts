@@ -51,6 +51,15 @@ export interface PageDetail extends PageSummary {
   coverPosition: number;
   createdAt: string;
   updatedAt: string;
+  /** The reader's own home page. */
+  home: boolean;
+}
+
+/** A page the user opened lately, for "Recently visited". */
+export interface RecentPage extends PageSummary {
+  cover: string | null;
+  coverPosition: number;
+  visitedAt: string;
 }
 
 export interface PageShare {

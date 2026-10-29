@@ -21,6 +21,10 @@ import {
   Columns2,
   Columns3,
   CalendarDays,
+  CalendarClock,
+  Clock,
+  ListChecks,
+  Star,
 } from "lucide-react";
 import { pluginNodeName, type ClientPluginInfo, type PageSummary } from "@nootion/shared";
 import { api } from "../lib/api";
@@ -108,6 +112,10 @@ export function slashItems(ctx: CommandContext) {
       "db table",
     ),
     item("Calendar", t("command.calendar"), <CalendarDays size={16} />, (e, r) => del(e, r).insertCalendar().run(), "agenda events dates ical"),
+    item("Recent pages", t("command.recentPages"), <Clock size={16} />, (e, r) => del(e, r).insertWidget("recentPages").run(), "widget visited history home"),
+    item("Favorites", t("command.favoritesList"), <Star size={16} />, (e, r) => del(e, r).insertWidget("favoritesList").run(), "widget starred home"),
+    item("Upcoming events", t("command.upcomingEvents"), <CalendarClock size={16} />, (e, r) => del(e, r).insertWidget("upcomingEvents").run(), "widget agenda next home"),
+    item("Database rows", t("command.databaseRows"), <ListChecks size={16} />, (e, r) => del(e, r).insertWidget("databaseRows").run(), "widget todo tasks list home"),
     item("Link to page", t("command.link"), <Link2 size={16} />, (e, r) => del(e, r).insertContent("@").run(), "mention"),
     // Blocks of enabled plugins.
     ...ctx.plugins
