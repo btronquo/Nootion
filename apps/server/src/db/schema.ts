@@ -109,6 +109,22 @@ export const pages = sqliteTable(
   (t) => [index("pages_workspace_idx").on(t.workspaceId), index("pages_parent_idx").on(t.parentId)],
 );
 
+/** Pages a user starred, in the order shown at the top of their sidebar. */
+export const favorites = sqliteTable(
+  "favorites",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    pageId: text("page_id")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.pageId] })],
+);
+
 export const pagePermissions = sqliteTable(
   "page_permissions",
   {

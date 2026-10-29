@@ -19,6 +19,7 @@ import { t } from "@nootion/shared";
 import type { UserRow } from "./users.js";
 import { setupRoutes } from "./routes/setup.js";
 import { authRoutes } from "./routes/auth.js";
+import { favoriteRoutes } from "./routes/favorites.js";
 import { adminRoutes } from "./routes/admin.js";
 import { invitationRoutes } from "./routes/invitations.js";
 import { workspaceRoutes } from "./routes/workspaces.js";
@@ -94,11 +95,12 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean 
 
   // When access may have been taken away, drop live editing sessions: clients reconnect at once
   // and go through the permission check again.
-  const ACCESS_CHANGES = [/^\/api\/pages\/[^/]+\/shares/, /^\/api\/pages\/[^/]+(\/permanent)?$/, /^\/api\/workspaces\/[^/]+(\/members.*)?$/, /^\/api\/admin\/users\//];
+  const ACCESS_CHANGES = [/^\/api\/pages\/[^/]+\/shares/, /^\/api\/pages\/[^/]+(\/permanent)?$/, /^\/api\/workspaces\/[^/]+(\/members.*|\/content)?$/, /^\/api\/admin\/users\//];
   app.addHook("onResponse", async (req, reply) => {
     if (SAFE_METHODS.has(req.method) || reply.statusCode >= 400) return;
     const url = req.url.split("?")[0];
-    if (!ACCESS_CHANGES.some((r) => r.test(url))) return;
+    const accountDeleted = req.method === "DELETE" && url === "/api/auth/me";
+    if (!accountDeleted && !ACCESS_CHANGES.some((r) => r.test(url))) return;
     if (req.method === "PATCH" && url.startsWith("/api/pages/")) return; // title/icon edits
     collab.revalidateAll();
     if (req.method === "DELETE") cleanOrphanFiles(opts.db, opts.config.dataDir);
@@ -111,6 +113,7 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean 
   await app.register(invitationRoutes, { prefix: "/api/invitations" });
   await app.register(workspaceRoutes, { prefix: "/api/workspaces" });
   await app.register(pageRoutes, { prefix: "/api/pages" });
+  await app.register(favoriteRoutes, { prefix: "/api/favorites" });
   await app.register(userRoutes, { prefix: "/api/users" });
   await app.register(publicRoutes, { prefix: "/api/public" });
   await app.register(attachmentRoutes, { prefix: "/api" });

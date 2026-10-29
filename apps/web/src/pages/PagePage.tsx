@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, Lock, MoreHorizontal, Share2, Trash2 } from "lucide-react";
-import { atLeast, t, type PageDetail } from "@nootion/shared";
+import { ChevronRight, Lock, MoreHorizontal, Share2, Star, Trash2 } from "lucide-react";
+import { atLeast, t, type PageDetail, type PageSummary } from "@nootion/shared";
 import { api } from "../lib/api";
 import { sendOrQueue } from "../lib/offline";
-import { keys, usePage, useRefreshPages } from "../lib/queries";
+import { keys, useFavorites, usePage, useRefreshPages } from "../lib/queries";
 import { pageRoleLabel } from "../lib/labels";
 import { pageTitle } from "../lib/tree";
 import { Button } from "../components/ui";
@@ -100,6 +100,7 @@ function PageView({ page }: { page: PageDetail }) {
         </nav>
         <div className="flex shrink-0 items-center gap-1">
           <SyncStatus />
+          <FavoriteButton page={page} />
           <Button variant="ghost" onClick={(e) => setMenu(e.currentTarget)} title={t("page.options")} aria-label={t("page.options")}>
             <MoreHorizontal size={16} />
           </Button>
@@ -165,5 +166,24 @@ function PageView({ page }: { page: PageDetail }) {
       )}
       {sharing && <ShareDialog page={page} onClose={() => setSharing(false)} />}
     </div>
+  );
+}
+
+function FavoriteButton({ page }: { page: PageDetail }) {
+  const favorites = useFavorites();
+  const qc = useQueryClient();
+  const starred = !!favorites.data?.some((p) => p.id === page.id);
+  const label = starred ? t("favorites.remove") : t("favorites.add");
+
+  async function toggle() {
+    qc.setQueryData<PageSummary[]>(keys.favorites, (old = []) => (starred ? old.filter((p) => p.id !== page.id) : [...old, page]));
+    await api(`/favorites/${page.id}`, { method: starred ? "DELETE" : "PUT" }).catch(() => {});
+    await qc.invalidateQueries({ queryKey: keys.favorites });
+  }
+
+  return (
+    <Button variant="ghost" onClick={toggle} title={label} aria-label={label} aria-pressed={starred}>
+      <Star size={16} className={starred ? "fill-amber-400 text-amber-400" : ""} />
+    </Button>
   );
 }

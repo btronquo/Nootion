@@ -47,7 +47,7 @@ offline use and the Notion import.
 - Sign in / sign out, secure sessions (httpOnly cookie, argon2 password hashes).
 - Invitations by link (valid 7 days, optionally restricted to one email), admin / member roles, account disabling.
 - A private personal space for each user, and shared spaces with roles (owner, editor, commenter, viewer).
-- Page tree (subpages, drag and drop, icons), trash with restore.
+- Page tree (subpages, drag and drop, icons), trash with restore, favorites at the top of the sidebar.
 - Pages are private by default: share a page with a user (inherited by subpages), or through a revocable read-only public link.
   Every access check is done on the server (`apps/server/src/permissions.ts`) and covered by tests.
 - Notion-like page editor ("/" commands, to-do lists, tables, callouts, images and attached files,

@@ -3,6 +3,14 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and version numbers follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Favorites: a star in each page's header adds the page to a "Favorites" section at the top of the sidebar
+  (also in the phone drawer). Favorites are per user, reordered by drag and drop, and a page dragged from a tree
+  onto the section is starred. Pages in the trash or no longer shared with the user are hidden from the list.
+
 ## [1.1.0] - 2026-10-29
 
 ### Mobile

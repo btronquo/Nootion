@@ -111,3 +111,6 @@ export interface SearchResult {
   /** Extract of the content; matched words are between \u0001 and \u0002. */
   snippet: string;
 }
+
+/** New order of the user's favorites: every favorite page id, in order. */
+export const reorderFavoritesInput = z.object({ pageIds: z.array(z.string().min(1)).max(1000) });
