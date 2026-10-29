@@ -93,10 +93,12 @@ export const notionRoutes: FastifyPluginAsync = async (app) => {
         parentId: input.parentId ?? null,
         userId: user.id,
         job,
+        log: (message, data) => req.log.info({ workspaceId: input.workspaceId, ...data }, message),
       }),
     )
       .then(() => {
         job.status = "done";
+        req.log.info({ workspaceId: input.workspaceId, report: job.report }, "Notion import done");
         db.update(notionConnections).set({ lastImportAt: new Date() }).where(eq(notionConnections.workspaceId, input.workspaceId)).run();
       })
       .catch((e) => {

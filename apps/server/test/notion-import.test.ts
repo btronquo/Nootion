@@ -51,7 +51,7 @@ describe("Notion import", () => {
     const status = await runImport();
     expect(status.connected).toBe(true);
     const report = status.job.report;
-    expect(report).toMatchObject({ pages: 2, databases: 2, rows: 3, files: 1 });
+    expect(report).toMatchObject({ pages: 2, databases: 3, rows: 3, files: 1 });
     expect(Object.keys(report.notes)).toEqual(expect.arrayContaining(["toggle", "columns", "table_of_contents"]));
     expect(report.formulas).toEqual([expect.objectContaining({ database: "Tasks", name: "Weird" })]);
 
@@ -62,6 +62,8 @@ describe("Notion import", () => {
     expect(byTitle("Notes").parentId).toBe(home.id);
     expect(byTitle("Tasks")).toMatchObject({ parentId: home.id, kind: "database" });
     expect(byTitle("Projects")).toMatchObject({ parentId: null, kind: "database" });
+    // A database inside a database goes next to it.
+    expect(byTitle("Glossary")).toMatchObject({ parentId: home.id, kind: "database" });
 
     // Home's content, with its links pointing to the imported pages.
     const doc = content(home.id);
