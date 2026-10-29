@@ -33,6 +33,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   arranges like blocks of a page ("/" to add one, drag to reorder): recently visited pages (cards with their
   cover), favorites, upcoming events of chosen databases (next 7 to 90 days), and the first rows of a database view
   (a checkbox column can be ticked from there). It is an ordinary page underneath, so any other block works too.
+- Templates. Row templates ("Templates" in a database's toolbar): content and values that new rows start with, edited
+  like a row, one of them used for every new row if chosen. Page templates ("Use as a template" in a page's menu):
+  an empty page offers them, and the copy brings the template's content, icon, cover, subpages and databases (with
+  their columns, views and rows), and attached files.
 
 ### Fixed
 

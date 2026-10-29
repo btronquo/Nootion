@@ -129,7 +129,7 @@ What makes everyday use comfortable, in this order (quick wins first, then what 
    calendar block's rows, next days first), the first rows of a database view (e.g. the 5 open to-dos), and any page
    content (it is an ordinary page underneath, so every block works there). Builds on the calendar widget and the
    database views.
-7. **Templates.** Page templates and database row templates (content and default values), chosen when creating.
+7. **Templates** (done). Page templates and database row templates (content and default values), chosen when creating.
 8. **Page history.** Snapshots of each page kept over time, compared and restored (built on Yjs).
 9. **Backlinks.** "Linked from" at the bottom of a page: the pages that link or mention it.
 10. **Search inside attached files.** Text of PDFs and of images (OCR, e.g. scanned bills), indexed when the file

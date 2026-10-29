@@ -24,6 +24,7 @@ import {
   type DatabaseData,
   type DatabaseProperty,
   type DatabaseRow,
+  type RowTemplate,
   type DatabaseViewInfo,
   type PageRole,
   type PropertyConfig,
@@ -83,7 +84,7 @@ export function listRowPages(db: DbLike, databaseId: string): RowPage[] {
   return db
     .select({ id: pages.id, title: pages.title, icon: pages.icon, props: pages.props, cover: pages.cover, coverPosition: pages.coverPosition, createdAt: pages.createdAt, updatedAt: pages.updatedAt, createdBy: pages.createdBy, position: pages.position })
     .from(pages)
-    .where(and(eq(pages.parentId, databaseId), eq(pages.kind, "row"), isNull(pages.deletedAt)))
+    .where(and(eq(pages.parentId, databaseId), eq(pages.kind, "row"), eq(pages.template, false), isNull(pages.deletedAt)))
     .all()
     .sort((a, b) => a.position - b.position || a.createdAt.getTime() - b.createdAt.getTime());
 }
@@ -148,7 +149,19 @@ export function loadDatabase(db: Db, page: PageMeta, role: PageRole, canRead: Ca
   if (views.some((v) => v.type === "gallery")) addImagePreviews(db, rows);
   const { related, rollupTargets } = enrichRows(db, properties, rows, canRead);
   const people = collectPeople(db, properties, rows, rollupTargets);
-  return { id: page.id, title: page.title, icon: page.icon, role, properties, views, rows, people, related, rollupTargets };
+  const templates = listRowTemplates(db, page.id);
+  const defaultTemplateId = templates.some((t) => t.id === page.defaultTemplateId) ? page.defaultTemplateId : null;
+  return { id: page.id, title: page.title, icon: page.icon, role, properties, views, rows, people, related, rollupTargets, templates, defaultTemplateId };
+}
+
+/** Row templates of a database, in the order they were made. */
+export function listRowTemplates(db: DbLike, databaseId: string): RowTemplate[] {
+  return db
+    .select({ id: pages.id, title: pages.title, icon: pages.icon })
+    .from(pages)
+    .where(and(eq(pages.parentId, databaseId), eq(pages.kind, "row"), eq(pages.template, true), isNull(pages.deletedAt)))
+    .orderBy(pages.createdAt)
+    .all();
 }
 
 /** Rows without a cover show the first image of their content on gallery cards. */
@@ -430,7 +443,7 @@ export function validateValues(db: DbLike, properties: DatabaseProperty[], rowId
         ? db
             .select({ id: pages.id })
             .from(pages)
-            .where(and(inArray(pages.id, ids), eq(pages.parentId, prop.config.databaseId), eq(pages.kind, "row"), isNull(pages.deletedAt)))
+            .where(and(inArray(pages.id, ids), eq(pages.parentId, prop.config.databaseId), eq(pages.kind, "row"), eq(pages.template, false), isNull(pages.deletedAt)))
             .all()
         : [];
       if (found.length !== ids.length) throw new HttpError(400, "unknown_row", t("error.unknownRow", { name: prop.name }));

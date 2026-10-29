@@ -53,6 +53,8 @@ export interface PageDetail extends PageSummary {
   updatedAt: string;
   /** The reader's own home page. */
   home: boolean;
+  /** A page template, or (for a row) a row template of its database. */
+  template: boolean;
 }
 
 /** A page the user opened lately, for "Recently visited". */
@@ -116,6 +118,8 @@ export const updatePageInput = z.object({
   fullWidth: z.boolean().optional(),
   cover: coverSchema.optional(),
   coverPosition: z.number().int().min(0).max(100).optional(),
+  /** Pages only: offered as a template when starting an empty page. */
+  template: z.boolean().optional(),
 });
 
 export const movePageInput = z.object({
