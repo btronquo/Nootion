@@ -66,6 +66,7 @@ export const en = {
   "auth.newPassword": "Password (at least 8 characters)",
   "auth.password": "Password",
   "auth.passwordTooShort": "The password must be at least 8 characters long",
+  "backlinks.title": { one: "Linked from {count} page", other: "Linked from {count} pages" },
   "board.column": "Column {name}",
   "board.new": "New",
   "board.noGroup":

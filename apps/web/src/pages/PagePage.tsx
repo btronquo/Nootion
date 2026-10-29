@@ -11,6 +11,7 @@ import { pageTitle } from "../lib/tree";
 import { Button } from "../components/ui";
 import { ShareDialog } from "../components/ShareDialog";
 import { HistoryDialog } from "../components/HistoryDialog";
+import { Backlinks } from "../components/Backlinks";
 import { IconPicker } from "../components/IconPicker";
 import { AddCoverButton, PageCover } from "../components/PageCover";
 import { PageEditor } from "../editor/PageEditor";
@@ -183,6 +184,7 @@ function PageView({ page }: { page: PageDetail }) {
         <div className="mt-4">
           {page.kind === "database" ? <DatabaseTable id={page.id} /> : <PageEditor page={page} canEdit={canEdit} onEmpty={offerTemplates ? setEmpty : undefined} />}
         </div>
+        {!page.home && <Backlinks pageId={page.id} />}
       </div>
 
       {menu && (
