@@ -89,7 +89,7 @@ export function ViewBar({
   if (!actions && data.views.length < 2) return null;
 
   return (
-    <div className="mb-1 flex flex-wrap items-center gap-1 border-b border-neutral-200 pb-1 text-sm dark:border-neutral-800">
+    <div className="flex flex-wrap items-center gap-1 border-b border-neutral-200 pb-1 text-sm dark:border-neutral-800">
       <div role="tablist" aria-label="Vues" className="flex min-w-0 flex-wrap items-center gap-0.5">
         {data.views.map((v) => (
           <button

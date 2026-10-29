@@ -24,14 +24,14 @@ afterEach(async () => {
   await notion.stop();
 });
 
-async function runImport(body: Record<string, unknown> = { token: "secret_good_token" }) {
+async function runImport(body: Record<string, unknown> = { token: "secret_good_token" }, expected = "done") {
   const res = await boris.post("/api/import/notion", { workspaceId: ws, ...body });
   expect(res.statusCode, res.body).toBe(200);
   for (let i = 0; i < 200; i++) {
     const status = (await boris.get(`/api/import/notion?workspaceId=${ws}`)).json();
     if (status.job.status !== "running") {
-      expect(status.job.error).toBeNull();
-      expect(status.job.status).toBe("done");
+      if (expected === "done") expect(status.job.error).toBeNull();
+      expect(status.job.status).toBe(expected);
       return status;
     }
     await new Promise((r) => setTimeout(r, 20));
@@ -151,6 +151,23 @@ describe("Notion import", () => {
     const tasks = await getDb(after.find((p) => p.title === "Tasks")!.id);
     expect(tasks.rows).toHaveLength(2);
     expect(tasks.properties.filter((p) => p.name === "Price")).toHaveLength(1);
+  });
+
+  it("finishes an import that stopped halfway, without duplicates", async () => {
+    notion.breakContent(true);
+    const failed = await runImport(undefined, "failed");
+    expect(failed.job.error).toContain("Broken on purpose");
+    const before = await tree();
+    notion.breakContent(false);
+    await runImport({});
+    const after = await tree();
+    expect(after.map((p) => p.id).sort()).toEqual(before.map((p) => p.id).sort());
+    const tasks = await getDb(after.find((p) => p.title === "Tasks")!.id);
+    expect(tasks.rows).toHaveLength(2);
+    expect(prop(tasks, "Price").type).toBe("currency");
+    const paint = tasks.rows.find((r) => r.title === "Buy paint")!;
+    expect(paint.values[prop(tasks, "Price").id]).toBe(120);
+    expect(JSON.stringify(content(after.find((p) => p.title === "Home")!.id))).toContain("Welcome");
   });
 
   it("refuses bad tokens and people outside the space", async () => {
