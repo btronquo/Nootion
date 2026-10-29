@@ -227,7 +227,7 @@ function FormatMenu({ editor }: { editor: Editor }) {
       <button className={btn(state.strike)} onClick={() => editor.chain().focus().toggleStrike().run()} title={t("editor.strike")}>
         <Strikethrough size={15} />
       </button>
-      <button className={btn(state.code)} onClick={() => editor.chain().focus().toggleCode().run()} title="Code">
+      <button className={btn(state.code)} onClick={() => editor.chain().focus().toggleCode().run()} title={t("editor.code")}>
         <Code size={15} />
       </button>
       <button

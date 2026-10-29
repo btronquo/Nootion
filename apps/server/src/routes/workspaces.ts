@@ -108,7 +108,7 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
     const input = parseBody(setMemberInput, req.body);
     requireSharedOwner(user.id, req.params.id);
     const target = db.select().from(users).where(eq(users.id, input.userId)).get();
-    if (!target || target.disabled) throw new HttpError(404, "user_not_found", "Utilisateur introuvable.");
+    if (!target || target.disabled) throw new HttpError(404, "user_not_found", t("error.userNotFound"));
     if (input.role !== "owner" && ownerCount(req.params.id, input.userId) === 0) {
       throw new HttpError(409, "last_owner", t("error.lastOwner"));
     }
