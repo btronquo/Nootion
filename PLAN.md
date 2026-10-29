@@ -148,6 +148,13 @@ more interface languages.
   (remote MCP), connected to Claude as a custom connector with a token from "My account".
   Each agent token is limited to some spaces and to reading or writing; what an agent changed is logged, and text
   written by an AI is marked as such.
+- **Buttons with automations and forms.** A button block in pages, and a button column in databases, that runs a
+  list of steps when clicked: add a row to a database, change properties of the current row, create a page from a
+  template, open a page or a link, call a webhook. Steps can use variables (current row, current user, today's
+  date, values of the row). Optionally the button first opens a **form**: its fields (text, number, date, select,
+  person, file…) are filled in, then their values feed the steps, for example to add an expense to a database
+  from a phone in a few taps. A form can also get a link of its own, to collect answers from people without an
+  account (public form, with rate limiting).
 - **Nextcloud** plugin (pick a Nextcloud file and insert it in a page or a "file" property) and **Google Calendar** plugin
   (syncing a database's date property with a calendar).
 - Per-user plugin credentials (OAuth, Nextcloud account), stored encrypted, and plugin property types.
