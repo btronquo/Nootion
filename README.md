@@ -28,6 +28,19 @@ the freedom of an open-source app you host yourself, and the databases that make
 
 The interface is available in English and French; each user picks their language.
 
+## Getting started
+
+```bash
+mkdir nootion && cd nootion
+curl -O https://raw.githubusercontent.com/btronquo/Nootion/main/docker-compose.yml
+# Set APP_URL and APP_SECRET in docker-compose.yml, then:
+docker compose up -d
+```
+
+Then open `APP_URL` and create the administrator account. The image, `ghcr.io/btronquo/nootion`, runs on amd64 and arm64.
+[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) covers `docker run`, updates, backups, HTTPS, installing the app on a phone,
+offline use and the Notion import.
+
 ## All features
 
 - First launch: creation of the administrator account.
@@ -67,18 +80,6 @@ The interface is available in English and French; each user picks their language
 - "My account" page: name, email, password, profile picture, language, light / dark / system theme, imports, emptying a space and deleting the account with its data.
 - "Full width" option per page.
 - Single Docker image (amd64 and arm64), data in `/data`.
-
-## Getting started
-
-```bash
-git clone https://github.com/btronquo/Nootion.git nootion && cd nootion
-# Set APP_URL and APP_SECRET in docker-compose.yml, then:
-docker compose up -d --build
-```
-
-Then open `APP_URL` and create the administrator account. [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) covers
-the settings, backups, HTTPS, installing the app on a phone, offline use and the Notion import.
-A prebuilt image will be published with the first public release.
 
 ## Development
 

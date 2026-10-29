@@ -1,10 +1,13 @@
-# Nootion: build and run from the source code. See docs/DEPLOYMENT.md.
+# Nootion with the published image. See docs/DEPLOYMENT.md.
 services:
   nootion:
-    image: nootion:local
-    build:
-      context: .
-      dockerfile: docker/Dockerfile
+    # "latest" = last released version. To pin a version: ghcr.io/btronquo/nootion:1.1.0
+    image: ghcr.io/btronquo/nootion:latest
+    # To build from the source code instead (in a clone of the repository), replace the line above with:
+    # image: nootion:local
+    # build:
+    #   context: .
+    #   dockerfile: docker/Dockerfile
     container_name: nootion
     restart: unless-stopped
     # The image runs as UID 1000 ("node" user) by default. With a host folder owned by
