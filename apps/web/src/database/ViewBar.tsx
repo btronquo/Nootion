@@ -403,7 +403,7 @@ function FilterEditor({ data, config, onChange }: { data: DatabaseData; config: 
               }}
             />
             <select
-              aria-label="Condition"
+              aria-label={t("filter.condition")}
               value={f.operator}
               onChange={(e) =>
                 update(i, {
@@ -504,7 +504,7 @@ function FilterValue({
   );
 
   if (kind === "select" || kind === "multi_select") return select((prop.config.options ?? []).map((o) => ({ value: o.id, label: o.name })));
-  if (kind === "people") return select([{ value: "me", label: "Moi" }, ...(users.data ?? []).map((u) => ({ value: u.id, label: u.name }))]);
+  if (kind === "people") return select([{ value: "me", label: t("filter.me") }, ...(users.data ?? []).map((u) => ({ value: u.id, label: u.name }))]);
   if (kind === "date") {
     if (filter.operator === "within") return select(DATE_PERIODS.map((p) => ({ value: p, label: periodLabel(p) })));
     const relative = (RELATIVE_DATES as readonly string[]).includes(String(value));

@@ -222,7 +222,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     const input = parseBody(sharePageInput, req.body);
     requirePageRole(db, user.id, req.params.id, "full");
     const target = db.select().from(users).where(eq(users.id, input.userId)).get();
-    if (!target || target.disabled) throw new HttpError(404, "user_not_found", "Utilisateur introuvable.");
+    if (!target || target.disabled) throw new HttpError(404, "user_not_found", t("error.userNotFound"));
     db.insert(pagePermissions)
       .values({ pageId: req.params.id, userId: input.userId, role: input.role, grantedBy: user.id })
       .onConflictDoUpdate({ target: [pagePermissions.pageId, pagePermissions.userId], set: { role: input.role, grantedBy: user.id } })

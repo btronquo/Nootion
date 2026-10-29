@@ -36,6 +36,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Fixed
 
+- French interface: a few labels were not translated (column menu, filters, code button, plugins page, one
+  server error), and wording is now consistent ("base" rather than "database", "agrégation" rather than "rollup").
 - The "Write, or type /" hint stayed on empty lines after the cursor had left them.
 
 ## [1.1.0] - 2026-10-29
