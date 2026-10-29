@@ -33,6 +33,7 @@ import { exportRoutes } from "./routes/export.js";
 import { notionRoutes } from "./routes/notion.js";
 import { searchRoutes } from "./routes/search.js";
 import { builtinPluginsDir, PluginManager } from "./plugins.js";
+import { createExtractor, type Extractor } from "./extract.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -40,6 +41,7 @@ declare module "fastify" {
     config: Config;
     collab: Collab;
     plugins: PluginManager;
+    extractor: Extractor;
   }
   interface FastifyRequest {
     user: UserRow | null;
@@ -63,6 +65,11 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean 
     collab.closeConnections();
   });
   app.decorateRequest("user", null);
+  // Reads the text of attached files in the background, for search.
+  const extractor = createExtractor(opts.db, opts.config.dataDir, app.log);
+  app.decorate("extractor", extractor);
+  app.addHook("onReady", async () => extractor.wake());
+  app.addHook("onClose", async () => extractor.stop());
 
   await app.register(cookie, { secret: opts.config.appSecret });
   await app.register(rateLimit, { global: false });

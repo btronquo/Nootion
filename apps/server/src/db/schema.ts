@@ -174,6 +174,9 @@ export const attachments = sqliteTable(
     size: integer("size").notNull(),
     createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: createdAt(),
+    // Text read from the file (PDF text, OCR of images and scans), for search.
+    text: text("text"),
+    textStatus: text("text_status", { enum: ["pending", "done", "unsupported", "failed"] }).notNull().default("pending"),
   },
   (t) => [index("attachments_page_idx").on(t.pageId)],
 );
