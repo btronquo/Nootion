@@ -21,6 +21,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - New database views: list (one line per row), gallery (cards topped by the row's cover or the first image of its
   page) and calendar (month or week, rows placed on a date column, dragged to another day to change their date,
   date ranges shown on every day, "+" on a day to add a row on that date).
+- Timeline view: rows as bars from their start date to their end date, by days, weeks or months. Bars are dragged
+  to move them and by their ends to change the start or the end (on phones too); a row without a date gets one by
+  clicking on its line.
 
 ### Fixed
 

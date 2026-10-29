@@ -431,7 +431,7 @@ describe("formula columns", () => {
     expect(board.statusCode, board.body).toBe(200);
     const copy = (await boris.post(`/api/databases/${d.id}/views`, { name: "Copie", duplicateOf: first.id })).json().view;
     expect(copy.config).toEqual(config);
-    expect((await boris.post(`/api/databases/${d.id}/views`, { name: "x", type: "timeline" })).statusCode).toBe(400);
+    expect((await boris.post(`/api/databases/${d.id}/views`, { name: "x", type: "gantt" })).statusCode).toBe(400);
     // Alice can't touch the views of a database she can't see.
     expect((await alice.post(`/api/databases/${d.id}/views`, { name: "x" })).statusCode).toBe(404);
 
