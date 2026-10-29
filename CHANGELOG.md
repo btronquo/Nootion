@@ -43,6 +43,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   content stays in the history. All versions of the last day are kept, then one a day for a month, then one a week.
 - Backlinks: "Linked from" at the bottom of a page lists the pages that link to it or mention it (with the
   sentence around the link), among those the reader can open.
+- Search inside attached files: the text of PDFs, of images and scanned PDFs (OCR, French and English) and of text
+  files is read in the background when they arrive, existing files included. Search finds them by their words or
+  their name; the result opens the page holding the file, with a link to the file itself. The Docker image now
+  includes poppler and tesseract (`OCR_LANGS` sets the OCR languages).
 
 ### Fixed
 
