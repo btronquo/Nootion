@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import {
   atLeast,
   VIEW_TYPES,
@@ -77,11 +77,11 @@ export function createDatabase(db: Db, input: { workspaceId: string; parentId: s
   });
 }
 
-type RowPage = Pick<typeof pages.$inferSelect, "id" | "title" | "icon" | "props" | "createdAt" | "updatedAt" | "createdBy" | "position">;
+type RowPage = Pick<typeof pages.$inferSelect, "id" | "title" | "icon" | "props" | "cover" | "coverPosition" | "createdAt" | "updatedAt" | "createdBy" | "position">;
 
 export function listRowPages(db: DbLike, databaseId: string): RowPage[] {
   return db
-    .select({ id: pages.id, title: pages.title, icon: pages.icon, props: pages.props, createdAt: pages.createdAt, updatedAt: pages.updatedAt, createdBy: pages.createdBy, position: pages.position })
+    .select({ id: pages.id, title: pages.title, icon: pages.icon, props: pages.props, cover: pages.cover, coverPosition: pages.coverPosition, createdAt: pages.createdAt, updatedAt: pages.updatedAt, createdBy: pages.createdBy, position: pages.position })
     .from(pages)
     .where(and(eq(pages.parentId, databaseId), eq(pages.kind, "row"), isNull(pages.deletedAt)))
     .all()
@@ -109,7 +109,7 @@ export function toRow(r: RowPage, properties: DatabaseProperty[]): DatabaseRow {
         values[p.id] = stored[p.id] ?? null;
     }
   }
-  return { id: r.id, title: r.title, icon: r.icon, values, createdAt: r.createdAt.toISOString(), updatedAt: r.updatedAt.toISOString(), createdBy: r.createdBy };
+  return { id: r.id, title: r.title, icon: r.icon, values, cover: r.cover, coverPosition: r.coverPosition, createdAt: r.createdAt.toISOString(), updatedAt: r.updatedAt.toISOString(), createdBy: r.createdBy };
 }
 
 /** Names of the users referenced in person and "created by" cells. */
@@ -144,9 +144,27 @@ export type CanRead = (databaseId: string) => boolean;
 export function loadDatabase(db: Db, page: PageMeta, role: PageRole, canRead: CanRead): DatabaseData {
   const properties = listProperties(db, page.id);
   const rows = listRowPages(db, page.id).map((r) => toRow(r, properties));
+  const views = listViews(db, page.id);
+  if (views.some((v) => v.type === "gallery")) addImagePreviews(db, rows);
   const { related, rollupTargets } = enrichRows(db, properties, rows, canRead);
   const people = collectPeople(db, properties, rows, rollupTargets);
-  return { id: page.id, title: page.title, icon: page.icon, role, properties, views: listViews(db, page.id), rows, people, related, rollupTargets };
+  return { id: page.id, title: page.title, icon: page.icon, role, properties, views, rows, people, related, rollupTargets };
+}
+
+/** Rows without a cover show the first image of their content on gallery cards. */
+function addImagePreviews(db: DbLike, rows: DatabaseRow[]) {
+  const missing = rows.filter((r) => !r.cover);
+  if (!missing.length) return;
+  const found = db
+    .select({
+      id: pages.id,
+      src: sql<string | null>`(select j.value from json_tree(${pages.contentJson}) j where j.key = 'src' and j.type = 'text' and j.path like '%.attrs' limit 1)`,
+    })
+    .from(pages)
+    .where(inArray(pages.id, missing.map((r) => r.id)))
+    .all();
+  const byId = new Map(found.map((f) => [f.id, f.src]));
+  for (const r of missing) r.cover = byId.get(r.id) ?? null;
 }
 
 /**

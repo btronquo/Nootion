@@ -18,6 +18,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   column removes it. The Notion import keeps toggles and columns, and the Markdown export writes toggles as
   `<details>`.
 - The "/" menu also finds commands by their name in the interface language.
+- New database views: list (one line per row), gallery (cards topped by the row's cover or the first image of its
+  page) and calendar (month or week, rows placed on a date column, dragged to another day to change their date,
+  date ranges shown on every day, "+" on a day to add a row on that date).
 
 ### Fixed
 

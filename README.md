@@ -14,7 +14,7 @@ the freedom of an open-source app you host yourself, and the databases that make
 - **Your data stays at home.** One container and one data folder (a SQLite file and your attached files):
   backing up Nootion is copying a folder. No telemetry, no external service needed.
 - **Real databases.** Typed columns, relations in both directions, rollups, Notion-like formulas, filters, sorts,
-  groups and calculations, table and board views, embedded in any page. Enough to run invoices, projects,
+  groups and calculations, table, board, list, gallery and calendar views, embedded in any page. Enough to run invoices, projects,
   a reading list or a CRM.
 - **Leave Notion without losing anything.** The Notion import brings pages, databases, relations, rollups,
   formulas, files and links between pages, and can run again to fetch what changed.
@@ -61,8 +61,9 @@ offline use and the Notion import.
   (e.g. the total of a supplier's invoices).
 - Notion-like formulas: `prop("Price") * 1.2`, `if(prop("Paid"), "OK", "To pay")`, `dateBetween(now(), prop("Due"), "days")`…
   Editor with live checking and function help; formulas work with relations, rollups and calculations.
-- Several views per database (table or board), each with its own filters (and / or, relative dates such as
-  "the next week"), sorts, groups and visible columns. Drag and drop between board columns.
+- Several views per database (table, board, list, gallery or calendar), each with its own filters (and / or,
+  relative dates such as "the next week"), sorts, groups and visible columns. Drag and drop between board columns,
+  and between calendar days to change a date.
 - Plugins: editor blocks, API routes, scheduled tasks and formula functions, turned on and set up in the
   administration. Ships with the "Embeds" plugin (`/embed`: YouTube, Vimeo, Spotify, Google Maps, Figma,
   link previews). See [docs/PLUGINS.md](docs/PLUGINS.md) to write your own.
