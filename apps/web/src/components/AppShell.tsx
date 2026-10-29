@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { LogOut, Plus, Settings, Share2, Trash2, Users, User, Download } from "lucide-react";
+import { LogOut, Plus, Settings, Share2, Trash2, Users, User, Download, Search } from "lucide-react";
 import type { PageSummary, WorkspaceSummary } from "@nootion/shared";
 import { api } from "../lib/api";
 import { keys, useRefreshPages, useSharedPages, useWorkspacePages, useWorkspaces } from "../lib/queries";
@@ -11,6 +11,7 @@ import { PageTree } from "./PageTree";
 import { Avatar } from "./Avatar";
 import { Button, ErrorText, Field, Modal } from "./ui";
 import { usePlugins } from "../plugins/registry";
+import { SearchDialog, useSearchShortcut } from "./SearchDialog";
 
 export function AppShell() {
   const { user, refresh } = useSession();
@@ -19,6 +20,8 @@ export function AppShell() {
   // Loaded ahead: page editors wait for the plugins' blocks before opening.
   usePlugins();
   const [creatingWorkspace, setCreatingWorkspace] = useState(false);
+  const [searching, setSearching] = useState(false);
+  useSearchShortcut(useCallback(() => setSearching(true), []));
 
   async function logout() {
     await api("/auth/logout", { method: "POST" });
@@ -36,6 +39,15 @@ export function AppShell() {
           <Avatar name={user?.name ?? ""} url={user?.avatarUrl} size={26} />
           <span className="truncate text-sm font-semibold">{user?.name}</span>
         </Link>
+        <button
+          onClick={() => setSearching(true)}
+          className="mx-2 mb-1 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-neutral-600 hover:bg-neutral-200/50 dark:text-neutral-400 dark:hover:bg-neutral-800/60"
+        >
+          <Search size={16} /> Rechercher
+          <kbd className="ml-auto rounded border border-neutral-300 px-1 font-sans text-[10px] text-neutral-400 dark:border-neutral-700">
+            {/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K"}
+          </kbd>
+        </button>
         <nav className="flex-1 space-y-5 overflow-y-auto px-2 py-2">
           {workspaces.data?.map((ws) => <WorkspaceSection key={ws.id} workspace={ws} />)}
           <SharedSection />
@@ -67,6 +79,7 @@ export function AppShell() {
         <Outlet />
       </main>
       {creatingWorkspace && <CreateWorkspaceDialog onClose={() => setCreatingWorkspace(false)} />}
+      {searching && <SearchDialog onClose={() => setSearching(false)} />}
     </div>
   );
 }

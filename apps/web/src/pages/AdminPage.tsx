@@ -14,6 +14,7 @@ export function AdminPage() {
   const qc = useQueryClient();
   const users = useQuery({ queryKey: ["admin", "users"], queryFn: () => api<{ users: PublicUser[] }>("/admin/users") });
   const invitations = useQuery({ queryKey: ["admin", "invitations"], queryFn: () => api<{ invitations: InvitationInfo[] }>("/admin/invitations") });
+  const health = useQuery({ queryKey: ["health"], queryFn: () => api<{ version: string }>("/health") });
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<UserRole>("member");
   const [lastLink, setLastLink] = useState<string | null>(null);
@@ -146,6 +147,8 @@ export function AdminPage() {
       </section>
 
       <PluginsAdmin />
+
+      {health.data && <p className="text-xs text-neutral-500">Nootion version {health.data.version}</p>}
     </div>
   );
 }

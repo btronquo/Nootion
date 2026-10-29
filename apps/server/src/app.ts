@@ -25,6 +25,7 @@ import { userRoutes } from "./routes/users.js";
 import { publicRoutes } from "./routes/public.js";
 import { pluginAdminRoutes, pluginRoutes } from "./routes/plugins.js";
 import { exportRoutes } from "./routes/export.js";
+import { searchRoutes } from "./routes/search.js";
 import { builtinPluginsDir, PluginManager } from "./plugins.js";
 
 declare module "fastify" {
@@ -98,7 +99,7 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean 
     if (req.method === "DELETE") cleanOrphanFiles(opts.db, opts.config.dataDir);
   });
 
-  app.get("/api/health", async () => ({ ok: true }));
+  app.get("/api/health", async () => ({ ok: true, version: process.env.NOOTION_VERSION ?? "dev" }));
   await app.register(setupRoutes, { prefix: "/api" });
   await app.register(authRoutes, { prefix: "/api/auth" });
   await app.register(adminRoutes, { prefix: "/api/admin" });
@@ -110,6 +111,7 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean 
   await app.register(attachmentRoutes, { prefix: "/api" });
   await app.register(databaseRoutes, { prefix: "/api/databases" });
   await app.register(exportRoutes, { prefix: "/api" });
+  await app.register(searchRoutes, { prefix: "/api/search" });
   const pluginManager = new PluginManager(opts.db, {
     dirs: [
       { path: builtinPluginsDir(), builtin: true },

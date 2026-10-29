@@ -1,6 +1,6 @@
 # Nootion : plan technique et périmètre V1
 
-> Statut : **proposition v2 à valider**. Aucun code n'est écrit tant que ce plan n'est pas validé.
+> Statut : **V1 terminée** (étapes 1 à 10 livrées, version 1.0.0). Ce document garde le plan d'origine pour mémoire.
 > Mis à jour le 28/10/2026 avec les retours de Boris : multi-utilisateur, pages privées et partage, relations/rollups, plugins, AGPL-3.0, GitHub.
 
 ## 1. Vision
@@ -204,7 +204,10 @@ La V1 a grossi (multi-utilisateur, partage, relations, plugins) : c'est faisable
 - Licence **AGPL-3.0**.
 - Code sur **GitHub**. Commits au nom de Boris uniquement, **sans ligne de co-auteur Claude**.
 
-## 13. Reste à confirmer
+## 13. Pour la suite (après la V1)
 
-1. **SQLite** (recommandé, un seul conteneur) ou **PostgreSQL** (un conteneur en plus) ? Avec le multi-utilisateur, SQLite reste adapté pour une famille ou une petite équipe.
-2. Nom du dépôt GitHub (ex. `nootion`) : tu le crées et je m'y branche.
+- Plugins Nextcloud et Google Calendar.
+- Import de pages Markdown (et d'un export Notion).
+- Recherche dans les valeurs des propriétés des lignes de databases.
+- Titre d'une page mis à jour en direct chez les autres utilisateurs.
+- Types de propriétés et identifiants par utilisateur pour les plugins.

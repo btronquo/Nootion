@@ -41,7 +41,12 @@ Pensez aussi à sa limite de taille d'envoi (`client_max_body_size` dans Nginx) 
 
 ### 2a. Installer avec l'image publiée (recommandé)
 
-L'image est construite automatiquement par GitLab CI et publiée sur `registry.gitlab.com/btronquoy/nootion`.
+L'image est construite automatiquement par la CI et publiée pour amd64 et arm64 :
+
+- sur GitHub : `ghcr.io/<utilisateur-github>/nootion` (publique dès que le dépôt l'est) ;
+- sur GitLab : `registry.gitlab.com/btronquoy/nootion`.
+
+Les exemples ci-dessous utilisent l'adresse GitLab ; remplacez-la par celle de GitHub si vous préférez.
 
 1. *Apps > Discover Apps > ⋮ > Install via YAML*, nom `nootion`.
 2. Collez le contenu de [`deploy/truenas.yaml`](../deploy/truenas.yaml) et remplacez les trois valeurs marquées `<--`
@@ -53,7 +58,7 @@ L'image est construite automatiquement par GitLab CI et publiée sur `registry.g
 
 **Mettre à jour** : *Apps > nootion > Edit > Save* (avec `pull_policy: always`, l'image `latest` est retéléchargée).
 Les migrations de base s'appliquent toutes seules au démarrage. Faites un snapshot du dataset avant une mise à jour majeure.
-Pour figer une version, remplacez `latest` par un numéro (ex. `registry.gitlab.com/btronquoy/nootion:0.1.0`).
+Pour figer une version, remplacez `latest` par un numéro (ex. `registry.gitlab.com/btronquoy/nootion:1.0.0`).
 
 ### 2b. Construire l'image sur le NAS depuis le code source
 
@@ -94,14 +99,19 @@ dans un volume Docker nommé `nootion-data`. Pour utiliser l'image publiée à l
 
 ## Publier une nouvelle version de l'image
 
-Le pipeline [`.gitlab-ci.yml`](../.gitlab-ci.yml) lance les tests puis construit et publie l'image :
+Deux pipelines font la même chose, chacun sur son registre : [`.gitlab-ci.yml`](../.gitlab-ci.yml) pour GitLab et
+[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) pour GitHub (ghcr.io, sans configuration : il utilise le
+jeton fourni par GitHub Actions). Ils lancent les tests puis construisent et publient l'image :
 
 - à chaque push sur la branche principale : tags `main` et `main-<commit>` (pour essayer la dernière version de dev) ;
-- à chaque tag git `vX.Y.Z` : tags `X.Y.Z` et `latest`.
+- à chaque tag git `vX.Y.Z` : tags `X.Y.Z` et `latest` (et `X.Y` sur GitHub).
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v1.0.0
+git push origin v1.0.0
 ```
+
+Sur GitHub, la première image publiée est privée : *Packages > nootion > Package settings > Change visibility > Public*.
+Pensez aussi à mettre à jour [CHANGELOG.md](../CHANGELOG.md) et à créer la release (*Releases > Draft a new release*, tag `v1.0.0`).
 
 Pour tester l'image localement avant de publier : `docker build -f docker/Dockerfile -t nootion:local .`
