@@ -112,6 +112,20 @@ On a phone the sidebar opens from the ☰ button, a toolbar above the keyboard g
 lists, indentation and moving blocks, and database tables show as cards (tap one to edit the row).
 A new version of Nootion reaches installed apps the next time they open.
 
+### Offline
+
+Pages and databases already opened on a device stay available without network, in the installed app or in the browser
+(the service worker needs HTTPS here too, except on `localhost`):
+
+- **Page content** is kept on the device and can be edited offline. When the connection comes back it is merged with
+  the changes others made meanwhile, with no conflict (the editor is built on Yjs).
+- **Database cells, page titles and icons** changed offline wait in a queue and are sent in order when the connection
+  comes back. If someone changed the same cell meanwhile, the last change sent wins.
+- Creating or deleting pages and rows, and changing columns, views or sharing need the connection.
+- A badge shows when the app is offline, how many changes are waiting, and the changes the server refused
+  (for example a row deleted meanwhile).
+- Signing out removes everything kept on the device for that account.
+
 ## Publishing a new version of the image
 
 Two pipelines do the same job, each on its own registry: [`.gitlab-ci.yml`](../.gitlab-ci.yml) for GitLab and

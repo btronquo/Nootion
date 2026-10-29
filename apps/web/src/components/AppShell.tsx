@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { LogOut, Plus, Settings, Share2, Trash2, Users, User, Download, Search } from "lucide-react";
 import { t, type PageSummary, type WorkspaceSummary } from "@nootion/shared";
 import { workspaceName } from "../lib/labels";
-import { api } from "../lib/api";
+import { api, isOfflineError } from "../lib/api";
 import { keys, useRefreshPages, useSharedPages, useWorkspacePages, useWorkspaces } from "../lib/queries";
 import { useSession } from "../lib/session";
 import { buildTree } from "../lib/tree";
@@ -15,6 +15,8 @@ import { usePlugins } from "../plugins/registry";
 import { SearchDialog, useSearchShortcut } from "./SearchDialog";
 import { MobileBar, SidebarLayout } from "./SidebarLayout";
 import { useIsTouch } from "../lib/mobile";
+import { clearOfflineData } from "../lib/offline";
+import { SyncStatus } from "./SyncStatus";
 
 export function AppShell() {
   const { user, refresh } = useSession();
@@ -30,7 +32,14 @@ export function AppShell() {
   useSearchShortcut(useCallback(() => setSearching(true), []));
 
   async function logout() {
-    await api("/auth/logout", { method: "POST" });
+    try {
+      await api("/auth/logout", { method: "POST" });
+    } catch (e) {
+      if (!isOfflineError(e)) throw e;
+      return alert(e.message);
+    }
+    // Nothing of this account stays on the device.
+    await clearOfflineData();
     await refresh();
     navigate("/login", { replace: true });
   }
@@ -48,6 +57,7 @@ export function AppShell() {
         <Avatar name={user?.name ?? ""} url={user?.avatarUrl} size={26} />
         <span className="truncate text-sm font-semibold">{user?.name}</span>
       </Link>
+      <SyncStatus className="mx-3 mb-2 w-fit" />
       <button
         onClick={() => setSearching(true)}
         className="mx-2 mb-1 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-neutral-600 hover:bg-neutral-200/50 dark:text-neutral-400 dark:hover:bg-neutral-800/60"
@@ -94,6 +104,7 @@ export function AppShell() {
     <SidebarLayout sidebar={sidebar}>
       {!onPage && (
         <MobileBar>
+          <SyncStatus className="mr-1" />
           <button
             onClick={() => setSearching(true)}
             aria-label={t("search.button")}

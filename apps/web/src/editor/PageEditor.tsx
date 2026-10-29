@@ -5,6 +5,9 @@ import Collaboration from "@tiptap/extension-collaboration";
 import CollaborationCaret from "@tiptap/extension-collaboration-caret";
 import { HocuspocusProvider } from "@hocuspocus/provider";
 import * as Y from "yjs";
+import { IndexeddbPersistence } from "y-indexeddb";
+import { PAGE_DB_PREFIX } from "../lib/offline";
+import { useOnline } from "../lib/api";
 import { NodeSelection } from "@tiptap/pm/state";
 import { useQueryClient } from "@tanstack/react-query";
 import { Bold, Code, Italic, Link as LinkIcon, Strikethrough, Underline } from "lucide-react";
@@ -38,23 +41,29 @@ interface Peer {
   color: string;
 }
 
-/** Collaborative editor of a page body. Creates one Yjs document and connection per page. */
+/**
+ * Collaborative editor of a page body. Creates one Yjs document and connection per page.
+ * The document is also kept in the browser (IndexedDB): the page opens and can be edited offline,
+ * and the changes merge with everyone else's when the connection comes back.
+ */
 export function PageEditor({ page, canEdit }: { page: PageDetail; canEdit: boolean }) {
-  const [collab, setCollab] = useState<{ doc: Y.Doc; provider: HocuspocusProvider } | null>(null);
+  const [collab, setCollab] = useState<{ doc: Y.Doc; provider: HocuspocusProvider; local: IndexeddbPersistence } | null>(null);
   const plugins = usePlugins();
   useEffect(() => {
     const doc = new Y.Doc();
+    const local = new IndexeddbPersistence(PAGE_DB_PREFIX + page.id, doc);
     const provider = new HocuspocusProvider({ url: collabUrl(), name: page.id, document: doc, token: "session" });
-    setCollab({ doc, provider });
+    setCollab({ doc, provider, local });
     return () => {
       provider.destroy();
+      void local.destroy();
       doc.destroy();
     };
   }, [page.id]);
   // The editor's schema needs the plugins' blocks: without them, their blocks would be dropped from the page.
   if (plugins.isError) return <p className="text-sm text-red-600">{t("editor.pluginsFailed")}</p>;
   if (!collab || !plugins.data) return null;
-  return <CollabEditor key={page.id} page={page} canEdit={canEdit} doc={collab.doc} provider={collab.provider} plugins={plugins.data} />;
+  return <CollabEditor key={page.id} page={page} canEdit={canEdit} doc={collab.doc} provider={collab.provider} local={collab.local} plugins={plugins.data} />;
 }
 
 function CollabEditor({
@@ -62,12 +71,14 @@ function CollabEditor({
   canEdit,
   doc,
   provider,
+  local,
   plugins,
 }: {
   page: PageDetail;
   canEdit: boolean;
   doc: Y.Doc;
   provider: HocuspocusProvider;
+  local: IndexeddbPersistence;
   plugins: ClientPluginInfo[];
 }) {
   const { user } = useSession();
@@ -75,6 +86,12 @@ function CollabEditor({
   const refreshPages = useRefreshPages();
   const [synced, setSynced] = useState(provider.isSynced);
   const [connected, setConnected] = useState(true);
+  const [unsynced, setUnsynced] = useState(0);
+  // Whether this device already had the page: only then can it be edited before the server answers.
+  const [hasLocal, setHasLocal] = useState<boolean | null>(null);
+  useEffect(() => {
+    void local.whenSynced.then(() => setHasLocal(doc.getXmlFragment("default").length > 0));
+  }, [local, doc]);
   const [peers, setPeers] = useState<Peer[]>([]);
   const touch = useIsTouch();
 
@@ -83,12 +100,15 @@ function CollabEditor({
     const onStatus = ({ status }: { status: string }) => setConnected(status === "connected");
     const onAwareness = ({ states }: { states: { clientId: number; user?: { name: string; color: string } }[] }) =>
       setPeers(states.filter((s) => s.clientId !== doc.clientID && s.user).map((s) => ({ clientId: s.clientId, name: s.user!.name, color: s.user!.color })));
+    const onUnsynced = ({ number }: { number: number }) => setUnsynced(number);
     provider.on("synced", onSynced);
     provider.on("status", onStatus);
+    provider.on("unsyncedChanges", onUnsynced);
     provider.on("awarenessChange", onAwareness);
     return () => {
       provider.off("synced", onSynced);
       provider.off("status", onStatus);
+      provider.off("unsyncedChanges", onUnsynced);
       provider.off("awarenessChange", onAwareness);
     };
   }, [provider, doc]);
@@ -141,9 +161,13 @@ function CollabEditor({
   const editorRef = useMemo(() => ({ current: null as Editor | null }), []);
   editorRef.current = editor;
 
+  // Offline, a page never opened on this device can't be edited: typing into an empty copy would duplicate its content
+  // once merged with the server's.
+  const online = useOnline();
+  const editable = canEdit && (online || synced || hasLocal !== false);
   useEffect(() => {
-    editor?.setEditable(canEdit);
-  }, [editor, canEdit]);
+    editor?.setEditable(editable);
+  }, [editor, editable]);
 
   return (
     <div>
@@ -153,7 +177,15 @@ function CollabEditor({
             {p.name.slice(0, 1).toUpperCase()}
           </span>
         ))}
-        {!connected ? <span className="text-amber-600">{t("editor.offline")}</span> : !synced ? <span>{t("common.loading")}</span> : null}
+        {!connected ? (
+          <span className="text-amber-600" title={hasLocal || synced ? t("editor.offlineHelp") : undefined}>
+            {hasLocal || synced ? t("editor.offline") : t("editor.offlineNotSaved")}
+          </span>
+        ) : !synced ? (
+          <span>{t("common.loading")}</span>
+        ) : unsynced > 0 ? (
+          <span>{t("editor.saving")}</span>
+        ) : null}
       </div>
       {/* On touch screens, formatting is in the bar above the keyboard, away from the system's selection menu. */}
       {editor && canEdit && !touch && <FormatMenu editor={editor} />}

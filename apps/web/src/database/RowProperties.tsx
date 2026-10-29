@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { atLeast, type CellValue, type DatabaseProperty, type DatabaseRow, type PageRole, type RelatedRow, type SelectOption } from "@nootion/shared";
 import { api } from "../lib/api";
+import { sendOrQueue, useOfflineQueue, withQueuedRow } from "../lib/offline";
 import { Cell } from "./Cell";
 import { PropertyIcon } from "./icons";
 import { newOption } from "./OptionPicker";
@@ -19,17 +20,20 @@ interface RowData {
 export function RowProperties({ databaseId, rowId }: { databaseId: string; rowId: string }) {
   const qc = useQueryClient();
   const key = ["database-row", rowId] as const;
-  const q = useQuery({ queryKey: key, queryFn: () => api<RowData>(`/databases/${databaseId}/rows/${rowId}`) });
+  const { pending } = useOfflineQueue();
+  const q = useQuery({
+    queryKey: key,
+    queryFn: () => api<RowData>(`/databases/${databaseId}/rows/${rowId}`),
+    // Values changed offline show until the server has them.
+    select: pending ? (d: RowData) => ({ ...d, row: withQueuedRow(databaseId, d.row) }) : undefined,
+  });
 
   const update = useMutation({
     mutationFn: ({ propId, value }: { propId: string; value: CellValue }) =>
-      api<{ row: DatabaseRow; related: Record<string, RelatedRow> }>(`/databases/${databaseId}/rows/${rowId}`, {
-        method: "PATCH",
-        body: { values: { [propId]: value } },
-      }),
+      sendOrQueue<{ row: DatabaseRow; related: Record<string, RelatedRow> }>(`/databases/${databaseId}/rows/${rowId}`, { values: { [propId]: value } }),
     onMutate: ({ propId, value }) =>
       qc.setQueryData<RowData>(key, (d) => (d ? { ...d, row: { ...d.row, values: { ...d.row.values, [propId]: value } } } : d)),
-    onSuccess: ({ row, related }) => qc.setQueryData<RowData>(key, (d) => (d ? { ...d, row, related: { ...d.related, ...related } } : d)),
+    onSuccess: (res) => res && qc.setQueryData<RowData>(key, (d) => (d ? { ...d, row: res.row, related: { ...d.related, ...res.related } } : d)),
     onError: (err) => alert(err instanceof Error ? err.message : String(err)),
     // Relations and rollups can show this row in other databases too.
     onSettled: () => qc.invalidateQueries({ queryKey: ["database"] }),

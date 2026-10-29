@@ -14,6 +14,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Database tables show as cards on phones; a new row opens at once to fill it in.
 - Menus fit the screen and the space left by the keyboard.
 
+### Offline
+
+- Pages already opened on a device open and can be edited without network; their content is kept in the browser
+  and merged with others' changes when the connection comes back.
+- Database cells, page titles and icons changed offline are queued and sent in order once back online.
+- Badge showing the offline state, the changes waiting and those the server refused.
+- Signing out removes the offline copy of the account from the device.
+
 ## [1.0.0] - unreleased
 
 First public version.
