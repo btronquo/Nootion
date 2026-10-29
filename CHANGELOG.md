@@ -13,6 +13,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Cover images: a banner at the top of a page or database, from an uploaded image, an image link or one of six
   built-in gradients. Images are repositioned by dragging them up or down. Covers show on public links, and the
   Notion import brings them in (Notion's own files are copied, links are kept).
+- Toggle blocks and toggle headings ("/" menu): each reader opens and closes them without changing the page for
+  others. Columns: blocks side by side in 2 or 3 columns, one under the other on phones; Backspace in an empty
+  column removes it. The Notion import keeps toggles and columns, and the Markdown export writes toggles as
+  `<details>`.
+- The "/" menu also finds commands by their name in the interface language.
 
 ## [1.1.0] - 2026-10-29
 

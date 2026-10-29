@@ -50,7 +50,7 @@ offline use and the Notion import.
 - Page tree (subpages, drag and drop, icons), cover images, trash with restore, favorites at the top of the sidebar.
 - Pages are private by default: share a page with a user (inherited by subpages), or through a revocable read-only public link.
   Every access check is done on the server (`apps/server/src/permissions.ts`) and covered by tests.
-- Notion-like page editor ("/" commands, to-do lists, tables, callouts, images and attached files,
+- Notion-like page editor ("/" commands, to-do lists, tables, callouts, toggles, columns, images and attached files,
   links between pages with "@"), with real-time collaborative editing.
 - Databases: typed columns (text, number, currency amount, percent, date, select, multi-select, checkbox, link,
   email, person, files, created time, last edited time, created by), table view (column order, width and visibility),
