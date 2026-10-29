@@ -22,9 +22,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Badge showing the offline state, the changes waiting and those the server refused.
 - Signing out removes the offline copy of the account from the device.
 
+### Account and data
+
+- "Import" section in "My account", presenting the ways to bring data in (Notion, CSV / JSON, backup).
+- "Empty a space": deletes every page and database of a space one owns, trash included.
+- "Delete my account": deletes the account, its personal space and the shared spaces only it is in.
+  Refused while the account is the last administrator or the only owner of a space others use.
+
 ### Import from Notion
 
-- "Import from Notion" screen: imports the pages and databases shared with a Notion integration into a space.
+- "Import from Notion" in "My account" › "Import": imports the pages and databases shared with a Notion integration into a space.
 - Page tree, emoji icons, text with its formatting, lists, to-dos, quotes, callouts, code, tables, images and files
   (copied to Nootion), mentions and links between pages.
 - Databases with their columns (select options, number formats, people matched by email), rows and their content,

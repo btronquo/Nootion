@@ -48,6 +48,9 @@ export const updateUserInput = z.object({
 export type UpdateUserInput = z.infer<typeof updateUserInput>;
 
 /** Changes to one's own account. Changing the email or the password requires the current password. */
+/** Deleting one's own account asks for the password again. */
+export const deleteMeInput = z.object({ password: z.string().min(1).max(200) });
+
 export const updateMeInput = z
   .object({
     name: nameSchema.optional(),

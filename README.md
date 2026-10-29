@@ -44,7 +44,7 @@ and can change it in **My account**.
   (page content is merged with others' changes, database cells are sent in order).
 - Import from Notion through its API: pages, databases with their columns, relations, rollups and formulas, files
   and links between pages, with a report of what was imported differently. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#importing-from-notion).
-- "My account" page: name, email, password, profile picture, language, light / dark / system theme.
+- "My account" page: name, email, password, profile picture, language, light / dark / system theme, imports, emptying a space and deleting the account with its data.
 - "Full width" option per page.
 - Single Docker image (amd64 and arm64), data in `/data`.
 

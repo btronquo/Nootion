@@ -2,11 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
 import type { FastifyPluginAsync } from "fastify";
-import { AVATAR_MAX_BYTES, loginInput, t, updateMeInput } from "@nootion/shared";
-import { and, eq, ne } from "drizzle-orm";
+import { AVATAR_MAX_BYTES, deleteMeInput, loginInput, t, updateMeInput } from "@nootion/shared";
+import { and, count, eq, inArray, ne } from "drizzle-orm";
 import { burnPasswordCheck, hashPassword, verifyPassword } from "../auth/password.js";
 import { deleteSession, deleteUserSessions, SESSION_COOKIE } from "../auth/sessions.js";
-import { users } from "../db/schema.js";
+import { users, workspaceMembers, workspaces } from "../db/schema.js";
 import { HttpError, parseBody, requireUser } from "../http.js";
 import { avatarsDir, toPublicUser } from "../users.js";
 import { clearSessionCookie, startSession } from "./session-cookie.js";
@@ -91,6 +91,49 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     removeAvatarFile(user.avatar);
     const updated = app.db.update(users).set({ avatar: null }).where(eq(users.id, user.id)).returning().get();
     return { user: toPublicUser(updated) };
+  });
+
+  // Deletes the account and everything only it had: its personal space, and the shared spaces nobody else is in.
+  app.delete("/me", { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (req, reply) => {
+    const user = requireUser(req);
+    const input = parseBody(deleteMeInput, req.body);
+    if (!(await verifyPassword(user.passwordHash, input.password))) throw new HttpError(400, "bad_password", t("error.badCurrentPassword"));
+    const db = app.db;
+    const others = db.select({ n: count() }).from(users).where(ne(users.id, user.id)).get()?.n ?? 0;
+    if (user.role === "admin" && others > 0) {
+      const otherAdmins = db.select({ n: count() }).from(users).where(and(eq(users.role, "admin"), eq(users.disabled, false), ne(users.id, user.id))).get()?.n ?? 0;
+      if (otherAdmins === 0) throw new HttpError(409, "last_admin", t("error.lastAdminDelete"));
+    }
+
+    const mine = db
+      .select({ id: workspaces.id, name: workspaces.name, kind: workspaces.kind, role: workspaceMembers.role })
+      .from(workspaceMembers)
+      .innerJoin(workspaces, eq(workspaces.id, workspaceMembers.workspaceId))
+      .where(eq(workspaceMembers.userId, user.id))
+      .all();
+    const members = (workspaceId: string, role?: "owner") =>
+      db
+        .select({ n: count() })
+        .from(workspaceMembers)
+        .where(and(eq(workspaceMembers.workspaceId, workspaceId), ne(workspaceMembers.userId, user.id), ...(role ? [eq(workspaceMembers.role, role)] : [])))
+        .get()?.n ?? 0;
+    const toDelete: string[] = [];
+    const blocking: string[] = [];
+    for (const ws of mine) {
+      if (ws.kind === "personal" || members(ws.id) === 0) toDelete.push(ws.id);
+      // Others work in it: someone has to own it first.
+      else if (ws.role === "owner" && members(ws.id, "owner") === 0) blocking.push(ws.name);
+    }
+    if (blocking.length) throw new HttpError(409, "sole_owner", t("error.soleOwner", { names: blocking.join(", ") }));
+
+    db.transaction((tx) => {
+      if (toDelete.length) tx.delete(workspaces).where(inArray(workspaces.id, toDelete)).run();
+      // Sessions, memberships and shares go with the account; what it wrote in shared spaces stays.
+      tx.delete(users).where(eq(users.id, user.id)).run();
+    });
+    removeAvatarFile(user.avatar);
+    clearSessionCookie(reply);
+    return { ok: true };
   });
 
   function removeAvatarFile(name: string | null) {
