@@ -93,11 +93,9 @@ function PageView({ page }: { page: PageDetail }) {
           </span>
         </nav>
         <div className="flex shrink-0 items-center gap-1">
-          {canEdit && (
-            <Button variant="ghost" onClick={(e) => setMenu(e.currentTarget)} title="Options de la page" aria-label="Options de la page">
-              <MoreHorizontal size={16} />
-            </Button>
-          )}
+          <Button variant="ghost" onClick={(e) => setMenu(e.currentTarget)} title="Options de la page" aria-label="Options de la page">
+            <MoreHorizontal size={16} />
+          </Button>
           {!canManage && (
             <span className="flex items-center gap-1 rounded bg-neutral-100 px-2 py-1 text-xs text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
               <Lock size={12} /> {PAGE_ROLE_LABELS[page.role]}
@@ -142,10 +140,20 @@ function PageView({ page }: { page: PageDetail }) {
 
       {menu && (
         <Popover anchor={menu} onClose={() => setMenu(null)} width={240}>
-          <label className="flex cursor-pointer items-center justify-between gap-2 rounded px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800">
-            Pleine largeur
-            <input type="checkbox" role="switch" className="h-4 w-4 accent-blue-600" checked={page.fullWidth} onChange={(e) => save({ fullWidth: e.target.checked })} />
-          </label>
+          {canEdit && (
+            <label className="flex cursor-pointer items-center justify-between gap-2 rounded px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800">
+              Pleine largeur
+              <input type="checkbox" role="switch" className="h-4 w-4 accent-blue-600" checked={page.fullWidth} onChange={(e) => save({ fullWidth: e.target.checked })} />
+            </label>
+          )}
+          <a
+            href={`/api/pages/${page.id}/export`}
+            download
+            onClick={() => setMenu(null)}
+            className="flex items-center gap-2 rounded px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+          >
+            Exporter en Markdown (.zip)
+          </a>
         </Popover>
       )}
       {sharing && <ShareDialog page={page} onClose={() => setSharing(false)} />}

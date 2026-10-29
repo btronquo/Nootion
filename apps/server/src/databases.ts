@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import {
+  atLeast,
   VIEW_TYPES,
   type ViewType,
   COMPUTED_TYPES,
@@ -32,6 +33,7 @@ import {
 import type { Db, DbLike } from "./db/index.js";
 import { attachments, databaseProperties, databaseViews, pages, users } from "./db/schema.js";
 import { HttpError } from "./http.js";
+import { getPageRole } from "./permissions.js";
 import type { PageMeta } from "./pages.js";
 
 export type PropertyRow = typeof databaseProperties.$inferSelect;
@@ -433,15 +435,15 @@ export function validateValues(db: DbLike, properties: DatabaseProperty[], rowId
 
 // --- Changing a column's type -------------------------------------------------------------
 
-const TRUE_WORDS = new Set(["oui", "yes", "true", "vrai", "1", "x", "✓", "✔"]);
+export const TRUE_WORDS = new Set(["oui", "yes", "true", "vrai", "1", "x", "✓", "✔"]);
 
-function parseNumber(s: string): number | null {
+export function parseNumber(s: string): number | null {
   const cleaned = s.replace(/[\s €$£%]/g, "").replace(",", ".");
   if (!/^-?\d+(\.\d+)?$/.test(cleaned)) return null;
   return Number(cleaned);
 }
 
-function parseDate(s: string): string | null {
+export function parseDate(s: string): string | null {
   const t = s.trim();
   if (/^\d{4}-\d{2}-\d{2}/.test(t)) return t.slice(0, 10);
   const fr = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/.exec(t);
@@ -562,3 +564,9 @@ export function syncTwin(db: DbLike, prop: DatabaseProperty, rowId: string, befo
     db.update(pages).set({ props, updatedAt: new Date() }).where(eq(pages.id, id)).run();
   }
 }
+
+/** Relations and rollups only read databases the user can see. */
+export const canReadAs =
+  (db: Db, userId: string): CanRead =>
+  (databaseId) =>
+    atLeast(getPageRole(db, userId, databaseId), "viewer");

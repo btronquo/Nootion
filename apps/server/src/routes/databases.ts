@@ -36,9 +36,17 @@ import {
   toRow,
   validateValues,
   type CanRead,
+  canReadAs,
 } from "../databases.js";
 import type { PageRole } from "@nootion/shared";
 import type { Db } from "../db/index.js";
+import { databaseCsv, databaseJson, safeName } from "../export.js";
+import { IMPORT_MAX_ROWS, parseCsv, planImport } from "../import.js";
+
+/** Content-Disposition header of a download, with a non-ASCII-safe file name. */
+export function attachmentHeader(filename: string) {
+  return `attachment; filename="${filename.replace(/[^\x20-\x7e]|"/g, "_")}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
+}
 
 function requireDatabase(db: Db, userId: string, id: string, min: PageRole) {
   const access = requirePageRole(db, userId, id, min);
@@ -52,10 +60,6 @@ function requireRow(db: Db, userId: string, databaseId: string, rowId: string, m
   return access;
 }
 
-const canReadAs =
-  (db: Db, userId: string): CanRead =>
-  (databaseId) =>
-    atLeast(getPageRole(db, userId, databaseId), "viewer");
 
 /** Checks the settings of a rollup against the columns of its database. */
 function checkRollupConfig(db: Db, properties: DatabaseProperty[], config: PropertyConfig) {
@@ -438,5 +442,61 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     if (views.length === 1) throw new HttpError(400, "last_view", "Une database garde au moins une vue.");
     db.delete(databaseViews).where(eq(databaseViews.id, req.params.viewId)).run();
     return { ok: true };
+  });
+
+  // --- Export / import ---
+
+  app.get<{ Params: { id: string }; Querystring: { viewId?: string; format?: string; sep?: string } }>("/:id/export", async (req, reply) => {
+    const user = requireUser(req);
+    const { page, role } = requireDatabase(db, user.id, req.params.id, "viewer");
+    const data = loadDatabase(db, page, role, canReadAs(db, user.id));
+    const name = safeName(page.title);
+    if (req.query.format === "json") {
+      return reply
+        .header("content-type", "application/json; charset=utf-8")
+        .header("content-disposition", attachmentHeader(`${name}.json`))
+        .send(JSON.stringify(databaseJson(data, req.query.viewId), null, 2));
+    }
+    return reply
+      .header("content-type", "text/csv; charset=utf-8")
+      .header("content-disposition", attachmentHeader(`${name}.csv`))
+      .send(databaseCsv(data, req.query.viewId, req.query.sep === "semicolon" ? ";" : ","));
+  });
+
+  app.post<{ Params: { id: string } }>("/:id/import", async (req) => {
+    const user = requireUser(req);
+    const input = parseBody(z.object({ csv: z.string().min(1), createColumns: z.boolean().default(true) }), req.body);
+    const { page: database } = requireDatabase(db, user.id, req.params.id, "editor");
+    const csv = parseCsv(input.csv);
+    if (csv.length < 2) throw new HttpError(400, "empty_csv", "Le fichier ne contient aucune ligne (la première ligne doit être l'en-tête).");
+    if (csv.length - 1 > IMPORT_MAX_ROWS) throw new HttpError(400, "too_many_rows", `${IMPORT_MAX_ROWS} lignes au maximum par import.`);
+    const properties = listProperties(db, database.id);
+    const plan = planImport(db, properties, csv, {
+      createColumns: input.createColumns,
+      canLink: (p) => atLeast(getPageRole(db, user.id, p.config.databaseId!), p.config.twinPropertyId ? "editor" : "viewer"),
+    });
+    db.transaction((tx) => {
+      let position = (tx.select({ max: max(databaseProperties.position) }).from(databaseProperties).where(eq(databaseProperties.databaseId, database.id)).get()?.max ?? -1) + 1;
+      const newIds = new Map<string, string>();
+      for (const c of plan.newColumns) {
+        const id = randomUUID();
+        newIds.set(`new:${c.index}`, id);
+        tx.insert(databaseProperties).values({ id, databaseId: database.id, name: c.name, type: c.type, config: c.config, position: position++ }).run();
+      }
+      for (const [propId, options] of plan.options) {
+        const prop = properties.find((p) => p.id === propId)!;
+        tx.update(databaseProperties).set({ config: { ...prop.config, options } }).where(eq(databaseProperties.id, propId)).run();
+      }
+      let rowPosition = nextPosition(db, database.workspaceId, database.id);
+      for (const row of plan.rows) {
+        const values = Object.fromEntries(Object.entries(row.values).map(([k, v]) => [newIds.get(k) ?? k, v]));
+        const id = randomUUID();
+        tx.insert(pages)
+          .values({ id, kind: "row", workspaceId: database.workspaceId, parentId: database.id, title: row.title, props: values, position: rowPosition++, createdBy: user.id })
+          .run();
+        for (const p of properties) if (p.type === "relation" && values[p.id]) syncTwin(tx, p, id, [], values[p.id] as string[]);
+      }
+    });
+    return { imported: plan.rows.length, createdColumns: plan.newColumns.map((c) => c.name), ignoredColumns: plan.ignored };
   });
 };

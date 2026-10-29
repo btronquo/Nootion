@@ -26,6 +26,7 @@
     "drizzle-orm": "^0.44.7",
     "fastify": "^5.6.1",
     "ws": "^8.22.0",
+    "yazl": "^3.3.1",
     "yjs": "13.6.27",
     "zod": "^4.1.12"
   },
@@ -34,10 +35,13 @@
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.18.0",
     "@types/ws": "^8.18.2",
+    "@types/yauzl": "^3.4.0",
+    "@types/yazl": "^3.3.1",
     "drizzle-kit": "^0.31.5",
     "esbuild": "^0.25.11",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "yauzl": "^3.4.0"
   }
 }

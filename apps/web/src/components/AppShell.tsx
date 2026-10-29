@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { LogOut, Plus, Settings, Share2, Trash2, Users, User } from "lucide-react";
+import { LogOut, Plus, Settings, Share2, Trash2, Users, User, Download } from "lucide-react";
 import type { PageSummary, WorkspaceSummary } from "@nootion/shared";
 import { api } from "../lib/api";
 import { keys, useRefreshPages, useSharedPages, useWorkspacePages, useWorkspaces } from "../lib/queries";
@@ -104,6 +104,9 @@ function WorkspaceSection({ workspace }: { workspace: WorkspaceSummary }) {
             <Settings size={13} />
           </Link>
         )}
+        <a href={`/api/workspaces/${workspace.id}/export`} download className={iconBtn} title="Exporter l'espace en Markdown (.zip)">
+          <Download size={13} />
+        </a>
         {canEdit && (
           <button onClick={addPage} className={iconBtn} title="Nouvelle page">
             <Plus size={14} />

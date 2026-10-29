@@ -24,6 +24,7 @@ import { pageRoutes } from "./routes/pages.js";
 import { userRoutes } from "./routes/users.js";
 import { publicRoutes } from "./routes/public.js";
 import { pluginAdminRoutes, pluginRoutes } from "./routes/plugins.js";
+import { exportRoutes } from "./routes/export.js";
 import { builtinPluginsDir, PluginManager } from "./plugins.js";
 
 declare module "fastify" {
@@ -108,6 +109,7 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean 
   await app.register(publicRoutes, { prefix: "/api/public" });
   await app.register(attachmentRoutes, { prefix: "/api" });
   await app.register(databaseRoutes, { prefix: "/api/databases" });
+  await app.register(exportRoutes, { prefix: "/api" });
   const pluginManager = new PluginManager(opts.db, {
     dirs: [
       { path: builtinPluginsDir(), builtin: true },
