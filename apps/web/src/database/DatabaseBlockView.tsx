@@ -6,7 +6,7 @@ import { ExternalLink } from "lucide-react";
 import { atLeast, type DatabaseData } from "@nootion/shared";
 import { api } from "../lib/api";
 import { pageTitle } from "../lib/tree";
-import { DatabaseTable, TableView } from "./DatabaseTable";
+import { DatabaseTable, DatabaseViews } from "./DatabaseTable";
 import { dbKey, useDatabase } from "./hooks";
 
 /** Database embedded in a page's content. */
@@ -75,7 +75,7 @@ export function PublicDatabase({ id, token }: { id: string; token: string }) {
   return (
     <>
       <Heading title={q.data.title} />
-      <TableView data={q.data} compact rowHref={(r) => `/p/${token}/${r.id}`} fileUrl={(f) => `/api/public/${token}/attachments/${f}`} />
+      <DatabaseViews data={q.data} compact rowHref={(r) => `/p/${token}/${r.id}`} fileUrl={(f) => `/api/public/${token}/attachments/${f}`} />
     </>
   );
 }

@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { CellValue, DatabaseData, DatabaseProperty, DatabaseRow, DatabaseSummary, PropertyConfig, PropertyType, RelatedRow, ViewConfig } from "@nootion/shared";
+import type { CellValue, DatabaseData, DatabaseProperty, DatabaseRow, DatabaseSummary, PropertyConfig, PropertyType, RelatedRow, ViewConfig, ViewType, DatabaseViewInfo } from "@nootion/shared";
 import { api } from "../lib/api";
 
 export const dbKey = (id: string) => ["database", id] as const;
@@ -93,9 +94,49 @@ export function useDatabaseActions(id: string) {
   });
 
   const updateView = useMutation({
-    mutationFn: ({ viewId, config }: { viewId: string; config: ViewConfig }) => api(`/databases/${id}/views/${viewId}`, { method: "PATCH", body: { config } }),
-    onMutate: ({ viewId, config }) => patch((d) => ({ ...d, views: d.views.map((v) => (v.id === viewId ? { ...v, config } : v)) })),
+    mutationFn: ({ viewId, ...body }: { viewId: string; config?: ViewConfig; name?: string; type?: ViewType }) =>
+      api(`/databases/${id}/views/${viewId}`, { method: "PATCH", body }),
+    onMutate: ({ viewId, ...changes }) => patch((d) => ({ ...d, views: d.views.map((v) => (v.id === viewId ? { ...v, ...changes } : v)) })),
+    onError: (err) => {
+      alert(err instanceof Error ? err.message : String(err));
+      return refresh();
+    },
   });
 
-  return { updateCell, addRow, deleteRows, addProperty, updateProperty, deleteProperty, updateView, refresh };
+  const createView = useMutation({
+    mutationFn: (body: { name: string; type: ViewType; duplicateOf?: string }) => api<{ view: DatabaseViewInfo }>(`/databases/${id}/views`, { method: "POST", body }),
+    onSuccess: ({ view }) => patch((d) => ({ ...d, views: [...d.views, view] })),
+    onError: (err) => alert(err instanceof Error ? err.message : String(err)),
+  });
+
+  const deleteView = useMutation({
+    mutationFn: (viewId: string) => api(`/databases/${id}/views/${viewId}`, { method: "DELETE" }),
+    onMutate: (viewId) => patch((d) => ({ ...d, views: d.views.filter((v) => v.id !== viewId) })),
+    onSettled: refresh,
+  });
+
+  return { updateCell, addRow, deleteRows, addProperty, updateProperty, deleteProperty, updateView, createView, deleteView, refresh };
+}
+
+const VIEW_KEY = "nootion-view-";
+
+/** The view shown for a database, remembered per browser. */
+export function useActiveView(databaseId: string, views: DatabaseViewInfo[]) {
+  const [picked, setPicked] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem(VIEW_KEY + databaseId);
+    } catch {
+      return null;
+    }
+  });
+  const view = views.find((v) => v.id === picked) ?? views[0];
+  const select = (viewId: string) => {
+    setPicked(viewId);
+    try {
+      localStorage.setItem(VIEW_KEY + databaseId, viewId);
+    } catch {
+      // Private browsing: the choice just isn't remembered.
+    }
+  };
+  return [view, select] as const;
 }

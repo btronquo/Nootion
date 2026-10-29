@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import {
+  VIEW_TYPES,
+  type ViewType,
   COMPUTED_TYPES,
   FormulaError,
   computeCalc,
@@ -54,7 +56,7 @@ export function listViews(db: DbLike, databaseId: string): DatabaseViewInfo[] {
     .from(databaseViews)
     .where(eq(databaseViews.databaseId, databaseId))
     .all()
-    .map((v) => ({ id: v.id, name: v.name, type: "table" as const, config: v.config, position: v.position }))
+    .map((v) => ({ id: v.id, name: v.name, type: (VIEW_TYPES as readonly string[]).includes(v.type) ? (v.type as ViewType) : "table", config: v.config, position: v.position }))
     .sort((a, b) => a.position - b.position);
 }
 

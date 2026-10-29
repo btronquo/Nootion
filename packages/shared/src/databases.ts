@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { PageRole } from "./pages.js";
 import { CALC_FUNCTIONS, type CalcFunction, type CalcResult } from "./calculations.js";
 import type { FormulaResult } from "./formula.js";
+import { VIEW_TYPES, viewFilterSchema, viewSortSchema, type ViewFilter, type ViewSort, type ViewType } from "./views.js";
 
 export const PROPERTY_TYPES = [
   "title",
@@ -141,6 +142,15 @@ export interface ViewConfig {
   columns?: ViewColumn[];
   /** Calculation shown under each column, by property id. */
   calculations?: Record<string, CalcFunction>;
+  filters?: ViewFilter[];
+  /** "and" (default): rows match every filter. "or": rows match at least one. */
+  filterMode?: "and" | "or";
+  /** Applied in order: the first sort decides, the next ones break ties. */
+  sorts?: ViewSort[];
+  /** Property whose values split the rows into groups (board columns). */
+  groupBy?: string | null;
+  /** Groups folded away (table) or hidden (board), by group key. */
+  collapsedGroups?: string[];
 }
 
 export const viewConfigSchema = z
@@ -150,13 +160,18 @@ export const viewConfigSchema = z
       .max(500)
       .optional(),
     calculations: z.record(z.string(), z.enum(CALC_FUNCTIONS)).optional(),
+    filters: z.array(viewFilterSchema).max(50).optional(),
+    filterMode: z.enum(["and", "or"]).optional(),
+    sorts: z.array(viewSortSchema).max(20).optional(),
+    groupBy: z.string().min(1).max(64).nullable().optional(),
+    collapsedGroups: z.array(z.string().max(500)).max(500).optional(),
   })
   .passthrough();
 
 export interface DatabaseViewInfo {
   id: string;
   name: string;
-  type: "table";
+  type: ViewType;
   config: ViewConfig;
   position: number;
 }
@@ -230,5 +245,14 @@ export const rowInput = z.object({
 
 export const updateViewInput = z.object({
   name: z.string().trim().min(1).max(100).optional(),
+  type: z.enum(VIEW_TYPES).optional(),
   config: viewConfigSchema.optional(),
+  position: z.number().int().min(0).optional(),
+});
+
+export const createViewInput = z.object({
+  name: z.string().trim().min(1).max(100),
+  type: z.enum(VIEW_TYPES).default("table"),
+  /** Copies the settings of another view of the same database. */
+  duplicateOf: z.string().min(1).optional(),
 });
