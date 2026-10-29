@@ -1,5 +1,6 @@
 # Vérifie le code puis publie l'image Docker sur le registre GitLab du projet
 # (registry.gitlab.com/btronquoy/nootion).
+# Jobs : "test" puis "docker-image" (ne pas nommer un job "image", mot réservé de GitLab).
 #   - push sur la branche principale -> tags "main" et "main-<commit>"
 #   - tag git "v1.2.3"               -> tags "1.2.3" et "latest"
 
@@ -28,7 +29,7 @@ test:
     - pnpm typecheck
     - pnpm test
 
-image:
+docker-image:
   stage: image
   image: docker:29
   services:
