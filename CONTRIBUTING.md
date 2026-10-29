@@ -35,6 +35,31 @@ apps/server/plugins  Plugins that ship with the app (see docs/PLUGINS.md)
 After changing `apps/server/src/db/schema.ts`, create the migration with
 `pnpm --filter @nootion/server db:generate`. Migrations are applied at startup.
 
+## Branches and releases
+
+Nootion follows git flow:
+
+| Branch | Role |
+|---|---|
+| `main` | Released versions only. Each merge into it is tagged `vX.Y.Z`, which publishes the image. Never committed to directly. |
+| `develop` | The next version. Features are merged into it; each push publishes the `develop` image. |
+| `feature/<name>` | One feature or fix, from `develop`, merged back into `develop` by a pull request once the tests pass. |
+| `release/X.Y.Z` | From `develop` when a version is ready: version numbers, CHANGELOG date, last fixes. Merged into `main` (then tagged) and back into `develop`. |
+| `hotfix/X.Y.Z` | From `main` for an urgent fix to the released version. Merged into `main` (then tagged) and into `develop`. |
+
+A release, step by step:
+
+```bash
+git switch develop && git pull
+git switch -c release/1.2.0
+# set "version" in the package.json files, date the version in CHANGELOG.md, commit
+git switch main && git merge --no-ff release/1.2.0
+git tag -a v1.2.0 -m "Nootion 1.2.0"
+git switch develop && git merge --no-ff release/1.2.0
+git push origin main develop v1.2.0
+git branch -d release/1.2.0
+```
+
 ## Translations
 
 To ask for a new language, open an issue. For reference, here is how the interface texts work:

@@ -33,7 +33,8 @@ Also check its upload size limit (`client_max_body_size` in Nginx) for attached 
 ## Installing with Docker
 
 The image is published on GitHub's registry for amd64 and arm64: `ghcr.io/btronquo/nootion`.
-Tags: `latest` (last release), `1.1.0`, `1.1` (last 1.1.x), and `main` (development version, to try what's coming).
+Tags: `latest` (last release), `1.1.0`, `1.1` (last 1.1.x), and `develop` (development version, to try what's coming;
+not for data you care about).
 
 ### With Docker Compose (recommended)
 
@@ -148,18 +149,15 @@ Notion allows about three requests per second, so a large workspace takes a few 
 
 ## Publishing a new version of the image
 
-[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) publishes the image to GitHub's registry as `ghcr.io/btronquo/nootion` (no setup
-needed: it uses the token provided by GitHub Actions); [`.gitlab-ci.yml`](../.gitlab-ci.yml) does the same on GitLab. They run the tests, then build and publish the image:
+Branches follow git flow (see [CONTRIBUTING.md](../CONTRIBUTING.md#branches-and-releases)).
+[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs the tests on every pull request and on pushes to
+`main` and `develop`, and publishes the image to GitHub's registry as `ghcr.io/btronquo/nootion` (no setup needed:
+it uses the token provided by GitHub Actions):
 
-- on every push to the default branch: tags `main` and `main-<commit>` (to try the latest development version);
-- on every git tag `vX.Y.Z`: tags `X.Y.Z`, `X.Y` (GitHub only) and `latest`.
-
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
+- on every push to `develop`: tags `develop` and `develop-<commit>`;
+- on every git tag `vX.Y.Z` (put on `main` when a release is merged): tags `X.Y.Z`, `X.Y` and `latest`.
 
 On GitHub, the first published image is private: *Packages > nootion > Package settings > Change visibility > Public*.
-Also remember to update [CHANGELOG.md](../CHANGELOG.md) and to create the release (*Releases > Draft a new release*, tag `v1.0.0`).
+For each version, also create the release (*Releases > Draft a new release*) with the version's CHANGELOG section.
 
 To try the image locally before publishing: `docker build -f docker/Dockerfile -t nootion:local .`
