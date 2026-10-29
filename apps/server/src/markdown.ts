@@ -123,7 +123,7 @@ function block(n: ProseMirrorNode, links: MarkdownLinks): string {
       return [line(rows[0]!), `|${" --- |".repeat(width)}`, ...rows.slice(1).map(line)].join("\n");
     }
     case "fileAttachment":
-      return `[📎 ${escapeText(String(n.attrs?.name ?? "fichier"))}](${dest(fileUrl(n.attrs?.url, links))})`;
+      return `[📎 ${escapeText(String(n.attrs?.name ?? "file"))}](${dest(fileUrl(n.attrs?.url, links))})`;
     case "pageLink":
     case "pageMention":
       return inline([n], links);

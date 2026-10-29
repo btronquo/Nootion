@@ -29,6 +29,11 @@ export function applyTheme(choice = getTheme()) {
   document.documentElement.classList.toggle("dark", dark);
   // Native controls (scrollbars, date pickers) follow the theme too.
   document.documentElement.style.colorScheme = dark ? "dark" : "light";
+  // The phone's status bar matches the page.
+  document.querySelectorAll('meta[name="theme-color"]').forEach((m) => {
+    m.removeAttribute("media");
+    m.setAttribute("content", dark ? "#171717" : "#ffffff");
+  });
 }
 
 export function initTheme() {

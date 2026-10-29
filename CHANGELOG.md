@@ -3,6 +3,17 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and version numbers follow
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - unreleased
+
+### Mobile
+
+- Installable app (PWA): manifest, icons, service worker that keeps the app's shell available.
+- Phone layout: the sidebar opens as a drawer, page headers stay at the top, smaller margins.
+- Editing toolbar above the keyboard on touch screens: "/" menu, bold, italic, link, heading, lists,
+  indent and outdent, move a block up or down, undo and redo.
+- Database tables show as cards on phones; a new row opens at once to fill it in.
+- Menus fit the screen and the space left by the keyboard.
+
 ## [1.0.0] - unreleased
 
 First public version.

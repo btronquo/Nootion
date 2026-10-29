@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet, useMatch, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { LogOut, Plus, Settings, Share2, Trash2, Users, User, Download, Search } from "lucide-react";
 import { t, type PageSummary, type WorkspaceSummary } from "@nootion/shared";
@@ -13,6 +13,8 @@ import { Avatar } from "./Avatar";
 import { Button, ErrorText, Field, Modal } from "./ui";
 import { usePlugins } from "../plugins/registry";
 import { SearchDialog, useSearchShortcut } from "./SearchDialog";
+import { MobileBar, SidebarLayout } from "./SidebarLayout";
+import { useIsTouch } from "../lib/mobile";
 
 export function AppShell() {
   const { user, refresh } = useSession();
@@ -22,6 +24,9 @@ export function AppShell() {
   usePlugins();
   const [creatingWorkspace, setCreatingWorkspace] = useState(false);
   const [searching, setSearching] = useState(false);
+  const touch = useIsTouch();
+  // Pages have their own header, with the menu button.
+  const onPage = useMatch("/page/:id");
   useSearchShortcut(useCallback(() => setSearching(true), []));
 
   async function logout() {
@@ -33,55 +38,75 @@ export function AppShell() {
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-2 rounded-md px-2 py-1.5 text-sm ${isActive ? "bg-neutral-200/70 font-medium dark:bg-neutral-800" : "hover:bg-neutral-200/50 dark:hover:bg-neutral-800/60"}`;
 
-  return (
-    <div className="flex h-full">
-      <aside className="flex w-64 shrink-0 flex-col border-r border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-950">
-        <Link to="/account" title={t("account.title")} className="m-2 flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-neutral-200/50 dark:hover:bg-neutral-800/60">
-          <Avatar name={user?.name ?? ""} url={user?.avatarUrl} size={26} />
-          <span className="truncate text-sm font-semibold">{user?.name}</span>
-        </Link>
-        <button
-          onClick={() => setSearching(true)}
-          className="mx-2 mb-1 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-neutral-600 hover:bg-neutral-200/50 dark:text-neutral-400 dark:hover:bg-neutral-800/60"
-        >
-          <Search size={16} /> {t("search.button")}
+  const sidebar = (
+    <>
+      <Link
+        to="/account"
+        title={t("account.title")}
+        className="m-2 flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-neutral-200/50 dark:hover:bg-neutral-800/60"
+      >
+        <Avatar name={user?.name ?? ""} url={user?.avatarUrl} size={26} />
+        <span className="truncate text-sm font-semibold">{user?.name}</span>
+      </Link>
+      <button
+        onClick={() => setSearching(true)}
+        className="mx-2 mb-1 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-neutral-600 hover:bg-neutral-200/50 dark:text-neutral-400 dark:hover:bg-neutral-800/60"
+      >
+        <Search size={16} /> {t("search.button")}
+        {!touch && (
           <kbd className="ml-auto rounded border border-neutral-300 px-1 font-sans text-[10px] text-neutral-400 dark:border-neutral-700">
             {/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K"}
           </kbd>
+        )}
+      </button>
+      <nav className="flex-1 space-y-5 overflow-y-auto px-2 py-2">
+        {workspaces.data?.map((ws) => (
+          <WorkspaceSection key={ws.id} workspace={ws} />
+        ))}
+        <SharedSection />
+        <button
+          onClick={() => setCreatingWorkspace(true)}
+          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-neutral-500 hover:bg-neutral-200/50 dark:hover:bg-neutral-800/60"
+        >
+          <Plus size={16} /> {t("workspace.new")}
         </button>
-        <nav className="flex-1 space-y-5 overflow-y-auto px-2 py-2">
-          {workspaces.data?.map((ws) => <WorkspaceSection key={ws.id} workspace={ws} />)}
-          <SharedSection />
+      </nav>
+      <div className="space-y-0.5 border-t border-neutral-200 p-2 dark:border-neutral-800">
+        <NavLink to="/trash" className={linkClass}>
+          <Trash2 size={16} /> {t("trash.title")}
+        </NavLink>
+        <NavLink to="/account" className={linkClass}>
+          <User size={16} /> {t("account.title")}
+        </NavLink>
+        {user?.role === "admin" && (
+          <NavLink to="/admin" className={linkClass}>
+            <Settings size={16} /> {t("admin.title")}
+          </NavLink>
+        )}
+        <button onClick={logout} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-neutral-200/50 dark:hover:bg-neutral-800/60">
+          <LogOut size={16} /> {t("auth.logout")}
+        </button>
+      </div>
+    </>
+  );
+
+  return (
+    <SidebarLayout sidebar={sidebar}>
+      {!onPage && (
+        <MobileBar>
           <button
-            onClick={() => setCreatingWorkspace(true)}
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-neutral-500 hover:bg-neutral-200/50 dark:hover:bg-neutral-800/60"
+            onClick={() => setSearching(true)}
+            aria-label={t("search.button")}
+            className="rounded-md p-2 text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
           >
-            <Plus size={16} /> {t("workspace.new")}
+            <Search size={20} />
           </button>
-        </nav>
-        <div className="space-y-0.5 border-t border-neutral-200 p-2 dark:border-neutral-800">
-          <NavLink to="/trash" className={linkClass}>
-            <Trash2 size={16} /> {t("trash.title")}
-          </NavLink>
-          <NavLink to="/account" className={linkClass}>
-            <User size={16} /> {t("account.title")}
-          </NavLink>
-          {user?.role === "admin" && (
-            <NavLink to="/admin" className={linkClass}>
-              <Settings size={16} /> {t("admin.title")}
-            </NavLink>
-          )}
-          <button onClick={logout} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-neutral-200/50 dark:hover:bg-neutral-800/60">
-            <LogOut size={16} /> {t("auth.logout")}
-          </button>
-        </div>
-      </aside>
-      <main className="min-w-0 flex-1 overflow-y-auto">
-        <Outlet />
-      </main>
+        </MobileBar>
+      )}
+      <Outlet />
       {creatingWorkspace && <CreateWorkspaceDialog onClose={() => setCreatingWorkspace(false)} />}
       {searching && <SearchDialog onClose={() => setSearching(false)} />}
-    </div>
+    </SidebarLayout>
   );
 }
 
@@ -164,7 +189,14 @@ function CreateWorkspaceDialog({ onClose }: { onClose: () => void }) {
           }
         }}
       >
-        <Field label={t("workspace.name")} value={name} onChange={(e) => setName(e.target.value)} placeholder={t("workspace.namePlaceholder")} required autoFocus />
+        <Field
+          label={t("workspace.name")}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={t("workspace.namePlaceholder")}
+          required
+          autoFocus
+        />
         <p className="text-sm text-neutral-500">{t("workspace.newHelp")}</p>
         <ErrorText error={error} />
         <div className="flex justify-end gap-2">

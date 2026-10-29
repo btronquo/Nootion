@@ -1,6 +1,8 @@
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
+/* Touch screens without a mouse: actions shown on hover stay visible there. */
+@custom-variant touch (@media (hover: none) and (pointer: coarse));
 
 @theme {
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;

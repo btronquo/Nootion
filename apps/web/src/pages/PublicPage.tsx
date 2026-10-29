@@ -10,6 +10,7 @@ import { Cell } from "../database/Cell";
 import { PropertyIcon } from "../database/icons";
 import { PublicDatabase } from "../database/DatabaseBlockView";
 import { t } from "@nootion/shared";
+import { MobileBar, SidebarLayout } from "../components/SidebarLayout";
 
 /** Read-only view of a page published with a public link. Works without an account. */
 export function PublicPage() {
@@ -36,19 +37,13 @@ export function PublicPage() {
   const { root, pages } = site.data!;
   const tree = buildTree([root, ...pages]);
 
-  return (
-    <div className="flex h-full">
-      {pages.length > 0 && (
-        <aside className="w-64 shrink-0 overflow-y-auto border-r border-neutral-200 bg-neutral-50 p-2 dark:border-neutral-800 dark:bg-neutral-950">
-          <PublicTree nodes={tree} token={token} currentId={currentId} rootId={root.id} />
-        </aside>
-      )}
-      <main className="min-w-0 flex-1 overflow-y-auto">
-        <div className={`mx-auto px-12 pb-24 pt-16 ${page.data?.fullWidth ? "max-w-none sm:px-24" : page.data?.kind === "database" ? "max-w-6xl" : "max-w-3xl"}`}>
+  const content = (
+    <>
+        <div className={`mx-auto px-5 pb-24 pt-8 sm:px-12 sm:pt-16 ${page.data?.fullWidth ? "max-w-none sm:px-24" : page.data?.kind === "database" ? "max-w-6xl" : "max-w-3xl"}`}>
           {page.data && (
             <>
               {page.data.icon && <div className="mb-2 text-5xl">{page.data.icon}</div>}
-              <h1 className="text-4xl font-bold">{pageTitle(page.data.title)}</h1>
+              <h1 className="text-3xl font-bold sm:text-4xl">{pageTitle(page.data.title)}</h1>
               {page.data.row && <PublicRowProperties row={page.data.row} token={token} rowId={page.data.id} />}
               {page.data.kind === "database" && (
                 <div className="mt-6">
@@ -65,8 +60,22 @@ export function PublicPage() {
           {page.isError && <p className="text-neutral-500">{t("page.notFound")}</p>}
         </div>
         <footer className="pb-8 text-center text-xs text-neutral-400">{t("public.footer")}</footer>
-      </main>
-    </div>
+    </>
+  );
+
+  // A single page needs no sidebar.
+  if (!pages.length) return <main className="h-full overflow-y-auto">{content}</main>;
+  return (
+    <SidebarLayout
+      sidebar={
+        <div className="flex-1 overflow-y-auto p-2">
+          <PublicTree nodes={tree} token={token} currentId={currentId} rootId={root.id} />
+        </div>
+      }
+    >
+      <MobileBar />
+      {content}
+    </SidebarLayout>
   );
 }
 
@@ -84,7 +93,7 @@ function PublicRowProperties({ row, token, rowId }: { row: PublicRow; token: str
         .filter((p) => p.type !== "title")
         .map((p) => (
           <div key={p.id} className="flex items-start gap-2">
-            <div className="flex w-40 shrink-0 items-center gap-1.5 truncate py-1.5 text-neutral-500">
+            <div className="flex w-32 shrink-0 sm:w-40 items-center gap-1.5 truncate py-1.5 text-neutral-500">
               <PropertyIcon type={p.type} size={14} /> <span className="truncate">{p.name}</span>
             </div>
             <div className="min-w-0 flex-1">

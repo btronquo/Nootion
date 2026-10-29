@@ -38,6 +38,8 @@ and can change it in **My account**.
   (columns and options created as needed), full backup downloadable by the admin.
 - Full-text search in page titles and content (Ctrl+K or ⌘K), accent-insensitive, limited to the pages the user can read.
 - English and French interface, chosen per user.
+- Works on phones and installs as an app (PWA, over HTTPS): sidebar as a drawer, editing toolbar above the keyboard,
+  database rows as cards. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#installing-the-app-on-a-phone-or-computer).
 - "My account" page: name, email, password, profile picture, language, light / dark / system theme.
 - "Full width" option per page.
 - Single Docker image (amd64 and arm64), data in `/data`.

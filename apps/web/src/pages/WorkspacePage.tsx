@@ -61,7 +61,7 @@ export function WorkspacePage() {
   const candidates = directory.data?.filter((u) => !memberIds.has(u.id)) ?? [];
 
   return (
-    <div className="mx-auto max-w-3xl space-y-10 px-8 py-12">
+    <div className="mx-auto max-w-3xl space-y-10 px-5 py-8 sm:px-8 sm:py-12">
       <div>
         <p className="text-sm text-neutral-500">{t("workspace.shared")}</p>
         <h1 className="text-2xl font-bold">{ws.name}</h1>

@@ -2,7 +2,9 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "re
 import { createPortal } from "react-dom";
 
 /** Floating panel anchored under an element. Closes on outside click and Escape. */
-export function Popover({ anchor, onClose, children, width = 260 }: { anchor: HTMLElement | null; onClose: () => void; children: ReactNode; width?: number }) {
+export function Popover({ anchor, onClose, children, width: wanted = 260 }: { anchor: HTMLElement | null; onClose: () => void; children: ReactNode; width?: number }) {
+  // Never wider than a phone screen.
+  const width = Math.min(wanted, window.innerWidth - 16);
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
 
@@ -31,7 +33,7 @@ export function Popover({ anchor, onClose, children, width = 260 }: { anchor: HT
     <div
       ref={ref}
       style={{ left: pos?.left ?? -9999, top: pos?.top ?? -9999, width }}
-      className="fixed z-50 rounded-lg border border-neutral-200 bg-white p-1 text-sm shadow-xl dark:border-neutral-700 dark:bg-neutral-900"
+      className="fixed z-50 max-h-[calc(100dvh-16px)] overflow-y-auto rounded-lg border border-neutral-200 bg-white p-1 text-sm shadow-xl dark:border-neutral-700 dark:bg-neutral-900"
     >
       {children}
     </div>,

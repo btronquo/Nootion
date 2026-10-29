@@ -98,6 +98,20 @@ The repository's [`docker-compose.yml`](../docker-compose.yml) builds the image 
 in a named Docker volume, `nootion-data`. To use the published image instead, replace `build:` with
 `image: registry.gitlab.com/btronquoy/nootion:latest`.
 
+## Installing the app on a phone or computer
+
+Nootion is a web app that can be installed (PWA): it then opens in its own window, with its icon on the home screen.
+Browsers only offer this over **HTTPS** (or on `localhost`), so put Nootion behind an HTTPS reverse proxy first
+(Nginx Proxy Manager, Caddy, Traefik, or a Tailscale / Cloudflare tunnel) and set `APP_URL` to the `https://…` address.
+
+- **Android (Chrome, Edge, Samsung Internet)**: open Nootion, then menu › *Install app* (or *Add to home screen*).
+- **iPhone / iPad (Safari)**: Share button › *Add to Home Screen*.
+- **Computer (Chrome, Edge)**: the install icon at the right of the address bar.
+
+On a phone the sidebar opens from the ☰ button, a toolbar above the keyboard gives the "/" menu, formatting,
+lists, indentation and moving blocks, and database tables show as cards (tap one to edit the row).
+A new version of Nootion reaches installed apps the next time they open.
+
 ## Publishing a new version of the image
 
 Two pipelines do the same job, each on its own registry: [`.gitlab-ci.yml`](../.gitlab-ci.yml) for GitLab and

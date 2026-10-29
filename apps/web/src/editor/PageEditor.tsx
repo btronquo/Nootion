@@ -18,6 +18,8 @@ import { insertFiles } from "./upload";
 import { usePlugins } from "../plugins/registry";
 import type { ClientPluginInfo } from "@nootion/shared";
 import { t } from "@nootion/shared";
+import { MobileToolbar } from "./MobileToolbar";
+import { useIsTouch } from "../lib/mobile";
 
 const COLORS = ["#e11d48", "#ea580c", "#ca8a04", "#16a34a", "#0891b2", "#2563eb", "#7c3aed", "#c026d3"];
 export function colorFor(id: string): string {
@@ -74,6 +76,7 @@ function CollabEditor({
   const [synced, setSynced] = useState(provider.isSynced);
   const [connected, setConnected] = useState(true);
   const [peers, setPeers] = useState<Peer[]>([]);
+  const touch = useIsTouch();
 
   useEffect(() => {
     const onSynced = () => setSynced(true);
@@ -152,7 +155,9 @@ function CollabEditor({
         ))}
         {!connected ? <span className="text-amber-600">{t("editor.offline")}</span> : !synced ? <span>{t("common.loading")}</span> : null}
       </div>
-      {editor && canEdit && <FormatMenu editor={editor} />}
+      {/* On touch screens, formatting is in the bar above the keyboard, away from the system's selection menu. */}
+      {editor && canEdit && !touch && <FormatMenu editor={editor} />}
+      {editor && canEdit && touch && <MobileToolbar editor={editor} />}
       {editor && canEdit && <TableMenu editor={editor} />}
       <EditorContent editor={editor} />
     </div>
@@ -213,7 +218,7 @@ function TableMenu({ editor }: { editor: Editor }) {
   if (!inTable) return null;
   const b = "rounded px-2 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-800";
   return (
-    <div className="sticky top-0 z-10 mb-2 flex flex-wrap gap-1 rounded-lg border border-neutral-200 bg-white p-1 text-xs shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
+    <div className="sticky top-0 z-10 mb-2 flex flex-wrap max-md:top-[52px] gap-1 rounded-lg border border-neutral-200 bg-white p-1 text-xs shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
       <button className={b} onClick={() => editor.chain().focus().addRowAfter().run()}>+ {t("editor.row")}</button>
       <button className={b} onClick={() => editor.chain().focus().addColumnAfter().run()}>+ {t("editor.column")}</button>
       <button className={b} onClick={() => editor.chain().focus().deleteRow().run()}>− {t("editor.row")}</button>
