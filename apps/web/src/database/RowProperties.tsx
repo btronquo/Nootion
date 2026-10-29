@@ -1,16 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { atLeast, type CellValue, type DatabaseProperty, type DatabaseRow, type PageRole, type SelectOption } from "@nootion/shared";
+import { atLeast, type CellValue, type DatabaseProperty, type DatabaseRow, type PageRole, type RelatedRow, type SelectOption } from "@nootion/shared";
 import { api } from "../lib/api";
 import { Cell } from "./Cell";
 import { PropertyIcon } from "./icons";
 import { newOption } from "./OptionPicker";
-import { dbKey } from "./hooks";
 
 interface RowData {
   properties: DatabaseProperty[];
   row: DatabaseRow;
   role: PageRole;
   people: Record<string, string>;
+  related: Record<string, RelatedRow>;
+  rollupTargets: Record<string, DatabaseProperty | null>;
 }
 
 /** Property list shown above the content of a database row opened as a page. */
@@ -21,16 +22,20 @@ export function RowProperties({ databaseId, rowId }: { databaseId: string; rowId
 
   const update = useMutation({
     mutationFn: ({ propId, value }: { propId: string; value: CellValue }) =>
-      api<{ row: DatabaseRow }>(`/databases/${databaseId}/rows/${rowId}`, { method: "PATCH", body: { values: { [propId]: value } } }),
+      api<{ row: DatabaseRow; related: Record<string, RelatedRow> }>(`/databases/${databaseId}/rows/${rowId}`, {
+        method: "PATCH",
+        body: { values: { [propId]: value } },
+      }),
     onMutate: ({ propId, value }) =>
       qc.setQueryData<RowData>(key, (d) => (d ? { ...d, row: { ...d.row, values: { ...d.row.values, [propId]: value } } } : d)),
-    onSuccess: ({ row }) => qc.setQueryData<RowData>(key, (d) => (d ? { ...d, row } : d)),
+    onSuccess: ({ row, related }) => qc.setQueryData<RowData>(key, (d) => (d ? { ...d, row, related: { ...d.related, ...related } } : d)),
     onError: (err) => alert(err instanceof Error ? err.message : String(err)),
-    onSettled: () => qc.invalidateQueries({ queryKey: dbKey(databaseId) }),
+    // Relations and rollups can show this row in other databases too.
+    onSettled: () => qc.invalidateQueries({ queryKey: ["database"] }),
   });
 
   if (!q.data) return null;
-  const { properties, row, role, people } = q.data;
+  const { properties, row, role, people, related, rollupTargets } = q.data;
   const editable = atLeast(role, "editor");
 
   const createOption = (prop: DatabaseProperty) => async (name: string): Promise<SelectOption> => {
@@ -56,6 +61,8 @@ export function RowProperties({ databaseId, rowId }: { databaseId: string; rowId
                 value={row.values[p.id] ?? null}
                 rowId={row.id}
                 people={people}
+                related={related}
+                rollupTarget={rollupTargets[p.id]}
                 editable={editable}
                 variant="panel"
                 onChange={(value) => update.mutate({ propId: p.id, value })}

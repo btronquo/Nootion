@@ -1,4 +1,4 @@
-import type { CellValue, DatabaseProperty, DateValue, FileValue, OptionColor, PropertyType } from "@nootion/shared";
+import type { CalcResult, CellValue, DatabaseProperty, DateValue, FileValue, OptionColor, PropertyType } from "@nootion/shared";
 
 export const TYPE_LABELS: Record<PropertyType, string> = {
   title: "Titre",
@@ -17,6 +17,8 @@ export const TYPE_LABELS: Record<PropertyType, string> = {
   created_time: "Date de création",
   last_edited_time: "Dernière modification",
   created_by: "Créé par",
+  relation: "Relation",
+  rollup: "Rollup",
 };
 
 export const OPTION_CLASSES: Record<OptionColor, string> = {
@@ -93,6 +95,24 @@ export function formatValue(prop: DatabaseProperty, value: CellValue, people: Re
       return (value as FileValue[]).map((f) => f.name).join(", ");
     default:
       return String(value);
+  }
+}
+
+const NUMERIC: PropertyType[] = ["number", "currency", "percent"];
+
+/** Text of a calculation result; numbers take the format of `prop` (currency…) when it is numeric. */
+export function formatCalc(r: CalcResult, prop: DatabaseProperty | null | undefined): string {
+  switch (r.kind) {
+    case "number":
+      return prop && NUMERIC.includes(prop.type) ? formatNumber(r.value, prop) : new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 }).format(r.value);
+    case "count":
+      return new Intl.NumberFormat("fr-FR").format(r.value);
+    case "percent":
+      return new Intl.NumberFormat("fr-FR", { style: "percent", maximumFractionDigits: 1 }).format(r.value / 100);
+    case "days":
+      return `${r.value} jour${r.value > 1 ? "s" : ""}`;
+    case "date":
+      return formatDateString(r.value);
   }
 }
 

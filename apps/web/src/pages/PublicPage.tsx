@@ -1,7 +1,7 @@
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Database, FileText } from "lucide-react";
-import type { CellValue, DatabaseProperty, PageSummary } from "@nootion/shared";
+import type { CellValue, DatabaseProperty, PageSummary, RelatedRow } from "@nootion/shared";
 import { api } from "../lib/api";
 import { buildTree, pageTitle, type TreeNode } from "../lib/tree";
 import type { JSONContent } from "@tiptap/core";
@@ -72,6 +72,8 @@ export function PublicPage() {
 interface PublicRow {
   properties: DatabaseProperty[];
   values: Record<string, CellValue>;
+  related: Record<string, RelatedRow>;
+  rollupTargets: Record<string, DatabaseProperty | null>;
 }
 
 function PublicRowProperties({ row, token, rowId }: { row: PublicRow; token: string; rowId: string }) {
@@ -90,6 +92,9 @@ function PublicRowProperties({ row, token, rowId }: { row: PublicRow; token: str
                 value={row.values[p.id] ?? null}
                 rowId={rowId}
                 people={{}}
+                related={row.related}
+                rollupTarget={row.rollupTargets[p.id]}
+                rowHref={(id) => `/p/${token}/${id}`}
                 editable={false}
                 variant="panel"
                 onChange={() => {}}
