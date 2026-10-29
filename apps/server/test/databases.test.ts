@@ -353,3 +353,67 @@ describe("relations et rollups", () => {
     expect((await alice.get("/api/databases")).json().databases.map((d: { id: string }) => d.id)).not.toContain(s.fournisseurs.id);
   });
 });
+
+describe("colonnes formule", () => {
+  const formula = (dbId: string, name: string, expression: string) => boris.post(`/api/databases/${dbId}/properties`, { name, type: "formula", config: { expression } });
+
+  it("calcule, enchaîne les formules, suit les renommages et signale les erreurs", async () => {
+    const d = await createDb(boris);
+    const ht = await addProp(boris, d.id, "HT", "currency");
+    const payee = await addProp(boris, d.id, "Payée", "checkbox");
+    const row = (await boris.post(`/api/databases/${d.id}/rows`, { values: { [d.properties[0].id]: "F1", [ht.id]: 100 } })).json().row;
+    const ttc = (await formula(d.id, "TTC", 'prop("HT") * 1.2')).json().property as DatabaseProperty;
+    const label = (await formula(d.id, "Libellé", 'prop("Nom") + " : " + prop("TTC") + if(prop("Payée"), " (payée)", "")')).json().property as DatabaseProperty;
+    let data = await getDb(boris, d.id);
+    expect(data.rows[0].values[ttc.id]).toEqual({ kind: "number", value: 120 });
+    expect(data.rows[0].values[label.id]).toEqual({ kind: "text", value: "F1 : 120" });
+
+    // Editing a cell recomputes the formulas in the response.
+    const res = await boris.patch(`/api/databases/${d.id}/rows/${row.id}`, { values: { [payee.id]: true } });
+    expect(res.json().row.values[label.id]).toEqual({ kind: "text", value: "F1 : 120 (payée)" });
+
+    // Renaming a column rewrites the formulas that use it.
+    await boris.patch(`/api/databases/${d.id}/properties/${ht.id}`, { name: "Montant HT" });
+    data = await getDb(boris, d.id);
+    expect(data.properties.find((p) => p.id === ttc.id)!.config.expression).toBe('prop("Montant HT") * 1.2');
+    expect(data.rows[0].values[ttc.id]).toEqual({ kind: "number", value: 120 });
+
+    // Invalid formulas are refused when saved…
+    expect((await formula(d.id, "X", 'prop("Nope") + 1')).statusCode).toBe(400);
+    expect((await formula(d.id, "X", "1 +")).statusCode).toBe(400);
+    expect((await boris.patch(`/api/databases/${d.id}/properties/${ttc.id}`, { config: { expression: 'prop("Libellé")' } })).statusCode).toBe(400);
+    // …and errors at run time stay in their cell.
+    const ratio = (await formula(d.id, "Ratio", 'prop("Montant HT") / 0')).json().property as DatabaseProperty;
+    data = await getDb(boris, d.id);
+    expect(data.rows[0].values[ratio.id]).toEqual({ kind: "error", value: "Division par zéro." });
+    // Formula cells can't be written.
+    expect((await boris.patch(`/api/databases/${d.id}/rows/${row.id}`, { values: { [ttc.id]: 1 } })).statusCode).toBe(400);
+  });
+
+  it("formules sur les relations, et rollup d'une formule", async () => {
+    const fournisseurs = await createDb(boris, "Fournisseurs");
+    const factures = await createDb(boris, "Factures");
+    const ht = await addProp(boris, factures.id, "HT", "currency");
+    const rel = (
+      await boris.post(`/api/databases/${factures.id}/properties`, { name: "Fournisseur", type: "relation", config: { databaseId: fournisseurs.id }, twoWay: true })
+    ).json().property as DatabaseProperty;
+    const twin = (await getDb(boris, fournisseurs.id)).properties.find((p) => p.type === "relation")!;
+    const ttc = (await formula(factures.id, "TTC", 'prop("HT") * 1.2')).json().property as DatabaseProperty;
+    const who = (await formula(factures.id, "Chez", 'join(prop("Fournisseur"), ", ")')).json().property as DatabaseProperty;
+    const free = (await boris.post(`/api/databases/${fournisseurs.id}/rows`, { values: { [fournisseurs.properties[0].id]: "Free" } })).json().row;
+    for (const amount of [10, 20]) await boris.post(`/api/databases/${factures.id}/rows`, { values: { [ht.id]: amount, [rel.id]: [free.id] } });
+    expect((await getDb(boris, factures.id)).rows[0].values[who.id]).toEqual({ kind: "text", value: "Free" });
+    const total = (
+      await boris.post(`/api/databases/${fournisseurs.id}/properties`, {
+        name: "Total TTC",
+        type: "rollup",
+        config: { relationPropertyId: twin.id, targetPropertyId: ttc.id, rollupFunction: "sum" },
+      })
+    ).json().property as DatabaseProperty;
+    const count = (await formula(fournisseurs.id, "Résumé", 'format(length(prop("Factures"))) + " factures, " + prop("Total TTC") + " €"')).json()
+      .property as DatabaseProperty;
+    const data = await getDb(boris, fournisseurs.id);
+    expect(data.rows[0].values[total.id]).toEqual({ kind: "number", value: 36 });
+    expect(data.rows[0].values[count.id]).toEqual({ kind: "text", value: "2 factures, 36 €" });
+  });
+});

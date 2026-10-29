@@ -2,7 +2,17 @@ import { randomUUID } from "node:crypto";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import {
   COMPUTED_TYPES,
+  FormulaError,
   computeCalc,
+  evaluateFormula,
+  formulaCalcInput,
+  formulaReferences as formulaReferencesOf,
+  makeDate,
+  parseFormula,
+  toFormulaResult,
+  type FValue,
+  type FormulaNode,
+  type FormulaResult,
   valueSchema,
   type CalcFunction,
   type RelatedRow,
@@ -148,7 +158,10 @@ export function enrichRows(db: DbLike, properties: DatabaseProperty[], rows: Dat
       if (!isDatabase || !canRead(databaseId)) targetCache.set(databaseId, null);
       else {
         const props = listProperties(db, databaseId);
-        targetCache.set(databaseId, { properties: props, rows: new Map(listRowPages(db, databaseId).map((r) => [r.id, toRow(r, props)])) });
+        const targetRows = listRowPages(db, databaseId).map((r) => toRow(r, props));
+        // Formulas of the related rows, so rollups can use them (without their own relations).
+        computeFormulas(db, props, targetRows, {}, {});
+        targetCache.set(databaseId, { properties: props, rows: new Map(targetRows.map((r) => [r.id, r])) });
       }
     }
     return targetCache.get(databaseId)!;
@@ -185,11 +198,171 @@ export function enrichRows(db: DbLike, properties: DatabaseProperty[], rows: Dat
       if (fn === "show_original") {
         const shown = values.filter((v) => v !== null && !(Array.isArray(v) && v.length === 0));
         value = shown.length ? { kind: "list", values: shown } : null;
+      } else if (targetProp.type === "formula") {
+        const input = formulaCalcInput(values);
+        value = computeCalc(fn, input.values, input.type);
       } else value = computeCalc(fn, values, targetProp.type);
       row.values[prop.id] = value;
     }
   }
+  computeFormulas(db, properties, rows, related, rollupTargets);
   return { related, rollupTargets };
+}
+
+interface FormulaContext {
+  related: Record<string, RelatedRow>;
+  rollupTargets: Record<string, DatabaseProperty | null>;
+  userName: (id: string) => string;
+}
+
+/** Value of a cell as formulas see it: numbers, texts, booleans, dates, lists. */
+function toFormulaValue(prop: DatabaseProperty, value: CellValue, ctx: FormulaContext): FValue {
+  if (value === null || value === undefined) return prop.type === "checkbox" ? false : null;
+  switch (prop.type) {
+    case "number":
+    case "currency":
+    case "percent":
+      return value as number;
+    case "checkbox":
+      return value === true;
+    case "date": {
+      const d = value as { start: string; end?: string | null };
+      return makeDate(d.start, d.end);
+    }
+    case "created_time":
+    case "last_edited_time":
+      return makeDate(value as string);
+    case "select":
+      return prop.config.options?.find((o) => o.id === value)?.name ?? null;
+    case "multi_select":
+      return (value as string[]).map((id) => prop.config.options?.find((o) => o.id === id)?.name ?? "").filter(Boolean);
+    case "person":
+    case "created_by":
+      return (value as string[]).map(ctx.userName);
+    case "file":
+      return (value as { name: string }[]).map((f) => f.name);
+    case "relation":
+      return (value as string[]).map((id) => ctx.related[id]?.title ?? "");
+    case "rollup": {
+      const r = value as RollupValue;
+      if (r.kind === "list") {
+        const target = ctx.rollupTargets[prop.id];
+        return target ? r.values.map((v) => toFormulaValue(target, v, ctx)) : [];
+      }
+      return r.kind === "date" ? makeDate(r.value) : r.value;
+    }
+    case "formula": {
+      const f = value as FormulaResult;
+      if (f.kind === "error") throw new FormulaError(`La colonne « ${prop.name} » est en erreur.`);
+      if (f.kind === "date") return makeDate(f.value);
+      return f.value;
+    }
+    default:
+      return String(value);
+  }
+}
+
+/** A formula column that has no expression yet: its cells stay empty. */
+class EmptyFormula extends Error {}
+
+const parsedFormulas = new Map<string, FormulaNode | FormulaError>();
+function parseCached(expression: string): FormulaNode {
+  let parsed = parsedFormulas.get(expression);
+  if (!parsed) {
+    try {
+      parsed = parseFormula(expression);
+    } catch (e) {
+      parsed = e instanceof FormulaError ? e : new FormulaError(String(e));
+    }
+    if (parsedFormulas.size > 1000) parsedFormulas.clear();
+    parsedFormulas.set(expression, parsed);
+  }
+  if (parsed instanceof FormulaError) throw parsed;
+  return parsed;
+}
+
+/** Fills formula cells. Formulas may read other formulas; loops are reported as errors. */
+export function computeFormulas(
+  db: DbLike,
+  properties: DatabaseProperty[],
+  rows: DatabaseRow[],
+  related: Record<string, RelatedRow>,
+  rollupTargets: Record<string, DatabaseProperty | null>,
+) {
+  const formulas = properties.filter((p) => p.type === "formula");
+  if (!formulas.length) return;
+  const byName = new Map(properties.map((p) => [p.name, p]));
+  let names: Map<string, string> | null = null;
+  const userName = (id: string) => {
+    names ??= new Map(db.select({ id: users.id, name: users.name }).from(users).all().map((u) => [u.id, u.name]));
+    return names.get(id) ?? "";
+  };
+  const ctx: FormulaContext = { related, rollupTargets, userName };
+
+  for (const row of rows) {
+    const done = new Map<string, FormulaResult | null>();
+    const visiting = new Set<string>();
+    const compute = (prop: DatabaseProperty): FormulaResult | null => {
+      if (done.has(prop.id)) return done.get(prop.id)!;
+      if (visiting.has(prop.id)) throw new FormulaError("Référence circulaire entre formules.");
+      visiting.add(prop.id);
+      let result: FormulaResult | null = null;
+      try {
+        if (!prop.config.expression?.trim()) throw new EmptyFormula();
+        const node = parseCached(prop.config.expression ?? "");
+        result = toFormulaResult(
+          evaluateFormula(node, (name) => {
+            const p = byName.get(name);
+            if (!p) throw new FormulaError(`Colonne inconnue « ${name} ».`);
+            if (p.type === "title") return row.title || null;
+            if (p.type === "formula") {
+              const r = compute(p);
+              return r ? toFormulaValue(p, r, ctx) : null;
+            }
+            return toFormulaValue(p, row.values[p.id] ?? null, ctx);
+          }),
+        );
+      } catch (e) {
+        if (e instanceof FormulaError) result = { kind: "error", value: e.message };
+        else if (!(e instanceof EmptyFormula)) throw e;
+      }
+      visiting.delete(prop.id);
+      done.set(prop.id, result);
+      return result;
+    };
+    for (const f of formulas) row.values[f.id] = compute(f);
+  }
+}
+
+/** Checks a formula when it is saved: syntax, known columns, no loop through other formulas. */
+export function checkFormula(properties: DatabaseProperty[], propId: string | null, expression: string) {
+  let node: FormulaNode;
+  try {
+    node = parseFormula(expression);
+  } catch (e) {
+    if (e instanceof FormulaError) throw new HttpError(400, "bad_formula", e.message);
+    throw e;
+  }
+  const byName = new Map(properties.map((p) => [p.name, p]));
+  const seen = new Set<string>();
+  const visit = (n: FormulaNode, path: string[]) => {
+    for (const name of formulaReferencesOf(n)) {
+      const p = byName.get(name);
+      if (!p) throw new HttpError(400, "bad_formula", `Colonne inconnue « ${name} ».`);
+      if (p.type !== "formula") continue;
+      if (p.id === propId || path.includes(p.id)) {
+        throw new HttpError(400, "bad_formula", "La formule se référence elle-même (directement ou par une autre formule).");
+      }
+      if (seen.has(p.id)) continue;
+      seen.add(p.id);
+      try {
+        visit(parseFormula(p.config.expression ?? ""), [...path, p.id]);
+      } catch (e) {
+        if (!(e instanceof FormulaError)) throw e;
+      }
+    }
+  };
+  visit(node, propId ? [propId] : []);
 }
 
 /**

@@ -8,6 +8,7 @@ import {
   updatePropertyInput,
   updateViewInput,
   STRUCTURAL_TYPES,
+  renameFormulaReference,
   atLeast,
   type CellValue,
   type DatabaseProperty,
@@ -25,6 +26,7 @@ import {
   convertColumn,
   createDatabase,
   defaultConfig,
+  checkFormula,
   enrichRows,
   listProperties,
   listRowPages,
@@ -150,6 +152,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
       delete config.databaseId;
     }
     if (input.type === "rollup") checkRollupConfig(db, listProperties(db, req.params.id), config);
+    if (input.type === "formula" && config.expression?.trim()) checkFormula(listProperties(db, req.params.id), null, config.expression);
     const nextPos = (databaseId: string) =>
       (db
         .select({ max: max(databaseProperties.position) })
@@ -208,11 +211,22 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
       };
     }
     if (input.config && prop.type === "rollup") checkRollupConfig(db, properties, input.config);
+    if (input.config?.expression?.trim() && prop.type === "formula" && input.config.expression !== prop.config.expression) {
+      checkFormula(properties, prop.id, input.config.expression);
+    }
 
     db.transaction((tx) => {
       const rows = listRowPages(tx, req.params.id);
       const set: Partial<typeof databaseProperties.$inferInsert> = {};
-      if (input.name) set.name = input.name;
+      if (input.name && input.name !== prop.name) {
+        set.name = input.name;
+        // Formulas refer to columns by name: follow the rename.
+        for (const f of properties) {
+          if (f.type !== "formula" || !f.config.expression || f.id === prop.id) continue;
+          const expression = renameFormulaReference(f.config.expression, prop.name, input.name);
+          if (expression !== f.config.expression) tx.update(databaseProperties).set({ config: { ...f.config, expression } }).where(eq(databaseProperties.id, f.id)).run();
+        }
+      }
       if (input.position !== undefined) set.position = input.position;
 
       if (input.type && input.type !== prop.type) {

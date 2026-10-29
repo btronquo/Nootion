@@ -3,7 +3,7 @@
 Application de prise de notes open source façon Notion, auto-hébergeable, dont le point fort est les **databases**
 (relations, rollups, formules, filtres, agrégations).
 
-> Statut : en développement (V1, étape 5 sur 10 : relations et rollups). Voir [PLAN.md](PLAN.md).
+> Statut : en développement (V1, étape 6 sur 10 : formules). Voir [PLAN.md](PLAN.md).
 
 ## Ce qui marche aujourd'hui
 
@@ -24,6 +24,8 @@ Application de prise de notes open source façon Notion, auto-hébergeable, dont
 - Calculs sous les colonnes (somme, moyenne, médiane, min, max, nombre, pourcentage coché, dates…).
 - Relations entre databases (dans un sens ou dans les deux, tenues à jour automatiquement) et rollups
   (ex. total des factures d'un fournisseur).
+- Formules façon Notion : `prop("Montant") * 1.2`, `if(prop("Payé"), "OK", "À payer")`, `dateBetween(now(), prop("Échéance"), "days")`…
+  Éditeur avec vérification en direct et aide sur les fonctions ; les formules marchent avec les relations, les rollups et les calculs.
 - Page « Mon compte » : nom, email, mot de passe, photo de profil, thème clair / sombre / système.
 - Option « Pleine largeur » par page.
 - Image Docker unique, données dans `/data`.

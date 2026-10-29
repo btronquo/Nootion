@@ -1,4 +1,5 @@
 import type { CellValue, DatabaseProperty, DateValue, PropertyType, RollupValue } from "./databases.js";
+import type { FormulaResult } from "./formula.js";
 
 /** Calculations shown under table columns and computed by rollups. */
 export const CALC_FUNCTIONS = [
@@ -65,6 +66,8 @@ const GENERIC: CalcFunction[] = ["count_all", "count_values", "count_unique", "c
 
 /** Calculations that make sense for a column of the given type. */
 export function calcFunctionsFor(type: PropertyType): CalcFunction[] {
+  // A formula's result type is only known per row: offer everything, results adapt.
+  if (type === "formula") return [...GENERIC, "sum", "average", "median", "min", "max", "range", "earliest", "latest", "date_range", "checked", "percent_checked"];
   if (type === "checkbox") return ["count_all", "checked", "unchecked", "percent_checked", "percent_unchecked"];
   if (NUMERIC.includes(type)) return [...GENERIC, "sum", "average", "median", "min", "max", "range"];
   if (DATES.includes(type)) return [...GENERIC, "earliest", "latest", "date_range"];
@@ -84,6 +87,21 @@ export function rollupCalcInput(values: CellValue[], target: DatabaseProperty | 
   const type: PropertyType = first?.kind === "date" ? "date" : "number";
   return {
     values: rollups.map((v) => (!v || v.kind === "list" ? null : v.kind === "date" ? { start: v.value } : v.value)),
+    type,
+  };
+}
+
+/** Formula results turned into plain values, typed after the first non-empty result. */
+export function formulaCalcInput(values: CellValue[]): { values: CellValue[]; type: PropertyType } {
+  const results = values as (FormulaResult | null)[];
+  const first = results.find((v) => v && v.kind !== "error");
+  const type: PropertyType = first?.kind === "number" ? "number" : first?.kind === "boolean" ? "checkbox" : first?.kind === "date" ? "date" : "text";
+  return {
+    values: results.map((v): CellValue => {
+      if (!v || v.kind === "error") return null;
+      if (v.kind === "date") return { start: v.value };
+      return v.value;
+    }),
     type,
   };
 }

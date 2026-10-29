@@ -1,4 +1,4 @@
-import { ArrowUpRight, AtSign, Calendar, CheckSquare, Clock, Euro, Hash, Link, List, Paperclip, Percent, Sigma, Tag, Text, Type, User, UserCheck } from "lucide-react";
+import { ArrowUpRight, AtSign, Calendar, CheckSquare, Clock, Euro, Hash, Link, List, Paperclip, Percent, Sigma, SquareFunction, Tag, Text, Type, User, UserCheck } from "lucide-react";
 import type { PropertyType } from "@nootion/shared";
 
 export function PropertyIcon({ type, size = 14 }: { type: PropertyType; size?: number }) {
@@ -21,6 +21,7 @@ export function PropertyIcon({ type, size = 14 }: { type: PropertyType; size?: n
     created_by: UserCheck,
     relation: ArrowUpRight,
     rollup: Sigma,
+    formula: SquareFunction,
   }[type];
   return <Icon size={size} className="shrink-0 text-neutral-400" />;
 }
