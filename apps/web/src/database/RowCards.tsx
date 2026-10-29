@@ -40,8 +40,12 @@ export function RowCards({
   const shown = columns.filter((c) => c.prop.type !== "title" && c.prop.id !== groupProp?.id);
 
   async function addRow(group?: { prop: DatabaseProperty; key: string }) {
-    const { row } = await actions!.addRow.mutateAsync(initialValues(ctx, view?.config ?? {}, group));
-    navigate(rowHref(row));
+    try {
+      const { row } = await actions!.addRow.mutateAsync(initialValues(ctx, view?.config ?? {}, group));
+      navigate(rowHref(row));
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e));
+    }
   }
 
   const card = (row: DatabaseRow) => (

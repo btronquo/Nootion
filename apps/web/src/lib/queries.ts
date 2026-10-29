@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { PageDetail, PageSummary, UserDirectoryEntry, WorkspaceSummary } from "@nootion/shared";
 import { api } from "./api";
+import { useOfflineQueue, withQueuedPage, withQueuedPages } from "./offline";
 
 export const keys = {
   workspaces: ["workspaces"] as const,
@@ -15,21 +16,32 @@ export function useWorkspaces() {
 }
 
 export function useWorkspacePages(workspaceId: string) {
+  const { pending } = useOfflineQueue();
   return useQuery({
     queryKey: keys.pages(workspaceId),
     queryFn: async () => (await api<{ pages: PageSummary[] }>(`/workspaces/${workspaceId}/pages`)).pages,
+    select: pending ? withQueuedPages : undefined,
   });
 }
 
 export function useSharedPages() {
+  const { pending } = useOfflineQueue();
   return useQuery({
     queryKey: keys.shared,
     queryFn: async () => (await api<{ pages: (PageSummary & { shared: boolean })[] }>("/pages/shared")).pages,
+    select: pending ? withQueuedPages : undefined,
   });
 }
 
 export function usePage(id: string) {
-  return useQuery({ queryKey: keys.page(id), queryFn: async () => (await api<{ page: PageDetail }>(`/pages/${id}`)).page, enabled: !!id });
+  const { pending } = useOfflineQueue();
+  return useQuery({
+    queryKey: keys.page(id),
+    queryFn: async () => (await api<{ page: PageDetail }>(`/pages/${id}`)).page,
+    // Title or icon changed offline shows until the server has it.
+    select: pending ? withQueuedPage : undefined,
+    enabled: !!id,
+  });
 }
 
 export function useUserDirectory() {

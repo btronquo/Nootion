@@ -40,6 +40,8 @@ and can change it in **My account**.
 - English and French interface, chosen per user.
 - Works on phones and installs as an app (PWA, over HTTPS): sidebar as a drawer, editing toolbar above the keyboard,
   database rows as cards. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#installing-the-app-on-a-phone-or-computer).
+- Works offline: pages already opened stay readable and editable, and changes sync when the connection comes back
+  (page content is merged with others' changes, database cells are sent in order).
 - "My account" page: name, email, password, profile picture, language, light / dark / system theme.
 - "Full width" option per page.
 - Single Docker image (amd64 and arm64), data in `/data`.

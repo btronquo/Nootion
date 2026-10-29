@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ChevronRight, Lock, MoreHorizontal, Share2, Trash2 } from "lucide-react";
 import { atLeast, t, type PageDetail } from "@nootion/shared";
 import { api } from "../lib/api";
+import { sendOrQueue } from "../lib/offline";
 import { keys, usePage, useRefreshPages } from "../lib/queries";
 import { pageRoleLabel } from "../lib/labels";
 import { pageTitle } from "../lib/tree";
@@ -16,6 +17,7 @@ import { RowProperties } from "../database/RowProperties";
 import { dbKey } from "../database/hooks";
 import { Popover } from "../database/Popover";
 import { MenuButton } from "../components/SidebarLayout";
+import { SyncStatus } from "../components/SyncStatus";
 
 export function PagePage() {
   const { id = "" } = useParams();
@@ -57,7 +59,8 @@ function PageView({ page }: { page: PageDetail }) {
   }, [title]);
 
   async function save(patch: { title?: string; icon?: string | null; fullWidth?: boolean }) {
-    await api(`/pages/${page.id}`, { method: "PATCH", body: patch });
+    // Kept for later when the server can't be reached.
+    await sendOrQueue(`/pages/${page.id}`, patch);
     qc.setQueryData(keys.page(page.id), { ...page, ...patch });
     await qc.invalidateQueries({ queryKey: ["pages"] });
     await qc.invalidateQueries({ queryKey: keys.shared });
@@ -96,6 +99,7 @@ function PageView({ page }: { page: PageDetail }) {
           </span>
         </nav>
         <div className="flex shrink-0 items-center gap-1">
+          <SyncStatus />
           <Button variant="ghost" onClick={(e) => setMenu(e.currentTarget)} title={t("page.options")} aria-label={t("page.options")}>
             <MoreHorizontal size={16} />
           </Button>

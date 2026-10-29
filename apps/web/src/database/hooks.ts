@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CellValue, DatabaseData, DatabaseProperty, DatabaseRow, DatabaseSummary, PropertyConfig, PropertyType, RelatedRow, ViewConfig, ViewType, DatabaseViewInfo } from "@nootion/shared";
 import { api } from "../lib/api";
+import { sendOrQueue, useOfflineQueue, withQueuedChanges } from "../lib/offline";
 
 export const dbKey = (id: string) => ["database", id] as const;
 
@@ -11,9 +12,12 @@ interface RowResponse {
 }
 
 export function useDatabase(id: string) {
+  const { pending } = useOfflineQueue();
   return useQuery({
     queryKey: dbKey(id),
     queryFn: async () => (await api<{ database: DatabaseData }>(`/databases/${id}`)).database,
+    // Cells changed offline show their new value until the server has them.
+    select: pending ? withQueuedChanges : undefined,
     enabled: !!id,
     // Picks up changes made by other people.
     refetchInterval: () => (document.visibilityState === "visible" ? 5000 : false),
@@ -33,8 +37,9 @@ export function useDatabaseActions(id: string) {
   const refresh = () => qc.invalidateQueries({ queryKey: key });
 
   const updateCell = useMutation({
+    // Kept for later when the server can't be reached.
     mutationFn: ({ rowId, propId, value }: { rowId: string; propId: string; value: CellValue }) =>
-      api<RowResponse>(`/databases/${id}/rows/${rowId}`, { method: "PATCH", body: { values: { [propId]: value } } }),
+      sendOrQueue<RowResponse>(`/databases/${id}/rows/${rowId}`, { values: { [propId]: value } }),
     onMutate: ({ rowId, propId, value }) =>
       patch((d) => ({
         ...d,
@@ -44,7 +49,9 @@ export function useDatabaseActions(id: string) {
             : r,
         ),
       })),
-    onSuccess: ({ row, related }) => {
+    onSuccess: (res) => {
+      if (!res) return;
+      const { row, related } = res;
       patch((d) => ({ ...d, related: { ...d.related, ...related }, rows: d.rows.map((r) => (r.id === row.id ? row : r)) }));
       // Other databases may show this row through relations and rollups.
       return qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === "database" && q.queryKey[1] !== id });

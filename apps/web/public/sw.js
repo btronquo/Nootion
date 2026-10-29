@@ -1,7 +1,13 @@
-// Nootion service worker: makes the app installable and keeps its shell available.
-// The app's code is cached as it loads; the API and live editing always go to the server.
+// Nootion service worker: makes the app installable and usable offline.
+// The app's code is cached as it loads. Answers of the API are always asked to the server first;
+// the last one of each address is kept so the pages already seen still open without network.
+// Live editing (/collab) always goes to the server: page contents are kept by the editor itself.
 
 const CACHE = "nootion-shell-v1";
+// Cleared by the app at sign-out and when another account signs in.
+const API_CACHE = "nootion-api";
+// Downloads and answers that depend on what is typed are never kept.
+const NOT_KEPT = /^\/api\/(health|search|auth\/(?!me$)|admin\/backup)|\/export(\/|$|\?)/;
 
 self.addEventListener("install", () => self.skipWaiting());
 
@@ -9,7 +15,7 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((names) => Promise.all(names.filter((n) => n.startsWith("nootion-") && n !== CACHE).map((n) => caches.delete(n))))
+      .then((names) => Promise.all(names.filter((n) => n.startsWith("nootion-") && n !== CACHE && n !== API_CACHE).map((n) => caches.delete(n))))
       .then(() => self.clients.claim()),
   );
 });
@@ -18,7 +24,34 @@ self.addEventListener("fetch", (event) => {
   const req = event.request;
   const url = new URL(req.url);
   if (req.method !== "GET" || url.origin !== self.location.origin) return;
-  if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/collab")) return;
+  if (url.pathname.startsWith("/collab")) return;
+
+  if (url.pathname.startsWith("/api/")) {
+    if (NOT_KEPT.test(url.pathname)) return;
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(API_CACHE).then((c) => c.put(req, copy));
+          } else if (res.status === 401 || res.status === 403 || res.status === 404) {
+            // No longer visible to this user: don't show the old copy offline.
+            caches.open(API_CACHE).then((c) => c.delete(req));
+          }
+          return res;
+        })
+        .catch(() =>
+          caches.match(req, { cacheName: API_CACHE }).then((hit) => {
+            if (!hit) return Response.error();
+            // Tells the app this answer comes from the offline copy.
+            const headers = new Headers(hit.headers);
+            headers.set("x-nootion-offline", "1");
+            return new Response(hit.body, { status: hit.status, statusText: hit.statusText, headers });
+          }),
+        ),
+    );
+    return;
+  }
 
   // Pages of the app: the latest version from the server, or the saved one without network.
   if (req.mode === "navigate") {
