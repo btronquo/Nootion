@@ -7,6 +7,7 @@ import { api } from "../lib/api";
 import { useWorkspaces } from "../lib/queries";
 import { workspaceName } from "../lib/labels";
 import { Button, ErrorText, Field, Select } from "./ui";
+import { copyText } from "../lib/browser";
 
 const DOCS_URL = "https://github.com/btronquo/Nootion/blob/main/docs/API.md";
 const MCP_DOCS_URL = "https://github.com/btronquo/Nootion/blob/main/docs/MCP.md";
@@ -172,8 +173,7 @@ function NewToken({ token, onDone }: { token: string; onDone: () => void }) {
   const [copied, setCopied] = useState(false);
   async function copy() {
     try {
-      await navigator.clipboard.writeText(token);
-      setCopied(true);
+      setCopied(await copyText(token));
     } catch {
       // Without clipboard access (http), the token stays selectable.
     }
@@ -226,10 +226,7 @@ export function McpConnect() {
             type="button"
             variant="ghost"
             onClick={() =>
-              navigator.clipboard?.writeText(url).then(
-                () => setCopied(true),
-                () => undefined,
-              )
+              void copyText(url).then(setCopied)
             }
           >
             {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? t("tokens.copied") : t("tokens.copy")}

@@ -6,6 +6,7 @@ import { api } from "../lib/api";
 import { useSession } from "../lib/session";
 import { Button, ErrorText, Field, Rich } from "../components/ui";
 import { PluginsAdmin } from "./PluginsAdmin";
+import { copyText } from "../lib/browser";
 
 const dateFmt = () => new Intl.DateTimeFormat(intlLocale(), { dateStyle: "medium" });
 
@@ -110,7 +111,7 @@ export function AdminPage() {
         {lastLink && (
           <div className="mt-3 flex items-center gap-2 rounded-md bg-green-50 p-3 text-sm dark:bg-green-950">
             <code className="flex-1 break-all">{lastLink}</code>
-            <Button variant="ghost" onClick={() => navigator.clipboard.writeText(lastLink)} title={t("common.copy")}>
+            <Button variant="ghost" onClick={() => void copyText(lastLink)} title={t("common.copy")}>
               <Copy size={16} />
             </Button>
           </div>

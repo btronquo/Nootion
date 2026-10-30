@@ -3,6 +3,7 @@ import { Check, Plus } from "lucide-react";
 import { OPTION_COLORS, type DatabaseProperty, type SelectOption } from "@nootion/shared";
 import { OPTION_CLASSES } from "./format";
 import { t } from "@nootion/shared";
+import { randomId } from "../lib/browser";
 
 export function OptionChip({ option }: { option: SelectOption }) {
   return <span className={`inline-block max-w-full truncate rounded px-1.5 py-0.5 text-xs ${OPTION_CLASSES[option.color]}`}>{option.name}</span>;
@@ -79,5 +80,5 @@ export function OptionPicker({
 }
 
 export function newOption(name: string, existing: SelectOption[]): SelectOption {
-  return { id: crypto.randomUUID().slice(0, 8), name, color: OPTION_COLORS[(existing.length + 1) % OPTION_COLORS.length] };
+  return { id: randomId().slice(0, 8), name, color: OPTION_COLORS[(existing.length + 1) % OPTION_COLORS.length] };
 }

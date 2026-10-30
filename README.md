@@ -3,7 +3,7 @@
 **An open-source, self-hosted alternative to Notion, Capacities and Docmost**: pages, wikis and real databases,
 on your own server, in a single Docker container.
 
-> Version 2.0.0. See [CHANGELOG.md](CHANGELOG.md) for what changed and [PLAN.md](PLAN.md) for what comes next.
+> Version 2.0.1. See [CHANGELOG.md](CHANGELOG.md) for what changed and [PLAN.md](PLAN.md) for what comes next.
 
 ## Why Nootion
 
