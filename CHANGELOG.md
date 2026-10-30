@@ -14,6 +14,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Automatic backups (Administration): the full backup every day or every week at a set time, to a folder of the
+  server (a NAS share) or a WebDAV folder such as Nextcloud, keeping the last N copies. "Back up now" tries it at
+  once, and the page shows how the last one went.
 - Mention people in a page: type "@" and their name. They get a notification (in the app, and on their devices) if
   they can read the page, listed with the comment ones in "Notifications".
 - "/table of contents": links to the page's headings, kept up to date, that scroll to them.

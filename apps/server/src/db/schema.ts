@@ -597,3 +597,18 @@ export const pageMentions = sqliteTable(
   },
   (t) => [index("page_mentions_user_idx").on(t.userId, t.createdAt), uniqueIndex("page_mentions_unique").on(t.pageId, t.mentionId)],
 );
+
+/** The schedule of automatic backups (one row, "default"), and how the last one went. */
+export const backupSchedules = sqliteTable("backup_schedules", {
+  id: text("id").primaryKey(),
+  // BackupScheduleInput, without the WebDAV password.
+  config: text("config", { mode: "json" }).notNull(),
+  // The WebDAV password, encrypted with APP_SECRET.
+  secret: text("secret"),
+  nextRunAt: integer("next_run_at", { mode: "timestamp_ms" }),
+  lastRunAt: integer("last_run_at", { mode: "timestamp_ms" }),
+  lastError: text("last_error"),
+  lastName: text("last_name"),
+  lastSize: integer("last_size"),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
+});
