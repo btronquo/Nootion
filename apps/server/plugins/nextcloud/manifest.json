@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": {
     "en": "Pick files in your Nextcloud: insert a copy in a page or in a \"File\" column, or a link that opens the file in Nextcloud. Each person connects their own Nextcloud account. Commands \"/nextcloud\" and \"/nextcloud link\".",
-    "fr": "Choisissez des fichiers dans votre Nextcloud : insérez-en une copie dans une page ou une colonne « Fichier », ou un lien qui ouvre le fichier dans Nextcloud. Chacun connecte son propre compte Nextcloud. Commandes « /nextcloud » et « /lien nextcloud »."
+    "fr": "Choisissez des fichiers dans votre Nextcloud : insérez-en une copie dans une page ou une colonne « Fichier », ou un lien qui ouvre le fichier dans Nextcloud. Chacun connecte son propre compte Nextcloud. Commandes « /nextcloud » et « /nextcloud lien »."
   },
   "author": "Nootion",
   "server": "server.js",
@@ -12,10 +12,10 @@
   "blocks": [
     {
       "id": "link",
-      "title": { "en": "Nextcloud link", "fr": "Lien Nextcloud" },
+      "title": { "en": "Nextcloud link", "fr": "Nextcloud lien" },
       "description": { "en": "A file or folder that opens in Nextcloud", "fr": "Un fichier ou dossier qui s'ouvre dans Nextcloud" },
       "icon": "☁️",
-      "keywords": { "en": "nextcloud cloud link file folder drive", "fr": "nextcloud cloud lien fichier dossier" }
+      "keywords": { "en": "nextcloud link cloud file folder drive", "fr": "nextcloud lien cloud fichier dossier" }
     }
   ],
   "settings": [
