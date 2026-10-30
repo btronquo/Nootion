@@ -160,6 +160,8 @@ more interface languages.
   person, file…) are filled in, then their values feed the steps, for example to add an expense to a database
   from a phone in a few taps. A form can also get a link of its own, to collect answers from people without an
   account (public form, with rate limiting).
-- **Nextcloud** plugin (pick a Nextcloud file and insert it in a page or a "file" property) and **Google Calendar** plugin
-  (syncing a database's date property with a calendar).
-- Per-user plugin credentials (OAuth, Nextcloud account), stored encrypted, and plugin property types.
+- **Nextcloud** plugin (done): each person connects their own account, then picks Nextcloud files to copy into a page
+  or a "file" property, or links to a file or folder. **Google Calendar** plugin (syncing a database's date property
+  with a calendar).
+- Per-user plugin credentials (OAuth, Nextcloud account), stored encrypted (started: plugins keep encrypted data per
+  user, used by Nextcloud), a page in "My account" listing connected services, and plugin property types.

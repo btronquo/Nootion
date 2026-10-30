@@ -17,6 +17,7 @@ import {
 import { useUserDirectory } from "../lib/queries";
 import { uploadFile } from "../editor/upload";
 import { pickFiles } from "../editor/upload";
+import { fileSources } from "../plugins/registry";
 import { formatCalc, formatDate, formatDateString, formatNumber, numberFormatOf, parseNumberInput } from "./format";
 import { useDatabase } from "./hooks";
 import { pageTitle } from "../lib/tree";
@@ -388,6 +389,23 @@ function FileEditor({ value, rowId, onChange }: CellProps) {
       >
         <Upload size={14} /> {busy ? t("common.uploading") : t("cell.addFile")}
       </button>
+      {fileSources().map((source) => (
+        <button
+          key={source.label}
+          disabled={busy}
+          onClick={async () => {
+            try {
+              const picked = (await source.pick({ pageId: rowId, multiple: true })) ?? [];
+              if (picked.length) onChange([...files, ...picked.map((u) => ({ id: u.id, name: u.filename }))]);
+            } catch (err) {
+              alert(err instanceof Error ? err.message : String(err));
+            }
+          }}
+          className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
+        >
+          <span className="w-3.5 text-center leading-none">{source.icon ?? "📁"}</span> {t("cell.addFileFrom", { source: source.label })}
+        </button>
+      ))}
     </div>
   );
 }
