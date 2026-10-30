@@ -4,6 +4,7 @@ import type { PageVersion } from "@nootion/shared";
 import type { Db } from "./db/index.js";
 import { pages, pageSnapshots, users } from "./db/schema.js";
 import type { ProseMirrorNode } from "./collab.js";
+import { currentTokenScope } from "./api-tokens.js";
 
 /** Minimum time between two versions made while editing. */
 export const SNAPSHOT_INTERVAL = 10 * 60_000;
@@ -17,7 +18,7 @@ const DAY = 24 * HOUR;
 export function recordSnapshot(
   db: Db,
   pageId: string,
-  opts: { content: ProseMirrorNode; authors?: Iterable<string>; force?: boolean; restoredFrom?: Date; now?: Date },
+  opts: { content: ProseMirrorNode; authors?: Iterable<string>; force?: boolean; restoredFrom?: Date; agent?: string; now?: Date },
 ): boolean {
   const now = opts.now ?? new Date();
   const page = db.select({ title: pages.title }).from(pages).where(eq(pages.id, pageId)).get();
@@ -33,6 +34,7 @@ export function recordSnapshot(
       content: opts.content,
       authors: [...new Set(opts.authors ?? [])],
       restoredFrom: opts.restoredFrom ?? null,
+      agent: opts.agent ?? null,
       createdAt: now,
     })
     .run();
@@ -74,6 +76,7 @@ export function listVersions(db: Db, pageId: string): PageVersion[] {
       title: pageSnapshots.title,
       authors: pageSnapshots.authors,
       restoredFrom: pageSnapshots.restoredFrom,
+      agent: pageSnapshots.agent,
     })
     .from(pageSnapshots)
     .where(eq(pageSnapshots.pageId, pageId))
@@ -96,7 +99,14 @@ export function listVersions(db: Db, pageId: string): PageVersion[] {
     title: r.title,
     authors: r.authors.filter((id) => names.has(id)).map((id) => ({ id, name: names.get(id)! })),
     restoredFrom: r.restoredFrom?.toISOString() ?? null,
+    agent: r.agent,
   }));
+}
+
+/** After an app or agent wrote a page's content with a token, keeps that content as a version marked with the token's name. */
+export function recordAgentVersion(db: Db, pageId: string, content: ProseMirrorNode, userId: string) {
+  const scope = currentTokenScope();
+  if (scope) recordSnapshot(db, pageId, { content, authors: [userId], agent: scope.name, force: true });
 }
 
 export function getSnapshot(db: Db, pageId: string, id: string) {

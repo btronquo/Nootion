@@ -4,6 +4,7 @@ import { CALC_FUNCTIONS, type CalcFunction, type CalcResult } from "./calculatio
 import type { FormulaResult } from "./formula.js";
 import { VIEW_TYPES, viewFilterSchema, viewSortSchema, type ViewFilter, type ViewSort, type ViewType } from "./views.js";
 import { t } from "./i18n/index.js";
+import { buttonConfigSchema } from "./buttons.js";
 
 export const PROPERTY_TYPES = [
   "title",
@@ -25,13 +26,14 @@ export const PROPERTY_TYPES = [
   "relation",
   "rollup",
   "formula",
+  "button",
 ] as const;
 export type PropertyType = (typeof PROPERTY_TYPES)[number];
 
 /** Types computed by the server; their cells cannot be edited. */
-export const COMPUTED_TYPES: readonly PropertyType[] = ["created_time", "last_edited_time", "created_by", "rollup", "formula"];
+export const COMPUTED_TYPES: readonly PropertyType[] = ["created_time", "last_edited_time", "created_by", "rollup", "formula", "button"];
 /** Types that need their own settings: a column can't be converted to or from them. */
-export const STRUCTURAL_TYPES: readonly PropertyType[] = ["relation", "rollup", "formula"];
+export const STRUCTURAL_TYPES: readonly PropertyType[] = ["relation", "rollup", "formula", "button"];
 /** Types that can be created by users (the title column always exists, exactly once). */
 export const CREATABLE_TYPES = PROPERTY_TYPES.filter((t) => t !== "title");
 
@@ -69,6 +71,8 @@ export const propertyConfigSchema = z
     expression: z.string().max(5000).optional(),
     /** formula: how a number result is shown (with currency / decimals above) */
     formulaFormat: z.enum(["number", "currency", "percent"]).optional(),
+    /** button: what it does when clicked */
+    button: buttonConfigSchema.optional(),
   })
   .strict();
 export type PropertyConfig = z.infer<typeof propertyConfigSchema>;

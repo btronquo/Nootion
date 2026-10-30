@@ -1,14 +1,18 @@
 import { decryptSecret, encryptSecret, secretKey } from "./secrets.js";
 import fs from "node:fs";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { FastifyBaseLogger, FastifyReply, FastifyRequest } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   pluginManifestSchema,
   registerFormulaFunction,
   type AdminPluginInfo,
   type ClientPluginInfo,
+  type ConnectedAccount,
   type FValue,
   type PageRole,
   type PluginFormulaFunction,
@@ -20,9 +24,10 @@ import {
   type Locale,
 } from "@nootion/shared";
 import type { Db } from "./db/index.js";
-import { plugins } from "./db/schema.js";
+import { attachments, pluginUserData, plugins } from "./db/schema.js";
+import { attachmentPath, uploadsDir } from "./attachments.js";
 import { HttpError, notFound, unauthorized } from "./http.js";
-import { getPageRole } from "./permissions.js";
+import { getPageRole, requirePageRole } from "./permissions.js";
 import { t } from "@nootion/shared";
 
 /** Built-in plugins ship next to the server code (src/ in dev, dist/ in the image). */
@@ -41,6 +46,28 @@ export interface PluginRequest {
   query: Record<string, string>;
   body: unknown;
   headers: Record<string, string | string[] | undefined>;
+}
+
+/** Sends the browser to another address (e.g. a sign-in page of another service). */
+export class PluginRedirect {
+  constructor(readonly url: string) {}
+}
+
+/** A file a plugin's route sends back as is (e.g. an image), instead of JSON. */
+export class PluginBinary {
+  constructor(
+    readonly data: Buffer | Readable,
+    readonly contentType: string,
+  ) {}
+}
+
+/** A file attached to a page, as the upload route returns it. */
+export interface PluginAttachment {
+  id: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  url: string;
 }
 
 /** The object given to a plugin's server code: `export function activate(nootion) { … }`. */
@@ -63,7 +90,36 @@ export interface ServerPluginApi {
   HttpError: typeof HttpError;
   /** Language of the user being served ("en", "fr"…), to write messages in it. */
   locale: () => Locale;
+  /** What the plugin keeps for each user (an account on another service…), stored encrypted. Any JSON value. */
+  userSecrets: {
+    get: (userId: string) => unknown;
+    set: (userId: string, value: unknown) => void;
+    delete: (userId: string) => void;
+  };
+  /** Attaches a file to a page, as if the user had uploaded it (they must be able to edit the page). */
+  attachments: {
+    create: (input: { userId: string; pageId: string; filename: string; mimeType: string; data: Buffer | Readable | ReadableStream<Uint8Array> }) => Promise<PluginAttachment>;
+  };
+  /** Return this from a route to send a file (an image…) instead of JSON. */
+  binary: (data: Buffer | Readable, contentType: string) => PluginBinary;
+  /** Return this from a route to send the browser to another address. */
+  redirect: (url: string) => PluginRedirect;
+  /** Address of Nootion as people open it (APP_URL), without a trailing slash. */
+  appUrl: string;
+  /**
+   * Calls Nootion's API as a user, with their rights (as if they had made the request): request(userId, "POST",
+   * "/databases/<id>/query", { limit: 100 }). Resolves with the JSON answer; throws an HttpError on an error.
+   */
+  request: <T = any>(userId: string, method: Method, path: string, body?: unknown) => Promise<T>;
+  /**
+   * Lists the user's account on another service in "My account › Connected services": `describe` gives what to show
+   * ("ada@gmail.com"), or null when they haven't connected one; `disconnect` forgets (and revokes) it.
+   */
+  connectedAccount: (spec: { describe: (userId: string) => string | null; disconnect: (userId: string) => unknown }) => void;
 }
+
+/** Types a plugin route may send to be shown in the browser; anything else is downloaded. */
+const INLINE_PLUGIN_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "image/avif"]);
 
 interface Route {
   method: Method;
@@ -76,6 +132,7 @@ interface Runtime {
   routes: Route[];
   timers: NodeJS.Timeout[];
   formulas: { info: PluginFormulaFunction; remove: () => void }[];
+  account?: { describe: (userId: string) => string | null; disconnect: (userId: string) => unknown };
   deactivate?: () => unknown;
 }
 
@@ -93,19 +150,32 @@ export class PluginManager {
   /** Plugin folders that couldn't be read, with why. */
   readonly broken: { dir: string; error: string }[] = [];
   private key: Buffer;
+  private userKey: Buffer;
 
   constructor(
     private db: Db,
-    private opts: { dirs: { path: string; builtin: boolean }[]; dataDir: string; appSecret: string; log: FastifyBaseLogger },
+    private opts: {
+      dirs: { path: string; builtin: boolean }[];
+      dataDir: string;
+      appSecret: string;
+      log: FastifyBaseLogger;
+      maxUploadMb: number;
+      appUrl: string;
+      /** Calls the API in the process, as the given user. */
+      inject: (userId: string, method: Method, path: string, body?: unknown) => Promise<{ status: number; json: any }>;
+      /** Called after a plugin attached a file (to read its text for search). */
+      onAttachment?: () => void;
+    },
   ) {
     this.key = secretKey(opts.appSecret, "nootion-plugin-settings");
+    this.userKey = secretKey(opts.appSecret, "nootion-plugin-user-data");
   }
 
   /** Reads every manifest, then starts the enabled plugins. */
   async start() {
     for (const { path: root, builtin } of this.opts.dirs) {
       if (!fs.existsSync(root)) continue;
-      for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+      for (const entry of fs.readdirSync(root, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
         if (!entry.isDirectory()) continue;
         const dir = path.join(root, entry.name);
         const file = path.join(dir, "manifest.json");
@@ -228,6 +298,29 @@ export class PluginManager {
       pages: { role: (userId, pageId) => getPageRole(this.db, userId, pageId) },
       HttpError,
       locale: currentLocale,
+      userSecrets: {
+        get: (userId) => this.getUserSecret(id, userId),
+        set: (userId, value) => this.setUserSecret(id, userId, value),
+        delete: (userId) => {
+          this.db
+            .delete(pluginUserData)
+            .where(and(eq(pluginUserData.pluginId, id), eq(pluginUserData.userId, userId)))
+            .run();
+        },
+      },
+      attachments: { create: (input) => this.createAttachment(input) },
+      binary: (data, contentType) => new PluginBinary(data, contentType),
+      redirect: (url) => new PluginRedirect(url),
+      appUrl: this.opts.appUrl,
+      request: async (userId, method, apiPath, body) => {
+        if (!apiPath.startsWith("/")) throw new Error('An API path starts with "/".');
+        const res = await this.opts.inject(userId, method, apiPath, body);
+        if (res.status >= 400) throw new HttpError(res.status, res.json?.error ?? "error", res.json?.message ?? `HTTP ${res.status}`);
+        return res.json;
+      },
+      connectedAccount: (spec) => {
+        runtime.account = spec;
+      },
     };
     try {
       fs.mkdirSync(dataDir, { recursive: true });
@@ -256,6 +349,59 @@ export class PluginManager {
     } catch (e) {
       this.opts.log.warn(`Plugin ${p.manifest.id}: error while stopping: ${e instanceof Error ? e.message : e}`);
     }
+  }
+
+  // --- Per-user data and files ----------------------------------------------------------------
+
+  private getUserSecret(pluginId: string, userId: string): unknown {
+    const row = this.db
+      .select()
+      .from(pluginUserData)
+      .where(and(eq(pluginUserData.pluginId, pluginId), eq(pluginUserData.userId, userId)))
+      .get();
+    const text = row ? decryptSecret(this.userKey, row.value) : null;
+    return text === null ? null : JSON.parse(text);
+  }
+
+  private setUserSecret(pluginId: string, userId: string, value: unknown) {
+    const encrypted = encryptSecret(this.userKey, JSON.stringify(value ?? null));
+    this.db
+      .insert(pluginUserData)
+      .values({ pluginId, userId, value: encrypted, updatedAt: new Date() })
+      .onConflictDoUpdate({ target: [pluginUserData.pluginId, pluginUserData.userId], set: { value: encrypted, updatedAt: new Date() } })
+      .run();
+  }
+
+  private async createAttachment(input: Parameters<ServerPluginApi["attachments"]["create"]>[0]): Promise<PluginAttachment> {
+    requirePageRole(this.db, input.userId, input.pageId, "editor");
+    const max = this.opts.maxUploadMb * 1024 * 1024;
+    const source = Buffer.isBuffer(input.data) ? Readable.from([input.data]) : input.data instanceof Readable ? input.data : Readable.fromWeb(input.data as never);
+    const id = randomUUID();
+    fs.mkdirSync(uploadsDir(this.opts.dataDir), { recursive: true });
+    const dest = attachmentPath(this.opts.dataDir, id);
+    const tmp = `${dest}.part`;
+    let size = 0;
+    try {
+      await pipeline(
+        source,
+        async function* (chunks: AsyncIterable<Buffer>) {
+          for await (const chunk of chunks) {
+            size += chunk.length;
+            if (size > max) throw new HttpError(413, "too_large", t("error.fileTooLarge", { max: max / 1024 / 1024 }));
+            yield chunk;
+          }
+        },
+        fs.createWriteStream(tmp),
+      );
+      fs.renameSync(tmp, dest);
+    } finally {
+      fs.rmSync(tmp, { force: true });
+    }
+    const filename = (input.filename || "file").replace(/[\\/\r\n]/g, "_").slice(0, 255);
+    const mimeType = input.mimeType.split(";")[0]!.trim().toLowerCase() || "application/octet-stream";
+    this.db.insert(attachments).values({ id, pageId: input.pageId, filename, mimeType, size, createdBy: input.userId }).run();
+    this.opts.onAttachment?.();
+    return { id, filename, mimeType, size, url: `/api/attachments/${id}` };
   }
 
   // --- Admin ------------------------------------------------------------------------------------
@@ -307,6 +453,31 @@ export class PluginManager {
     if (enabled) await this.activate(p);
   }
 
+  // --- Accounts on other services -----------------------------------------------------------------
+
+  /** Plugins that keep an account of the user on another service, and that account. */
+  userAccounts(userId: string): ConnectedAccount[] {
+    const out: ConnectedAccount[] = [];
+    for (const p of this.installed.values()) {
+      const spec = p.runtime?.account;
+      if (!spec) continue;
+      let account: string | null = null;
+      try {
+        account = spec.describe(userId);
+      } catch (e) {
+        this.opts.log.warn(`Plugin ${p.manifest.id}: describing an account failed: ${e instanceof Error ? e.message : e}`);
+      }
+      out.push({ pluginId: p.manifest.id, name: localized(p.manifest.name), account });
+    }
+    return out;
+  }
+
+  async disconnectAccount(pluginId: string, userId: string) {
+    const spec = this.installed.get(pluginId)?.runtime?.account;
+    if (!spec) throw notFound();
+    await spec.disconnect(userId);
+  }
+
   // --- Browser side -----------------------------------------------------------------------------
 
   /** Every installed plugin's blocks (so pages keep them even when a plugin is off), and the enabled ones' code. */
@@ -351,6 +522,17 @@ export class PluginManager {
         body: req.body,
         headers: req.headers,
       });
+      if (result instanceof PluginRedirect) return reply.redirect(result.url);
+      if (result instanceof PluginBinary) {
+        const inline = INLINE_PLUGIN_TYPES.has(result.contentType);
+        return reply
+          .header("content-type", inline ? result.contentType : "application/octet-stream")
+          .header("content-disposition", inline ? "inline" : "attachment")
+          .header("x-content-type-options", "nosniff")
+          .header("content-security-policy", "default-src 'none'; sandbox")
+          .header("cache-control", "private, max-age=3600")
+          .send(result.data);
+      }
       return reply.send(result ?? { ok: true });
     }
     throw notFound();

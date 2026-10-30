@@ -1,0 +1,37 @@
+{
+  "id": "google_calendar",
+  "name": { "en": "Google Calendar", "fr": "Google Agenda" },
+  "version": "1.0.0",
+  "description": {
+    "en": "Syncs a database with a Google calendar, both ways: rows with a date become events, and events created, moved or deleted in Google change the database. Each person connects their own Google account. Command \"/google calendar\".",
+    "fr": "Synchronise une base de données avec un agenda Google, dans les deux sens : les lignes datées deviennent des événements, et les événements créés, déplacés ou supprimés dans Google modifient la base. Chacun connecte son propre compte Google. Commande « /google agenda »."
+  },
+  "author": "Nootion",
+  "server": "server.js",
+  "client": "client.js",
+  "blocks": [
+    {
+      "id": "sync",
+      "title": { "en": "Google Calendar", "fr": "Google Agenda" },
+      "description": { "en": "Sync a database with a Google calendar", "fr": "Synchroniser une base avec un agenda Google" },
+      "icon": "📅",
+      "keywords": { "en": "google calendar sync events", "fr": "google agenda calendrier synchro synchroniser événements" }
+    }
+  ],
+  "settings": [
+    {
+      "key": "clientId",
+      "label": { "en": "OAuth client ID", "fr": "ID client OAuth" },
+      "type": "text",
+      "help": {
+        "en": "From Google Cloud Console › APIs & Services › Credentials (type \"Web application\"). See docs/GOOGLE_CALENDAR.md.",
+        "fr": "Depuis Google Cloud Console › API et services › Identifiants (type « Application Web »). Voir docs/GOOGLE_CALENDAR.md."
+      }
+    },
+    {
+      "key": "clientSecret",
+      "label": { "en": "OAuth client secret", "fr": "Code secret du client OAuth" },
+      "type": "password"
+    }
+  ]
+}

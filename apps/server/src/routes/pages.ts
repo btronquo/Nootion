@@ -31,7 +31,7 @@ import { homePageOf, recordVisit } from "../home.js";
 import { copyTree } from "../templates.js";
 import { syncReminders } from "../reminders.js";
 import { listBacklinks } from "../backlinks.js";
-import { getSnapshot, listVersions, recordSnapshot } from "../history.js";
+import { getSnapshot, listVersions, recordAgentVersion, recordSnapshot } from "../history.js";
 import { appendContent, readContent, writeContent, type ProseMirrorNode } from "../collab.js";
 import { toMarkdown } from "../markdown.js";
 import { checkContent, parseMarkdown } from "../markdown-in.js";
@@ -66,7 +66,10 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
       .get();
     // Content given at once (API): Markdown or editor JSON.
     const body = contentInput(req.body, user.id, true);
-    if (body) await writeContent(app.collab, db, page.id, body);
+    if (body) {
+      await writeContent(app.collab, db, page.id, body);
+      recordAgentVersion(db, page.id, readContent(app.collab, db, page.id), user.id);
+    }
     return { page: toSummary(page) };
   });
 
@@ -104,6 +107,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     const doc = contentInput(req.body, user.id)!;
     recordSnapshot(db, page.id, { content: readContent(app.collab, db, page.id), force: true });
     await writeContent(app.collab, db, page.id, doc);
+    recordAgentVersion(db, page.id, readContent(app.collab, db, page.id), user.id);
     db.update(pages).set({ updatedAt: new Date() }).where(eq(pages.id, page.id)).run();
     return { ok: true };
   });
@@ -114,6 +118,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     if (page.kind === "database") throw new HttpError(400, "not_a_page", t("error.notAPage"));
     const doc = contentInput(req.body, user.id)!;
     await appendContent(app.collab, db, page.id, doc.content ?? []);
+    recordAgentVersion(db, page.id, readContent(app.collab, db, page.id), user.id);
     db.update(pages).set({ updatedAt: new Date() }).where(eq(pages.id, page.id)).run();
     return { ok: true };
   });

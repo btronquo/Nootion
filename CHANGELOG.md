@@ -5,6 +5,37 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-30
+
+### Added
+
+- Google Calendar plugin: syncs a database with a Google calendar, both ways, every minute (`/google calendar`):
+  rows with a date become events, and events created, moved or deleted in Google change the database. Each person
+  connects their own Google account (OAuth; the administrator creates the OAuth client once). See
+  [docs/GOOGLE_CALENDAR.md](docs/GOOGLE_CALENDAR.md).
+- "My account › Connected services" lists each person's accounts on other services used by plugins (Nextcloud,
+  Google Calendar), with a button to disconnect them. Plugins add theirs with `connectedAccount`.
+- Plugins: `request` (call Nootion's API as a user, with their rights), `redirect` and `appUrl`.
+- Nextcloud plugin: each person connects their own Nextcloud account (Nextcloud's login page, or an app password),
+  then picks files to copy into a page (`/nextcloud`) or a "File" column, or inserts a link that opens a file or
+  folder in Nextcloud (`/nextcloud link`). Browse folders, search by name, thumbnails. App passwords are stored
+  encrypted and revoked on disconnecting. See [docs/NEXTCLOUD.md](docs/NEXTCLOUD.md).
+- Plugins: `userSecrets` (encrypted data per user, such as an account on another service), `attachments.create`
+  (attach a file to a page), `binary` (send an image from a route), and in the browser `registerFileSource`
+  (another place to pick files from, offered in the "/" menu and in "File" columns) and `ui` (the app's dialog
+  and buttons). See [docs/PLUGINS.md](docs/PLUGINS.md).
+- Buttons: a block in pages (`/button`) and a column type in databases that run steps when clicked: add a row to a
+  database, change the current row, create a page (from a template or not), open a page or a link, call a webhook.
+  Steps use variables (`{{today}}`, `{{user}}`, `{{row.<column>}}`, `{{form.<field>}}`…) and run with the rights of
+  the person clicking. A button can first open a form (text, number, date, choice, checkbox, person), and that form
+  can get a public link to collect answers from people without an account. See [docs/BUTTONS.md](docs/BUTTONS.md).
+- MCP server: Claude or another AI assistant can search, read and write pages, and create, query and fill
+  databases, as you, within the spaces you choose and read only or read and write. On claude.ai and Claude's apps,
+  Nootion is added as a custom connector: Claude opens a Nootion page where you choose its spaces and access
+  (OAuth 2.1). Claude Code and other agents can use a personal token. See [docs/MCP.md](docs/MCP.md).
+- Versions of a page written through the API or by an agent are marked with the token's name in the page's
+  history ("via Claude"), and "My account" lists what apps and agents changed.
+
 ## [1.2.0] - 2026-10-30
 
 ### Added
@@ -150,6 +181,7 @@ First public version.
 - Markdown (.zip), CSV and JSON export, CSV import, full backup download.
 - Single Docker image (amd64 and arm64), data in `/data`, migrations applied at startup.
 
+[2.0.0]: ../../releases/tag/v2.0.0
 [1.2.0]: ../../releases/tag/v1.2.0
 [1.1.0]: ../../releases/tag/v1.1.0
 [1.0.0]: ../../releases/tag/v1.0.0

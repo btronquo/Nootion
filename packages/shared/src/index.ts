@@ -9,6 +9,7 @@ export * from "./views.js";
 export * from "./calendar.js";
 export * from "./dates.js";
 export * from "./api.js";
+export * from "./buttons.js";
 export * from "./plugins.js";
 export * from "./notion.js";
 export * from "./i18n/index.js";

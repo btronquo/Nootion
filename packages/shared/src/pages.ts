@@ -158,6 +158,8 @@ export interface PageVersion {
   authors: { id: string; name: string }[];
   /** Set when this version came from restoring an older one: when that one was made. */
   restoredFrom: string | null;
+  /** Set when an app or AI agent wrote this version through the API: its token's name. */
+  agent: string | null;
 }
 
 /** A page that links to or mentions another one. */

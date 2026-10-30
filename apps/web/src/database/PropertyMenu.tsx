@@ -1,6 +1,8 @@
 import { useMemo, useRef, useState } from "react";
 import { EyeOff, Trash2, X } from "lucide-react";
 import {
+  buttonConfigSchema,
+  emptyButtonConfig,
   calcLabel,
   type CalcFunction,
   t,
@@ -20,11 +22,13 @@ import {
 import { colorLabel, CURRENCIES, OPTION_CLASSES, typeLabel } from "./format";
 import { useDatabase } from "./hooks";
 import { pageTitle } from "../lib/tree";
+import { ButtonEditor } from "../buttons/ButtonEditor";
 
 /** Settings of a column: name, type, type options, hide, delete. */
 export function PropertyMenu({
   prop,
   properties,
+  databaseId,
   onRename,
   onChangeType,
   onChangeConfig,
@@ -34,6 +38,7 @@ export function PropertyMenu({
   prop: DatabaseProperty;
   /** Every column of the database (rollups pick one of its relations). */
   properties: DatabaseProperty[];
+  databaseId: string;
   onRename: (name: string) => void;
   onChangeType: (type: PropertyType) => void;
   onChangeConfig: (config: PropertyConfig) => void;
@@ -41,6 +46,7 @@ export function PropertyMenu({
   onDelete: () => void;
 }) {
   const [name, setName] = useState(prop.name);
+  const [buttonEditor, setButtonEditor] = useState(false);
   const commitName = () => name.trim() && name.trim() !== prop.name && onRename(name.trim());
   const isNumeric = prop.type === "number" || prop.type === "currency" || prop.type === "percent" || prop.type === "formula";
   const isCurrency = prop.type === "currency" || (prop.type === "formula" && prop.config.formulaFormat === "currency");
@@ -77,6 +83,24 @@ export function PropertyMenu({
         </select>
       </label>
 
+      {prop.type === "button" && (
+        <button type="button" className={`${field} text-left hover:bg-neutral-50 dark:hover:bg-neutral-800`} onClick={() => setButtonEditor(true)} data-configure-button>
+          {t("button.configure")}…
+        </button>
+      )}
+      {buttonEditor && (
+        <ButtonEditor
+          initial={buttonConfigSchema.safeParse(prop.config.button ?? {}).data ?? emptyButtonConfig()}
+          pageId={null}
+          rowDatabaseId={databaseId}
+          defaultLabel={prop.name}
+          onClose={() => setButtonEditor(false)}
+          onSave={(button) => {
+            onChangeConfig({ ...prop.config, button });
+            setButtonEditor(false);
+          }}
+        />
+      )}
       {prop.type === "formula" && <FormulaEditor prop={prop} properties={properties} onChange={onChangeConfig} field={field} />}
       {isCurrency && (
         <label className="block">

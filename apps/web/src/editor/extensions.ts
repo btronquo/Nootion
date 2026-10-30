@@ -6,7 +6,7 @@ import Image from "@tiptap/extension-image";
 import { Placeholder } from "@tiptap/extensions";
 import type { ClientPluginInfo } from "@nootion/shared";
 import { DetailsContent, DetailsSummary } from "@tiptap/extension-details";
-import { CalendarBlock, Callout, DateMention, Column, Columns, DatabaseBlock, DatabaseRows, FavoritesList, RecentPages, UpcomingEvents, WidgetCommands, FileAttachment, PageLink, Toggle } from "./nodes";
+import { ButtonBlock, CalendarBlock, Callout, DateMention, Column, Columns, DatabaseBlock, DatabaseRows, FavoritesList, RecentPages, UpcomingEvents, WidgetCommands, FileAttachment, PageLink, Toggle } from "./nodes";
 import { pluginNodes } from "../plugins/nodes";
 import { t } from "@nootion/shared";
 
@@ -42,6 +42,7 @@ export function baseExtensions(opts: {
     DateMention,
     DatabaseBlock.configure({ publicToken: opts.publicToken ?? null }),
     CalendarBlock.configure({ pageId: opts.pageId ?? null, publicToken: opts.publicToken ?? null }),
+    ButtonBlock.configure({ pageId: opts.publicToken ? null : (opts.pageId ?? null) }),
     ...[RecentPages, FavoritesList, UpcomingEvents, DatabaseRows].map((w) => w.configure({ publicToken: opts.publicToken ?? null })),
     WidgetCommands,
     ...pluginNodes(opts.plugins),
