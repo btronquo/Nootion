@@ -288,6 +288,25 @@ function buildServer(call: Call, scope: TokenScope): McpServer {
   );
 
   tool(
+    "capture_to_inbox",
+    {
+      title: "Add to the inbox",
+      description:
+        "Drops a quick note in your inbox (a page of your personal space), to be filed later. The first line becomes its title unless one is given.",
+      inputSchema: {
+        text: markdown.describe("The note, in Markdown."),
+        title: z.string().max(500).optional(),
+        url: z.string().max(4000).optional().describe("A link the note is about."),
+      },
+      annotations: write,
+    },
+    async ({ text: note, title, url }) => {
+      const { page } = await call<{ page: { id: string; title: string } }>("POST", "/inbox", { text: note, title, url });
+      return json({ id: page.id, title: page.title, created: true });
+    },
+  );
+
+  tool(
     "update_page",
     {
       title: "Rename a page",

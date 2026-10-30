@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD `inbox_page_id` text;
