@@ -29,6 +29,7 @@ The admin can also download a full backup from **Administration › Backup** (a 
 | `API_RATE_LIMIT` | no | Requests a personal API token can make per minute (default `300`). See [API.md](API.md). |
 
 If Nootion sits behind an HTTPS reverse proxy, put the `https://…` URL in `APP_URL`: the session cookie then becomes `Secure`.
+To connect Claude's connectors to Nootion, that address must be reachable from the internet (see [MCP.md](MCP.md)).
 The proxy must let **WebSockets** through on `/collab` (real-time collaborative editing): in Nginx Proxy Manager, tick *Websockets Support*.
 Also check its upload size limit (`client_max_body_size` in Nginx) for attached files.
 

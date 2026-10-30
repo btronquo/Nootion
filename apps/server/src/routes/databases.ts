@@ -26,7 +26,8 @@ import { HttpError, notFound, parseBody, requireUser } from "../http.js";
 import { CAN_CREATE_ROOT_PAGES, getPageRole, requirePageRole, requireWorkspaceRole } from "../permissions.js";
 import { nextPosition } from "../pages.js";
 import { copyTree } from "../templates.js";
-import { writeContent } from "../collab.js";
+import { readContent, writeContent } from "../collab.js";
+import { recordAgentVersion } from "../history.js";
 import { parseMarkdown } from "../markdown-in.js";
 import {
   collectPeople,
@@ -423,7 +424,10 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     });
     // The row's page content, given at once through the API.
     const markdown = (req.body as { markdown?: unknown } | null)?.markdown;
-    if (typeof markdown === "string" && markdown.trim()) await writeContent(app.collab, db, id, parseMarkdown(markdown.slice(0, 2_000_000)));
+    if (typeof markdown === "string" && markdown.trim()) {
+      await writeContent(app.collab, db, id, parseMarkdown(markdown.slice(0, 2_000_000)));
+      recordAgentVersion(db, id, readContent(app.collab, db, id), user.id);
+    }
     return rowResponse(user.id, database.id, id);
   });
 

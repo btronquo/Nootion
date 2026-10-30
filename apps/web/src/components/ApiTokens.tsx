@@ -1,13 +1,15 @@
 import { useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Copy, KeyRound, Trash2 } from "lucide-react";
-import { intlLocale, t, type ApiToken } from "@nootion/shared";
+import { Link } from "react-router-dom";
+import { intlLocale, t, type AgentActivity, type ApiToken } from "@nootion/shared";
 import { api } from "../lib/api";
 import { useWorkspaces } from "../lib/queries";
 import { workspaceName } from "../lib/labels";
 import { Button, ErrorText, Field, Select } from "./ui";
 
 const DOCS_URL = "https://github.com/btronquo/Nootion/blob/main/docs/API.md";
+const MCP_DOCS_URL = "https://github.com/btronquo/Nootion/blob/main/docs/MCP.md";
 const EXPIRY_DAYS = [30, 90, 365] as const;
 const day = (iso: string) => new Date(iso).toLocaleDateString(intlLocale(), { dateStyle: "medium" });
 
@@ -38,20 +40,26 @@ export function ApiTokens() {
       {tokens.data && tokens.data.length > 0 && (
         <ul className="divide-y divide-neutral-200 rounded-lg border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800">
           {tokens.data.map((tk) => {
-            const expired = tk.expiresAt && new Date(tk.expiresAt) < new Date();
+            // An app's access is renewed by the app itself: its expiry means nothing to the user.
+            const expired = !tk.app && tk.expiresAt && new Date(tk.expiresAt) < new Date();
             return (
               <li key={tk.id} className="flex items-start gap-3 px-3 py-2 text-sm" data-token={tk.id}>
                 <KeyRound size={16} className="mt-0.5 shrink-0 text-neutral-400" />
                 <div className="min-w-0 flex-1">
                   <div className="font-medium">
-                    {tk.name} <code className="ml-1 text-xs text-neutral-500">{tk.prefix}…</code>
+                    {tk.name}{" "}
+                    {tk.app ? (
+                      <span className="ml-1 rounded bg-blue-50 px-1.5 py-0.5 text-xs text-blue-700 dark:bg-blue-950 dark:text-blue-300">{t("tokens.app")}</span>
+                    ) : (
+                      <code className="ml-1 text-xs text-neutral-500">{tk.prefix}…</code>
+                    )}
                   </div>
                   <div className="text-xs text-neutral-500">
                     {tk.readOnly ? t("tokens.readOnly") : t("tokens.readWrite")} · {tk.workspaceIds.map((id) => names.get(id) ?? "?").join(", ")}
                   </div>
                   <div className={`text-xs ${expired ? "text-red-600 dark:text-red-400" : "text-neutral-500"}`}>
                     {tk.lastUsedAt ? t("tokens.lastUsed", { date: day(tk.lastUsedAt) }) : t("tokens.neverUsed")}
-                    {tk.expiresAt && ` · ${expired ? t("tokens.expired") : t("tokens.expiresOn", { date: day(tk.expiresAt) })}`}
+                    {tk.expiresAt && !tk.app && ` · ${expired ? t("tokens.expired") : t("tokens.expiresOn", { date: day(tk.expiresAt) })}`}
                   </div>
                 </div>
                 <Button variant="danger" onClick={() => revoke(tk)} title={t("tokens.revoke")} aria-label={t("tokens.revoke")}>
@@ -187,6 +195,83 @@ function NewToken({ token, onDone }: { token: string; onDone: () => void }) {
       <Button type="button" variant="ghost" onClick={onDone}>
         {t("common.close")}
       </Button>
+    </div>
+  );
+}
+
+/** How to connect an AI agent to Nootion's MCP server. */
+export function McpConnect() {
+  const url = `${window.location.origin}/mcp`;
+  const [copied, setCopied] = useState(false);
+  const command = `claude mcp add --transport http nootion ${url} --header "Authorization: Bearer nt_…"`;
+  return (
+    <div className="space-y-3 text-sm" data-mcp>
+      <p className="text-neutral-600 dark:text-neutral-400">
+        {t("mcp.intro")}{" "}
+        <a href={MCP_DOCS_URL} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline dark:text-blue-400">
+          {t("mcp.docs")}
+        </a>
+      </p>
+      <div>
+        <span className="mb-1 block font-medium">{t("mcp.address")}</span>
+        <div className="flex items-center gap-2">
+          <input
+            readOnly
+            value={url}
+            onFocus={(e) => e.target.select()}
+            className="min-w-0 flex-1 rounded border border-neutral-300 bg-white px-2 py-1 font-mono text-xs dark:border-neutral-700 dark:bg-neutral-900"
+            data-mcp-url
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() =>
+              navigator.clipboard?.writeText(url).then(
+                () => setCopied(true),
+                () => undefined,
+              )
+            }
+          >
+            {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? t("tokens.copied") : t("tokens.copy")}
+          </Button>
+        </div>
+      </div>
+      <p>{t("mcp.claudeAi")}</p>
+      <p className={window.location.protocol === "https:" ? "text-xs text-neutral-500" : "text-xs text-amber-700 dark:text-amber-400"}>
+        {window.location.protocol === "https:" ? t("mcp.public") : t("mcp.notHttps")}
+      </p>
+      <p>{t("mcp.claudeCode")}</p>
+      <pre className="rounded bg-neutral-100 px-2 py-1.5 font-mono text-xs break-all whitespace-pre-wrap dark:bg-neutral-800">{command}</pre>
+    </div>
+  );
+}
+
+/** What apps and agents changed with the user's tokens, latest first. */
+export function AgentActivityList() {
+  const activity = useQuery({ queryKey: ["agent-activity"], queryFn: async () => (await api<{ activity: AgentActivity[] }>("/tokens/activity")).activity });
+  const when = (iso: string) => new Date(iso).toLocaleString(intlLocale(), { dateStyle: "medium", timeStyle: "short" });
+  return (
+    <div data-agent-activity>
+      <h3 className="mb-2 text-sm font-medium">{t("activity.title")}</h3>
+      {activity.isSuccess && !activity.data.length && <p className="text-sm text-neutral-500">{t("activity.empty")}</p>}
+      <ul className="max-h-80 space-y-1 overflow-y-auto text-sm">
+        {activity.data?.map((a) => (
+          <li key={a.id} className="flex gap-2" data-activity={a.action}>
+            <span className="shrink-0 text-xs leading-5 text-neutral-500">{when(a.createdAt)}</span>
+            <span className="min-w-0">
+              <span className="font-medium">{a.agent}</span> {t(`activity.${a.action}`)}{" "}
+              {a.pageId && a.pageTitle !== null ? (
+                <Link to={`/page/${a.pageId}`} className="text-blue-600 hover:underline dark:text-blue-400">
+                  {a.pageIcon ? `${a.pageIcon} ` : ""}
+                  {a.pageTitle || t("common.untitled")}
+                </Link>
+              ) : (
+                <span className="text-neutral-500">{t("activity.gone")}</span>
+              )}
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

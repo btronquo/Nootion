@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { EditorContent, useEditor } from "@tiptap/react";
 import type { JSONContent } from "@tiptap/core";
-import { History, RotateCcw, X } from "lucide-react";
+import { Bot, History, RotateCcw, X } from "lucide-react";
 import { atLeast, intlLocale, t, type ClientPluginInfo, type PageDetail, type PageVersion } from "@nootion/shared";
 import { api } from "../lib/api";
 import { keys, useRefreshPages } from "../lib/queries";
@@ -170,6 +170,12 @@ export function HistoryDialog({ page, onClose }: { page: PageDetail; onClose: ()
               <span className="block font-medium">{when(v.createdAt)}</span>
               {i === 0 && <span className="mr-1 text-xs text-green-700 dark:text-green-400">{t("history.latest")}</span>}
               {v.authors.length > 0 && <span className="text-xs text-neutral-500">{v.authors.map((a) => a.name).join(", ")}</span>}
+              {v.agent && (
+                <span className="block text-xs text-violet-700 dark:text-violet-400" title={t("history.agentHint")} data-version-agent>
+                  <Bot size={12} className="mr-1 inline" />
+                  {t("history.agent", { name: v.agent })}
+                </span>
+              )}
               {v.restoredFrom && (
                 <span className="block text-xs text-amber-700 dark:text-amber-400">{t("history.restored", { date: when(v.restoredFrom) })}</span>
               )}
