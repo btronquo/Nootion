@@ -166,6 +166,26 @@ Operators, by column type:
 | `POST /api/pages/:id/attachments` | Uploads a file (`multipart/form-data`, field `file`): `{ "attachment": { "id", "filename", "url" } }`. Put its `url` in the content (`![photo](/api/attachments/…)`) or in a file column. |
 | `GET /api/attachments/:id` | Downloads it (`?download` to save it under its name). |
 
+## Comments
+
+Threads of comments on a page (not on databases), about a passage or the whole page. A comment's `body` is plain
+text where `<@userId>` mentions someone (ids from `GET /api/users`). Reading needs access to the page; writing needs
+at least the "commenter" role.
+
+| Request | What it does |
+| --- | --- |
+| `GET /api/pages/:id/comments` | The page's threads, open ones first, each with its `comments`. |
+| `POST /api/pages/:id/comments` | Starts a thread: `{ "body" }` on the whole page. (The editor also sends an `anchor`, positions in the live document.) |
+| `POST /api/comments/threads/:id/replies` | Answers a thread: `{ "body" }`. Answering a resolved thread opens it again. |
+| `POST /api/comments/threads/:id/resolve` | `{ "resolved": true }` or `false`. |
+| `PATCH /api/comments/:id` | Changes your comment: `{ "body" }`. |
+| `DELETE /api/comments/:id` | Deletes your comment; the last one of a thread deletes the thread. |
+| `GET /api/comments/notifications` | Your latest mentions and replies. |
+| `POST /api/comments/notifications/read` | Marks them as read: `{ "ids"? }` (all when left out). |
+
+People mentioned, and the others taking part in a thread when it gets a reply, receive a notification (in the
+app's Notifications, and on their devices when they turned notifications on).
+
 ## Search
 
 `GET /api/search?q=words&limit=20` searches titles, content and attached files (PDFs, scans) of the token's

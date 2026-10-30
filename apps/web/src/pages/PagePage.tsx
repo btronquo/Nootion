@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, History, LayoutTemplate, Lock, MoreHorizontal, Share2, Star, Trash2 } from "lucide-react";
+import { ChevronRight, History, LayoutTemplate, Lock, MessageSquare, MoreHorizontal, Share2, Star, Trash2 } from "lucide-react";
 import { atLeast, t, type PageDetail, type PageSummary } from "@nootion/shared";
 import { api } from "../lib/api";
 import { sendOrQueue } from "../lib/offline";
@@ -22,6 +22,8 @@ import { Popover } from "../database/Popover";
 import { MenuButton } from "../components/SidebarLayout";
 import { SyncStatus } from "../components/SyncStatus";
 import { useSession } from "../lib/session";
+import { CommentsPanel, type DraftAnchor } from "../comments/CommentsPanel";
+import { useComments } from "../comments/queries";
 
 /** A page, by the id in the address (or the one given, for the home page). */
 export function PagePage({ id: given }: { id?: string }) {
@@ -60,6 +62,23 @@ function PageView({ page }: { page: PageDetail }) {
   const saveTimer = useRef<number | undefined>(undefined);
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const [empty, setEmpty] = useState(false);
+  // Comments: the panel, the open thread, and the passage picked for a new one. "?comment=<thread>" opens a thread.
+  const hasComments = page.kind !== "database";
+  const canComment = atLeast(page.role, "commenter");
+  const [search, setSearch] = useSearchParams();
+  const [commentsOpen, setCommentsOpen] = useState(() => !!search.get("comment"));
+  const [activeThread, setActiveThread] = useState<string | null>(() => search.get("comment"));
+  const [draft, setDraft] = useState<DraftAnchor | null>(null);
+  const threads = useComments(page.id, hasComments);
+  const openThreads = (threads.data ?? []).filter((th) => !th.resolvedAt).length;
+  useEffect(() => {
+    const wanted = search.get("comment");
+    if (!wanted) return;
+    setCommentsOpen(true);
+    setActiveThread(wanted);
+    search.delete("comment");
+    setSearch(search, { replace: true });
+  }, [search, setSearch]);
   // An empty page can start from a template.
   const offerTemplates = canEdit && page.kind === "page" && !page.template && !page.home;
 
@@ -120,6 +139,19 @@ function PageView({ page }: { page: PageDetail }) {
         </nav>
         <div className="flex shrink-0 items-center gap-1">
           <SyncStatus />
+          {hasComments && (
+            <Button
+              variant="ghost"
+              onClick={() => setCommentsOpen((o) => !o)}
+              title={t("comments.title")}
+              aria-label={t("comments.title")}
+              aria-pressed={commentsOpen}
+              data-comments-toggle
+            >
+              <MessageSquare size={16} />
+              {openThreads > 0 && <span className="text-xs tabular-nums text-neutral-500">{openThreads}</span>}
+            </Button>
+          )}
           {page.kind !== "database" && (
             <Button variant="ghost" onClick={() => setHistory(true)} title={t("history.title")} aria-label={t("history.title")}>
               <History size={16} />
@@ -182,7 +214,26 @@ function PageView({ page }: { page: PageDetail }) {
         {page.kind === "row" && page.parentId && <RowProperties databaseId={page.parentId} rowId={page.id} />}
         {offerTemplates && empty && <TemplatePicker page={page} />}
         <div className="mt-4">
-          {page.kind === "database" ? <DatabaseTable id={page.id} /> : <PageEditor page={page} canEdit={canEdit} onEmpty={offerTemplates ? setEmpty : undefined} />}
+          {page.kind === "database" ? <DatabaseTable id={page.id} /> : <PageEditor
+              page={page}
+              canEdit={canEdit}
+              onEmpty={offerTemplates ? setEmpty : undefined}
+              comments={{
+                // The passage of a comment being written shows as the open one.
+                threads: draft && commentsOpen ? [...(threads.data ?? []), { id: "draft", pageId: page.id, anchor: draft.anchor, quote: draft.quote, resolvedAt: null, resolvedByName: null, comments: [] }] : (threads.data ?? []),
+                active: commentsOpen ? (draft ? "draft" : activeThread) : null,
+                canComment,
+                onOpen: (id) => {
+                  setCommentsOpen(true);
+                  setActiveThread(id);
+                },
+                onComment: (d) => {
+                  setDraft(d);
+                  setActiveThread(null);
+                  setCommentsOpen(true);
+                },
+              }}
+            />}
         </div>
         {!page.home && <Backlinks pageId={page.id} />}
       </div>
@@ -219,6 +270,20 @@ function PageView({ page }: { page: PageDetail }) {
             {t("page.exportMarkdown")}
           </a>
         </Popover>
+      )}
+      {hasComments && commentsOpen && (
+        <CommentsPanel
+          pageId={page.id}
+          canComment={canComment}
+          active={activeThread}
+          onActive={setActiveThread}
+          draft={draft}
+          onDraftDone={() => setDraft(null)}
+          onClose={() => {
+            setCommentsOpen(false);
+            setDraft(null);
+          }}
+        />
       )}
       {sharing && <ShareDialog page={page} onClose={() => setSharing(false)} />}
       {history && <HistoryDialog page={page} onClose={() => setHistory(false)} />}

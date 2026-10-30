@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useMatch, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { LogOut, Plus, Settings, Share2, Trash2, Users, User, Download, Search, Star, X, Database, FileText, Home, Bell } from "lucide-react";
 import { disablePush, useReminderNotifications, useReminders } from "../lib/reminders";
+import { useCommentNotifications } from "../comments/queries";
 import { t, type PageSummary, type WorkspaceSummary } from "@nootion/shared";
 import { workspaceName } from "../lib/labels";
 import { api, isOfflineError } from "../lib/api";
@@ -35,7 +36,8 @@ export function AppShell() {
   const onPage = onPageRoute || onHome;
   useSearchShortcut(useCallback(() => setSearching(true), []));
   useReminderNotifications();
-  const due = useReminders().data?.filter((r) => r.due).length ?? 0;
+  // Reminders due and unread mentions or replies.
+  const due = (useReminders().data?.filter((r) => r.due).length ?? 0) + (useCommentNotifications().data?.filter((n) => !n.read).length ?? 0);
 
   async function logout() {
     // This device stops receiving the account's reminders.

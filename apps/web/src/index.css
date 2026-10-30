@@ -75,6 +75,14 @@ body {
   }
 }
 
+/* ---------- Comments ---------- */
+.comment-highlight {
+  @apply cursor-pointer rounded-sm border-b-2 border-amber-300 bg-amber-100/60 transition-colors duration-150 dark:border-amber-600 dark:bg-amber-900/30;
+}
+.comment-highlight-active {
+  @apply bg-amber-200/80 dark:bg-amber-800/50;
+}
+
 /* ---------- Page content (editor and public view) ---------- */
 .nootion-content {
   @apply min-h-[40vh] text-[16px] leading-7 outline-none;

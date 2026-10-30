@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { EditorContent, useEditor, useEditorState, type Editor } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import Collaboration from "@tiptap/extension-collaboration";
@@ -10,7 +10,7 @@ import { PAGE_DB_PREFIX } from "../lib/offline";
 import { useOnline } from "../lib/api";
 import { NodeSelection } from "@tiptap/pm/state";
 import { useQueryClient } from "@tanstack/react-query";
-import { Bold, Code, Italic, Link as LinkIcon, Strikethrough, Underline } from "lucide-react";
+import { Bold, Code, Italic, Link as LinkIcon, MessageSquarePlus, Strikethrough, Underline } from "lucide-react";
 import type { PageDetail, PageSummary } from "@nootion/shared";
 import { useSession } from "../lib/session";
 import { useRefreshPages } from "../lib/queries";
@@ -23,6 +23,18 @@ import type { ClientPluginInfo } from "@nootion/shared";
 import { t } from "@nootion/shared";
 import { MobileToolbar } from "./MobileToolbar";
 import { useIsTouch } from "../lib/mobile";
+import type { CommentThread } from "@nootion/shared";
+import { CommentHighlights, selectionAnchor, setCommentHighlights } from "../comments/highlights";
+import type { DraftAnchor } from "../comments/CommentsPanel";
+
+/** What the editor needs to show comments: the threads, the open one, and what to do on a click or a new comment. */
+export interface EditorComments {
+  threads: CommentThread[];
+  active: string | null;
+  canComment: boolean;
+  onOpen: (threadId: string) => void;
+  onComment: (draft: DraftAnchor) => void;
+}
 
 const COLORS = ["#e11d48", "#ea580c", "#ca8a04", "#16a34a", "#0891b2", "#2563eb", "#7c3aed", "#c026d3"];
 export function colorFor(id: string): string {
@@ -47,7 +59,7 @@ interface Peer {
  * and the changes merge with everyone else's when the connection comes back.
  */
 /** `onEmpty` hears whether the page has no content yet (to offer templates). */
-export function PageEditor({ page, canEdit, onEmpty }: { page: PageDetail; canEdit: boolean; onEmpty?: (empty: boolean) => void }) {
+export function PageEditor({ page, canEdit, onEmpty, comments }: { page: PageDetail; canEdit: boolean; onEmpty?: (empty: boolean) => void; comments?: EditorComments }) {
   const [collab, setCollab] = useState<{ doc: Y.Doc; provider: HocuspocusProvider; local: IndexeddbPersistence } | null>(null);
   const plugins = usePlugins();
   useEffect(() => {
@@ -64,13 +76,14 @@ export function PageEditor({ page, canEdit, onEmpty }: { page: PageDetail; canEd
   // The editor's schema needs the plugins' blocks: without them, their blocks would be dropped from the page.
   if (plugins.isError) return <p className="text-sm text-red-600">{t("editor.pluginsFailed")}</p>;
   if (!collab || !plugins.data) return null;
-  return <CollabEditor key={page.id} page={page} canEdit={canEdit} onEmpty={onEmpty} doc={collab.doc} provider={collab.provider} local={collab.local} plugins={plugins.data} />;
+  return <CollabEditor key={page.id} page={page} canEdit={canEdit} onEmpty={onEmpty} comments={comments} doc={collab.doc} provider={collab.provider} local={collab.local} plugins={plugins.data} />;
 }
 
 function CollabEditor({
   page,
   canEdit,
   onEmpty,
+  comments,
   doc,
   provider,
   local,
@@ -79,6 +92,7 @@ function CollabEditor({
   page: PageDetail;
   canEdit: boolean;
   onEmpty?: (empty: boolean) => void;
+  comments?: EditorComments;
   doc: Y.Doc;
   provider: HocuspocusProvider;
   local: IndexeddbPersistence;
@@ -97,6 +111,8 @@ function CollabEditor({
   }, [local, doc]);
   const [peers, setPeers] = useState<Peer[]>([]);
   const touch = useIsTouch();
+  const commentsRef = useRef(comments);
+  commentsRef.current = comments;
 
   useEffect(() => {
     const onSynced = () => setSynced(true);
@@ -142,6 +158,7 @@ function CollabEditor({
         CollaborationCaret.configure({ provider, user: { name: user?.name ?? "?", color: colorFor(user?.id ?? "") } }),
         createSuggestionExtension("slashCommands", "/", slashItems(ctx), t("editor.noCommand")),
         createSuggestionExtension("pageMentions", "@", mentionItems(ctx), t("editor.noPage")),
+        CommentHighlights.configure({ onOpen: (id) => commentsRef.current?.onOpen(id) }),
       ],
       editorProps: {
         attributes: { class: "nootion-content", "aria-label": t("editor.content") },
@@ -173,6 +190,16 @@ function CollabEditor({
     editor?.setEditable(editable);
   }, [editor, editable]);
 
+  // Highlights follow the threads, and wait for the server's copy, where their passages are.
+  const threads = comments?.threads;
+  const active = comments?.active ?? null;
+  useEffect(() => {
+    if (editor && synced) setCommentHighlights(editor, { threads: threads ?? [], active });
+  }, [editor, synced, threads, active]);
+  useEffect(() => {
+    if (active) document.querySelector(`.nootion-content [data-comment-thread="${active}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [active]);
+
   useEffect(() => {
     if (!editor || !onEmpty) return;
     // Only once the server's copy is in: a page still loading looks empty.
@@ -203,7 +230,9 @@ function CollabEditor({
         ) : null}
       </div>
       {/* On touch screens, formatting is in the bar above the keyboard, away from the system's selection menu. */}
-      {editor && canEdit && !touch && <FormatMenu editor={editor} />}
+      {editor && canEdit && !touch && <FormatMenu editor={editor} onComment={comments?.canComment ? () => startComment(editor, comments) : undefined} />}
+      {/* People who may only comment, and phones, get a menu with just "Comment". */}
+      {editor && comments?.canComment && (touch || !canEdit) && <CommentMenu editor={editor} onComment={() => startComment(editor, comments)} />}
       {editor && canEdit && touch && <MobileToolbar editor={editor} />}
       {editor && canEdit && <TableMenu editor={editor} />}
       <EditorContent editor={editor} />
@@ -211,7 +240,25 @@ function CollabEditor({
   );
 }
 
-function FormatMenu({ editor }: { editor: Editor }) {
+function startComment(editor: Editor, comments: EditorComments) {
+  const draft = selectionAnchor(editor);
+  if (draft) comments.onComment(draft);
+}
+
+const bubbleShown = ({ editor: e, from, to }: { editor: Editor; from: number; to: number }) =>
+  from !== to && !(e.state.selection instanceof NodeSelection) && !e.isActive("image") && !e.isActive("fileAttachment") && !e.isActive("pageLink");
+
+function CommentMenu({ editor, onComment }: { editor: Editor; onComment: () => void }) {
+  return (
+    <BubbleMenu editor={editor} shouldShow={bubbleShown} className="flex items-center rounded-lg border border-neutral-200 bg-white p-1 shadow-lg dark:border-neutral-700 dark:bg-neutral-900">
+      <button className="flex items-center gap-1.5 rounded px-2 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800" onClick={onComment} data-comment-button>
+        <MessageSquarePlus size={15} /> {t("comments.comment")}
+      </button>
+    </BubbleMenu>
+  );
+}
+
+function FormatMenu({ editor, onComment }: { editor: Editor; onComment?: () => void }) {
   const state = useEditorState({
     editor,
     selector: ({ editor: e }) => ({
@@ -227,7 +274,7 @@ function FormatMenu({ editor }: { editor: Editor }) {
   return (
     <BubbleMenu
       editor={editor}
-      shouldShow={({ editor: e, from, to }) => from !== to && !(e.state.selection instanceof NodeSelection) && !e.isActive("image") && !e.isActive("fileAttachment") && !e.isActive("pageLink")}
+      shouldShow={bubbleShown}
       className="flex items-center gap-0.5 rounded-lg border border-neutral-200 bg-white p-1 shadow-lg dark:border-neutral-700 dark:bg-neutral-900"
     >
       <button className={btn(state.bold)} onClick={() => editor.chain().focus().toggleBold().run()} title={t("editor.bold")}>
@@ -256,6 +303,14 @@ function FormatMenu({ editor }: { editor: Editor }) {
       >
         <LinkIcon size={15} />
       </button>
+      {onComment && (
+        <>
+          <span className="mx-0.5 h-5 w-px bg-neutral-200 dark:bg-neutral-700" />
+          <button className="flex items-center gap-1 rounded px-1.5 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800" onClick={onComment} title={t("comments.comment")} data-comment-button>
+            <MessageSquarePlus size={15} />
+          </button>
+        </>
+      )}
     </BubbleMenu>
   );
 }

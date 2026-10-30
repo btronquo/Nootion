@@ -465,3 +465,58 @@ export const publicForms = sqliteTable(
   },
   (t) => [uniqueIndex("public_forms_block_unique").on(t.pageId, t.blockId)],
 );
+
+/** A discussion on a page: about a passage (anchor) or the whole page. Its messages are in `comments`. */
+export const commentThreads = sqliteTable(
+  "comment_threads",
+  {
+    id: text("id").primaryKey(),
+    pageId: text("page_id")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    // Encoded Yjs relative positions (base64) of the passage's start and end; null for the whole page.
+    anchorStart: text("anchor_start"),
+    anchorEnd: text("anchor_end"),
+    quote: text("quote").notNull().default(""),
+    resolvedAt: integer("resolved_at", { mode: "timestamp_ms" }),
+    resolvedBy: text("resolved_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("comment_threads_page_idx").on(t.pageId)],
+);
+
+export const comments = sqliteTable(
+  "comments",
+  {
+    id: text("id").primaryKey(),
+    threadId: text("thread_id")
+      .notNull()
+      .references(() => commentThreads.id, { onDelete: "cascade" }),
+    authorId: text("author_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    // Plain text; `<@userId>` mentions someone.
+    body: text("body").notNull(),
+    editedAt: integer("edited_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("comments_thread_idx").on(t.threadId)],
+);
+
+/** Someone was mentioned in a comment, or a thread they take part in got a reply. */
+export const commentNotifications = sqliteTable(
+  "comment_notifications",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    commentId: text("comment_id")
+      .notNull()
+      .references(() => comments.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: ["mention", "reply"] }).notNull(),
+    readAt: integer("read_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("comment_notifications_user_idx").on(t.userId, t.createdAt), uniqueIndex("comment_notifications_unique").on(t.userId, t.commentId)],
+);
