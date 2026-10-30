@@ -41,7 +41,7 @@ Nootion follows git flow:
 
 | Branch | Role |
 |---|---|
-| `main` | Released versions only. Each merge into it is tagged `vX.Y.Z`, which publishes the image. Never committed to directly. |
+| `main` | Released versions only. Protected: changed only by a pull request whose `test` check passed. Each release merged into it is tagged `vX.Y.Z`, which publishes the image. |
 | `develop` | The next version. Features are merged into it; each push publishes the `develop` image. |
 | `feature/<name>` | One feature or fix, from `develop`, merged back into `develop` by a pull request once the tests pass. |
 | `release/X.Y.Z` | From `develop` when a version is ready: version numbers, CHANGELOG date, last fixes. Merged into `main` (then tagged) and back into `develop`. |
@@ -51,14 +51,23 @@ A release, step by step:
 
 ```bash
 git switch develop && git pull
-git switch -c release/1.2.0
+git switch -c release/1.3.0
 # set "version" in the package.json files, date the version in CHANGELOG.md, commit
-git switch main && git merge --no-ff release/1.2.0
-git tag -a v1.2.0 -m "Nootion 1.2.0"
-git switch develop && git merge --no-ff release/1.2.0
-git push origin main develop v1.2.0
-git branch -d release/1.2.0
+git push origin release/1.3.0
 ```
+
+Then, on GitHub, open a pull request from `release/1.3.0` into `main`, wait for `test`, and merge it with
+**Create a merge commit** (not squash: the release commits must stay in `main`'s history). Then:
+
+```bash
+git switch main && git pull
+git tag -a v1.3.0 -m "Nootion 1.3.0"
+git switch develop && git merge --no-ff main
+git push origin develop v1.3.0
+git push origin --delete release/1.3.0 && git branch -d release/1.3.0
+```
+
+The tag goes on `main`'s merge commit, so the published image is exactly what `main` holds.
 
 ## Translations
 
