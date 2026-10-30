@@ -11,6 +11,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   when you move between them; buttons respond to a press. Everything is off when the system asks for reduced motion.
 - Dialogs put the cursor in their first field, and Escape closes them even when the focus is elsewhere.
 
+### Added
+
+- A new subpage gets a link at the end of its parent page, as in Notion (from the sidebar, the API, the MCP server
+  or a button). It is an ordinary link: remove it if you don't want it.
+
 ## [2.0.1] - 2026-10-30
 
 ### Fixed
