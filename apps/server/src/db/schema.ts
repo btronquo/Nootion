@@ -433,3 +433,21 @@ export const agentActivity = sqliteTable(
   },
   (t) => [index("agent_activity_user_idx").on(t.userId, t.createdAt)],
 );
+
+/** Links to a button's form, for people without an account: their answers run the button's steps as its author. */
+export const publicForms = sqliteTable(
+  "public_forms",
+  {
+    token: text("token").primaryKey(),
+    pageId: text("page_id")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    blockId: text("block_id").notNull(),
+    // Who made the link: the steps run with their rights.
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("public_forms_block_unique").on(t.pageId, t.blockId)],
+);

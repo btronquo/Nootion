@@ -153,7 +153,7 @@ more interface languages.
   (remote MCP), connected to Claude as a custom connector with a token from "My account".
   Each agent token is limited to some spaces and to reading or writing; what an agent changed is logged, and text
   written by an AI is marked as such.
-- **Buttons with automations and forms.** A button block in pages, and a button column in databases, that runs a
+- **Buttons with automations and forms** (done). A button block in pages, and a button column in databases, that runs a
   list of steps when clicked: add a row to a database, change properties of the current row, create a page from a
   template, open a page or a link, call a webhook. Steps can use variables (current row, current user, today's
   date, values of the row). Optionally the button first opens a **form**: its fields (text, number, date, select,

@@ -23,7 +23,7 @@ export interface CopyTarget {
  */
 function renewBlockIds(node: ProseMirrorNode): ProseMirrorNode {
   const attrs =
-    node.type === "calendarBlock" && node.attrs
+    (node.type === "calendarBlock" || node.type === "buttonBlock") && node.attrs
       ? { ...node.attrs, id: randomUUID() }
       : node.type === "dateMention" && node.attrs
         ? { ...node.attrs, id: randomUUID(), reminder: null, remindAt: null, remindUser: null }
