@@ -5,6 +5,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-10-30
+
+### Fixed
+
+- Nootion opened at a plain http address (e.g. `http://nas.local:3002`): inserting a button, calendar or columns
+  block, adding options to a column and copying links no longer fail (the browser only offers `crypto.randomUUID`
+  and the clipboard API on https or localhost).
+
 ## [2.0.0] - 2026-10-30
 
 ### Added
@@ -181,6 +189,7 @@ First public version.
 - Markdown (.zip), CSV and JSON export, CSV import, full backup download.
 - Single Docker image (amd64 and arm64), data in `/data`, migrations applied at startup.
 
+[2.0.1]: ../../releases/tag/v2.0.1
 [2.0.0]: ../../releases/tag/v2.0.0
 [1.2.0]: ../../releases/tag/v1.2.0
 [1.1.0]: ../../releases/tag/v1.1.0
