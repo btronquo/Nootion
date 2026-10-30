@@ -163,5 +163,5 @@ more interface languages.
 - **Nextcloud** plugin (done): each person connects their own account, then picks Nextcloud files to copy into a page
   or a "file" property, or links to a file or folder. **Google Calendar** plugin (done): syncs a database's date
   property with a calendar, both ways.
-- Per-user plugin credentials (OAuth, Nextcloud account), stored encrypted (started: plugins keep encrypted data per
-  user, used by Nextcloud), a page in "My account" listing connected services, and plugin property types.
+- Per-user plugin credentials (done): plugins keep encrypted data per user (Nextcloud app passwords, Google OAuth
+  tokens), listed in "My account › Connected services". Still to do: plugin property types.

@@ -1,12 +1,19 @@
 import fs from "node:fs";
 import type { FastifyPluginAsync } from "fastify";
 import { updatePluginInput } from "@nootion/shared";
-import { notFound, parseBody, requireAdmin } from "../http.js";
+import { notFound, parseBody, requireAdmin, requireUser } from "../http.js";
 
 /** Plugins as every page sees them, their browser code, and their own API routes. */
 export const pluginRoutes: FastifyPluginAsync = async (app) => {
   // Public: shared pages need the blocks and code of plugins too.
   app.get("/", async () => ({ plugins: app.plugins.clientList() }));
+
+  // The user's accounts on other services, kept by plugins ("My account").
+  app.get("/accounts", async (req) => ({ accounts: app.plugins.userAccounts(requireUser(req).id) }));
+  app.delete<{ Params: { id: string } }>("/accounts/:id", async (req) => {
+    await app.plugins.disconnectAccount(req.params.id, requireUser(req).id);
+    return { ok: true };
+  });
 
   app.get<{ Params: { id: string } }>("/:id/client.js", async (req, reply) => {
     const file = app.plugins.clientFile(req.params.id);

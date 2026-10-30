@@ -11,7 +11,12 @@ export function activate(nootion) {
 
   nootion.route("GET", "/preview", async ({ query }) => {
     const url = parseUrl(query.url);
-    if (!url) throw new nootion.HttpError(400, "bad_url", nootion.locale() === "fr" ? "Adresse invalide (http ou https uniquement)." : "Invalid address (http or https only).");
+    if (!url)
+      throw new nootion.HttpError(
+        400,
+        "bad_url",
+        nootion.locale() === "fr" ? "Adresse invalide (http ou https uniquement)." : "Invalid address (http or https only).",
+      );
     const hit = cache.get(url.href);
     if (hit && Date.now() - hit.at < 60 * 60 * 1000) return hit.data;
     const data = await preview(url, allowPrivate);

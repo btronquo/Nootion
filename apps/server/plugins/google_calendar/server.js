@@ -178,9 +178,9 @@ export function activate(nootion) {
     return nootion.redirect(`${p.back}${sep}google=connected`);
   });
 
-  nootion.route("DELETE", "/account", async ({ user }) => {
-    const acc = nootion.userSecrets.get(user.id);
-    nootion.userSecrets.delete(user.id);
+  async function disconnect(userId) {
+    const acc = nootion.userSecrets.get(userId);
+    nootion.userSecrets.delete(userId);
     if (acc?.refreshToken) {
       await call(`${OAUTH_URL}/revoke`, {
         method: "POST",
@@ -189,9 +189,22 @@ export function activate(nootion) {
       }).catch(() => null);
     }
     // Their syncs can't run any more.
-    for (const s of Object.values(syncs)) if (s.userId === user.id) delete syncs[s.id];
+    for (const s of Object.values(syncs)) if (s.userId === userId) delete syncs[s.id];
     save();
+  }
+
+  nootion.route("DELETE", "/account", async ({ user }) => {
+    await disconnect(user.id);
     return { connected: false };
+  });
+
+  // Listed in "My account › Connected services".
+  nootion.connectedAccount({
+    describe: (userId) => {
+      const acc = configured ? nootion.userSecrets.get(userId) : null;
+      return acc?.refreshToken && acc.clientId === clientId ? (acc.email ?? "Google") : null;
+    },
+    disconnect,
   });
 
   /** Calendars the user can add events to. */
