@@ -47,6 +47,22 @@ export interface PluginBlock extends Omit<PluginBlockManifest, "title" | "descri
   keywords: string;
 }
 
+export const pluginPropertyTypeSchema = z.object({
+  id: pluginId,
+  /** Shown in the list of column types. */
+  name: localizedText(60),
+  description: localizedText(200).default(""),
+  /** An emoji. */
+  icon: z.string().max(8).default("🧩"),
+});
+type PluginPropertyTypeManifest = z.infer<typeof pluginPropertyTypeSchema>;
+
+/** A column type, with its texts in the reader's language. */
+export interface PluginPropertyType extends Omit<PluginPropertyTypeManifest, "name" | "description"> {
+  name: string;
+  description: string;
+}
+
 /** Content of a plugin's manifest.json. */
 export const pluginManifestSchema = z.object({
   id: pluginId,
@@ -60,6 +76,8 @@ export const pluginManifestSchema = z.object({
   /** Browser code (ES module), relative to the plugin folder. */
   client: z.string().optional(),
   blocks: z.array(pluginBlockSchema).max(50).default([]),
+  /** Column types for databases: the cells keep a text, the plugin's browser code shows and edits it. */
+  propertyTypes: z.array(pluginPropertyTypeSchema).max(20).default([]),
   settings: z.array(pluginSettingSchema).max(50).default([]),
   /** Built-in plugins only: enabled until the admin turns it off. */
   enabledByDefault: z.boolean().default(false),
@@ -83,6 +101,7 @@ export interface ClientPluginInfo {
   /** URL of the browser code, when enabled. */
   clientUrl: string | null;
   blocks: PluginBlock[];
+  propertyTypes: PluginPropertyType[];
   formulaFunctions: PluginFormulaFunction[];
 }
 
@@ -132,6 +151,11 @@ export function localizeSetting(s: PluginSettingManifest): PluginSetting {
 export function localizeBlock(b: PluginBlockManifest): PluginBlock {
   const all = (text: LocalizedText) => (typeof text === "string" ? text : Object.values(text).join(" "));
   return { ...b, title: localized(b.title), description: localized(b.description), keywords: all(b.keywords) };
+}
+
+/** A manifest's column type, in the current language. */
+export function localizePropertyType(p: PluginPropertyTypeManifest): PluginPropertyType {
+  return { ...p, name: localized(p.name), description: localized(p.description) };
 }
 
 /** Name of the editor node of a plugin block. */

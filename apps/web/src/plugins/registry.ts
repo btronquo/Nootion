@@ -16,6 +16,18 @@ export interface PluginBlockProps {
   editable: boolean;
 }
 
+/** What the cell of a plugin's column type receives. */
+export interface PluginPropertyCellProps {
+  /** The text the cell keeps (the plugin decides what it holds: a number, JSON…), or null when empty. */
+  value: string | null;
+  /** Saves a new value (null empties the cell). */
+  setValue: (value: string | null) => void;
+  /** False for readers and on public pages. */
+  editable: boolean;
+  /** "table": a compact cell, one line high. "panel": the properties of an opened row, or a card. */
+  variant: "table" | "panel";
+}
+
 /** Somewhere else files can come from (a cloud drive…): offered next to "upload" in pages and "File" columns. */
 export interface PluginFileSource {
   /** Shown as "From <label>" and as a "/" command. */
@@ -37,6 +49,8 @@ export interface ClientPluginApi {
   api: <T = unknown>(path: string, init?: { method?: string; body?: unknown }) => Promise<T>;
   /** Renders a block declared in the manifest. */
   registerBlock: (blockId: string, component: React.ComponentType<PluginBlockProps>) => void;
+  /** Draws and edits the cells of a column type declared in the manifest. */
+  registerPropertyType: (typeId: string, spec: { Cell: React.ComponentType<PluginPropertyCellProps> }) => void;
   /** Language of the interface ("en", "fr"…). The page reloads when it changes. */
   locale: Locale;
   /** Adds a place to pick files from. */
@@ -72,9 +86,13 @@ const loaded = new Map<string, Promise<void>>();
 const formulaStubs = new Map<string, () => void>();
 const enabled = new Set<string>();
 const sources = new Map<string, PluginFileSource>();
+const cells = new Map<string, React.ComponentType<PluginPropertyCellProps>>();
 
 /** Places to pick files from, of enabled plugins. */
 export const fileSources = () => [...sources.entries()].filter(([id]) => enabled.has(id)).map(([, s]) => s);
+
+/** The cell component of a plugin's column type, when the plugin is on. */
+export const propertyCell = (pluginId: string, typeId: string) => (enabled.has(pluginId) ? cells.get(`${pluginId}.${typeId}`) : undefined);
 
 export const blockRenderer = (pluginId: string, blockId: string) => (enabled.has(pluginId) ? renderers.get(`${pluginId}.${blockId}`) : undefined);
 
@@ -86,6 +104,9 @@ async function loadClient(p: ClientPluginInfo) {
     api: (path, init) => api(`/plugins/${p.id}${path}`, init),
     registerBlock: (blockId, component) => {
       renderers.set(`${p.id}.${blockId}`, component);
+    },
+    registerPropertyType: (typeId, spec) => {
+      cells.set(`${p.id}.${typeId}`, spec.Cell);
     },
     registerFileSource: (source) => {
       sources.set(p.id, source);
@@ -131,6 +152,12 @@ async function loadPlugins(): Promise<ClientPluginInfo[]> {
   }
   for (const [name, remove] of formulaStubs) if (!names.has(name)) (remove(), formulaStubs.delete(name));
   return plugins;
+}
+
+/** Column types that enabled plugins add to databases. */
+export function usePluginPropertyTypes() {
+  const plugins = usePlugins().data ?? [];
+  return plugins.filter((p) => p.enabled).flatMap((p) => p.propertyTypes.map((type) => ({ pluginId: p.id, ...type })));
 }
 
 /** Installed plugins, with the browser code of the enabled ones loaded. Pages wait for it: their content may hold plugin blocks. */

@@ -27,13 +27,14 @@ export const PROPERTY_TYPES = [
   "rollup",
   "formula",
   "button",
+  "plugin",
 ] as const;
 export type PropertyType = (typeof PROPERTY_TYPES)[number];
 
 /** Types computed by the server; their cells cannot be edited. */
 export const COMPUTED_TYPES: readonly PropertyType[] = ["created_time", "last_edited_time", "created_by", "rollup", "formula", "button"];
 /** Types that need their own settings: a column can't be converted to or from them. */
-export const STRUCTURAL_TYPES: readonly PropertyType[] = ["relation", "rollup", "formula", "button"];
+export const STRUCTURAL_TYPES: readonly PropertyType[] = ["relation", "rollup", "formula", "button", "plugin"];
 /** Types that can be created by users (the title column always exists, exactly once). */
 export const CREATABLE_TYPES = PROPERTY_TYPES.filter((t) => t !== "title");
 
@@ -73,6 +74,8 @@ export const propertyConfigSchema = z
     formulaFormat: z.enum(["number", "currency", "percent"]).optional(),
     /** button: what it does when clicked */
     button: buttonConfigSchema.optional(),
+    /** plugin: the plugin and which of its column types draws and edits the cells. Set at creation. */
+    plugin: z.object({ id: z.string().regex(/^[a-z0-9_]{2,40}$/), type: z.string().regex(/^[a-z0-9_]{2,40}$/) }).optional(),
   })
   .strict();
 export type PropertyConfig = z.infer<typeof propertyConfigSchema>;
@@ -109,6 +112,8 @@ export function valueSchema(type: PropertyType): z.ZodType<CellValue> {
   switch (type) {
     case "title":
     case "text":
+    // A plugin column keeps a text, which the plugin reads and writes as it likes (a number, JSON…).
+    case "plugin":
       return z.string().max(20000).nullable() as z.ZodType<CellValue>;
     case "number":
     case "currency":

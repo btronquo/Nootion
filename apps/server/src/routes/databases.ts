@@ -231,6 +231,11 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     } else {
       delete config.databaseId;
     }
+    if (input.type === "plugin") {
+      if (!config.plugin || !app.plugins.propertyType(config.plugin.id, config.plugin.type)) throw new HttpError(400, "plugin_type", t("error.pluginType"));
+    } else {
+      delete config.plugin;
+    }
     if (input.type === "rollup") checkRollupConfig(db, listProperties(db, req.params.id), config);
     if (input.type === "formula" && config.expression?.trim()) checkFormula(listProperties(db, req.params.id), null, config.expression);
     const nextPos = (databaseId: string) =>
@@ -290,6 +295,8 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
         twinPropertyId: prop.config.twinPropertyId ?? null,
       };
     }
+    // So is a plugin column's type.
+    if (input.config && prop.type === "plugin") input.config = { ...input.config, plugin: prop.config.plugin };
     if (input.config && prop.type === "rollup") checkRollupConfig(db, properties, input.config);
     if (input.config?.expression?.trim() && prop.type === "formula" && input.config.expression !== prop.config.expression) {
       checkFormula(properties, prop.id, input.config.expression);

@@ -181,6 +181,6 @@ more interface languages.
 - **Small blocks** (done): table of contents, toggle headings, and @mentions of people in the text (with a notification).
 - **Scheduled backups** (done): the full backup on a schedule, to a folder of the server (the NAS) or to Nextcloud
   (WebDAV), keeping the last N copies. A scheduled Markdown export could come later.
-- **Plugin property types**: a plugin adds a column type to databases (stored value, cell display and editor).
+- **Plugin property types** (done): a plugin adds a column type to databases (stored value, cell display and editor).
 - **Google Calendar with a user's own OAuth client**: when the administrator hasn't set one, a user pastes their own
   client ID and secret in the block (the administrator's client stays the normal way).

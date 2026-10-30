@@ -14,6 +14,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Plugins can add column types to databases: the plugin draws and edits the cells, which keep a text that filters,
+  sorts and exports like one. The new built-in **Ratings** plugin (off by default) adds a "Rating" column of one to
+  five stars.
 - Automatic backups (Administration): the full backup every day or every week at a set time, to a folder of the
   server (a NAS share) or a WebDAV folder such as Nextcloud, keeping the last N copies. "Back up now" tries it at
   once, and the page shows how the last one went.
