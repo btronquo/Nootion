@@ -110,6 +110,7 @@ What `activate` receives:
 | `userSecrets.get / set / delete(userId, value)` | data kept for one user (an account on another service, a token…), any JSON, stored encrypted with `APP_SECRET` and deleted with the user |
 | `attachments.create({ userId, pageId, filename, mimeType, data })` | attaches a file to a page as if the user had uploaded it: they must be able to edit the page, and `MAX_UPLOAD_MB` applies. `data` is a Buffer or a stream (e.g. a `fetch` response's `body`). Returns `{ id, filename, mimeType, size, url }`. |
 | `request(userId, method, path, body)` | calls Nootion's API (`/databases/…`, `/pages/…`, see [API.md](API.md)) as a user, with their rights, as if they had made the request. Resolves with the JSON answer, throws an `HttpError` on an error. |
+| `connectedAccount({ describe, disconnect })` | lists the user's account on another service in **My account › Connected services**: `describe(userId)` returns what to show ("ada@gmail.com") or null when not connected, `disconnect(userId)` forgets and revokes it. |
 | `redirect(url)` | return it from a route to send the browser elsewhere (a sign-in page of another service…) |
 | `appUrl` | Nootion's address (`APP_URL`), e.g. to build an OAuth redirect address |
 | `binary(data, contentType)` | return it from a route to send a file instead of JSON. PNG, JPEG, GIF, WebP and AVIF images are shown in the browser; anything else is downloaded. |

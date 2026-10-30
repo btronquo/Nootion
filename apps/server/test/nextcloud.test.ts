@@ -120,6 +120,17 @@ describe("nextcloud plugin", () => {
     expect(nc.passwords.has("app-pw-manual")).toBe(false);
     expect((await boris.get("/api/plugins/nextcloud/status")).json().connected).toBe(false);
 
+    // Also listed, and disconnected, in "My account › Connected services".
+    nc.passwords.add("app-pw-manual");
+    await boris.post("/api/plugins/nextcloud/login/password", { login: "boris@example.com", password: "app-pw-manual" });
+    expect((await boris.get("/api/plugins/accounts")).json().accounts).toEqual([
+      { pluginId: "nextcloud", name: "Nextcloud", account: `Boris T. · ${new URL(nc.url).host}` },
+    ]);
+    expect((await alice.get("/api/plugins/accounts")).json().accounts).toEqual([{ pluginId: "nextcloud", name: "Nextcloud", account: null }]);
+    expect((await boris.request("DELETE", "/api/plugins/accounts/nextcloud")).statusCode).toBe(200);
+    expect(nc.passwords.has("app-pw-manual")).toBe(false);
+    expect((await boris.get("/api/plugins/accounts")).json().accounts[0].account).toBeNull();
+
     nc.passwords.add("app-pw-manual");
     await boris.post("/api/plugins/nextcloud/login/password", { login: "boris@example.com", password: "app-pw-manual" });
     await enable({ url: "https://other.example.org" });

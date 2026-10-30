@@ -32,7 +32,7 @@ The first time someone opens the picker, Nootion asks them to connect their acco
 
 Each person connects their own account: Nootion only shows them what their Nextcloud account can see, never
 someone else's files. The app password is stored encrypted (with `APP_SECRET`). **Disconnect**, at the bottom
-of the picker, removes it from Nootion and revokes it in Nextcloud. Changing the Nextcloud address in the
+of the picker or in **My account › Connected services**, removes it from Nootion and revokes it in Nextcloud. Changing the Nextcloud address in the
 administration disconnects every account.
 
 ## What Nootion asks Nextcloud

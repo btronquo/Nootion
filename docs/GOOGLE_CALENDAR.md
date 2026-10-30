@@ -45,7 +45,7 @@ Google asks each app that reads calendars to have an OAuth client. It's free and
 
 The block then shows the sync: what it links, how many events, when it last ran and any error. The person who set
 it up can stop it; events already in Google stay there. Disconnecting the Google account (link at the bottom of the
-setup) revokes Nootion's access and stops that person's syncs.
+setup, or **My account › Connected services**) revokes Nootion's access and stops that person's syncs.
 
 The sync works with the rights of the person who set it up: they must be able to edit the database.
 

@@ -78,7 +78,8 @@ describe("google calendar plugin", () => {
       "/?google=connected",
     );
 
-    expect((await boris.request("DELETE", "/api/plugins/google_calendar/account")).json()).toEqual({ connected: false });
+    expect((await boris.get("/api/plugins/accounts")).json().accounts).toEqual([{ pluginId: "google_calendar", name: "Google Agenda", account: "boris@gmail.com" }]);
+    expect((await boris.request("DELETE", "/api/plugins/accounts/google_calendar")).statusCode).toBe(200);
     expect(g.revoked).toEqual(["refresh-1"]);
     expect((await boris.get("/api/plugins/google_calendar/calendars")).statusCode).toBe(409);
   });
