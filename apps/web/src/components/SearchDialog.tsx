@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Database, FileText, Search } from "lucide-react";
+import { Database, FileText, Paperclip, Search } from "lucide-react";
 import { t, type SearchResult } from "@nootion/shared";
 import { api } from "../lib/api";
 
@@ -105,7 +105,7 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
           <ul ref={listRef} role="listbox" className="max-h-[55vh] overflow-y-auto p-1.5">
             {results.map((r, i) => (
               <li
-                key={r.id}
+                key={`${r.id}:${r.file?.id ?? ""}`}
                 data-index={i}
                 role="option"
                 aria-selected={i === active}
@@ -124,6 +124,19 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">{r.title || t("common.untitled")}</span>
                   {r.path.length > 0 && <span className="block truncate text-xs text-neutral-500">{r.path.join(" / ")}</span>}
+                  {r.file && (
+                    <a
+                      href={`/api/attachments/${r.file.id}`}
+                      target="_blank"
+                      rel="noopener"
+                      onClick={(e) => e.stopPropagation()}
+                      title={t("search.openFile")}
+                      data-file-result={r.file.id}
+                      className="mt-0.5 flex w-fit max-w-full items-center gap-1 truncate rounded bg-neutral-100 px-1.5 py-0.5 text-xs text-neutral-700 hover:underline dark:bg-neutral-800 dark:text-neutral-300"
+                    >
+                      <Paperclip size={12} className="shrink-0" /> <span className="truncate">{r.file.name}</span>
+                    </a>
+                  )}
                   {r.snippet && (
                     <span className="mt-0.5 line-clamp-2 text-xs text-neutral-600 dark:text-neutral-400">
                       <Snippet text={r.snippet} />

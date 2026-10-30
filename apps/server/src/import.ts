@@ -124,7 +124,7 @@ export function planImport(
       const rows = db
         .select({ id: pages.id, title: pages.title })
         .from(pages)
-        .where(and(eq(pages.parentId, dbId), eq(pages.kind, "row"), isNull(pages.deletedAt)))
+        .where(and(eq(pages.parentId, dbId), eq(pages.kind, "row"), eq(pages.template, false), isNull(pages.deletedAt)))
         .all();
       relatedRows.set(dbId, (map = new Map(rows.reverse().map((r) => [r.title.trim().toLowerCase(), r.id]))));
     }

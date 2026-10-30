@@ -6,11 +6,15 @@ import { buildApp } from "../src/app.js";
 import { loadConfig } from "../src/config.js";
 import { openDb } from "../src/db/index.js";
 
-export async function makeApp(prepare?: (dataDir: string) => void, env: Record<string, string> = {}): Promise<FastifyInstance> {
+export async function makeApp(
+  prepare?: (dataDir: string) => void,
+  env: Record<string, string> = {},
+  extra: Pick<Parameters<typeof buildApp>[0], "pushSender"> = {},
+): Promise<FastifyInstance> {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "nootion-test-"));
   prepare?.(dataDir);
   const config = loadConfig({ APP_SECRET: "test-secret-0123456789", APP_URL: "http://localhost:3000", DATA_DIR: dataDir, ...env });
-  return buildApp({ db: openDb(":memory:"), config });
+  return buildApp({ db: openDb(":memory:"), config, ...extra });
 }
 
 /** A tiny cookie-keeping client around app.inject. */

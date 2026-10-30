@@ -110,28 +110,33 @@ Three gaps that Notion and the self-hosted alternatives leave open.
 
 What makes everyday use comfortable, in this order (quick wins first, then what builds on them).
 
-1. **Favorites.** A star on each page and database; a "Favorites" section at the top of the sidebar, per user,
+1. **Favorites** (done). A star on each page and database; a "Favorites" section at the top of the sidebar, per user,
    reorderable by drag and drop. Also in the mobile drawer.
-2. **Cover images.** A cover at the top of a page (uploaded image or link, a few built-in gradients),
+2. **Cover images** (done). A cover at the top of a page (uploaded image or link, a few built-in gradients),
    repositioned by dragging, shown on public pages. The Notion import brings covers in.
-3. **Toggles and columns.** Collapsible blocks (and toggle headings) and side-by-side columns in the editor.
+3. **Toggles and columns** (done). Collapsible blocks (and toggle headings) and side-by-side columns in the editor.
    They are the two blocks the Notion import can't render as they are today.
 4. **New database views**, next to table and board, each with its own filters, sorts and properties shown:
-   - *Calendar*: rows placed on a date property, month and week, drag a row to change its date, click a day to add one;
-   - *Gallery*: cards with the row's cover or first image;
-   - *List*: one compact line per row;
-   - *Timeline*: bars from a start date to an end date (date ranges), dragged to move or resize.
-5. **Calendar widget.** A `/calendar` block for any page that gathers the dated rows of one or several databases
+   - *Calendar* (done): rows placed on a date property, month and week, drag a row to change its date, click a day to add one;
+   - *Gallery* (done): cards with the row's cover or first image;
+   - *List* (done): one compact line per row;
+   - *Timeline* (done): bars from a start date to an end date (date ranges), dragged to move or resize.
+5. **Calendar widget** (done). A `/calendar` block for any page that gathers the dated rows of one or several databases
    (tasks, appointments, bills due…), each with its colour. Read-only iCal feed (private link) to see these dates
    in a phone or desktop calendar.
-6. **Templates.** Page templates and database row templates (content and default values), chosen when creating.
-7. **Page history.** Snapshots of each page kept over time, compared and restored (built on Yjs).
-8. **Backlinks.** "Linked from" at the bottom of a page: the pages that link or mention it.
-9. **Search inside attached files.** Text of PDFs and of images (OCR, e.g. scanned bills), indexed when the file
+6. **Personal home page** (done). A home page per user, opened at sign-in (and from "Home" in the sidebar), made of widgets
+   each user arranges: a greeting, recently visited pages (cards with their cover), favorites, upcoming events (the
+   calendar block's rows, next days first), the first rows of a database view (e.g. the 5 open to-dos), and any page
+   content (it is an ordinary page underneath, so every block works there). Builds on the calendar widget and the
+   database views.
+7. **Templates** (done). Page templates and database row templates (content and default values), chosen when creating.
+8. **Page history** (done). Snapshots of each page kept over time, compared and restored (built on Yjs).
+9. **Backlinks** (done). "Linked from" at the bottom of a page: the pages that link or mention it.
+10. **Search inside attached files** (done). Text of PDFs and of images (OCR, e.g. scanned bills), indexed when the file
    arrives, in a background job; results point to the page holding the file.
-10. **Dates in plain words and reminders.** Typing `@tomorrow`, `@friday`, `@15/11 9:00` in the editor inserts a date;
+11. **Dates in plain words and reminders** (done). Typing `@tomorrow`, `@friday`, `@15/11 9:00` in the editor inserts a date;
     a date can carry a reminder, shown in the app (and as a notification of the installed app) when it is due.
-11. **API with personal tokens.** A documented REST API (read and write pages, query and fill databases, search),
+12. **API with personal tokens** (done). A documented REST API (read and write pages, query and fill databases, search),
    with tokens created in "My account", each limited to some spaces and read-only or read-write.
    It is what the V2 MCP server builds on.
 

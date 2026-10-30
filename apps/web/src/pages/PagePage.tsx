@@ -1,16 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, Lock, MoreHorizontal, Share2, Trash2 } from "lucide-react";
-import { atLeast, t, type PageDetail } from "@nootion/shared";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ChevronRight, History, LayoutTemplate, Lock, MoreHorizontal, Share2, Star, Trash2 } from "lucide-react";
+import { atLeast, t, type PageDetail, type PageSummary } from "@nootion/shared";
 import { api } from "../lib/api";
 import { sendOrQueue } from "../lib/offline";
-import { keys, usePage, useRefreshPages } from "../lib/queries";
+import { keys, useFavorites, usePage, useRefreshPages } from "../lib/queries";
 import { pageRoleLabel } from "../lib/labels";
 import { pageTitle } from "../lib/tree";
 import { Button } from "../components/ui";
 import { ShareDialog } from "../components/ShareDialog";
+import { HistoryDialog } from "../components/HistoryDialog";
+import { Backlinks } from "../components/Backlinks";
 import { IconPicker } from "../components/IconPicker";
+import { AddCoverButton, PageCover } from "../components/PageCover";
 import { PageEditor } from "../editor/PageEditor";
 import { DatabaseTable } from "../database/DatabaseTable";
 import { RowProperties } from "../database/RowProperties";
@@ -18,9 +21,12 @@ import { dbKey } from "../database/hooks";
 import { Popover } from "../database/Popover";
 import { MenuButton } from "../components/SidebarLayout";
 import { SyncStatus } from "../components/SyncStatus";
+import { useSession } from "../lib/session";
 
-export function PagePage() {
-  const { id = "" } = useParams();
+/** A page, by the id in the address (or the one given, for the home page). */
+export function PagePage({ id: given }: { id?: string }) {
+  const { id: param = "" } = useParams();
+  const id = given ?? param;
   const page = usePage(id);
   if (page.isLoading) return null;
   if (page.isError || !page.data) {
@@ -34,17 +40,31 @@ export function PagePage() {
   return <PageView key={page.data.id} page={page.data} />;
 }
 
+/** "Good morning" to "Good evening", by the time of day. */
+function greeting(name: string) {
+  const hour = new Date().getHours();
+  return t(hour >= 5 && hour < 12 ? "home.morning" : hour >= 12 && hour < 18 ? "home.afternoon" : "home.evening", { name });
+}
+
 function PageView({ page }: { page: PageDetail }) {
+  const { user } = useSession();
   const canEdit = atLeast(page.role, "editor");
   const canManage = page.role === "full";
   const [title, setTitle] = useState(page.title);
   const [sharing, setSharing] = useState(false);
+  const [history, setHistory] = useState(false);
   const [menu, setMenu] = useState<HTMLElement | null>(null);
   const qc = useQueryClient();
   const refresh = useRefreshPages();
   const navigate = useNavigate();
   const saveTimer = useRef<number | undefined>(undefined);
   const titleRef = useRef<HTMLTextAreaElement>(null);
+  const [empty, setEmpty] = useState(false);
+  // An empty page can start from a template.
+  const offerTemplates = canEdit && page.kind === "page" && !page.template && !page.home;
+
+  // The title can change elsewhere too (a template applied to the page).
+  useEffect(() => setTitle(page.title), [page.title]);
 
   useEffect(() => {
     if (canEdit && !page.title) titleRef.current?.focus();
@@ -58,7 +78,7 @@ function PageView({ page }: { page: PageDetail }) {
     }
   }, [title]);
 
-  async function save(patch: { title?: string; icon?: string | null; fullWidth?: boolean }) {
+  async function save(patch: { title?: string; icon?: string | null; fullWidth?: boolean; cover?: string | null; coverPosition?: number; template?: boolean }) {
     // Kept for later when the server can't be reached.
     await sendOrQueue(`/pages/${page.id}`, patch);
     qc.setQueryData(keys.page(page.id), { ...page, ...patch });
@@ -100,6 +120,12 @@ function PageView({ page }: { page: PageDetail }) {
         </nav>
         <div className="flex shrink-0 items-center gap-1">
           <SyncStatus />
+          {page.kind !== "database" && (
+            <Button variant="ghost" onClick={() => setHistory(true)} title={t("history.title")} aria-label={t("history.title")}>
+              <History size={16} />
+            </Button>
+          )}
+          {!page.home && <FavoriteButton page={page} />}
           <Button variant="ghost" onClick={(e) => setMenu(e.currentTarget)} title={t("page.options")} aria-label={t("page.options")}>
             <MoreHorizontal size={16} />
           </Button>
@@ -108,7 +134,7 @@ function PageView({ page }: { page: PageDetail }) {
               <Lock size={12} /> <span className="hidden sm:inline">{pageRoleLabel(page.role)}</span>
             </span>
           )}
-          {canManage && (
+          {canManage && !page.home && (
             <>
               <Button variant="ghost" onClick={() => setSharing(true)} aria-label={t("share.button")}>
                 <Share2 size={16} /> <span className="hidden sm:inline">{t("share.button")}</span>
@@ -121,8 +147,20 @@ function PageView({ page }: { page: PageDetail }) {
         </div>
       </header>
 
-      <div className={`mx-auto px-5 pb-24 pt-8 sm:px-12 sm:pt-16 ${page.fullWidth ? "max-w-none sm:px-24" : page.kind === "database" ? "max-w-6xl" : "max-w-3xl"}`}>
-        <IconPicker icon={page.icon} editable={canEdit} onChange={(icon) => save({ icon })} />
+      {page.cover && <PageCover pageId={page.id} cover={page.cover} position={page.coverPosition} editable={canEdit} onChange={save} />}
+      <div
+        className={`mx-auto px-5 pb-24 ${page.cover ? "pt-6" : "pt-8 sm:pt-16"} sm:px-12 ${page.fullWidth ? "max-w-none sm:px-24" : page.kind === "database" ? "max-w-6xl" : "max-w-3xl"}`}
+      >
+        <div className="flex flex-wrap items-end gap-1">
+          {!page.home && <IconPicker icon={page.icon} editable={canEdit} onChange={(icon) => save({ icon })} />}
+          {canEdit && !page.cover && <AddCoverButton pageId={page.id} onChange={save} />}
+        </div>
+        {page.home ? (
+          <>
+            <h1 className="text-3xl font-bold sm:text-4xl">{greeting(user?.name ?? "")}</h1>
+            <p className="mt-2 text-sm text-neutral-500">{t("home.hint")}</p>
+          </>
+        ) : (
         <textarea
           ref={titleRef}
           rows={1}
@@ -135,14 +173,18 @@ function PageView({ page }: { page: PageDetail }) {
               document.querySelector<HTMLElement>(".nootion-content")?.focus();
             }
           }}
-          placeholder={t("common.untitled")}
+          placeholder={page.template ? t("template.untitled") : t("common.untitled")}
           aria-label={t("page.titleLabel")}
           className="w-full resize-none overflow-hidden bg-transparent text-3xl font-bold sm:text-4xl outline-none placeholder:text-neutral-300 dark:placeholder:text-neutral-600"
         />
+        )}
+        {page.template && <TemplateBanner page={page} />}
         {page.kind === "row" && page.parentId && <RowProperties databaseId={page.parentId} rowId={page.id} />}
+        {offerTemplates && empty && <TemplatePicker page={page} />}
         <div className="mt-4">
-          {page.kind === "database" ? <DatabaseTable id={page.id} /> : <PageEditor page={page} canEdit={canEdit} />}
+          {page.kind === "database" ? <DatabaseTable id={page.id} /> : <PageEditor page={page} canEdit={canEdit} onEmpty={offerTemplates ? setEmpty : undefined} />}
         </div>
+        {!page.home && <Backlinks pageId={page.id} />}
       </div>
 
       {menu && (
@@ -151,6 +193,21 @@ function PageView({ page }: { page: PageDetail }) {
             <label className="flex cursor-pointer items-center justify-between gap-2 rounded px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800">
               {t("page.fullWidth")}
               <input type="checkbox" role="switch" className="h-4 w-4 accent-blue-600" checked={page.fullWidth} onChange={(e) => save({ fullWidth: e.target.checked })} />
+            </label>
+          )}
+          {canEdit && page.kind === "page" && !page.home && (
+            <label className="flex cursor-pointer items-center justify-between gap-2 rounded px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800">
+              {t("template.pageToggle")}
+              <input
+                type="checkbox"
+                role="switch"
+                className="h-4 w-4 accent-blue-600"
+                checked={page.template}
+                onChange={async (e) => {
+                  await save({ template: e.target.checked });
+                  await qc.invalidateQueries({ queryKey: ["page-templates"] });
+                }}
+              />
             </label>
           )}
           <a
@@ -164,6 +221,89 @@ function PageView({ page }: { page: PageDetail }) {
         </Popover>
       )}
       {sharing && <ShareDialog page={page} onClose={() => setSharing(false)} />}
+      {history && <HistoryDialog page={page} onClose={() => setHistory(false)} />}
+    </div>
+  );
+}
+
+function FavoriteButton({ page }: { page: PageDetail }) {
+  const favorites = useFavorites();
+  const qc = useQueryClient();
+  const starred = !!favorites.data?.some((p) => p.id === page.id);
+  const label = starred ? t("favorites.remove") : t("favorites.add");
+
+  async function toggle() {
+    qc.setQueryData<PageSummary[]>(keys.favorites, (old = []) => (starred ? old.filter((p) => p.id !== page.id) : [...old, page]));
+    await api(`/favorites/${page.id}`, { method: starred ? "DELETE" : "PUT" }).catch(() => {});
+    await qc.invalidateQueries({ queryKey: keys.favorites });
+  }
+
+  return (
+    <Button variant="ghost" onClick={toggle} title={label} aria-label={label} aria-pressed={starred}>
+      <Star size={16} className={starred ? "fill-amber-400 text-amber-400" : ""} />
+    </Button>
+  );
+}
+
+/** Says that the page is a template, and what it is for. */
+function TemplateBanner({ page }: { page: PageDetail }) {
+  const database = page.kind === "row" ? page.breadcrumb[page.breadcrumb.length - 1] : undefined;
+  return (
+    <div className="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200" data-template-banner>
+      <LayoutTemplate size={16} className="mt-0.5 shrink-0" />
+      <span>
+        {database ? (
+          <>
+            {t("template.rowBanner", { database: pageTitle(database.title) })}{" "}
+            <Link to={`/page/${database.id}`} className="underline">
+              {t("template.backToDatabase")}
+            </Link>
+          </>
+        ) : (
+          t("template.pageBanner")
+        )}
+      </span>
+    </div>
+  );
+}
+
+/** Page templates offered on an empty page. */
+function TemplatePicker({ page }: { page: PageDetail }) {
+  const qc = useQueryClient();
+  const refresh = useRefreshPages();
+  const templates = useQuery({ queryKey: ["page-templates"], queryFn: async () => (await api<{ pages: PageSummary[] }>("/pages/templates")).pages });
+  const [applying, setApplying] = useState<string | null>(null);
+  const list = (templates.data ?? []).filter((tpl) => tpl.id !== page.id);
+  if (!list.length) return null;
+
+  async function apply(templateId: string) {
+    setApplying(templateId);
+    try {
+      await api(`/pages/${page.id}/apply-template`, { method: "POST", body: { templateId } });
+      await Promise.all([qc.invalidateQueries({ queryKey: keys.page(page.id) }), refresh()]);
+    } finally {
+      setApplying(null);
+    }
+  }
+
+  return (
+    <div className="mt-4 text-sm" data-template-picker>
+      <div className="mb-2 flex items-center gap-1.5 text-neutral-500">
+        <LayoutTemplate size={14} /> {t("template.startFrom")}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {list.map((tpl) => (
+          <button
+            key={tpl.id}
+            disabled={!!applying}
+            onClick={() => apply(tpl.id)}
+            className="flex items-center gap-2 rounded-lg border border-neutral-200 px-3 py-2 hover:bg-neutral-50 disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
+          >
+            <span>{tpl.icon ?? "📄"}</span>
+            <span className="max-w-48 truncate">{applying === tpl.id ? t("template.applying") : pageTitle(tpl.title)}</span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

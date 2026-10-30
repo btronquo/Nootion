@@ -11,20 +11,32 @@ import {
   type PageSummary,
   type PublicLinkInfo,
 } from "@nootion/shared";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
+import { z } from "zod";
 import { newToken } from "../auth/tokens.js";
-import { pagePermissions, pages, publicLinks, users, workspaceMembers } from "../db/schema.js";
+import { attachments, pagePermissions, pages, publicLinks, users, workspaceMembers } from "../db/schema.js";
 import { HttpError, notFound, parseBody, requireUser } from "../http.js";
 import {
   CAN_CREATE_ROOT_PAGES,
   getChain,
+  getPageRole,
   getWorkspaceRole,
   isTrashed,
   requirePageRole,
   requireWorkspaceRole,
 } from "../permissions.js";
-import { breadcrumbFor, getPageMeta, notRow, pageMeta, listDescendants, nextPosition, placeAmongSiblings, toDetail, toSummary } from "../pages.js";
+import { breadcrumbFor, getPageMeta, notRow, pageMeta, listDescendants, nextPosition, placeAmongSiblings, sortPages, toDetail, toSummary } from "../pages.js";
 import { t } from "@nootion/shared";
+import { homePageOf, recordVisit } from "../home.js";
+import { copyTree } from "../templates.js";
+import { syncReminders } from "../reminders.js";
+import { listBacklinks } from "../backlinks.js";
+import { getSnapshot, listVersions, recordSnapshot } from "../history.js";
+import { appendContent, readContent, writeContent, type ProseMirrorNode } from "../collab.js";
+import { toMarkdown } from "../markdown.js";
+import { checkContent, parseMarkdown } from "../markdown-in.js";
+
+const contentBody = z.object({ markdown: z.string().max(2_000_000).optional(), content: z.unknown().optional() }).passthrough();
 
 export const pageRoutes: FastifyPluginAsync = async (app) => {
   const db = app.db;
@@ -52,7 +64,58 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
       })
       .returning()
       .get();
+    // Content given at once (API): Markdown or editor JSON.
+    const body = contentInput(req.body, user.id, true);
+    if (body) await writeContent(app.collab, db, page.id, body);
     return { page: toSummary(page) };
+  });
+
+  /** Content sent through the API: `markdown`, or `content` as the editor's JSON. Null when neither is given. */
+  const contentInput = (raw: unknown, userId: string, optional = false): ProseMirrorNode | null => {
+    const input = parseBody(contentBody, raw ?? {});
+    if (input.markdown !== undefined) return parseMarkdown(input.markdown);
+    if (input.content !== undefined) {
+      try {
+        return checkContent(input.content, userId);
+      } catch (e) {
+        throw new HttpError(400, "bad_content", t("error.badContent", { reason: (e as Error).message }));
+      }
+    }
+    if (optional) return null;
+    throw new HttpError(400, "invalid_input", t("error.contentMissing"));
+  };
+
+  // A page's content, as Markdown and as the editor's JSON (what people are typing included).
+  app.get<{ Params: { id: string } }>("/:id/content", async (req) => {
+    const user = requireUser(req);
+    const { page } = requirePageRole(db, user.id, req.params.id, "viewer");
+    if (page.kind === "database") throw new HttpError(400, "not_a_page", t("error.notAPage"));
+    const content = readContent(app.collab, db, page.id);
+    const base = app.config.appUrl;
+    const markdown = toMarkdown(content, { file: (id) => `${base}/api/attachments/${id}`, page: (id) => `${base}/page/${id}` });
+    return { id: page.id, title: page.title, markdown, content };
+  });
+
+  // Replaces the content (PUT) or adds to its end (POST).
+  app.put<{ Params: { id: string } }>("/:id/content", async (req) => {
+    const user = requireUser(req);
+    const { page } = requirePageRole(db, user.id, req.params.id, "editor");
+    if (page.kind === "database") throw new HttpError(400, "not_a_page", t("error.notAPage"));
+    const doc = contentInput(req.body, user.id)!;
+    recordSnapshot(db, page.id, { content: readContent(app.collab, db, page.id), force: true });
+    await writeContent(app.collab, db, page.id, doc);
+    db.update(pages).set({ updatedAt: new Date() }).where(eq(pages.id, page.id)).run();
+    return { ok: true };
+  });
+
+  app.post<{ Params: { id: string } }>("/:id/content", async (req) => {
+    const user = requireUser(req);
+    const { page } = requirePageRole(db, user.id, req.params.id, "editor");
+    if (page.kind === "database") throw new HttpError(400, "not_a_page", t("error.notAPage"));
+    const doc = contentInput(req.body, user.id)!;
+    await appendContent(app.collab, db, page.id, doc.content ?? []);
+    db.update(pages).set({ updatedAt: new Date() }).where(eq(pages.id, page.id)).run();
+    return { ok: true };
   });
 
   /**
@@ -89,6 +152,74 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     return { pages: result };
   });
 
+  // Page templates the user can read, in all their spaces.
+  app.get("/templates", async (req) => {
+    const user = requireUser(req);
+    const rows = db
+      .select(pageMeta)
+      .from(pages)
+      .where(and(eq(pages.template, true), eq(pages.kind, "page"), isNull(pages.deletedAt)))
+      .all();
+    return { pages: sortPages(rows.filter((p) => getPageRole(db, user.id, p.id))).map(toSummary) };
+  });
+
+  // Fills a page with a copy of a template: its content, cover and icon, and its subpages and databases.
+  app.post<{ Params: { id: string } }>("/:id/apply-template", async (req) => {
+    const user = requireUser(req);
+    const { templateId } = parseBody(z.object({ templateId: z.string().min(1) }), req.body);
+    const { page, chain } = requirePageRole(db, user.id, req.params.id, "editor");
+    const { page: template } = requirePageRole(db, user.id, templateId, "viewer");
+    if (page.kind !== "page" || !template.template || template.kind !== "page" || chain.some((c) => c.id === template.id)) {
+      throw new HttpError(400, "bad_template", t("error.badTemplate"));
+    }
+    await copyTree(
+      db,
+      app.collab,
+      app.config.dataDir,
+      template.id,
+      { workspaceId: page.workspaceId, parentId: page.id, position: 0, userId: user.id },
+      { pageId: page.id, title: page.title, icon: page.icon, cover: page.cover },
+    );
+    return { ok: true };
+  });
+
+  app.get<{ Params: { id: string } }>("/:id/backlinks", async (req) => {
+    const user = requireUser(req);
+    requirePageRole(db, user.id, req.params.id, "viewer");
+    return { pages: listBacklinks(db, user.id, req.params.id) };
+  });
+
+  // --- History ---
+
+  app.get<{ Params: { id: string } }>("/:id/history", async (req) => {
+    const user = requireUser(req);
+    requirePageRole(db, user.id, req.params.id, "viewer");
+    return { versions: listVersions(db, req.params.id) };
+  });
+
+  app.get<{ Params: { id: string; versionId: string } }>("/:id/history/:versionId", async (req) => {
+    const user = requireUser(req);
+    requirePageRole(db, user.id, req.params.id, "viewer");
+    const snapshot = getSnapshot(db, req.params.id, req.params.versionId);
+    if (!snapshot) throw notFound();
+    return { content: snapshot.content, title: snapshot.title };
+  });
+
+  // Puts an older version back. The current content is saved as a version first, so nothing is lost.
+  app.post<{ Params: { id: string; versionId: string } }>("/:id/history/:versionId/restore", async (req) => {
+    const user = requireUser(req);
+    const { page } = requirePageRole(db, user.id, req.params.id, "editor");
+    if (page.kind === "database") throw notFound();
+    const snapshot = getSnapshot(db, req.params.id, req.params.versionId);
+    if (!snapshot) throw notFound();
+    const current = db.select({ content: pages.contentJson }).from(pages).where(eq(pages.id, page.id)).get();
+    if (current?.content) recordSnapshot(db, page.id, { content: current.content as ProseMirrorNode, force: true });
+    await writeContent(app.collab, db, page.id, snapshot.content as ProseMirrorNode);
+    db.update(pages).set({ title: snapshot.title, updatedAt: new Date() }).where(eq(pages.id, page.id)).run();
+    recordSnapshot(db, page.id, { content: snapshot.content as ProseMirrorNode, authors: [user.id], force: true, restoredFrom: snapshot.createdAt });
+    return { ok: true };
+  });
+
   app.get<{ Params: { id: string } }>("/:id", async (req) => {
     const user = requireUser(req);
     const { page, chain, role } = requirePageRole(db, user.id, req.params.id, "viewer");
@@ -106,19 +237,31 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
       visibleFrom = Math.max(...chain.map((c, i) => (shared.has(c.id) ? i + 1 : 0)));
     }
     const breadcrumb = breadcrumbFor(chain, (c) => chain.indexOf(c) < visibleFrom);
-    return { page: toDetail(page, role, breadcrumb) };
+    // Scripts reading pages with a token don't fill "Recently visited".
+    if (!req.tokenScope) recordVisit(db, user.id, page.id);
+    return { page: toDetail(page, role, breadcrumb, homePageOf(db, user.id) === page.id) };
   });
 
   app.patch<{ Params: { id: string } }>("/:id", async (req) => {
     const user = requireUser(req);
     const input = parseBody(updatePageInput, req.body);
-    requirePageRole(db, user.id, req.params.id, "editor");
+    const { page: current } = requirePageRole(db, user.id, req.params.id, "editor");
+    if (input.template !== undefined && current.kind !== "page") throw new HttpError(400, "not_a_page", t("error.templateKind"));
+    // An uploaded cover must be a file of this page: its access follows the page's.
+    const coverFile = input.cover?.match(/^\/api\/attachments\/(.+)$/)?.[1];
+    if (coverFile && db.select({ pageId: attachments.pageId }).from(attachments).where(eq(attachments.id, coverFile)).get()?.pageId !== req.params.id) {
+      throw new HttpError(400, "bad_cover", t("error.badCover"));
+    }
     const page = db
       .update(pages)
       .set({ ...input, updatedAt: new Date() })
       .where(eq(pages.id, req.params.id))
       .returning(pageMeta)
       .get();
+    // A template's dates remind nobody; they come back when it is a page again.
+    if (input.template !== undefined) {
+      syncReminders(db, page.id, db.select({ json: pages.contentJson }).from(pages).where(eq(pages.id, page.id)).get()?.json as ProseMirrorNode | null);
+    }
     return { page: toSummary(page) };
   });
 
@@ -149,6 +292,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
   app.delete<{ Params: { id: string } }>("/:id", async (req) => {
     const user = requireUser(req);
     requirePageRole(db, user.id, req.params.id, "full");
+    if (homePageOf(db, user.id) === req.params.id) throw new HttpError(400, "home_page", t("error.homePage"));
     db.update(pages).set({ deletedAt: new Date(), deletedBy: user.id }).where(eq(pages.id, req.params.id)).run();
     return { ok: true };
   });
@@ -214,7 +358,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     const input = parseBody(sharePageInput, req.body);
     requirePageRole(db, user.id, req.params.id, "full");
     const target = db.select().from(users).where(eq(users.id, input.userId)).get();
-    if (!target || target.disabled) throw new HttpError(404, "user_not_found", "Utilisateur introuvable.");
+    if (!target || target.disabled) throw new HttpError(404, "user_not_found", t("error.userNotFound"));
     db.insert(pagePermissions)
       .values({ pageId: req.params.id, userId: input.userId, role: input.role, grantedBy: user.id })
       .onConflictDoUpdate({ target: [pagePermissions.pageId, pagePermissions.userId], set: { role: input.role, grantedBy: user.id } })

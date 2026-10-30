@@ -8,6 +8,8 @@ import type { Db } from "./db/index.js";
 import { pages } from "./db/schema.js";
 import { findSessionUser, SESSION_COOKIE } from "./auth/sessions.js";
 import { getPageRole } from "./permissions.js";
+import { recordSnapshot } from "./history.js";
+import { syncReminders } from "./reminders.js";
 
 /** Name of the Y.XmlFragment holding the page body (TipTap's default). */
 export const CONTENT_FIELD = "default";
@@ -102,12 +104,13 @@ export function setProsemirrorJSON(doc: Y.Doc, json: ProseMirrorNode, field = CO
   });
 }
 
-const BLOCK_TYPES = new Set(["paragraph", "heading", "listItem", "taskItem", "blockquote", "codeBlock", "tableCell", "tableHeader", "callout"]);
+const BLOCK_TYPES = new Set(["paragraph", "heading", "listItem", "taskItem", "blockquote", "codeBlock", "tableCell", "tableHeader", "callout", "detailsSummary"]);
 
 /** Plain text of a document, one line per block. Used for search. */
 export function prosemirrorToText(node: ProseMirrorNode): string {
   if (node.type === "text") return node.text ?? "";
   if (node.type === "pageLink" || node.type === "pageMention") return String(node.attrs?.title ?? "");
+  if (node.type === "dateMention") return String(node.attrs?.date ?? "").replace("T", " ");
   const inner = (node.content ?? []).map(prosemirrorToText).join(BLOCK_TYPES.has(node.type) ? "" : "\n");
   return inner.replace(/\n{2,}/g, "\n");
 }
@@ -123,6 +126,8 @@ export function encodeContent(doc: Y.Doc) {
  */
 export function createCollab(db: Db) {
   const sockets = new Set<WebSocketLike & { close(code?: number, reason?: string): void }>();
+  // Who edited each open page since its last version.
+  const editors = new Map<string, Set<string>>();
   const hocuspocus = new Hocuspocus<CollabContext>({
     debounce: 1500,
     maxDebounce: 10000,
@@ -136,9 +141,19 @@ export function createCollab(db: Db) {
     },
 
     async onLoadDocument({ document, documentName }) {
-      const row = db.select({ state: pages.contentState }).from(pages).where(eq(pages.id, documentName)).get();
+      const row = db.select({ state: pages.contentState, json: pages.contentJson }).from(pages).where(eq(pages.id, documentName)).get();
       if (row?.state) Y.applyUpdate(document, new Uint8Array(row.state));
+      // The content as it was before anyone edits it, if the history doesn't have it yet.
+      if (row?.json) recordSnapshot(db, documentName, { content: row.json as ProseMirrorNode });
       return document;
+    },
+
+    async onChange({ documentName, context }) {
+      const userId = (context as CollabContext | undefined)?.userId;
+      if (!userId) return;
+      let set = editors.get(documentName);
+      if (!set) editors.set(documentName, (set = new Set()));
+      set.add(userId);
     },
 
     async onStoreDocument({ document, documentName }) {
@@ -147,6 +162,15 @@ export function createCollab(db: Db) {
         .set({ contentState: state, contentJson: json, contentText: text, updatedAt: new Date() })
         .where(eq(pages.id, documentName))
         .run();
+      syncReminders(db, documentName, json);
+      // A version every few minutes while people edit.
+      if (recordSnapshot(db, documentName, { content: json, authors: editors.get(documentName) })) editors.delete(documentName);
+    },
+
+    // And one when the last of them leaves.
+    async beforeUnloadDocument({ document, documentName }) {
+      recordSnapshot(db, documentName, { content: encodeContent(document).json, authors: editors.get(documentName), force: true });
+      editors.delete(documentName);
     },
   });
   return Object.assign(hocuspocus, {
@@ -187,4 +211,45 @@ export async function registerCollabRoute(app: FastifyInstance, collab: Collab) 
       connection.handleClose({ code, reason: reason.toString() });
     });
   });
+}
+
+/**
+ * Changes a page's content, through the live editing server when someone has it open, else on its stored state
+ * (devices that edited offline still merge their changes with it).
+ */
+export async function editContent(collab: Collab, db: Db, pageId: string, change: (doc: Y.Doc) => void) {
+  if (collab.documents.has(pageId)) {
+    const connection = await collab.openDirectConnection(pageId);
+    await connection.transact(change);
+    await connection.disconnect();
+    return;
+  }
+  const y = new Y.Doc();
+  const row = db.select({ state: pages.contentState }).from(pages).where(eq(pages.id, pageId)).get();
+  if (row?.state) Y.applyUpdate(y, new Uint8Array(row.state));
+  change(y);
+  const { state, json, text } = encodeContent(y);
+  db.update(pages)
+    .set({ contentState: state, contentJson: json, contentText: text })
+    .where(eq(pages.id, pageId))
+    .run();
+  syncReminders(db, pageId, json);
+}
+
+/** Replaces a page's content. */
+export async function writeContent(collab: Collab, db: Db, pageId: string, doc: ProseMirrorNode) {
+  await editContent(collab, db, pageId, (d) => setProsemirrorJSON(d, doc));
+}
+
+/** Adds blocks at the end of a page. */
+export async function appendContent(collab: Collab, db: Db, pageId: string, nodes: ProseMirrorNode[]) {
+  await editContent(collab, db, pageId, (d) => d.transact(() => fillY(d.getXmlFragment(CONTENT_FIELD), nodes)));
+}
+
+/** A page's content as it is now, with what people are typing included. */
+export function readContent(collab: Collab, db: Db, pageId: string): ProseMirrorNode {
+  const live = collab.documents.get(pageId);
+  if (live) return yDocToProsemirrorJSON(live);
+  const row = db.select({ json: pages.contentJson }).from(pages).where(eq(pages.id, pageId)).get();
+  return (row?.json as ProseMirrorNode | null) ?? { type: "doc", content: [] };
 }

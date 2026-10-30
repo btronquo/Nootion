@@ -1,12 +1,14 @@
 # Checks the code, then publishes the Docker image to the GitHub registry (ghcr.io/btronquo/nootion: the action lowercases the repository name).
-#   - pull request     -> tests only
-#   - push to main     -> tags "main" and "main-<commit>"
-#   - git tag "v1.2.3" -> tags "1.2.3", "1.2" and "latest"
+# Branches follow git flow (see CONTRIBUTING.md):
+#   - pull request        -> tests only
+#   - push to main        -> tests only (main only gets merged releases and hotfixes)
+#   - push to develop     -> tags "develop" and "develop-<commit>"
+#   - git tag "v1.2.3"    -> tags "1.2.3", "1.2" and "latest"
 name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
     tags: ["v*.*.*"]
   pull_request:
 
@@ -25,11 +27,13 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
+      # Text of attached PDFs and OCR of images, as in the Docker image.
+      - run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends poppler-utils tesseract-ocr tesseract-ocr-fra tesseract-ocr-eng
       - run: pnpm test
 
   docker-image:
     needs: test
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/develop' || startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -51,8 +55,8 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
-            type=raw,value=main,enable={{is_default_branch}}
-            type=sha,prefix=main-,enable={{is_default_branch}}
+            type=raw,value=develop,enable=${{ github.ref == 'refs/heads/develop' }}
+            type=sha,prefix=develop-,enable=${{ github.ref == 'refs/heads/develop' }}
       - uses: docker/build-push-action@v6
         with:
           context: .

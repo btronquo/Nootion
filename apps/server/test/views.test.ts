@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyView, groupRows, initialValues, moveToGroup, type DatabaseProperty, type DatabaseRow, type ViewContext } from "@nootion/shared";
+import { applyView, calendarDateProp, daysBetween, groupRows, initialValues, moveToGroup, rowDays, shiftDate, type DatabaseProperty, type DatabaseRow, type ViewContext } from "@nootion/shared";
 import { setLocaleResolver } from "@nootion/shared";
 
 // These tests check French messages and formats.
@@ -30,6 +30,8 @@ const row = (t: string, values: DatabaseRow["values"]): DatabaseRow => ({
   id: `r${++n}`,
   title: t,
   icon: null,
+  cover: null,
+  coverPosition: 50,
   values,
   createdAt: "",
   updatedAt: "",
@@ -129,5 +131,25 @@ describe("filters, sorts and groups", () => {
       ],
     };
     expect(initialValues(ctx, config, { prop: status, key: "s1" })).toEqual({ owner: ["u1"], paid: false, status: "s1" });
+  });
+});
+
+describe("calendar", () => {
+  it("places rows on their date column, over every day of a range", () => {
+    const created = prop("created", "created_time");
+    expect(calendarDateProp([title, created, due], null)?.id).toBe("due");
+    expect(calendarDateProp([title, created, due], "created")?.id).toBe("created");
+    expect(calendarDateProp([title, amount], null)).toBeUndefined();
+
+    expect(rowDays(due, row("A", { due: { start: "2026-10-30" } }))).toEqual(["2026-10-30"]);
+    expect(rowDays(due, row("B", { due: { start: "2026-10-30T09:00", end: "2026-11-02" } }))).toEqual(["2026-10-30", "2026-10-31", "2026-11-01", "2026-11-02"]);
+    expect(rowDays(due, row("C", { due: null }))).toEqual([]);
+  });
+
+  it("moves dates by days, keeping the time", () => {
+    expect(shiftDate("2026-10-30", 3)).toBe("2026-11-02");
+    expect(shiftDate("2026-03-28T09:30", 2)).toBe("2026-03-30T09:30");
+    expect(daysBetween("2026-10-30", "2026-11-02")).toBe(3);
+    expect(daysBetween("2026-03-30", "2026-03-28")).toBe(-2);
   });
 });

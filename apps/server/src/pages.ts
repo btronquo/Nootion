@@ -10,14 +10,18 @@ export function toSummary(p: Pick<PageRow, "id" | "kind" | "workspaceId" | "pare
   return { id: p.id, kind: p.kind, workspaceId: p.workspaceId, parentId: p.parentId, title: p.title, icon: p.icon, position: p.position };
 }
 
-export function toDetail(p: PageMeta, role: PageRole, breadcrumb: PageDetail["breadcrumb"]): PageDetail {
+export function toDetail(p: PageMeta, role: PageRole, breadcrumb: PageDetail["breadcrumb"], home = false): PageDetail {
   return {
     ...toSummary(p),
     role,
     breadcrumb,
     fullWidth: p.fullWidth,
+    cover: p.cover,
+    coverPosition: p.coverPosition,
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
+    home,
+    template: p.template,
   };
 }
 
@@ -59,12 +63,16 @@ export const pageMeta = {
   title: pages.title,
   icon: pages.icon,
   fullWidth: pages.fullWidth,
+  cover: pages.cover,
+  coverPosition: pages.coverPosition,
   position: pages.position,
   createdBy: pages.createdBy,
   createdAt: pages.createdAt,
   updatedAt: pages.updatedAt,
   deletedAt: pages.deletedAt,
   deletedBy: pages.deletedBy,
+  template: pages.template,
+  defaultTemplateId: pages.defaultTemplateId,
 };
 export type PageMeta = Omit<PageRow, "contentState" | "contentJson" | "contentText" | "props">;
 

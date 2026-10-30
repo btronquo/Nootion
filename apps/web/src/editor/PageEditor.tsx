@@ -46,7 +46,8 @@ interface Peer {
  * The document is also kept in the browser (IndexedDB): the page opens and can be edited offline,
  * and the changes merge with everyone else's when the connection comes back.
  */
-export function PageEditor({ page, canEdit }: { page: PageDetail; canEdit: boolean }) {
+/** `onEmpty` hears whether the page has no content yet (to offer templates). */
+export function PageEditor({ page, canEdit, onEmpty }: { page: PageDetail; canEdit: boolean; onEmpty?: (empty: boolean) => void }) {
   const [collab, setCollab] = useState<{ doc: Y.Doc; provider: HocuspocusProvider; local: IndexeddbPersistence } | null>(null);
   const plugins = usePlugins();
   useEffect(() => {
@@ -63,12 +64,13 @@ export function PageEditor({ page, canEdit }: { page: PageDetail; canEdit: boole
   // The editor's schema needs the plugins' blocks: without them, their blocks would be dropped from the page.
   if (plugins.isError) return <p className="text-sm text-red-600">{t("editor.pluginsFailed")}</p>;
   if (!collab || !plugins.data) return null;
-  return <CollabEditor key={page.id} page={page} canEdit={canEdit} doc={collab.doc} provider={collab.provider} local={collab.local} plugins={plugins.data} />;
+  return <CollabEditor key={page.id} page={page} canEdit={canEdit} onEmpty={onEmpty} doc={collab.doc} provider={collab.provider} local={collab.local} plugins={plugins.data} />;
 }
 
 function CollabEditor({
   page,
   canEdit,
+  onEmpty,
   doc,
   provider,
   local,
@@ -76,6 +78,7 @@ function CollabEditor({
 }: {
   page: PageDetail;
   canEdit: boolean;
+  onEmpty?: (empty: boolean) => void;
   doc: Y.Doc;
   provider: HocuspocusProvider;
   local: IndexeddbPersistence;
@@ -118,6 +121,7 @@ function CollabEditor({
       pageId: page.id,
       workspaceId: page.workspaceId,
       plugins,
+      userId: user?.id ?? null,
       onPageCreated: () => void refreshPages(),
       linkablePages: () => {
         const seen = new Map<string, PageSummary>();
@@ -126,14 +130,14 @@ function CollabEditor({
         return [...seen.values()];
       },
     }),
-    [page.id, page.workspaceId, qc, refreshPages, plugins],
+    [page.id, page.workspaceId, qc, refreshPages, plugins, user?.id],
   );
 
   const editor = useEditor(
     {
       editable: canEdit,
       extensions: [
-        ...baseExtensions({ collaborative: true, plugins }),
+        ...baseExtensions({ collaborative: true, plugins, pageId: page.id }),
         Collaboration.configure({ document: doc }),
         CollaborationCaret.configure({ provider, user: { name: user?.name ?? "?", color: colorFor(user?.id ?? "") } }),
         createSuggestionExtension("slashCommands", "/", slashItems(ctx), t("editor.noCommand")),
@@ -168,6 +172,17 @@ function CollabEditor({
   useEffect(() => {
     editor?.setEditable(editable);
   }, [editor, editable]);
+
+  useEffect(() => {
+    if (!editor || !onEmpty) return;
+    // Only once the server's copy is in: a page still loading looks empty.
+    const report = () => synced && onEmpty(editor.isEmpty);
+    report();
+    editor.on("update", report);
+    return () => {
+      editor.off("update", report);
+    };
+  }, [editor, onEmpty, synced]);
 
   return (
     <div>
@@ -227,7 +242,7 @@ function FormatMenu({ editor }: { editor: Editor }) {
       <button className={btn(state.strike)} onClick={() => editor.chain().focus().toggleStrike().run()} title={t("editor.strike")}>
         <Strikethrough size={15} />
       </button>
-      <button className={btn(state.code)} onClick={() => editor.chain().focus().toggleCode().run()} title="Code">
+      <button className={btn(state.code)} onClick={() => editor.chain().focus().toggleCode().run()} title={t("editor.code")}>
         <Code size={15} />
       </button>
       <button

@@ -11,6 +11,7 @@ import { PropertyIcon } from "../database/icons";
 import { PublicDatabase } from "../database/DatabaseBlockView";
 import { t } from "@nootion/shared";
 import { MobileBar, SidebarLayout } from "../components/SidebarLayout";
+import { CoverBanner } from "../components/PageCover";
 
 /** Read-only view of a page published with a public link. Works without an account. */
 export function PublicPage() {
@@ -19,7 +20,7 @@ export function PublicPage() {
   const currentId = pageId ?? site.data?.root.id;
   const page = useQuery({
     queryKey: ["public", token, currentId],
-    queryFn: async () => (await api<{ page: PageSummary & { updatedAt: string; content: JSONContent | null; row: PublicRow | null; fullWidth: boolean } }>(`/public/${token}/pages/${currentId}`)).page,
+    queryFn: async () => (await api<{ page: PageSummary & { updatedAt: string; content: JSONContent | null; row: PublicRow | null; fullWidth: boolean; cover: string | null; coverPosition: number } }>(`/public/${token}/pages/${currentId}`)).page,
     enabled: !!currentId,
   });
 
@@ -39,7 +40,8 @@ export function PublicPage() {
 
   const content = (
     <>
-        <div className={`mx-auto px-5 pb-24 pt-8 sm:px-12 sm:pt-16 ${page.data?.fullWidth ? "max-w-none sm:px-24" : page.data?.kind === "database" ? "max-w-6xl" : "max-w-3xl"}`}>
+        {page.data?.cover && <CoverBanner cover={page.data.cover} position={page.data.coverPosition} />}
+        <div className={`mx-auto px-5 pb-24 ${page.data?.cover ? "pt-6" : "pt-8 sm:pt-16"} sm:px-12 ${page.data?.fullWidth ? "max-w-none sm:px-24" : page.data?.kind === "database" ? "max-w-6xl" : "max-w-3xl"}`}>
           {page.data && (
             <>
               {page.data.icon && <div className="mb-2 text-5xl">{page.data.icon}</div>}
