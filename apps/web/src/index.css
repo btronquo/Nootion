@@ -231,6 +231,13 @@ body {
 .nootion-content .date-mention {
   @apply cursor-pointer whitespace-nowrap rounded px-0.5 text-neutral-500 before:content-['@'] hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800;
 }
+/* Someone mentioned: "@Alice". */
+.nootion-content .user-mention {
+  @apply whitespace-nowrap rounded px-0.5 font-medium text-blue-700 dark:text-blue-300;
+}
+.nootion-content .user-mention.ProseMirror-selectednode {
+  @apply bg-blue-100 dark:bg-blue-900/40;
+}
 .nootion-content .date-mention-remind {
   @apply text-blue-600 before:content-none dark:text-blue-400;
 }

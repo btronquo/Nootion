@@ -7,6 +7,7 @@ import fastifyStatic from "@fastify/static";
 import multipart from "@fastify/multipart";
 import websocket from "@fastify/websocket";
 import { createCollab, registerCollabRoute, type Collab } from "./collab.js";
+import { syncMentions } from "./mentions.js";
 import { attachmentRoutes } from "./routes/attachments.js";
 import { databaseRoutes } from "./routes/databases.js";
 import { cleanOrphanFiles } from "./attachments.js";
@@ -100,6 +101,7 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
   app.decorate("config", opts.config);
   const collab = createCollab(opts.db);
   app.decorate("collab", collab);
+  collab.storeHooks.onStored = (pageId, json) => void syncMentions(app, pageId, json).catch((err) => app.log.warn({ err }, "Couldn't send mentions"));
   app.addHook("onClose", async () => {
     collab.flushPendingStores();
     collab.closeConnections();

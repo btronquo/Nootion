@@ -178,7 +178,7 @@ more interface languages.
   in a chosen place, with dates filled in for the period.
 - **Quick capture** (done): an "Inbox" page per person, and a fast way to drop a note there (keyboard shortcut, share target
   of the installed mobile app, API), to file it later by moving it.
-- **Small blocks**: table of contents, toggle headings, and @mentions of people in the text (with a notification).
+- **Small blocks** (done): table of contents, toggle headings, and @mentions of people in the text (with a notification).
 - **Scheduled backups**: an automatic export (zip of Markdown and files, or the full backup) on a schedule, to a folder
   of the server (the NAS) or to Nextcloud, keeping the last N copies.
 - **Plugin property types**: a plugin adds a column type to databases (stored value, cell display and editor).

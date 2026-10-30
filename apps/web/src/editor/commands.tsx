@@ -27,12 +27,14 @@ import {
   Star,
   Bell,
   MousePointerClick,
+  ListTree,
 } from "lucide-react";
-import { currentLocale, parseNaturalDate, pluginNodeName, type ClientPluginInfo, type PageSummary } from "@nootion/shared";
+import { currentLocale, parseNaturalDate, pluginNodeName, type ClientPluginInfo, type PageSummary, type UserDirectoryEntry } from "@nootion/shared";
 import { formatMentionDate } from "../lib/reminders";
 import { api } from "../lib/api";
 import { pageTitle } from "../lib/tree";
 import { item } from "./suggestion";
+import { Avatar } from "../components/Avatar";
 import { insertFiles, insertUploaded, pickFiles } from "./upload";
 import { fileSources } from "../plugins/registry";
 import { t } from "@nootion/shared";
@@ -48,6 +50,8 @@ export interface CommandContext {
   plugins: ClientPluginInfo[];
   /** The user editing, who receives the reminders they set. */
   userId: string | null;
+  /** People who can be mentioned with "@". */
+  people: () => UserDirectoryEntry[];
 }
 
 const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -68,6 +72,7 @@ export function slashItems(ctx: CommandContext) {
     item("Toggle heading 1", t("command.toggleH1"), <ListCollapse size={16} />, (e, r) => del(e, r).insertToggle(1).run(), "collapse h1"),
     item("Toggle heading 2", t("command.toggleH2"), <ListCollapse size={16} />, (e, r) => del(e, r).insertToggle(2).run(), "collapse h2"),
     item("Toggle heading 3", t("command.toggleH3"), <ListCollapse size={16} />, (e, r) => del(e, r).insertToggle(3).run(), "collapse h3"),
+    item("Table of contents", t("command.toc"), <ListTree size={16} />, (e, r) => del(e, r).insertTableOfContents().run(), "toc outline summary headings"),
     item("2 columns", t("command.columns2"), <Columns2 size={16} />, (e, r) => del(e, r).insertColumns(2).run(), "columns side layout"),
     item("3 columns", t("command.columns3"), <Columns3 size={16} />, (e, r) => del(e, r).insertColumns(3).run(), "columns side layout"),
     item("Code", t("command.code"), <Code size={16} />, (e, r) => del(e, r).toggleCodeBlock().run(), "codeblock"),
@@ -194,7 +199,16 @@ export function mentionItems(ctx: CommandContext) {
         ),
       ];
     };
+    const people = ctx
+      .people()
+      .filter((u) => norm(u.name).includes(q) || norm(u.email).startsWith(q))
+      .slice(0, q ? 5 : 3)
+      .map((u) =>
+        item(u.name, t("editor.people"), <Avatar name={u.name} url={u.avatarUrl} size={18} />, (e, r) =>
+          e.chain().focus().deleteRange(r).insertUserMention({ userId: u.id, name: u.name, by: ctx.userId }).run(),
+        ),
+      );
     // A date typed comes first; with nothing typed yet, today's date comes after the pages.
-    return q.trim() ? [...date(query), ...pages] : [...pages, ...date("today")];
+    return q.trim() ? [...date(query), ...people, ...pages] : [...people, ...pages, ...date("today")];
   };
 }

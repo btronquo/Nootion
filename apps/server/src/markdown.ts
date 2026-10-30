@@ -36,6 +36,7 @@ function inline(nodes: ProseMirrorNode[] | undefined, links: MarkdownLinks): str
         return target ? `[${escapeText(title)}](${dest(target)})` : escapeText(title);
       }
       if (n.type === "dateMention") return escapeText(String(n.attrs?.date ?? "").replace("T", " "));
+      if (n.type === "userMention") return escapeText(`@${String(n.attrs?.name ?? "")}`);
       if (n.type === "image") return `![${escapeText(String(n.attrs?.alt ?? ""))}](${dest(fileUrl(n.attrs?.src, links))})`;
       if (n.type !== "text") return inline(n.content, links);
       const marks = n.marks ?? [];
@@ -139,6 +140,8 @@ function block(n: ProseMirrorNode, links: MarkdownLinks): string {
       const target = id ? links.page(id) : null;
       return target ? `[🗃 ${translate("common.database")}](${dest(target)})` : "";
     }
+    case "tableOfContents":
+      return "";
     case "calendarBlock":
       return calendarSources(n.attrs?.sources)
         .map((s) => links.page(s.databaseId))

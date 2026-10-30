@@ -29,11 +29,13 @@ export interface CommentThread {
 /** A mention or a reply that concerns the user. */
 export interface CommentNotification {
   id: string;
-  kind: "mention" | "reply";
+  /** A mention or a reply in comments, or a mention in the page itself. */
+  kind: "mention" | "reply" | "page_mention";
   pageId: string;
   pageTitle: string;
   pageIcon: string | null;
-  threadId: string;
+  /** Null for a mention in the page. */
+  threadId: string | null;
   actorName: string;
   /** The comment's text, mentions written as names. */
   excerpt: string;

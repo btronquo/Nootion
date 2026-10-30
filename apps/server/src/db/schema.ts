@@ -575,3 +575,25 @@ export const recurrences = sqliteTable("recurrences", {
     .references(() => users.id, { onDelete: "cascade" }),
   createdAt: createdAt(),
 });
+
+/** People mentioned in page content ("@Name"): one row per mention, which is also their notification. */
+export const pageMentions = sqliteTable(
+  "page_mentions",
+  {
+    id: text("id").primaryKey(),
+    pageId: text("page_id")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    // The id of the mention in the content.
+    mentionId: text("mention_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    actorId: text("actor_id").references(() => users.id, { onDelete: "set null" }),
+    // The line it is on, as it was written.
+    excerpt: text("excerpt").notNull().default(""),
+    readAt: integer("read_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("page_mentions_user_idx").on(t.userId, t.createdAt), uniqueIndex("page_mentions_unique").on(t.pageId, t.mentionId)],
+);

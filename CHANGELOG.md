@@ -14,6 +14,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Mention people in a page: type "@" and their name. They get a notification (in the app, and on their devices) if
+  they can read the page, listed with the comment ones in "Notifications".
+- "/table of contents": links to the page's headings, kept up to date, that scroll to them.
 - Quick capture: "Quick capture" in the sidebar, or Ctrl+Alt+N (⌘⌥N on a Mac), drops a note in your inbox, a page of
   your personal space made for it. The first line is the title. The installed app also takes what you share to it
   from other apps (a link, a text), and has a "Capture" shortcut on its icon. File a note by moving it, from the

@@ -192,7 +192,7 @@ function parseList(lines: string[], start: number, indent: number): { node: Pros
 const NODES = new Set([
   "doc", "paragraph", "text", "hardBreak", "heading", "bulletList", "orderedList", "listItem", "taskList", "taskItem", "blockquote",
   "codeBlock", "horizontalRule", "table", "tableRow", "tableHeader", "tableCell", "image", "callout", "details", "detailsSummary",
-  "detailsContent", "columns", "column", "fileAttachment", "pageLink", "dateMention", "databaseBlock", "calendarBlock",
+  "detailsContent", "columns", "column", "fileAttachment", "pageLink", "dateMention", "userMention", "databaseBlock", "calendarBlock", "tableOfContents",
   "recentPages", "favoritesList", "upcomingEvents", "databaseRows", "buttonBlock",
 ]);
 const MARKS = new Set(["bold", "italic", "strike", "underline", "code", "link"]);
@@ -223,6 +223,8 @@ export function checkContent(json: unknown, userId: string, maxNodes = 20_000): 
     let attrs = n.attrs && typeof n.attrs === "object" ? { ...n.attrs } : undefined;
     if (attrs) {
       for (const key of ["src", "url", "href"]) if (key in attrs && attrs[key] !== null && !SAFE_URL.test(String(attrs[key]))) attrs[key] = null;
+      // A mention sent through the API is the sender's.
+      if (n.type === "userMention") attrs = { ...attrs, id: typeof attrs.id === "string" && attrs.id ? attrs.id : randomUUID(), by: userId };
       if (n.type === "dateMention") {
         attrs.id = randomUUID();
         if (attrs.remindUser !== userId) attrs = { ...attrs, reminder: null, remindAt: null, remindUser: null };

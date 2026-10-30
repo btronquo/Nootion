@@ -42,7 +42,7 @@ function CommentNotifications() {
           return (
             <li key={n.id} className={`text-sm transition-colors ${fresh ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}`} data-comment-notification={n.id}>
               <Link
-                to={`/page/${n.pageId}?comment=${n.threadId}`}
+                to={n.threadId ? `/page/${n.pageId}?comment=${n.threadId}` : `/page/${n.pageId}`}
                 onClick={() => {
                   if (n.read) return;
                   qc.setQueryData<CommentNotification[]>(commentNotificationsKey, (old) => old?.map((x) => (x.id === n.id ? { ...x, read: true } : x)));
@@ -50,13 +50,15 @@ function CommentNotifications() {
                 }}
                 className="flex items-start gap-3 px-3 py-2"
               >
-                {n.kind === "mention" ? (
+                {n.kind !== "reply" ? (
                   <AtSign size={16} className="mt-0.5 shrink-0 text-blue-600" />
                 ) : (
                   <MessageSquare size={16} className="mt-0.5 shrink-0 text-neutral-400" />
                 )}
                 <span className="min-w-0 flex-1">
-                  <span className="block">{t(n.kind === "mention" ? "comments.mentionedYou" : "comments.repliedToYou", { name: n.actorName })}</span>
+                  <span className="block">{t(n.kind === "page_mention" ? "mentions.mentionedYou" : n.kind === "mention" ? "comments.mentionedYou" : "comments.repliedToYou", {
+                      name: n.actorName,
+                    })}</span>
                   <span className="block truncate text-neutral-600 dark:text-neutral-300">{n.excerpt}</span>
                   <span className="block truncate text-xs text-neutral-500">
                     {n.pageIcon ?? "📄"} {pageTitle(n.pageTitle)} ·{" "}

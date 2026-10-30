@@ -111,6 +111,7 @@ export function prosemirrorToText(node: ProseMirrorNode): string {
   if (node.type === "text") return node.text ?? "";
   if (node.type === "pageLink" || node.type === "pageMention") return String(node.attrs?.title ?? "");
   if (node.type === "dateMention") return String(node.attrs?.date ?? "").replace("T", " ");
+  if (node.type === "userMention") return `@${String(node.attrs?.name ?? "")}`;
   if (node.type === "buttonBlock") return String((node.attrs?.config as { label?: string } | undefined)?.label ?? "");
   const inner = (node.content ?? []).map(prosemirrorToText).join(BLOCK_TYPES.has(node.type) ? "" : "\n");
   return inner.replace(/\n{2,}/g, "\n");
@@ -129,6 +130,8 @@ export function createCollab(db: Db) {
   const sockets = new Set<WebSocketLike & { close(code?: number, reason?: string): void }>();
   // Who edited each open page since its last version.
   const editors = new Map<string, Set<string>>();
+  // Set by the app: what else to do once a page's content is saved.
+  const storeHooks: { onStored?: (pageId: string, json: ProseMirrorNode) => void } = {};
   const hocuspocus = new Hocuspocus<CollabContext>({
     debounce: 1500,
     maxDebounce: 10000,
@@ -164,6 +167,7 @@ export function createCollab(db: Db) {
         .where(eq(pages.id, documentName))
         .run();
       syncReminders(db, documentName, json);
+      storeHooks.onStored?.(documentName, json);
       // A version every few minutes while people edit.
       if (recordSnapshot(db, documentName, { content: json, authors: editors.get(documentName) })) editors.delete(documentName);
     },
@@ -176,6 +180,7 @@ export function createCollab(db: Db) {
   });
   return Object.assign(hocuspocus, {
     sockets,
+    storeHooks,
     /**
      * Drops every live socket. Clients reconnect within a second and are authenticated again,
      * so anyone who just lost access is cut off while everybody else keeps editing.
@@ -235,6 +240,7 @@ export async function editContent(collab: Collab, db: Db, pageId: string, change
     .where(eq(pages.id, pageId))
     .run();
   syncReminders(db, pageId, json);
+  collab.storeHooks.onStored?.(pageId, json);
 }
 
 /** Replaces a page's content. */

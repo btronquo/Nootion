@@ -7,6 +7,7 @@ import { DatabaseBlockView } from "../database/DatabaseBlockView";
 import { CalendarBlockView } from "../database/CalendarBlockView";
 import { DateMentionView } from "./DateMentionView";
 import { ButtonBlockView } from "./ButtonBlockView";
+import { TableOfContentsView } from "./TableOfContentsView";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { DatabaseRowsView, FavoritesListView, RecentPagesView, UpcomingEventsView } from "./HomeWidgets";
 import { intlLocale, reminderTime, t } from "@nootion/shared";
@@ -25,6 +26,8 @@ declare module "@tiptap/core" {
     columns: { insertColumns: (count: number) => ReturnType };
     buttonBlock: { insertButton: () => ReturnType };
     dateMention: { insertDate: (attrs: { date: string; reminder?: number | null; remindUser?: string | null }) => ReturnType };
+    userMention: { insertUserMention: (attrs: { userId: string; name: string; by: string | null }) => ReturnType };
+    tableOfContents: { insertTableOfContents: () => ReturnType };
   }
 }
 
@@ -540,5 +543,68 @@ export const ButtonBlock = Node.create<{ pageId: string | null }>({
         },
       }),
     ];
+  },
+});
+
+/** "@Name": someone mentioned in the text, who gets a notification. `by` is who wrote it. */
+export const UserMention = Node.create({
+  name: "userMention",
+  group: "inline",
+  inline: true,
+  atom: true,
+  selectable: true,
+  addAttributes() {
+    return { id: { default: null }, userId: { default: null }, name: { default: "" }, by: { default: null } };
+  },
+  parseHTML() {
+    return [
+      {
+        tag: "span[data-user-mention]",
+        getAttrs: (el) => ({ userId: (el as HTMLElement).dataset.userId || null, name: (el as HTMLElement).textContent?.replace(/^@/, "") ?? "" }),
+      },
+    ];
+  },
+  renderHTML({ node }) {
+    return ["span", { "data-user-mention": "", "data-user-id": node.attrs.userId ?? "", class: "user-mention" }, `@${node.attrs.name as string}`];
+  },
+  renderText({ node }) {
+    return `@${node.attrs.name as string}`;
+  },
+  addCommands() {
+    return {
+      insertUserMention:
+        ({ userId, name, by }) =>
+        ({ commands }) =>
+          commands.insertContent([
+            { type: this.name, attrs: { id: randomId(), userId, name, by } },
+            { type: "text", text: " " },
+          ]),
+    };
+  },
+});
+
+/** Links to the page's headings, kept up to date. */
+export const TableOfContents = Node.create({
+  name: "tableOfContents",
+  group: "block",
+  atom: true,
+  selectable: true,
+  draggable: true,
+  parseHTML() {
+    return [{ tag: "div[data-table-of-contents]" }];
+  },
+  renderHTML() {
+    return ["div", { "data-table-of-contents": "" }];
+  },
+  addNodeView() {
+    return ReactNodeViewRenderer(TableOfContentsView);
+  },
+  addCommands() {
+    return {
+      insertTableOfContents:
+        () =>
+        ({ commands }) =>
+          commands.insertContent([{ type: this.name }, { type: "paragraph" }]),
+    };
   },
 });
