@@ -6,7 +6,7 @@ import { api } from "../lib/api";
 import { useUserDirectory } from "../lib/queries";
 import { useSession } from "../lib/session";
 import { pageRoleLabel } from "../lib/labels";
-import { Button, ErrorText, Modal, Select } from "./ui";
+import { Button, CancelButton, ErrorText, Modal, Select } from "./ui";
 import { t } from "@nootion/shared";
 import { copyText } from "../lib/browser";
 
@@ -141,9 +141,7 @@ export function ShareDialog({ page, onClose }: { page: PageDetail; onClose: () =
       </section>
 
       <div className="mt-5 flex justify-end">
-        <Button variant="ghost" onClick={onClose}>
-          {t("common.close")}
-        </Button>
+        <CancelButton onClose={onClose} label={t("common.close")} />
       </div>
     </Modal>
   );
