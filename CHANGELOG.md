@@ -5,6 +5,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed
+
+- Calmer interface: dialogs fade and rise in, and fade out when closed; menus and popovers pop in; pages fade in
+  when you move between them; buttons respond to a press. Everything is off when the system asks for reduced motion.
+- Dialogs put the cursor in their first field, and Escape closes them even when the focus is elsewhere.
+
 ## [2.0.1] - 2026-10-30
 
 ### Fixed
