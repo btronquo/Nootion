@@ -33,6 +33,8 @@ import { automationRoutes } from "./routes/automations.js";
 import { createAutomations, type Automations } from "./automations.js";
 import { createRecurrences, type Recurrences } from "./recurrences.js";
 import { recurrenceRoutes } from "./routes/recurrences.js";
+import { createBackups, type Backups } from "./backups.js";
+import { backupRoutes } from "./routes/backups.js";
 import { userRoutes } from "./routes/users.js";
 import { publicRoutes } from "./routes/public.js";
 import { pluginAdminRoutes, pluginRoutes } from "./routes/plugins.js";
@@ -62,6 +64,7 @@ declare module "fastify" {
     notifier: Notifier;
     automations: Automations;
     recurrences: Recurrences;
+    backups: Backups;
   }
   interface FastifyRequest {
     user: UserRow | null;
@@ -124,6 +127,9 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
   const recurrenceRunner = createRecurrences(app);
   app.decorate("recurrences", recurrenceRunner);
   app.addHook("onClose", async () => recurrenceRunner.stop());
+  const backupRunner = createBackups(app);
+  app.decorate("backups", backupRunner);
+  app.addHook("onClose", async () => backupRunner.stop());
 
   await app.register(cookie, { secret: opts.config.appSecret });
   await app.register(rateLimit, { global: false });
@@ -223,6 +229,7 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
   await app.register(commentRoutes, { prefix: "/api" });
   await app.register(automationRoutes, { prefix: "/api" });
   await app.register(recurrenceRoutes, { prefix: "/api/pages" });
+  await app.register(backupRoutes, { prefix: "/api/admin/backups" });
   await app.register(favoriteRoutes, { prefix: "/api/favorites" });
   await app.register(calendarFeedRoutes, { prefix: "/api/calendar-feeds" });
   await app.register(icalRoutes, { prefix: "/api/ical" });

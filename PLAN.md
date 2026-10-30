@@ -179,8 +179,8 @@ more interface languages.
 - **Quick capture** (done): an "Inbox" page per person, and a fast way to drop a note there (keyboard shortcut, share target
   of the installed mobile app, API), to file it later by moving it.
 - **Small blocks** (done): table of contents, toggle headings, and @mentions of people in the text (with a notification).
-- **Scheduled backups**: an automatic export (zip of Markdown and files, or the full backup) on a schedule, to a folder
-  of the server (the NAS) or to Nextcloud, keeping the last N copies.
+- **Scheduled backups** (done): the full backup on a schedule, to a folder of the server (the NAS) or to Nextcloud
+  (WebDAV), keeping the last N copies. A scheduled Markdown export could come later.
 - **Plugin property types**: a plugin adds a column type to databases (stored value, cell display and editor).
 - **Google Calendar with a user's own OAuth client**: when the administrator hasn't set one, a user pastes their own
   client ID and secret in the block (the administrator's client stays the normal way).
