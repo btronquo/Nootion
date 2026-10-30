@@ -359,3 +359,25 @@ export const pushSubscriptions = sqliteTable(
   },
   (t) => [index("push_subscriptions_user_idx").on(t.userId)],
 );
+
+/** Personal API tokens: each one acts as its user, limited to some spaces, and possibly to reading. */
+export const apiTokens = sqliteTable(
+  "api_tokens",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    // SHA-256 of the token: it is shown once, at creation.
+    tokenHash: text("token_hash").notNull(),
+    // Its first characters, to tell tokens apart in the list.
+    prefix: text("prefix").notNull(),
+    workspaceIds: text("workspace_ids", { mode: "json" }).$type<string[]>().notNull(),
+    readOnly: integer("read_only", { mode: "boolean" }).notNull().default(true),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }),
+    lastUsedAt: integer("last_used_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("api_tokens_hash_unique").on(t.tokenHash), index("api_tokens_user_idx").on(t.userId)],
+);

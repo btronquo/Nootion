@@ -75,6 +75,8 @@ offline use and the Notion import.
 - Search inside attached files: PDFs, images and scans (OCR), text files.
 - Dates written in plain words (`@tomorrow 9am`, `@vendredi`, `@in 3 days`) with reminders, sent as notifications
   to the phone or computer.
+- REST API with personal tokens (per space, read-only or read and write): pages as Markdown, database queries,
+  rows, files, search. See [docs/API.md](docs/API.md).
 - Plugins: editor blocks, API routes, scheduled tasks and formula functions, turned on and set up in the
   administration. Ships with the "Embeds" plugin (`/embed`: YouTube, Vimeo, Spotify, Google Maps, Figma,
   link previews). See [docs/PLUGINS.md](docs/PLUGINS.md) to write your own.

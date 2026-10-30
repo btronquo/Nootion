@@ -57,6 +57,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   them, with the number of those due; each is marked as done from there. The app shows a notification when one falls
   due, and devices where "Get notifications on this device" is turned on receive it even with the app closed (Web
   Push; needs HTTPS, and on iPhone the app added to the home screen).
+- REST API with personal tokens ("My account › API tokens"): each token is limited to some spaces, read-only or
+  read and write, and can expire; it is shown once, and the list shows when each was last used. With a token,
+  scripts and apps read and write pages (content as Markdown or as the editor's JSON, changes shown live to people
+  editing), query databases (filters, sorts, pages of results; columns and options named by their names), add and
+  change rows, upload files and search. Tokens can't touch the account, sharing, public links or the
+  administration. Documented in [docs/API.md](docs/API.md).
 
 ### Fixed
 
