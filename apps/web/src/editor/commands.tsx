@@ -124,6 +124,19 @@ export function slashItems(ctx: CommandContext) {
     item("Upcoming events", t("command.upcomingEvents"), <CalendarClock size={16} />, (e, r) => del(e, r).insertWidget("upcomingEvents").run(), "widget agenda next home"),
     item("Database rows", t("command.databaseRows"), <ListChecks size={16} />, (e, r) => del(e, r).insertWidget("databaseRows").run(), "widget todo tasks list home"),
     item("Link to page", t("command.link"), <Link2 size={16} />, (e, r) => del(e, r).insertContent("@").run(), "mention"),
+    // Other places to pick files from (cloud drives…), from plugins (before their blocks: "/nextcloud" picks files, "/nextcloud link" a link block).
+    ...fileSources().map((source) =>
+      item(
+        source.label,
+        t("command.fileFrom", { source: source.label }),
+        <span className="w-4 text-center text-base leading-none">{source.icon ?? "📁"}</span>,
+        async (e, r) => {
+          del(e, r).run();
+          for (const up of (await source.pick({ pageId: ctx.pageId, multiple: true })) ?? []) insertUploaded(e, up);
+        },
+        `${source.keywords ?? ""} file image fichier`,
+      ),
+    ),
     // Blocks of enabled plugins.
     ...ctx.plugins
       .filter((p) => p.enabled)
@@ -141,19 +154,6 @@ export function slashItems(ctx: CommandContext) {
           ),
         ),
       ),
-    // Other places to pick files from (cloud drives…), from plugins.
-    ...fileSources().map((source) =>
-      item(
-        source.label,
-        t("command.fileFrom", { source: source.label }),
-        <span className="w-4 text-center text-base leading-none">{source.icon ?? "📁"}</span>,
-        async (e, r) => {
-          del(e, r).run();
-          for (const up of (await source.pick({ pageId: ctx.pageId, multiple: true })) ?? []) insertUploaded(e, up);
-        },
-        `${source.keywords ?? ""} file image fichier`,
-      ),
-    ),
   ];
   return ({ query }: { query: string }) => {
     const q = norm(query).trim();
