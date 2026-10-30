@@ -15,7 +15,7 @@ import { intlLocale, t } from "./i18n/index.js";
 
 /** Filters, sorts and groups of database views. Applied in the browser, on rows the reader can already see. */
 
-export const VIEW_TYPES = ["table", "board"] as const;
+export const VIEW_TYPES = ["table", "board", "list", "gallery", "calendar", "timeline"] as const;
 export type ViewType = (typeof VIEW_TYPES)[number];
 
 export const FILTER_OPERATORS = [
@@ -563,3 +563,44 @@ export function initialValues(
   if (group && canMoveBetweenGroups(group.prop.type)) values[group.prop.id] = moveToGroup(group.prop, values[group.prop.id] ?? null, "", group.key);
   return values;
 }
+
+/** Column a calendar places its rows on: the chosen one, or else the first date column. */
+export function calendarDateProp(properties: DatabaseProperty[], dateProperty?: string | null): DatabaseProperty | undefined {
+  const chosen = properties.find((p) => p.id === dateProperty && DATE_TYPES.includes(p.type));
+  return chosen ?? properties.find((p) => p.type === "date") ?? properties.find((p) => DATE_TYPES.includes(p.type));
+}
+
+/** Days (YYYY-MM-DD) a row covers on a calendar: its date, or every day of its date range. */
+export function rowDays(prop: DatabaseProperty, row: DatabaseRow): string[] {
+  const v = rawValue(prop, row);
+  if (!v) return [];
+  const start = dayOf(typeof v === "string" ? v : (v as DateValue).start);
+  const endRaw = typeof v === "string" ? null : (v as DateValue).end;
+  const end = endRaw ? dayOf(endRaw) : start;
+  if (end <= start) return [start];
+  const days: string[] = [];
+  const d = new Date(`${start}T00:00:00`);
+  // A year at most, so a mistyped range doesn't fill the calendar.
+  for (let i = 0; i < 366; i++) {
+    const day = localDay(d);
+    if (day > end) break;
+    days.push(day);
+    d.setDate(d.getDate() + 1);
+  }
+  return days;
+}
+
+/** Moves a stored date (YYYY-MM-DD, with or without a time) by some days, keeping the time. */
+export function shiftDate(value: string, days: number): string {
+  const day = value.slice(0, 10);
+  const d = new Date(`${day}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return localDay(d) + value.slice(10);
+}
+
+/** Number of days from one YYYY-MM-DD day to another. */
+export function daysBetween(from: string, to: string): number {
+  return Math.round((Date.UTC(+to.slice(0, 4), +to.slice(5, 7) - 1, +to.slice(8, 10)) - Date.UTC(+from.slice(0, 4), +from.slice(5, 7) - 1, +from.slice(8, 10))) / 86400000);
+}
+
+export { localDay };

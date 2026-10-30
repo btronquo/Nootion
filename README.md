@@ -3,7 +3,7 @@
 **An open-source, self-hosted alternative to Notion, Capacities and Docmost**: pages, wikis and real databases,
 on your own server, in a single Docker container.
 
-> Version 1.1.0. See [CHANGELOG.md](CHANGELOG.md) for what changed and [PLAN.md](PLAN.md) for what comes next.
+> Version 1.2.0. See [CHANGELOG.md](CHANGELOG.md) for what changed and [PLAN.md](PLAN.md) for what comes next.
 
 ## Why Nootion
 
@@ -14,7 +14,7 @@ the freedom of an open-source app you host yourself, and the databases that make
 - **Your data stays at home.** One container and one data folder (a SQLite file and your attached files):
   backing up Nootion is copying a folder. No telemetry, no external service needed.
 - **Real databases.** Typed columns, relations in both directions, rollups, Notion-like formulas, filters, sorts,
-  groups and calculations, table and board views, embedded in any page. Enough to run invoices, projects,
+  groups and calculations, table, board, list, gallery, calendar and timeline views, embedded in any page. Enough to run invoices, projects,
   a reading list or a CRM.
 - **Leave Notion without losing anything.** The Notion import brings pages, databases, relations, rollups,
   formulas, files and links between pages, and can run again to fetch what changed.
@@ -47,10 +47,10 @@ offline use and the Notion import.
 - Sign in / sign out, secure sessions (httpOnly cookie, argon2 password hashes).
 - Invitations by link (valid 7 days, optionally restricted to one email), admin / member roles, account disabling.
 - A private personal space for each user, and shared spaces with roles (owner, editor, commenter, viewer).
-- Page tree (subpages, drag and drop, icons), trash with restore.
+- Page tree (subpages, drag and drop, icons), cover images, trash with restore, favorites at the top of the sidebar.
 - Pages are private by default: share a page with a user (inherited by subpages), or through a revocable read-only public link.
   Every access check is done on the server (`apps/server/src/permissions.ts`) and covered by tests.
-- Notion-like page editor ("/" commands, to-do lists, tables, callouts, images and attached files,
+- Notion-like page editor ("/" commands, to-do lists, tables, callouts, toggles, columns, images and attached files,
   links between pages with "@"), with real-time collaborative editing.
 - Databases: typed columns (text, number, currency amount, percent, date, select, multi-select, checkbox, link,
   email, person, files, created time, last edited time, created by), table view (column order, width and visibility),
@@ -61,8 +61,22 @@ offline use and the Notion import.
   (e.g. the total of a supplier's invoices).
 - Notion-like formulas: `prop("Price") * 1.2`, `if(prop("Paid"), "OK", "To pay")`, `dateBetween(now(), prop("Due"), "days")`…
   Editor with live checking and function help; formulas work with relations, rollups and calculations.
-- Several views per database (table or board), each with its own filters (and / or, relative dates such as
-  "the next week"), sorts, groups and visible columns. Drag and drop between board columns.
+- Several views per database (table, board, list, gallery, calendar or timeline), each with its own filters
+  (and / or, relative dates such as "the next week"), sorts, groups and visible columns. Drag and drop between board
+  columns, between calendar days to change a date, and along the timeline to move or stretch a date range.
+- A `/calendar` block for any page: the dated rows of several databases on one calendar, each in its colour,
+  with a private iCal link to follow them in a phone or desktop calendar (Google, Apple, Outlook, Thunderbird).
+- A personal home page with widgets: recently visited pages, favorites, upcoming events, the first rows of a
+  database view (e.g. the open to-dos), arranged by each user.
+- Templates: row templates (content and default values, one used for every new row if chosen) and page templates
+  offered on any empty page, copied with their subpages, databases and files.
+- Page history: versions kept automatically with their authors, changes highlighted, any version restored.
+- Backlinks: each page lists the pages that mention it.
+- Search inside attached files: PDFs, images and scans (OCR), text files.
+- Dates written in plain words (`@tomorrow 9am`, `@vendredi`, `@in 3 days`) with reminders, sent as notifications
+  to the phone or computer.
+- REST API with personal tokens (per space, read-only or read and write): pages as Markdown, database queries,
+  rows, files, search. See [docs/API.md](docs/API.md).
 - Plugins: editor blocks, API routes, scheduled tasks and formula functions, turned on and set up in the
   administration. Ships with the "Embeds" plugin (`/embed`: YouTube, Vimeo, Spotify, Google Maps, Figma,
   link previews). See [docs/PLUGINS.md](docs/PLUGINS.md) to write your own.

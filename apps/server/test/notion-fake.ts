@@ -39,7 +39,7 @@ export function fakeNotion() {
   let notesEdited = "2024-01-02T10:00:00.000Z";
   let notesText = "First notes.";
   let breakContent = false;
-  const page = (id: string, parent: unknown, title: string, edited: string, icon: unknown = null) => ({
+  const page = (id: string, parent: unknown, title: string, edited: string, icon: unknown = null, cover: unknown = null) => ({
     object: "page",
     id,
     parent,
@@ -47,7 +47,7 @@ export function fakeNotion() {
     last_edited_time: edited,
     created_by: { id: IDS.ada },
     icon,
-    cover: null,
+    cover,
     archived: false,
     properties: { title: titleProp(title) },
   });
@@ -198,6 +198,7 @@ export function fakeNotion() {
     block("b4", "bulleted_list_item", { rich_text: [rt("two")] }),
     block("b5", "to_do", { rich_text: [rt("done task")], checked: true }),
     block("b6", "toggle", { rich_text: [rt("More")] }, [block("b6a", "paragraph", { rich_text: [rt("Hidden text")] })]),
+    block("b6b", "heading_2", { rich_text: [rt("Folded")], is_toggleable: true }, [block("b6c", "paragraph", { rich_text: [rt("Under the heading")] })]),
     block("b7", "callout", { rich_text: [rt("Careful")], icon: { type: "emoji", emoji: "⚠️" } }),
     block("b8", "code", { rich_text: [rt("let x = 1;")], language: "javascript" }),
     block("b9", "quote", { rich_text: [rt("Quoted")] }),
@@ -258,8 +259,11 @@ export function fakeNotion() {
         200,
         list(
           [
-            page(IDS.home, { type: "workspace", workspace: true }, "Home", "2024-01-02T09:00:00.000Z", { type: "emoji", emoji: "🏠" }),
-            page(IDS.notes, { type: "page_id", page_id: IDS.home }, "Notes", notesEdited, { type: "external", external: { url: "https://x/i.png" } }),
+            page(IDS.home, { type: "workspace", workspace: true }, "Home", "2024-01-02T09:00:00.000Z", { type: "emoji", emoji: "🏠" }, { type: "file", file: { url: `${base}/files/pic.png?cover=1` } }),
+            page(IDS.notes, { type: "page_id", page_id: IDS.home }, "Notes", notesEdited, { type: "external", external: { url: "https://x/i.png" } }, {
+              type: "external",
+              external: { url: "/images/page-cover/gradients_8.png" },
+            }),
             database(IDS.tasks, { type: "page_id", page_id: IDS.home }, "Tasks", tasksSchema, true),
             database(IDS.projects, { type: "workspace", workspace: true }, "Projects", projectsSchema, false),
             wiki(),

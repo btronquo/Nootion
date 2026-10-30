@@ -21,7 +21,7 @@ export function PluginsAdmin() {
 
   return (
     <section>
-      <h2 className="mb-1 text-lg font-semibold">Plugins</h2>
+      <h2 className="mb-1 text-lg font-semibold">{t("admin.plugins")}</h2>
       <p className="mb-3 text-sm text-neutral-500">
         <Rich text={t("plugins.help")} />
       </p>

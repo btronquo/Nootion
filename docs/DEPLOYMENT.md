@@ -20,11 +20,13 @@ The admin can also download a full backup from **Administration › Backup** (a 
 
 | Variable | Required | Description |
 |---|---|---|
-| `APP_URL` | yes | Address typed in the browser, without a trailing `/` (e.g. `http://<yourLocalIp>:3000` or `https://mynootion.example.com`). Used for invitation links and CSRF protection: always open Nootion at this address. |
+| `APP_URL` | yes | Address typed in the browser, without a trailing `/` (e.g. `http://<yourLocalIp>:3000` or `https://mynootion.example.com`). Used for invitation links, iCal links and CSRF protection: always open Nootion at this address. |
 | `APP_SECRET` | yes | Random string of at least 16 characters (`openssl rand -hex 32`). Generate it once and never change it: it encrypts the passwords stored in plugin settings. |
 | `TZ` | no | Time zone (e.g. `Europe/Paris`). |
 | `PORT` | no | Port the server listens on inside the container (default `3000`). To change the port on the host, change `ports:` instead. |
 | `MAX_UPLOAD_MB` | no | Maximum size of an attached file, in MB (default `50`). |
+| `OCR_LANGS` | no | Languages read in images and scanned PDFs, joined by `+` (default `fra+eng`). The image ships French and English; other languages need their `tesseract-ocr-<lang>` package. |
+| `API_RATE_LIMIT` | no | Requests a personal API token can make per minute (default `300`). See [API.md](API.md). |
 
 If Nootion sits behind an HTTPS reverse proxy, put the `https://…` URL in `APP_URL`: the session cookie then becomes `Secure`.
 The proxy must let **WebSockets** through on `/collab` (real-time collaborative editing): in Nginx Proxy Manager, tick *Websockets Support*.
@@ -33,7 +35,8 @@ Also check its upload size limit (`client_max_body_size` in Nginx) for attached 
 ## Installing with Docker
 
 The image is published on GitHub's registry for amd64 and arm64: `ghcr.io/btronquo/nootion`.
-Tags: `latest` (last release), `1.1.0`, `1.1` (last 1.1.x), and `main` (development version, to try what's coming).
+Tags: `latest` (last release), `1.2.0`, `1.2` (last 1.2.x), and `develop` (development version, to try what's coming;
+not for data you care about).
 
 ### With Docker Compose (recommended)
 
@@ -73,7 +76,7 @@ docker compose pull && docker compose up -d
 ```
 
 Database migrations are applied automatically at startup. Back up the data folder before a major update, and
-read the [CHANGELOG](../CHANGELOG.md). To stay on a version, use its tag (`ghcr.io/btronquo/nootion:1.1.0`)
+read the [CHANGELOG](../CHANGELOG.md). To stay on a version, use its tag (`ghcr.io/btronquo/nootion:1.2.0`)
 instead of `latest`.
 
 ### Building the image from the source code
@@ -82,8 +85,14 @@ instead of `latest`.
 git clone https://github.com/btronquo/Nootion.git nootion && cd nootion
 ```
 
-In `docker-compose.yml`, replace the `image:` line with the `build:` block given in comments, then
-`docker compose up -d --build`. To update: `git pull`, then the same command.
+Then build and start it with the `docker-compose.build.yml` overlay (a plain `docker compose up --build` keeps
+using the published image):
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+```
+
+To update: `git pull`, then the same command. To try the `develop` branch, `git checkout develop` first.
 
 ## Installing the app on a phone or computer
 
@@ -113,6 +122,15 @@ Pages and databases already opened on a device stay available without network, i
   (for example a row deleted meanwhile).
 - Signing out removes everything kept on the device for that account.
 
+### Notifications
+
+Reminders set on dates in pages ("@remind tomorrow 9am") show as notifications. While Nootion is open, the app shows
+them itself. To receive them with the app closed, open **Reminders** in the sidebar on each device and choose *Get
+notifications on this device*. This uses Web Push, which also needs **HTTPS**; on iPhone and iPad, Nootion must first
+be added to the home screen (iOS 16.4 or later). The server makes its push keys on first use and keeps them in
+`/data/vapid.json` (part of the backup): if that file is lost, each device has to turn notifications on again.
+The server must be able to reach the browsers' push services (Google, Mozilla, Apple) over HTTPS.
+
 ## Importing from Notion
 
 *My account › Import › Import from Notion* copies a Notion workspace into a Nootion space
@@ -138,7 +156,7 @@ What is not, or differently:
 
 - Notion's API doesn't give the views: each database gets a table view.
 - Formulas using what Nootion's formulas don't have (lists, `map`, `let`…) keep their values in a text column.
-- Toggles are shown open, columns are put one under the other, comments, covers, image icons and page history are left out.
+- Comments, image icons and page history are left out. Toggles, columns and covers are kept.
 
 The report at the end lists these cases. **Importing again** uses the saved secret: pages and rows changed in Notion
 since the last import are updated (their content is replaced, edits made in Nootion included), the others are left
@@ -148,18 +166,15 @@ Notion allows about three requests per second, so a large workspace takes a few 
 
 ## Publishing a new version of the image
 
-[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) publishes the image to GitHub's registry as `ghcr.io/btronquo/nootion` (no setup
-needed: it uses the token provided by GitHub Actions); [`.gitlab-ci.yml`](../.gitlab-ci.yml) does the same on GitLab. They run the tests, then build and publish the image:
+Branches follow git flow (see [CONTRIBUTING.md](../CONTRIBUTING.md#branches-and-releases)).
+[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs the tests on every pull request and on pushes to
+`main` and `develop`, and publishes the image to GitHub's registry as `ghcr.io/btronquo/nootion` (no setup needed:
+it uses the token provided by GitHub Actions):
 
-- on every push to the default branch: tags `main` and `main-<commit>` (to try the latest development version);
-- on every git tag `vX.Y.Z`: tags `X.Y.Z`, `X.Y` (GitHub only) and `latest`.
-
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
+- on every push to `develop`: tags `develop` and `develop-<commit>`;
+- on every git tag `vX.Y.Z` (put on `main` when a release is merged): tags `X.Y.Z`, `X.Y` and `latest`.
 
 On GitHub, the first published image is private: *Packages > nootion > Package settings > Change visibility > Public*.
-Also remember to update [CHANGELOG.md](../CHANGELOG.md) and to create the release (*Releases > Draft a new release*, tag `v1.0.0`).
+For each version, also create the release (*Releases > Draft a new release*) with the version's CHANGELOG section.
 
 To try the image locally before publishing: `docker build -f docker/Dockerfile -t nootion:local .`

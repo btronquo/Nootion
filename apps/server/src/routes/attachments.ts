@@ -36,6 +36,7 @@ export const attachmentRoutes: FastifyPluginAsync = async (app) => {
       .values({ id, pageId: req.params.id, filename, mimeType: file.mimetype || "application/octet-stream", size, createdBy: user.id })
       .returning()
       .get();
+    app.extractor.wake();
     return { attachment: { id: row.id, filename: row.filename, mimeType: row.mimeType, size: row.size, url: `/api/attachments/${row.id}` } };
   });
 

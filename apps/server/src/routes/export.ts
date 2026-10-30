@@ -64,6 +64,8 @@ export const exportRoutes: FastifyPluginAsync = async (app) => {
       }
     };
     for (const dir of ["uploads", "avatars", "plugins", "plugin-data"]) addDir(path.join(dataDir, dir), dir);
+    // The keys devices receive reminders with: without them, each device would have to turn notifications on again.
+    if (fs.existsSync(path.join(dataDir, "vapid.json"))) zip.addFile(path.join(dataDir, "vapid.json"), "vapid.json");
     zip.end();
     const cleanup = () => fs.rm(snapshot, { force: true }, () => {});
     zip.outputStream.on("end", cleanup).on("error", cleanup);

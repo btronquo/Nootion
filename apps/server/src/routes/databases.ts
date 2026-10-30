@@ -16,12 +16,18 @@ import {
   type DatabaseSummary,
   type PropertyConfig,
   type PropertyType,
+  applyView,
+  viewFilterSchema,
+  viewSortSchema,
 } from "@nootion/shared";
 import { and, eq, inArray, isNull, max } from "drizzle-orm";
 import { databaseProperties, databaseViews, pages } from "../db/schema.js";
 import { HttpError, notFound, parseBody, requireUser } from "../http.js";
 import { CAN_CREATE_ROOT_PAGES, getPageRole, requirePageRole, requireWorkspaceRole } from "../permissions.js";
 import { nextPosition } from "../pages.js";
+import { copyTree } from "../templates.js";
+import { writeContent } from "../collab.js";
+import { parseMarkdown } from "../markdown-in.js";
 import {
   collectPeople,
   convertColumn,
@@ -31,6 +37,8 @@ import {
   enrichRows,
   listProperties,
   listRowPages,
+  listViews,
+  listRowTemplates,
   loadDatabase,
   syncTwin,
   toRow,
@@ -74,6 +82,36 @@ function checkRollupConfig(db: Db, properties: DatabaseProperty[], config: Prope
     }
   }
 }
+
+/** A column named by its id or, for API users, by its name (any case). */
+function findProperty(properties: DatabaseProperty[], key: string): DatabaseProperty | undefined {
+  return properties.find((p) => p.id === key) ?? properties.find((p) => p.name.toLowerCase() === key.toLowerCase());
+}
+
+/** Cell values keyed by column names and with option names, as scripts write them, turned into ids. */
+function valuesByIds(properties: DatabaseProperty[], values: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(values)) {
+    const prop = findProperty(properties, key);
+    if (!prop) {
+      out[key] = value;
+      continue;
+    }
+    const option = (v: unknown) =>
+      typeof v === "string" ? (prop.config.options?.find((o) => o.id === v) ?? prop.config.options?.find((o) => o.name.toLowerCase() === v.toLowerCase()))?.id ?? v : v;
+    out[prop.id] = prop.type === "select" ? option(value) : prop.type === "multi_select" && Array.isArray(value) ? value.map(option) : value;
+  }
+  return out;
+}
+
+const queryInput = z.object({
+  viewId: z.string().min(1).optional(),
+  filters: z.array(viewFilterSchema.extend({ propertyId: z.string().min(1).max(200) })).max(50).optional(),
+  filterMode: z.enum(["and", "or"]).optional(),
+  sorts: z.array(viewSortSchema.extend({ propertyId: z.string().min(1).max(200) })).max(20).optional(),
+  limit: z.number().int().min(1).max(1000).default(100),
+  cursor: z.string().regex(/^\d+$/).optional(),
+});
 
 export const databaseRoutes: FastifyPluginAsync = async (app) => {
   const db = app.db;
@@ -135,6 +173,40 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     const user = requireUser(req);
     const { page, role } = requireDatabase(db, user.id, req.params.id, "viewer");
     return { database: loadDatabase(db, page, role, canReadAs(db, user.id)) };
+  });
+
+  // Rows filtered and sorted (by a view's settings, or by the ones given), a page at a time. For the API.
+  app.post<{ Params: { id: string } }>("/:id/query", async (req) => {
+    const user = requireUser(req);
+    const input = parseBody(queryInput, req.body ?? {});
+    const { page } = requireDatabase(db, user.id, req.params.id, "viewer");
+    const canRead = canReadAs(db, user.id);
+    const properties = listProperties(db, page.id);
+    const view = input.viewId ? listViews(db, page.id).find((v) => v.id === input.viewId) : undefined;
+    if (input.viewId && !view) throw notFound();
+    const idOf = (key: string) => {
+      const prop = findProperty(properties, key);
+      if (!prop) throw new HttpError(400, "unknown_property", t("error.unknownColumnName", { name: key }));
+      return prop.id;
+    };
+    // Options may be named too ("Done" for its id).
+    const filters =
+      input.filters?.map((f) => {
+        const propertyId = idOf(f.propertyId);
+        const multi = properties.find((p) => p.id === propertyId)?.type === "multi_select";
+        const named = typeof f.value === "string" ? valuesByIds(properties, { [propertyId]: multi ? [f.value] : f.value })[propertyId] : f.value;
+        const value = multi && Array.isArray(named) ? named[0] : named;
+        return { ...f, propertyId, value: value as typeof f.value };
+      }) ?? view?.config.filters;
+    const sorts = input.sorts?.map((s) => ({ ...s, propertyId: idOf(s.propertyId) })) ?? view?.config.sorts;
+    const all = listRowPages(db, page.id).map((r) => toRow(r, properties));
+    const { related, rollupTargets } = enrichRows(db, properties, all, canRead);
+    const people = collectPeople(db, properties, all, rollupTargets);
+    const rows = applyView({ properties, rows: all, people, related, rollupTargets, me: user.id }, { filters, filterMode: input.filterMode ?? view?.config.filterMode, sorts });
+    const start = Number(input.cursor ?? 0);
+    const slice = rows.slice(start, start + input.limit);
+    const next = start + input.limit < rows.length ? String(start + input.limit) : null;
+    return { properties, rows: slice, total: rows.length, nextCursor: next, people, related };
   });
 
   // --- Columns ---
@@ -308,10 +380,33 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     const input = parseBody(rowInput, req.body);
     const { page: database } = requireDatabase(db, user.id, req.params.id, "editor");
     const properties = listProperties(db, database.id);
+    input.values = valuesByIds(properties, input.values);
     checkRelationAccess(user.id, properties, input.values);
     const { values, title } = validateValues(db, properties, null, input.values);
-    const id = randomUUID();
+    const position = nextPosition(db, database.workspaceId, database.id);
+    // Without a choice, new rows start from the database's default template.
+    const templateId = input.templateId === undefined ? database.defaultTemplateId : input.templateId;
+    const template = templateId ? listRowTemplates(db, database.id).find((tpl) => tpl.id === templateId) : undefined;
+    if (input.templateId && !template) throw notFound();
+    let id: string = randomUUID();
+    if (template) {
+      id = await copyTree(db, app.collab, app.config.dataDir, template.id, { workspaceId: database.workspaceId, parentId: database.id, position, userId: user.id });
+    }
     db.transaction((tx) => {
+      if (template) {
+        const copy = tx.select({ props: pages.props, title: pages.title }).from(pages).where(eq(pages.id, id)).get()!;
+        const props = { ...(copy.props ?? {}) } as Record<string, CellValue>;
+        for (const [k, v] of Object.entries(values)) {
+          if (v === null) delete props[k];
+          else props[k] = v;
+        }
+        tx.update(pages)
+          .set({ props, title: title ?? input.title ?? copy.title })
+          .where(eq(pages.id, id))
+          .run();
+        for (const p of properties) if (p.type === "relation" && props[p.id]) syncTwin(tx, p, id, [], props[p.id] as string[]);
+        return;
+      }
       tx.insert(pages)
         .values({
           id,
@@ -320,13 +415,38 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
           parentId: database.id,
           title: title ?? input.title ?? "",
           props: values,
-          position: nextPosition(db, database.workspaceId, database.id),
+          position,
           createdBy: user.id,
         })
         .run();
       for (const p of properties) if (p.type === "relation" && values[p.id]) syncTwin(tx, p, id, [], values[p.id] as string[]);
     });
+    // The row's page content, given at once through the API.
+    const markdown = (req.body as { markdown?: unknown } | null)?.markdown;
+    if (typeof markdown === "string" && markdown.trim()) await writeContent(app.collab, db, id, parseMarkdown(markdown.slice(0, 2_000_000)));
     return rowResponse(user.id, database.id, id);
+  });
+
+  // --- Row templates ---
+
+  // A new, empty template; it is then edited like a row.
+  app.post<{ Params: { id: string } }>("/:id/templates", async (req) => {
+    const user = requireUser(req);
+    const { page: database } = requireDatabase(db, user.id, req.params.id, "editor");
+    const id = randomUUID();
+    db.insert(pages)
+      .values({ id, kind: "row", template: true, workspaceId: database.workspaceId, parentId: database.id, title: "", props: {}, createdBy: user.id })
+      .run();
+    return { template: { id, title: "", icon: null } };
+  });
+
+  app.put<{ Params: { id: string } }>("/:id/default-template", async (req) => {
+    const user = requireUser(req);
+    const { templateId } = parseBody(z.object({ templateId: z.string().min(1).nullable() }), req.body);
+    requireDatabase(db, user.id, req.params.id, "editor");
+    if (templateId && !listRowTemplates(db, req.params.id).some((tpl) => tpl.id === templateId)) throw notFound();
+    db.update(pages).set({ defaultTemplateId: templateId }).where(eq(pages.id, req.params.id)).run();
+    return { ok: true };
   });
 
   app.get<{ Params: { id: string; rowId: string } }>("/:id/rows/:rowId", async (req) => {
@@ -352,6 +472,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     const input = parseBody(rowInput, req.body);
     requireRow(db, user.id, req.params.id, req.params.rowId, "editor");
     const properties = listProperties(db, req.params.id);
+    input.values = valuesByIds(properties, input.values);
     checkRelationAccess(user.id, properties, input.values);
     const { values, title } = validateValues(db, properties, req.params.rowId, input.values);
     db.transaction((tx) => {

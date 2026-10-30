@@ -1,5 +1,5 @@
 import type { ProseMirrorNode } from "./collab.js";
-import { t as translate } from "@nootion/shared";
+import { calendarSources, t as translate } from "@nootion/shared";
 
 /** How links of an exported page point to the other files of the export. */
 export interface MarkdownLinks {
@@ -35,6 +35,7 @@ function inline(nodes: ProseMirrorNode[] | undefined, links: MarkdownLinks): str
         const target = links.page(String(n.attrs?.pageId ?? ""));
         return target ? `[${escapeText(title)}](${dest(target)})` : escapeText(title);
       }
+      if (n.type === "dateMention") return escapeText(String(n.attrs?.date ?? "").replace("T", " "));
       if (n.type === "image") return `![${escapeText(String(n.attrs?.alt ?? ""))}](${dest(fileUrl(n.attrs?.src, links))})`;
       if (n.type !== "text") return inline(n.content, links);
       const marks = n.marks ?? [];
@@ -106,6 +107,12 @@ function block(n: ProseMirrorNode, links: MarkdownLinks): string {
         .split("\n")
         .map((l) => (l ? `> ${l}` : ">"))
         .join("\n");
+    case "details": {
+      // HTML <details>, which most Markdown readers show as a toggle.
+      const [summary, body] = n.content ?? [];
+      const inner = body ? block(body, links) : "";
+      return `<details>\n<summary>${inline(summary?.content, links)}</summary>\n\n${inner}\n\n</details>`;
+    }
     case "codeBlock": {
       const code = (n.content ?? []).map((t) => t.text ?? "").join("");
       const fence = code.includes("```") ? "~~~~" : "```";
@@ -132,6 +139,12 @@ function block(n: ProseMirrorNode, links: MarkdownLinks): string {
       const target = id ? links.page(id) : null;
       return target ? `[🗃 ${translate("common.database")}](${dest(target)})` : "";
     }
+    case "calendarBlock":
+      return calendarSources(n.attrs?.sources)
+        .map((s) => links.page(s.databaseId))
+        .filter((target): target is string => !!target)
+        .map((target) => `[📅 ${translate("common.database")}](${dest(target)})`)
+        .join("\n\n");
     default: {
       // Plugin blocks keep a link when their data has one (embeds…).
       if (n.type.startsWith("plugin_")) {

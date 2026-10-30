@@ -35,6 +35,9 @@ import { useActiveView, useDatabase, useDatabaseActions, useDatabaseList } from 
 import { ViewBar } from "./ViewBar";
 import { BoardView } from "./BoardView";
 import { RowCards } from "./RowCards";
+import { GalleryView, ListView } from "./MoreViews";
+import { CalendarView } from "./Calendar";
+import { TimelineView } from "./TimelineView";
 import { useIsMobile } from "../lib/mobile";
 import { OptionChip } from "./OptionPicker";
 import { useSession } from "../lib/session";
@@ -78,6 +81,22 @@ export function DatabaseViews(props: ViewProps) {
       {view?.type === "board" ? (
         <div className="pt-2">
           <BoardView {...props} view={view} ctx={ctx} rows={rows} editable={editable} />
+        </div>
+      ) : view?.type === "list" ? (
+        <div className="pt-1">
+          <ListView {...props} view={view} ctx={ctx} rows={rows} editable={editable} />
+        </div>
+      ) : view?.type === "gallery" ? (
+        <div className="pt-3">
+          <GalleryView {...props} view={view} ctx={ctx} rows={rows} editable={editable} />
+        </div>
+      ) : view?.type === "timeline" ? (
+        <div className="pt-2">
+          <TimelineView {...props} view={view} ctx={ctx} rows={rows} editable={editable} />
+        </div>
+      ) : view?.type === "calendar" ? (
+        <div className="pt-2">
+          <CalendarView {...props} view={view} ctx={ctx} rows={rows} editable={editable} />
         </div>
       ) : (
         <TableView {...props} view={view} ctx={ctx} rows={rows} />

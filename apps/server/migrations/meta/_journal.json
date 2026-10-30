@@ -64,6 +64,69 @@
       "when": 1793276754623,
       "tag": "0008_notion_import",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1793293079650,
+      "tag": "0009_favorites",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1793293630529,
+      "tag": "0010_covers",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1793299473257,
+      "tag": "0011_calendar_feeds",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1793300203378,
+      "tag": "0012_home_page",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1793303092650,
+      "tag": "0013_templates",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1793304212576,
+      "tag": "0014_page_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1793306431941,
+      "tag": "0015_file_search",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1793307245188,
+      "tag": "0016_reminders",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1793345248824,
+      "tag": "0017_api_tokens",
+      "breakpoints": true
     }
   ]
 }
