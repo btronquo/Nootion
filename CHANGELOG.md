@@ -13,6 +13,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Comments: select text and comment on it, or comment on the whole page, from the comments panel. Threads have
+  replies, can be resolved and reopened, and follow their passage as the page is edited. People with the
+  "commenter" role can take part. Type "@" to mention someone: they get a notification, as do the others in the
+  thread when it gets a reply. "Reminders" in the sidebar becomes "Notifications" and lists them too.
 - A new subpage gets a link at the end of its parent page, as in Notion (from the sidebar, the API, the MCP server
   or a button). It is an ordinary link: remove it if you don't want it.
 

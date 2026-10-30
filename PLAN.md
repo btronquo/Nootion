@@ -168,7 +168,7 @@ more interface languages.
 
 ## 10. Version 3
 
-- **Comments**: discussion threads on a selected passage or on the whole page, with replies, @mentions of people (who
+- **Comments** (done): discussion threads on a selected passage or on the whole page, with replies, @mentions of people (who
   get a notification) and threads marked as resolved. People with the "commenter" role can take part, readers see
   them. Comments are kept apart from the content (not in the page history), and shown in a side panel.
 - **Database automations**: "when a row is added / when a property changes (to a value) / when a date arrives", run
