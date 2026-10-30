@@ -18,6 +18,7 @@ import {
   type PluginFormulaFunction,
   type PluginManifest,
   localizeBlock,
+  localizePropertyType,
   localizeSetting,
   localized,
   currentLocale,
@@ -491,9 +492,16 @@ export class PluginManager {
         enabled,
         clientUrl: enabled && p.manifest.client ? `/api/plugins/${p.manifest.id}/client.js?v=${encodeURIComponent(p.manifest.version)}` : null,
         blocks: p.manifest.blocks.map(localizeBlock),
+        propertyTypes: p.manifest.propertyTypes.map(localizePropertyType),
         formulaFunctions: p.runtime?.formulas.map((f) => f.info) ?? [],
       };
     });
+  }
+
+  /** A column type of an enabled plugin. */
+  propertyType(pluginId: string, typeId: string) {
+    const p = this.installed.get(pluginId);
+    return p?.runtime ? p.manifest.propertyTypes.find((x) => x.id === typeId) : undefined;
   }
 
   /** The browser code of an enabled plugin. */

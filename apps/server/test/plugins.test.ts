@@ -73,6 +73,7 @@ describe("plugins", () => {
       ["embed", true, true],
       ["google_calendar", false, true],
       ["nextcloud", false, true],
+      ["rating", false, true],
       ["demo", false, false],
     ]);
     expect(admin.broken).toHaveLength(1);
@@ -159,5 +160,33 @@ describe("plugins", () => {
     } finally {
       server.close();
     }
+  });
+});
+
+describe("plugin column types", () => {
+  it("adds columns whose cells keep a text, only while the plugin is on", async () => {
+    const ws = await boris.personalWorkspace();
+    const db = (await boris.post("/api/databases", { workspaceId: ws, parentId: null, title: "Films" })).json().database.id;
+    const stars = { name: "Note", type: "plugin", config: { plugin: { id: "rating", type: "stars" } } };
+    expect((await boris.post(`/api/databases/${db}/properties`, stars)).statusCode).toBe(400);
+    await boris.patch("/api/admin/plugins/rating", { enabled: true });
+    const types = (await boris.get("/api/plugins")).json().plugins.find((p: { id: string }) => p.id === "rating").propertyTypes;
+    expect(types).toEqual([{ id: "stars", name: "Note", description: "D'une à cinq étoiles", icon: "⭐" }]);
+    expect((await boris.post(`/api/databases/${db}/properties`, { ...stars, config: { plugin: { id: "rating", type: "nope" } } })).statusCode).toBe(400);
+    const prop = (await boris.post(`/api/databases/${db}/properties`, stars)).json().property;
+    expect(prop).toMatchObject({ type: "plugin", config: { plugin: { id: "rating", type: "stars" } } });
+
+    const row = (await boris.post(`/api/databases/${db}/rows`, { title: "Alien", values: { [prop.id]: "5" } })).json().row;
+    expect(row.values[prop.id]).toBe("5");
+    expect((await boris.patch(`/api/databases/${db}/rows/${row.id}`, { values: { [prop.id]: 4 } })).statusCode).toBe(400);
+    // Its type stays, and it filters and sorts as a text.
+    await boris.patch(`/api/databases/${db}/properties/${prop.id}`, { config: { plugin: { id: "embed", type: "x" } } });
+    expect((await boris.get(`/api/databases/${db}`)).json().database.properties.find((p: { id: string }) => p.id === prop.id).config.plugin).toEqual({
+      id: "rating",
+      type: "stars",
+    });
+    expect((await boris.patch(`/api/databases/${db}/properties/${prop.id}`, { type: "text" })).statusCode).toBe(400);
+    const q = (await boris.post(`/api/databases/${db}/query`, { filter: { propertyId: prop.id, operator: "is", value: "5" } })).json();
+    expect(q.rows.map((r: { title: string }) => r.title)).toEqual(["Alien"]);
   });
 });

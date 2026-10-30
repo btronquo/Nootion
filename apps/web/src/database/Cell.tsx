@@ -24,6 +24,7 @@ import { pageTitle } from "../lib/tree";
 import { OptionChip, OptionPicker } from "./OptionPicker";
 import { Popover } from "./Popover";
 import { ButtonAction } from "../buttons/ButtonAction";
+import { pluginCell } from "../plugins/PluginCell";
 import { t } from "@nootion/shared";
 
 export interface CellProps {
@@ -87,7 +88,13 @@ export function Cell(props: CellProps) {
     );
   }
 
-  const inline = ["title", "text", "number", "currency", "percent", "url", "email", "date"].includes(prop.type);
+  if (prop.type === "plugin") {
+    const drawn = pluginCell(prop, { value, editable: canEdit, variant: props.variant ?? "table", onChange: props.onChange });
+    if (drawn) return drawn;
+  }
+
+  // A plugin column whose plugin is off is edited as a plain text.
+  const inline = ["title", "text", "number", "currency", "percent", "url", "email", "date", "plugin"].includes(prop.type);
   return (
     <div
       ref={ref}

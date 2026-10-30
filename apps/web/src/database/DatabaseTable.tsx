@@ -43,6 +43,7 @@ import { OptionChip } from "./OptionPicker";
 import { useSession } from "../lib/session";
 import { pageTitle } from "../lib/tree";
 import { CREATABLE_TYPES } from "@nootion/shared";
+import { usePluginPropertyTypes } from "../plugins/registry";
 
 const DEFAULT_WIDTH = 180;
 const TITLE_WIDTH = 260;
@@ -148,6 +149,7 @@ export function TableView({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [menu, setMenu] = useState<{ propId: string; anchor: HTMLElement } | null>(null);
   const [adding, setAdding] = useState<HTMLElement | null>(null);
+  const pluginTypes = usePluginPropertyTypes();
   const [addingRelation, setAddingRelation] = useState(false);
   const [calcMenu, setCalcMenu] = useState<{ propId: string; anchor: HTMLElement } | null>(null);
   const [showHidden, setShowHidden] = useState<HTMLElement | null>(null);
@@ -497,7 +499,7 @@ export function TableView({
         <Popover anchor={adding} onClose={() => setAdding(null)} width={220}>
           <div className="max-h-80 overflow-y-auto">
             <div className="px-2 py-1 text-xs text-neutral-500">{t("table.newColumnType")}</div>
-            {CREATABLE_TYPES.map((type: PropertyType) => (
+            {CREATABLE_TYPES.filter((type) => type !== "plugin").map((type: PropertyType) => (
               <button
                 key={type}
                 onClick={async () => {
@@ -511,6 +513,20 @@ export function TableView({
                 className="flex w-full items-center gap-2 rounded px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800"
               >
                 <PropertyIcon type={type} size={14} /> {typeLabel(type)}
+              </button>
+            ))}
+            {pluginTypes.map((pt) => (
+              <button
+                key={`${pt.pluginId}.${pt.id}`}
+                title={pt.description}
+                data-plugin-type={`${pt.pluginId}.${pt.id}`}
+                onClick={async () => {
+                  setAdding(null);
+                  await actions.addProperty.mutateAsync({ name: uniqueName(data, pt.name), type: "plugin", config: { plugin: { id: pt.pluginId, type: pt.id } } });
+                }}
+                className="flex w-full items-center gap-2 rounded px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              >
+                <span className="w-3.5 text-center text-xs">{pt.icon}</span> {pt.name}
               </button>
             ))}
           </div>

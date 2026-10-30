@@ -1,7 +1,7 @@
 # Writing a Nootion plugin
 
-A plugin adds editor **blocks** (`/` command), **API routes**, **scheduled tasks** and **formula functions**
-to Nootion. The administrator turns it on and off and fills in its settings in **Administration › Plugins**.
+A plugin adds editor **blocks** (`/` command), **database column types**, **API routes**, **scheduled tasks** and
+**formula functions** to Nootion. The administrator turns it on and off and fills in its settings in **Administration › Plugins**.
 
 > Plugins are installed on trust, as on any personal server: their server code runs with the same rights
 > as Nootion. Only install plugins whose source you know.
@@ -37,6 +37,9 @@ my_plugin/
   "client": "client.js",
   "blocks": [
     { "id": "map", "title": "My map", "description": "Text of the / menu", "icon": "🗺️", "keywords": "map plan", "defaultData": {} }
+  ],
+  "propertyTypes": [
+    { "id": "stars", "name": "Rating", "description": "One to five stars", "icon": "⭐" }
   ],
   "settings": [
     { "key": "apiKey", "label": "API key", "type": "password", "help": "Encrypted on the server." },
@@ -149,6 +152,25 @@ export function activate(nootion) {
 The application's Tailwind classes aren't available to plugins: use inline styles.
 An element with the `nootion-hover-only` class only shows when the block is hovered (handy for edit buttons).
 If the component crashes, only the block shows an error; the rest of the page keeps working.
+
+### Database column types
+
+A column type declared in `propertyTypes` is offered with the others when adding a column to a database. Its cells
+keep a **text** (up to 20,000 characters): the plugin decides what it holds (a number, a code, JSON…) and how it
+looks and is edited. Nootion filters, sorts, groups, searches and exports it as a text, so pick a text that reads
+well in a CSV.
+
+```js
+nootion.registerPropertyType("stars", {
+  // value: the text, or null when empty. setValue(text or null) saves it. editable: false for readers.
+  // variant: "table" (a compact, one-line cell) or "panel" (an opened row's properties, a card).
+  Cell: ({ value, setValue, editable, variant }) => h(Stars, { value, setValue, editable }),
+});
+```
+
+The component handles clicks and typing itself (stop the click's propagation if it opens something). When the plugin
+is off, its columns stay and their cells show and edit the plain text. The **Ratings** plugin that ships with Nootion
+is a small example: [`apps/server/plugins/rating`](../apps/server/plugins/rating).
 
 ### Other places to pick files from
 

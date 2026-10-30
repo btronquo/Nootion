@@ -1,0 +1,19 @@
+{
+  "id": "rating",
+  "name": { "en": "Ratings", "fr": "Notes (étoiles)" },
+  "version": "1.0.0",
+  "description": {
+    "en": "Adds a \"Rating\" column type to databases: one to five stars, set with a click. An example of a plugin column type.",
+    "fr": "Ajoute un type de colonne « Note » aux bases : d'une à cinq étoiles, choisies d'un clic. Un exemple de type de colonne venant d'un plugin."
+  },
+  "author": "Nootion",
+  "client": "client.js",
+  "propertyTypes": [
+    {
+      "id": "stars",
+      "name": { "en": "Rating", "fr": "Note" },
+      "description": { "en": "One to five stars", "fr": "D'une à cinq étoiles" },
+      "icon": "⭐"
+    }
+  ]
+}
