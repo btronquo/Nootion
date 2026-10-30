@@ -36,7 +36,7 @@ Also check its upload size limit (`client_max_body_size` in Nginx) for attached 
 ## Installing with Docker
 
 The image is published on GitHub's registry for amd64 and arm64: `ghcr.io/btronquo/nootion`.
-Tags: `latest` (last release), `1.2.0`, `1.2` (last 1.2.x), and `develop` (development version, to try what's coming;
+Tags: `latest` (last release), `2.0.0`, `2.0` (last 2.0.x), and `develop` (development version, to try what's coming;
 not for data you care about).
 
 ### With Docker Compose (recommended)
@@ -77,7 +77,7 @@ docker compose pull && docker compose up -d
 ```
 
 Database migrations are applied automatically at startup. Back up the data folder before a major update, and
-read the [CHANGELOG](../CHANGELOG.md). To stay on a version, use its tag (`ghcr.io/btronquo/nootion:1.2.0`)
+read the [CHANGELOG](../CHANGELOG.md). To stay on a version, use its tag (`ghcr.io/btronquo/nootion:2.0.0`)
 instead of `latest`.
 
 ### Building the image from the source code
