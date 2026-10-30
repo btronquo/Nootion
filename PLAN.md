@@ -166,8 +166,21 @@ more interface languages.
 - Per-user plugin credentials (done): plugins keep encrypted data per user (Nextcloud app passwords, Google OAuth
   tokens), listed in "My account › Connected services". Still to do: plugin property types.
 
-Backlog after V2:
+## 10. Version 3
 
-- Google Calendar: when the administrator hasn't set the OAuth client, let a user paste their own client ID and secret
-  in the block (the administrator's client stays the normal way).
-- Plugin property types: a plugin adds a column type to databases (stored value, cell display and editor).
+- **Comments**: discussion threads on a selected passage or on the whole page, with replies, @mentions of people (who
+  get a notification) and threads marked as resolved. People with the "commenter" role can take part, readers see
+  them. Comments are kept apart from the content (not in the page history), and shown in a side panel.
+- **Database automations**: "when a row is added / when a property changes (to a value) / when a date arrives", run
+  steps, the same steps as buttons (change the row, add a row elsewhere, create a page, call a webhook). For example
+  "Status set to Paid → fill in the payment date". Each automation can be paused, and its last runs are listed.
+- **Recurring templates**: a page or row template created on a schedule (every Monday, on the 1st of the month…),
+  in a chosen place, with dates filled in for the period.
+- **Quick capture**: an "Inbox" page per person, and a fast way to drop a note there (keyboard shortcut, share target
+  of the installed mobile app, API), to file it later by moving it.
+- **Small blocks**: table of contents, toggle headings, and @mentions of people in the text (with a notification).
+- **Scheduled backups**: an automatic export (zip of Markdown and files, or the full backup) on a schedule, to a folder
+  of the server (the NAS) or to Nextcloud, keeping the last N copies.
+- **Plugin property types**: a plugin adds a column type to databases (stored value, cell display and editor).
+- **Google Calendar with a user's own OAuth client**: when the administrator hasn't set one, a user pastes their own
+  client ID and secret in the block (the administrator's client stays the normal way).
