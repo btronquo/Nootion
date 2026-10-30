@@ -19,6 +19,8 @@ export const users = sqliteTable(
     avatar: text("avatar"),
     // Interface language ("en", "fr"…).
     locale: text("locale").notNull().default("en"),
+    // The user's home page (a page of their personal workspace), created on first visit.
+    homePageId: text("home_page_id"),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("users_email_unique").on(t.email)],
@@ -88,6 +90,10 @@ export const pages = sqliteTable(
     title: text("title").notNull().default(""),
     icon: text("icon"),
     fullWidth: integer("full_width", { mode: "boolean" }).notNull().default(false),
+    /** Banner at the top of the page: an attachment, an image link or a built-in gradient (see coverSchema). */
+    cover: text("cover"),
+    /** Vertical position of the cover image, from 0 (top) to 100 (bottom). */
+    coverPosition: integer("cover_position").notNull().default(50),
     // Fractional-free ordering: siblings are sorted by position, then creation time.
     position: integer("position").notNull().default(0),
     createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
@@ -105,8 +111,28 @@ export const pages = sqliteTable(
     contentText: text("content_text"),
     // Rows only: cell values by property id.
     props: text("props", { mode: "json" }).$type<Record<string, unknown>>(),
+    // A page template (offered when starting an empty page), or a row template of its database (hidden from its rows).
+    template: integer("template", { mode: "boolean" }).notNull().default(false),
+    // Databases only: the row template new rows start from, if any.
+    defaultTemplateId: text("default_template_id"),
   },
   (t) => [index("pages_workspace_idx").on(t.workspaceId), index("pages_parent_idx").on(t.parentId)],
+);
+
+/** Pages a user starred, in the order shown at the top of their sidebar. */
+export const favorites = sqliteTable(
+  "favorites",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    pageId: text("page_id")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.pageId] })],
 );
 
 export const pagePermissions = sqliteTable(
@@ -148,6 +174,9 @@ export const attachments = sqliteTable(
     size: integer("size").notNull(),
     createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: createdAt(),
+    // Text read from the file (PDF text, OCR of images and scans), for search.
+    text: text("text"),
+    textStatus: text("text_status", { enum: ["pending", "done", "unsupported", "failed"] }).notNull().default("pending"),
   },
   (t) => [index("attachments_page_idx").on(t.pageId)],
 );
@@ -233,4 +262,122 @@ export const notionPropertyLinks = sqliteTable(
     notionPropertyId: text("notion_property_id").notNull(),
   },
   (t) => [uniqueIndex("notion_property_links_unique").on(t.databaseId, t.notionPropertyId)],
+);
+
+/** Private iCal links: a user's read-only feed of the dates shown by one calendar block. */
+export const calendarFeeds = sqliteTable(
+  "calendar_feeds",
+  {
+    // Random and unguessable; calendar apps keep the whole link, so it is stored as is, like public links.
+    token: text("token").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    pageId: text("page_id")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    // The block's id attribute, in the page content.
+    blockId: text("block_id").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("calendar_feeds_block_unique").on(t.userId, t.pageId, t.blockId)],
+);
+
+/** Last time each user opened each page, for "Recently visited". */
+export const pageVisits = sqliteTable(
+  "page_visits",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    pageId: text("page_id")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    visitedAt: integer("visited_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.pageId] }), index("page_visits_recent_idx").on(t.userId, t.visitedAt)],
+);
+
+/** Versions of a page's content kept over time, for its history. */
+export const pageSnapshots = sqliteTable(
+  "page_snapshots",
+  {
+    id: text("id").primaryKey(),
+    pageId: text("page_id")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    // ProseMirror JSON of the content at that time.
+    content: text("content", { mode: "json" }).notNull(),
+    // Who edited the page since the previous version.
+    authors: text("authors", { mode: "json" }).$type<string[]>().notNull().default([]),
+    // Set on the version a restore produced: when the restored version was made.
+    restoredFrom: integer("restored_from", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("page_snapshots_page_idx").on(t.pageId, t.createdAt)],
+);
+
+/** Reminders set on dates written in pages: one per date and per page, for the user who set it. */
+export const reminders = sqliteTable(
+  "reminders",
+  {
+    id: text("id").primaryKey(),
+    pageId: text("page_id")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    // The date's id in the page content.
+    mentionId: text("mention_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    // The date as written: "2026-11-15" or "2026-11-15T09:00".
+    date: text("date").notNull(),
+    remindAt: integer("remind_at", { mode: "timestamp_ms" }).notNull(),
+    // The line of text the date is in.
+    text: text("text").notNull().default(""),
+    // Sent to the user's devices.
+    notifiedAt: integer("notified_at", { mode: "timestamp_ms" }),
+    // Marked as done by the user.
+    dismissedAt: integer("dismissed_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("reminders_mention_unique").on(t.pageId, t.mentionId), index("reminders_user_idx").on(t.userId, t.remindAt)],
+);
+
+/** Devices that receive notifications (Web Push), one per browser or installed app. */
+export const pushSubscriptions = sqliteTable(
+  "push_subscriptions",
+  {
+    endpoint: text("endpoint").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("push_subscriptions_user_idx").on(t.userId)],
+);
+
+/** Personal API tokens: each one acts as its user, limited to some spaces, and possibly to reading. */
+export const apiTokens = sqliteTable(
+  "api_tokens",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    // SHA-256 of the token: it is shown once, at creation.
+    tokenHash: text("token_hash").notNull(),
+    // Its first characters, to tell tokens apart in the list.
+    prefix: text("prefix").notNull(),
+    workspaceIds: text("workspace_ids", { mode: "json" }).$type<string[]>().notNull(),
+    readOnly: integer("read_only", { mode: "boolean" }).notNull().default(true),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }),
+    lastUsedAt: integer("last_used_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("api_tokens_hash_unique").on(t.tokenHash), index("api_tokens_user_idx").on(t.userId)],
 );

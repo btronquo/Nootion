@@ -58,7 +58,7 @@ export function PropertyMenu({
         className={field}
       />
       <label className="block">
-        <span className="mb-0.5 block text-xs text-neutral-500">Type</span>
+        <span className="mb-0.5 block text-xs text-neutral-500">{t("property.type")}</span>
         <select
           aria-label={t("property.type")}
           className={field}
@@ -80,7 +80,7 @@ export function PropertyMenu({
       {prop.type === "formula" && <FormulaEditor prop={prop} properties={properties} onChange={onChangeConfig} field={field} />}
       {isCurrency && (
         <label className="block">
-          <span className="mb-0.5 block text-xs text-neutral-500">Devise</span>
+          <span className="mb-0.5 block text-xs text-neutral-500">{t("property.currency")}</span>
           <select className={field} value={prop.config.currency ?? "EUR"} onChange={(e) => onChangeConfig({ ...prop.config, currency: e.target.value })}>
             {CURRENCIES.map((c) => (
               <option key={c}>{c}</option>
@@ -96,7 +96,7 @@ export function PropertyMenu({
             value={prop.config.decimals ?? ""}
             onChange={(e) => onChangeConfig({ ...prop.config, decimals: e.target.value === "" ? undefined : Number(e.target.value) })}
           >
-            <option value="">Automatique</option>
+            <option value="">{t("property.decimalsAuto")}</option>
             {[0, 1, 2, 3, 4].map((d) => (
               <option key={d} value={d}>
                 {d}
@@ -115,7 +115,7 @@ export function PropertyMenu({
       )}
       {(prop.type === "select" || prop.type === "multi_select") && (
         <div>
-          <span className="mb-0.5 block text-xs text-neutral-500">Options</span>
+          <span className="mb-0.5 block text-xs text-neutral-500">{t("property.options")}</span>
           <div className="max-h-56 space-y-1 overflow-y-auto">
             {(prop.config.options ?? []).map((o) => (
               <div key={o.id} className="flex items-center gap-1">
@@ -245,7 +245,7 @@ function RollupSettings({
       )}
       {targetProp && (
         <label className="block">
-          <span className="mb-0.5 block text-xs text-neutral-500">Calcul</span>
+          <span className="mb-0.5 block text-xs text-neutral-500">{t("rollup.calc")}</span>
           <select
             aria-label={t("rollup.calcLabel")}
             className={field}

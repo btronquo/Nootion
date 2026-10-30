@@ -1,14 +1,15 @@
 import { useCallback, useState } from "react";
 import { Link, NavLink, Outlet, useMatch, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { LogOut, Plus, Settings, Share2, Trash2, Users, User, Download, Search } from "lucide-react";
+import { LogOut, Plus, Settings, Share2, Trash2, Users, User, Download, Search, Star, X, Database, FileText, Home, Bell } from "lucide-react";
+import { disablePush, useReminderNotifications, useReminders } from "../lib/reminders";
 import { t, type PageSummary, type WorkspaceSummary } from "@nootion/shared";
 import { workspaceName } from "../lib/labels";
 import { api, isOfflineError } from "../lib/api";
-import { keys, useRefreshPages, useSharedPages, useWorkspacePages, useWorkspaces } from "../lib/queries";
+import { keys, useFavorites, useRefreshPages, useSharedPages, useWorkspacePages, useWorkspaces } from "../lib/queries";
 import { useSession } from "../lib/session";
-import { buildTree } from "../lib/tree";
-import { PageTree } from "./PageTree";
+import { buildTree, pageTitle } from "../lib/tree";
+import { DRAG_TYPE, PageTree } from "./PageTree";
 import { Avatar } from "./Avatar";
 import { Button, ErrorText, Field, Modal } from "./ui";
 import { usePlugins } from "../plugins/registry";
@@ -28,10 +29,17 @@ export function AppShell() {
   const [searching, setSearching] = useState(false);
   const touch = useIsTouch();
   // Pages have their own header, with the menu button.
-  const onPage = useMatch("/page/:id");
+  // Pages (and the home page) have their own header with the menu button.
+  const onPageRoute = useMatch("/page/:id");
+  const onHome = useMatch({ path: "/", end: true });
+  const onPage = onPageRoute || onHome;
   useSearchShortcut(useCallback(() => setSearching(true), []));
+  useReminderNotifications();
+  const due = useReminders().data?.filter((r) => r.due).length ?? 0;
 
   async function logout() {
+    // This device stops receiving the account's reminders.
+    await disablePush().catch(() => {});
     try {
       await api("/auth/logout", { method: "POST" });
     } catch (e) {
@@ -69,7 +77,30 @@ export function AppShell() {
           </kbd>
         )}
       </button>
+      <NavLink
+        to="/"
+        end
+        className={({ isActive }) =>
+          `mx-2 mb-1 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-neutral-200/50 dark:hover:bg-neutral-800/60 ${isActive ? "bg-neutral-200/70 font-medium text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100" : "text-neutral-600 dark:text-neutral-400"}`
+        }
+      >
+        <Home size={16} /> {t("home.title")}
+      </NavLink>
+      <NavLink
+        to="/reminders"
+        className={({ isActive }) =>
+          `mx-2 mb-1 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-neutral-200/50 dark:hover:bg-neutral-800/60 ${isActive ? "bg-neutral-200/70 font-medium text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100" : "text-neutral-600 dark:text-neutral-400"}`
+        }
+      >
+        <Bell size={16} /> {t("reminders.title")}
+        {due > 0 && (
+          <span className="ml-auto rounded-full bg-red-600 px-1.5 text-[11px] font-semibold leading-[18px] text-white" data-reminders-due>
+            {due}
+          </span>
+        )}
+      </NavLink>
       <nav className="flex-1 space-y-5 overflow-y-auto px-2 py-2">
+        <FavoritesSection />
         {workspaces.data?.map((ws) => (
           <WorkspaceSection key={ws.id} workspace={ws} />
         ))}
@@ -164,6 +195,92 @@ function WorkspaceSection({ workspace }: { workspace: WorkspaceSummary }) {
         )}
       </SectionHeader>
       {pages.data && <PageTree nodes={buildTree(pages.data)} all={pages.data} workspaceId={workspace.id} editable={canEdit} />}
+    </div>
+  );
+}
+
+const FAVORITE_TYPE = "application/x-nootion-favorite";
+
+/** Starred pages, in the user's order: rows are dragged to reorder, and a page dragged from a tree is starred where it lands. */
+function FavoritesSection() {
+  const favorites = useFavorites();
+  const qc = useQueryClient();
+  const [drop, setDrop] = useState<{ id: string; after: boolean } | null>(null);
+  const pages = favorites.data ?? [];
+  if (!pages.length) return null;
+
+  async function unstar(id: string) {
+    qc.setQueryData<PageSummary[]>(keys.favorites, (old) => old?.filter((p) => p.id !== id));
+    await api(`/favorites/${id}`, { method: "DELETE" }).catch(() => {});
+    await qc.invalidateQueries({ queryKey: keys.favorites });
+  }
+
+  async function onDrop(e: React.DragEvent, target: string) {
+    e.preventDefault();
+    const box = e.currentTarget.getBoundingClientRect();
+    const after = e.clientY > box.top + box.height / 2;
+    setDrop(null);
+    const moved = e.dataTransfer.getData(FAVORITE_TYPE) || e.dataTransfer.getData(DRAG_TYPE);
+    if (!moved || moved === target) return;
+    try {
+      if (!pages.some((p) => p.id === moved)) await api(`/favorites/${moved}`, { method: "PUT" });
+      const ids = pages.map((p) => p.id).filter((id) => id !== moved);
+      ids.splice(ids.indexOf(target) + (after ? 1 : 0), 0, moved);
+      const byId = new Map(pages.map((p) => [p.id, p]));
+      qc.setQueryData<PageSummary[]>(keys.favorites, (old) => (old ? ids.flatMap((id) => byId.get(id) ?? []) : old));
+      await api("/favorites/order", { method: "POST", body: { pageIds: ids } });
+    } catch {
+      // Offline or no longer readable: the server's order comes back below.
+    }
+    await qc.invalidateQueries({ queryKey: keys.favorites });
+  }
+
+  return (
+    <div>
+      <SectionHeader icon={<Star size={12} />} label={t("favorites.title")} />
+      {pages.map((page) => {
+        const line = drop?.id === page.id ? (drop.after ? "shadow-[inset_0_-2px_0_0] shadow-blue-500" : "shadow-[inset_0_2px_0_0] shadow-blue-500") : "";
+        return (
+          <div
+            key={page.id}
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.setData(FAVORITE_TYPE, page.id);
+              e.dataTransfer.effectAllowed = "move";
+            }}
+            onDragOver={(e) => {
+              if (!e.dataTransfer.types.includes(FAVORITE_TYPE) && !e.dataTransfer.types.includes(DRAG_TYPE)) return;
+              e.preventDefault();
+              const box = e.currentTarget.getBoundingClientRect();
+              setDrop({ id: page.id, after: e.clientY > box.top + box.height / 2 });
+            }}
+            onDragLeave={() => setDrop(null)}
+            onDrop={(e) => onDrop(e, page.id)}
+            className={`group flex items-center rounded-md pr-1 ${line}`}
+            data-favorite={page.id}
+          >
+            <NavLink
+              to={`/page/${page.id}`}
+              className={({ isActive }) =>
+                `flex min-w-0 flex-1 items-center gap-1.5 rounded py-1 pl-2 pr-1 text-sm touch:py-2 ${isActive ? "bg-neutral-200/80 font-medium dark:bg-neutral-800" : "hover:bg-neutral-200/50 dark:hover:bg-neutral-800/60"}`
+              }
+            >
+              <span className="w-4 shrink-0 text-center">
+                {page.icon ?? (page.kind === "database" ? <Database size={14} className="inline text-neutral-400" /> : <FileText size={14} className="inline text-neutral-400" />)}
+              </span>
+              <span className="truncate">{pageTitle(page.title)}</span>
+            </NavLink>
+            <button
+              className="hidden shrink-0 rounded p-1 text-neutral-500 hover:bg-neutral-200 group-hover:block touch:block dark:hover:bg-neutral-800"
+              onClick={() => unstar(page.id)}
+              title={t("favorites.remove")}
+              aria-label={t("favorites.remove")}
+            >
+              <X size={14} />
+            </button>
+          </div>
+        );
+      })}
     </div>
   );
 }

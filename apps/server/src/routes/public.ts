@@ -7,7 +7,7 @@ import { notFound } from "../http.js";
 import { getChain, isTrashed } from "../permissions.js";
 import { getPageMeta, listDescendants, notRow, toSummary } from "../pages.js";
 import { enrichRows, listProperties, loadDatabase, toRow } from "../databases.js";
-import { t } from "@nootion/shared";
+import { calendarSources, t } from "@nootion/shared";
 
 /** Read-only access through a public link. No account needed. */
 export const publicRoutes: FastifyPluginAsync = async (app) => {
@@ -50,6 +50,8 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
     const out: ProseMirrorNode = { ...node };
     const attrs = node.attrs ? { ...node.attrs } : undefined;
     if (attrs && node.type === "databaseBlock" && (typeof attrs.pageId !== "string" || !inScope(link, attrs.pageId))) attrs.pageId = null;
+    // Calendars only show the databases the link already publishes.
+    if (attrs && node.type === "calendarBlock") attrs.sources = calendarSources(attrs.sources).filter((s) => inScope(link, s.databaseId));
     if (attrs && (node.type === "pageLink" || node.type === "pageMention")) {
       const pageId = typeof attrs.pageId === "string" ? attrs.pageId : null;
       if (!pageId || !inScope(link, pageId)) {
@@ -57,6 +59,8 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
         attrs.title = t("page.private");
       }
     }
+    // Who set a reminder, and when, is nobody else's business.
+    if (attrs && node.type === "dateMention") Object.assign(attrs, { reminder: null, remindAt: null, remindUser: null });
     if (attrs) {
       for (const key of ["src", "url"]) {
         const value = attrs[key];
@@ -81,6 +85,8 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
       ...toSummary(p),
       updatedAt: p.updatedAt.toISOString(),
       fullWidth: p.fullWidth,
+      cover: p.cover?.replace(/^\/api\/attachments\//, `/api/public/${link.token}/attachments/`) ?? null,
+      coverPosition: p.coverPosition,
       content: p.contentJson ? sanitize(link, p.contentJson as ProseMirrorNode) : null,
       row,
     };
@@ -108,7 +114,7 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
     if (!inScope(link, req.params.id)) throw notFound();
     const meta = getPageMeta(db, req.params.id);
     if (!meta || meta.kind !== "database") throw notFound();
-    return { database: { ...loadDatabase(db, meta, "viewer", (id) => inScope(link, id)), people: {} } };
+    return { database: { ...loadDatabase(db, meta, "viewer", (id) => inScope(link, id)), people: {}, templates: [], defaultTemplateId: null } };
   });
 
   app.get<{ Params: { token: string; id: string } }>("/:token/attachments/:id", async (req, reply) => {

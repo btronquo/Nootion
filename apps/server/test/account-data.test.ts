@@ -1,15 +1,19 @@
+import fs from "node:fs";
+import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { eq } from "drizzle-orm";
-import { pages, users, workspaces } from "../src/db/schema.js";
+import { attachments, pages, users, workspaces } from "../src/db/schema.js";
+import { uploadsDir } from "../src/attachments.js";
 import { ADMIN, Client, inviteUser, makeApp, setupAdmin } from "./helpers.js";
 
 let app: FastifyInstance;
+let dataDir = "";
 let boris: Client;
 let alice: Client;
 
 beforeEach(async () => {
-  app = await makeApp();
+  app = await makeApp((d) => (dataDir = d));
   boris = await setupAdmin(app);
   alice = await inviteUser(app, boris, { name: "Alice", email: "alice@example.com", password: "alice-password" });
 });
@@ -27,11 +31,17 @@ describe("emptying a space", () => {
     const db = await boris.post("/api/databases", { workspaceId: ws, parentId: null, title: "Bills" });
     await boris.post(`/api/databases/${db.json().database.id}/rows`, { values: {} });
     expect(pageCount(ws)).toBe(5);
+    const file = path.join(uploadsDir(dataDir), "file-1");
+    fs.mkdirSync(uploadsDir(dataDir), { recursive: true });
+    fs.writeFileSync(file, "pdf");
+    app.db.insert(attachments).values({ id: "file-1", pageId: a, filename: "a.pdf", mimeType: "application/pdf", size: 3 }).run();
 
     expect((await alice.delete(`/api/workspaces/${ws}/content`)).statusCode).toBe(404);
     const res = await boris.delete(`/api/workspaces/${ws}/content`);
     expect(res.statusCode, res.body).toBe(200);
     expect(pageCount(ws)).toBe(0);
+    // The attached files go too.
+    expect(fs.existsSync(file)).toBe(false);
     // The space is still there, empty.
     expect((await boris.get("/api/workspaces")).json().workspaces.map((w: { id: string }) => w.id)).toContain(ws);
 

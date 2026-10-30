@@ -29,6 +29,10 @@ ENV NODE_ENV=production \
     DATA_DIR=/data \
     WEB_DIR=/app/web
 WORKDIR /app
+# Text of attached PDFs (poppler) and OCR of images and scans (tesseract, French and English), for search.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends poppler-utils tesseract-ocr tesseract-ocr-fra tesseract-ocr-eng \
+ && rm -rf /var/lib/apt/lists/*
 COPY --from=build /out /app
 RUN mkdir -p /data && chown node:node /data
 USER node

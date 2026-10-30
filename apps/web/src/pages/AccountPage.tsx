@@ -11,6 +11,7 @@ import { Avatar } from "../components/Avatar";
 import { Button, ErrorText, Field, LanguageSelect, Rich, Select } from "../components/ui";
 import { setLocale } from "../lib/i18n";
 import { NotionImport } from "../components/NotionImport";
+import { ApiTokens } from "../components/ApiTokens";
 import { clearOfflineData } from "../lib/offline";
 import { useRefreshPages, useWorkspaces } from "../lib/queries";
 import { workspaceName } from "../lib/labels";
@@ -32,6 +33,9 @@ export function AccountPage() {
       <LanguageSection user={user} />
       <ThemeSection />
       <ImportSection />
+      <Section title={t("tokens.title")} id="api">
+        <ApiTokens />
+      </Section>
       <DeleteSection />
     </div>
   );

@@ -152,6 +152,14 @@ export interface ViewConfig {
   groupBy?: string | null;
   /** Groups folded away (table) or hidden (board), by group key. */
   collapsedGroups?: string[];
+  /** Calendar and timeline: the date column rows are placed on (else the first date column). */
+  dateProperty?: string | null;
+  /** Calendar: a month or a week at a time. */
+  calendarMode?: "month" | "week";
+  /** Timeline: width of a day, from days to months. */
+  timelineScale?: "day" | "week" | "month";
+  /** Gallery: shows the row's cover or first image at the top of its card (default true). */
+  showPreview?: boolean;
 }
 
 export const viewConfigSchema = z
@@ -166,6 +174,10 @@ export const viewConfigSchema = z
     sorts: z.array(viewSortSchema).max(20).optional(),
     groupBy: z.string().min(1).max(64).nullable().optional(),
     collapsedGroups: z.array(z.string().max(500)).max(500).optional(),
+    dateProperty: z.string().min(1).max(64).nullable().optional(),
+    calendarMode: z.enum(["month", "week"]).optional(),
+    timelineScale: z.enum(["day", "week", "month"]).optional(),
+    showPreview: z.boolean().optional(),
   })
   .passthrough();
 
@@ -183,6 +195,9 @@ export interface DatabaseRow {
   icon: string | null;
   /** Values by property id, computed properties included. */
   values: Record<string, CellValue>;
+  /** The row page's cover, or (for galleries) the first image of its content. */
+  cover: string | null;
+  coverPosition: number;
   createdAt: string;
   updatedAt: string;
   createdBy: string | null;
@@ -202,6 +217,16 @@ export interface DatabaseData {
   related: Record<string, RelatedRow>;
   /** For each rollup property: the property it computes, or null when unavailable. */
   rollupTargets: Record<string, DatabaseProperty | null>;
+  /** Row templates, offered when adding a row. */
+  templates: RowTemplate[];
+  /** Template new rows start from, unless another (or a blank row) is chosen. */
+  defaultTemplateId: string | null;
+}
+
+export interface RowTemplate {
+  id: string;
+  title: string;
+  icon: string | null;
 }
 
 export interface RelatedRow {
@@ -242,6 +267,8 @@ export const updatePropertyInput = z.object({
 export const rowInput = z.object({
   title: z.string().max(500).optional(),
   values: z.record(z.string(), z.unknown()).default({}),
+  /** New rows: the template to start from. Absent: the database's default template; null: a blank row. */
+  templateId: z.string().min(1).max(64).nullable().optional(),
 });
 
 export const updateViewInput = z.object({

@@ -1,8 +1,14 @@
-import { mergeAttributes, Node } from "@tiptap/core";
+import { mergeAttributes, Node, type Editor } from "@tiptap/core";
+import { TextSelection } from "@tiptap/pm/state";
+import { Details } from "@tiptap/extension-details";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import { PageLinkView } from "./PageLinkView";
 import { DatabaseBlockView } from "../database/DatabaseBlockView";
-import { intlLocale, t } from "@nootion/shared";
+import { CalendarBlockView } from "../database/CalendarBlockView";
+import { DateMentionView } from "./DateMentionView";
+import { DatabaseRowsView, FavoritesListView, RecentPagesView, UpcomingEventsView } from "./HomeWidgets";
+import { intlLocale, reminderTime, t } from "@nootion/shared";
+import { formatMentionDate } from "../lib/reminders";
 
 declare module "@tiptap/core" {
   interface Commands<ReturnType> {
@@ -10,6 +16,11 @@ declare module "@tiptap/core" {
     fileAttachment: { insertFile: (attrs: { url: string; name: string; size: number; mimeType: string }) => ReturnType };
     pageLink: { insertPageLink: (attrs: { pageId: string; title: string }) => ReturnType };
     databaseBlock: { insertDatabase: (pageId: string) => ReturnType };
+    calendarBlock: { insertCalendar: () => ReturnType };
+    widget: { insertWidget: (name: WidgetName) => ReturnType };
+    toggle: { insertToggle: (level?: 1 | 2 | 3) => ReturnType };
+    columns: { insertColumns: (count: number) => ReturnType };
+    dateMention: { insertDate: (attrs: { date: string; reminder?: number | null; remindUser?: string | null }) => ReturnType };
   }
 }
 
@@ -117,6 +128,55 @@ export const PageLink = Node.create<{ live: boolean; hrefFor: (pageId: string) =
 });
 
 /**
+ * A date written in the text ("@tomorrow 9am"). `date` is a day ("2026-11-15") or a day and time ("2026-11-15T09:00").
+ * A reminder goes to `remindUser`, `reminder` minutes before the date; `remindAt` is that moment, worked out in the
+ * time zone of the person who set it. `id` names the date for its reminder.
+ */
+export const DateMention = Node.create({
+  name: "dateMention",
+  group: "inline",
+  inline: true,
+  atom: true,
+  selectable: true,
+  addAttributes() {
+    return { id: { default: null }, date: { default: null }, reminder: { default: null }, remindAt: { default: null }, remindUser: { default: null } };
+  },
+  parseHTML() {
+    return [{ tag: "span[data-date-mention]", getAttrs: (el) => ({ date: (el as HTMLElement).dataset.date || null }) }];
+  },
+  renderHTML({ node }) {
+    const date = node.attrs.date as string | null;
+    return ["span", { "data-date-mention": "", "data-date": date ?? "", class: "date-mention" }, date ? formatMentionDate(date) : ""];
+  },
+  renderText({ node }) {
+    return node.attrs.date ? formatMentionDate(node.attrs.date) : "";
+  },
+  addNodeView() {
+    return ReactNodeViewRenderer(DateMentionView, { as: "span" });
+  },
+  addCommands() {
+    return {
+      insertDate:
+        ({ date, reminder = null, remindUser = null }) =>
+        ({ commands }) =>
+          commands.insertContent([
+            {
+              type: this.name,
+              attrs: {
+                id: crypto.randomUUID(),
+                date,
+                reminder: remindUser ? reminder : null,
+                remindAt: remindUser && reminder !== null ? reminderTime(date, reminder).toISOString() : null,
+                remindUser: reminder !== null ? remindUser : null,
+              },
+            },
+            { type: "text", text: " " },
+          ]),
+    };
+  },
+});
+
+/**
  * Database shown inside a page. The database itself is a child page; this block only says where it
  * appears. `publicToken` switches the view to the read-only public API.
  */
@@ -149,5 +209,264 @@ export const DatabaseBlock = Node.create<{ publicToken: string | null }>({
         ({ commands }) =>
           commands.insertContent([{ type: this.name, attrs: { pageId } }, { type: "paragraph" }]),
     };
+  },
+});
+
+/**
+ * Calendar gathering the dated rows of several databases. `sources` lists them (see CalendarSource);
+ * `id` names the block for its iCal feeds. `pageId` is the page being edited, `publicToken` the public link.
+ */
+export const CalendarBlock = Node.create<{ pageId: string | null; publicToken: string | null }>({
+  name: "calendarBlock",
+  group: "block",
+  atom: true,
+  draggable: true,
+  selectable: true,
+  addOptions() {
+    return { pageId: null, publicToken: null };
+  },
+  addAttributes() {
+    return {
+      id: { default: null },
+      sources: {
+        default: [],
+        parseHTML: (el) => {
+          try {
+            return JSON.parse(el.dataset.sources ?? "[]") as unknown;
+          } catch {
+            return [];
+          }
+        },
+        renderHTML: (attrs) => ({ "data-sources": JSON.stringify(attrs.sources ?? []) }),
+      },
+      mode: { default: "month" },
+    };
+  },
+  parseHTML() {
+    return [{ tag: "div[data-calendar]", getAttrs: (el) => ({ id: (el as HTMLElement).dataset.calendar || null }) }];
+  },
+  renderHTML({ node, HTMLAttributes }) {
+    return ["div", mergeAttributes(HTMLAttributes, { "data-calendar": node.attrs.id ?? "" }), t("command.calendar")];
+  },
+  addNodeView() {
+    // The calendar handles its own clicks, drags and keys.
+    return ReactNodeViewRenderer(CalendarBlockView, { stopEvent: () => true });
+  },
+  addCommands() {
+    return {
+      insertCalendar:
+        () =>
+        ({ commands }) =>
+          commands.insertContent([{ type: this.name, attrs: { id: crypto.randomUUID(), sources: [] } }, { type: "paragraph" }]),
+    };
+  },
+});
+
+export type WidgetName = "recentPages" | "favoritesList" | "upcomingEvents" | "databaseRows";
+
+/** A widget block (home page): no content of its own, it shows live data from its attributes. */
+function widget(name: WidgetName, view: Parameters<typeof ReactNodeViewRenderer>[0], attrs: Record<string, unknown> = {}) {
+  return Node.create<{ publicToken: string | null }>({
+    name,
+    group: "block",
+    atom: true,
+    draggable: true,
+    selectable: true,
+    addOptions() {
+      return { publicToken: null };
+    },
+    addAttributes() {
+      return Object.fromEntries(
+        Object.entries(attrs).map(([key, value]) => [
+          key,
+          Array.isArray(value)
+            ? {
+                default: value,
+                parseHTML: (el: HTMLElement) => {
+                  try {
+                    return JSON.parse(el.dataset[key] ?? "[]") as unknown;
+                  } catch {
+                    return value;
+                  }
+                },
+                renderHTML: (a: Record<string, unknown>) => ({ [`data-${key}`]: JSON.stringify(a[key] ?? value) }),
+              }
+            : { default: value },
+        ]),
+      );
+    },
+    parseHTML() {
+      return [{ tag: `div[data-widget="${name}"]` }];
+    },
+    renderHTML({ HTMLAttributes }) {
+      return ["div", mergeAttributes(HTMLAttributes, { "data-widget": name })];
+    },
+    addNodeView() {
+      return ReactNodeViewRenderer(view, { stopEvent: () => true });
+    },
+  });
+}
+
+export const RecentPages = widget("recentPages", RecentPagesView);
+export const FavoritesList = widget("favoritesList", FavoritesListView);
+export const UpcomingEvents = widget("upcomingEvents", UpcomingEventsView, { sources: [], days: 14 });
+export const DatabaseRows = widget("databaseRows", DatabaseRowsView, { databaseId: null, viewId: null, limit: 5 });
+
+/** Inserts any widget (command shared by the widget nodes). */
+export const WidgetCommands = Node.create({
+  name: "widgetCommands",
+  addCommands() {
+    return {
+      insertWidget:
+        (name) =>
+        ({ commands }) =>
+          commands.insertContent([{ type: name }, { type: "paragraph" }]),
+    };
+  },
+});
+
+/**
+ * Collapsible block (Notion's toggle), optionally with a heading as its summary. Whether it is open is
+ * kept by each reader, not in the page: opening it doesn't change the page for others.
+ */
+export const Toggle = Details.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      level: {
+        default: null,
+        parseHTML: (el) => Number((el as HTMLElement).dataset.level) || null,
+        renderHTML: (attrs) => (attrs.level ? { "data-level": attrs.level } : {}),
+      },
+    };
+  },
+  addCommands() {
+    return {
+      ...this.parent?.(),
+      insertToggle:
+        (level) =>
+        ({ editor, chain }) => {
+          const ok = chain()
+            .insertContent({ type: this.name, attrs: { level: level ?? null }, content: [{ type: "detailsSummary" }, { type: "detailsContent", content: [{ type: "paragraph" }] }] })
+            .run();
+          // A new toggle opens at once, ready to be filled.
+          if (ok) requestAnimationFrame(() => openToggleAtCursor(editor));
+          return ok;
+        },
+    };
+  },
+  addKeyboardShortcuts() {
+    return {
+      ...this.parent?.(),
+      // Enter in the summary of an open toggle whose content is empty goes to that content, instead of adding a line.
+      Enter: ({ editor }) => {
+        const { $head } = editor.state.selection;
+        if ($head.parent.type.name !== "detailsSummary") return this.parent?.().Enter?.({ editor }) ?? false;
+        const content = editor.state.doc.nodeAt($head.after());
+        const first = content?.firstChild;
+        const dom = editor.view.nodeDOM($head.before(-1)) as HTMLElement | null;
+        if (dom?.classList.contains("is-open") && content?.childCount === 1 && first?.type.name === "paragraph" && !first.content.size) {
+          return editor.commands.setTextSelection($head.after() + 2);
+        }
+        return this.parent?.().Enter?.({ editor }) ?? false;
+      },
+    };
+  },
+}).configure({
+  persist: false,
+  renderToggleButton: ({ element, isOpen }) => {
+    element.setAttribute("aria-label", isOpen ? t("toggle.collapse") : t("toggle.expand"));
+    element.setAttribute("aria-expanded", String(isOpen));
+  },
+});
+
+/** Opens the toggle the cursor is in (or just after), and puts the cursor in its summary. */
+function openToggleAtCursor(editor: Editor) {
+  const { $from } = editor.state.selection;
+  let pos: number | null = null;
+  for (let d = $from.depth; d > 0 && pos === null; d--) if ($from.node(d).type.name === "details") pos = $from.before(d);
+  if (pos === null && $from.nodeBefore?.type.name === "details") pos = $from.pos - $from.nodeBefore.nodeSize;
+  if (pos === null) return;
+  const dom = editor.view.nodeDOM(pos) as HTMLElement | null;
+  const button = dom?.querySelector<HTMLButtonElement>(":scope > button");
+  if (button && !dom!.classList.contains("is-open")) button.click();
+  editor.commands.focus(pos + 2);
+}
+
+/** Blocks side by side. Put one under the other on narrow screens. */
+export const Columns = Node.create({
+  name: "columns",
+  group: "block",
+  content: "column+",
+  isolating: true,
+  defining: true,
+  parseHTML() {
+    return [{ tag: "div[data-columns]" }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ["div", mergeAttributes(HTMLAttributes, { "data-columns": "", class: "columns" }), 0];
+  },
+  addCommands() {
+    return {
+      insertColumns:
+        (count) =>
+        ({ chain, tr }) => {
+          const at = tr.selection.from;
+          return chain()
+            .insertContent([{ type: this.name, content: Array.from({ length: count }, () => ({ type: "column", content: [{ type: "paragraph" }] })) }, { type: "paragraph" }])
+            .command(({ tr }) => {
+              // The cursor goes into the first column.
+              let columns: number | null = null;
+              tr.doc.nodesBetween(Math.max(0, at - 2), Math.min(tr.doc.content.size, at + 2), (node, pos) => {
+                if (columns === null && node.type.name === this.name) columns = pos;
+              });
+              if (columns !== null) tr.setSelection(TextSelection.create(tr.doc, columns + 3));
+              return true;
+            })
+            .run();
+        },
+    };
+  },
+  addKeyboardShortcuts() {
+    return {
+      // Backspace in an empty column removes it; with a single column left, its blocks take the place of the columns.
+      Backspace: ({ editor }) => {
+        const { selection } = editor.state;
+        const { $from, empty } = selection;
+        if (!empty || $from.parentOffset !== 0 || $from.depth < 3) return false;
+        const column = $from.node(-1);
+        if (column.type.name !== "column" || $from.index(-1) !== 0) return false;
+        if (column.childCount > 1 || column.firstChild!.content.size > 0 || column.firstChild!.type.name !== "paragraph") return false;
+        const columns = $from.node(-2);
+        const columnsPos = $from.before(-2);
+        const index = $from.index(-2);
+        const tr = editor.state.tr;
+        if (columns.childCount <= 2) {
+          const rest = columns.child(index === 0 ? 1 : 0);
+          tr.replaceWith(columnsPos, columnsPos + columns.nodeSize, rest.content);
+          tr.setSelection(TextSelection.near(tr.doc.resolve(columnsPos + 1)));
+        } else {
+          const from = $from.before(-1);
+          tr.delete(from, from + column.nodeSize);
+          // The cursor goes to the end of the previous column, or the start of the next one.
+          tr.setSelection(TextSelection.near(tr.doc.resolve(index > 0 ? from - 1 : from + 1), index > 0 ? -1 : 1));
+        }
+        editor.view.dispatch(tr.scrollIntoView());
+        return true;
+      },
+    };
+  },
+});
+
+export const Column = Node.create({
+  name: "column",
+  content: "block+",
+  isolating: true,
+  defining: true,
+  parseHTML() {
+    return [{ tag: "div[data-column]" }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ["div", mergeAttributes(HTMLAttributes, { "data-column": "", class: "column" }), 0];
   },
 });
