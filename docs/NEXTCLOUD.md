@@ -4,7 +4,7 @@ The **Nextcloud** plugin ships with Nootion. It lets each person pick files in t
 
 - insert a **copy** in a page (`/nextcloud`): images show inline, other files as a file block;
 - add a copy to a **"File" column** of a database ("From Nextcloud" under "Add a file");
-- insert a **link** to a file or folder (`/nextcloud link`, `/lien nextcloud` in French): a card that opens it in
+- insert a **link** to a file or folder (`/nextcloud link`, `/nextcloud lien` in French): a card that opens it in
   Nextcloud, for people who have access to it there.
 
 Copies live in Nootion like uploaded files: they show on public links, are searched, exported and backed up with
