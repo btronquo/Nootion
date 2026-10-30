@@ -313,6 +313,8 @@ export const pageSnapshots = sqliteTable(
     authors: text("authors", { mode: "json" }).$type<string[]>().notNull().default([]),
     // Set on the version a restore produced: when the restored version was made.
     restoredFrom: integer("restored_from", { mode: "timestamp_ms" }),
+    // Set on a version written by an app or AI agent through the API: its token's name.
+    agent: text("agent"),
     createdAt: createdAt(),
   },
   (t) => [index("page_snapshots_page_idx").on(t.pageId, t.createdAt)],
@@ -377,7 +379,57 @@ export const apiTokens = sqliteTable(
     readOnly: integer("read_only", { mode: "boolean" }).notNull().default(true),
     expiresAt: integer("expires_at", { mode: "timestamp_ms" }),
     lastUsedAt: integer("last_used_at", { mode: "timestamp_ms" }),
+    // Tokens given to an app connected with OAuth: the app, and the token that renews the access when it expires.
+    clientId: text("client_id").references(() => oauthClients.id, { onDelete: "cascade" }),
+    refreshHash: text("refresh_hash"),
     createdAt: createdAt(),
   },
-  (t) => [uniqueIndex("api_tokens_hash_unique").on(t.tokenHash), index("api_tokens_user_idx").on(t.userId)],
+  (t) => [
+    uniqueIndex("api_tokens_hash_unique").on(t.tokenHash),
+    uniqueIndex("api_tokens_refresh_unique").on(t.refreshHash),
+    index("api_tokens_user_idx").on(t.userId),
+  ],
+);
+
+/** Apps that registered themselves to connect with OAuth (such as Claude's connectors). */
+export const oauthClients = sqliteTable("oauth_clients", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  redirectUris: text("redirect_uris", { mode: "json" }).$type<string[]>().notNull(),
+  createdAt: createdAt(),
+});
+
+/** Codes given to an app once the user allowed it, exchanged within minutes for its token. */
+export const oauthCodes = sqliteTable("oauth_codes", {
+  codeHash: text("code_hash").primaryKey(),
+  clientId: text("client_id")
+    .notNull()
+    .references(() => oauthClients.id, { onDelete: "cascade" }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  redirectUri: text("redirect_uri").notNull(),
+  // PKCE: the S256 hash of the secret the app proves it holds.
+  codeChallenge: text("code_challenge").notNull(),
+  workspaceIds: text("workspace_ids", { mode: "json" }).$type<string[]>().notNull(),
+  readOnly: integer("read_only", { mode: "boolean" }).notNull(),
+  expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+});
+
+/** What apps and agents changed with a user's tokens, for "My account". */
+export const agentActivity = sqliteTable(
+  "agent_activity",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    // The token's name when it was used: kept after the token is revoked.
+    agent: text("agent").notNull(),
+    // What was done, e.g. "page.create", "content.replace", "row.update".
+    action: text("action").notNull(),
+    pageId: text("page_id"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("agent_activity_user_idx").on(t.userId, t.createdAt)],
 );
