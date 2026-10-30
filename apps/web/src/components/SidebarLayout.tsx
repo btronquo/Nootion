@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useLocation } from "react-router-dom";
 import { Menu } from "lucide-react";
 import { t } from "@nootion/shared";
@@ -12,7 +12,13 @@ const SidebarContext = createContext<{ open: () => void } | null>(null);
 export function SidebarLayout({ sidebar, children }: { sidebar: ReactNode; children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const location = useLocation();
+  const main = useRef<HTMLElement>(null);
   useEffect(() => setOpen(false), [location.pathname]);
+  // A gentle fade when moving to another page; nothing is remounted for it.
+  useEffect(() => {
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    main.current?.animate?.([{ opacity: 0, transform: "translateY(4px)" }, { opacity: 1, transform: "none" }], { duration: 240, easing: "cubic-bezier(0.16, 1, 0.3, 1)" });
+  }, [location.pathname]);
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
@@ -23,14 +29,14 @@ export function SidebarLayout({ sidebar, children }: { sidebar: ReactNode; child
   return (
     <SidebarContext.Provider value={{ open: () => setOpen(true) }}>
       <div className="flex h-full">
-        {open && <div className="fixed inset-0 z-40 bg-black/30 md:hidden" onClick={() => setOpen(false)} aria-hidden />}
+        {open && <div className="nt-backdrop fixed inset-0 z-40 bg-black/30 md:hidden" onClick={() => setOpen(false)} aria-hidden />}
         <aside
           aria-label={t("sidebar.label")}
           className={`fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] shrink-0 flex-col border-r border-neutral-200 bg-neutral-50 transition-transform duration-200 md:static md:z-auto md:w-64 md:translate-x-0 md:transition-none dark:border-neutral-800 dark:bg-neutral-950 ${open ? "translate-x-0 shadow-2xl" : "-translate-x-full"}`}
         >
           {sidebar}
         </aside>
-        <main className="min-w-0 flex-1 overflow-y-auto">{children}</main>
+        <main ref={main} className="min-w-0 flex-1 overflow-y-auto">{children}</main>
       </div>
     </SidebarContext.Provider>
   );

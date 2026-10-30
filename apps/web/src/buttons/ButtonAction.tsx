@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent, type MutableRefObject } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -6,7 +6,7 @@ import { Check, Loader2 } from "lucide-react";
 import { t, type ButtonColor, type ButtonConfig, type FormField, type RunButtonInput, type RunButtonResult } from "@nootion/shared";
 import { api } from "../lib/api";
 import { useUserDirectory } from "../lib/queries";
-import { Button, ErrorText, Modal, Select } from "../components/ui";
+import { Button, CancelButton, ErrorText, Modal, Select } from "../components/ui";
 import { Popover } from "../database/Popover";
 
 export const BUTTON_STYLES: Record<ButtonColor, string> = {
@@ -42,6 +42,7 @@ export function ButtonAction({
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [form, setForm] = useState(false);
+  const closeForm = useRef<(() => void) | null>(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -52,7 +53,8 @@ export function ButtonAction({
     setError(null);
     try {
       const res = await api<RunButtonResult>("/buttons/run", { method: "POST", body: { source, form: answers, now: localNow() } });
-      setForm(false);
+      if (closeForm.current) closeForm.current();
+      else setForm(false);
       setDone(true);
       setTimeout(() => setDone(false), 1500);
       void qc.invalidateQueries();
@@ -78,13 +80,13 @@ export function ButtonAction({
           if (config.form) setForm(true);
           else void run({}).catch(() => undefined);
         }}
-        className={`inline-flex max-w-full items-center gap-1.5 rounded-md border font-medium shadow-sm transition disabled:cursor-default disabled:opacity-60 ${
+        className={`inline-flex max-w-full items-center gap-1.5 rounded-md border font-medium shadow-sm transition duration-150 active:scale-[.97] disabled:cursor-default disabled:active:scale-100 disabled:opacity-60 ${
           compact ? "px-2 py-0.5 text-xs" : "px-3 py-1.5 text-sm"
         } ${BUTTON_STYLES[config.color]}`}
         data-button-run
       >
         {busy && <Loader2 size={compact ? 12 : 14} className="animate-spin" />}
-        {done && <Check size={compact ? 12 : 14} />}
+        {done && <Check size={compact ? 12 : 14} className="nt-pop" />}
         <span className="truncate">{config.label || label}</span>
       </button>
       {error && !form && (
@@ -103,7 +105,9 @@ export function ButtonAction({
             busy={busy}
             error={error}
             onSubmit={(answers) => run(answers).catch(() => undefined)}
+            closeRef={closeForm}
             onClose={() => {
+              closeForm.current = null;
               setForm(false);
               setError(null);
             }}
@@ -122,6 +126,7 @@ export function ButtonForm({
   error,
   onSubmit,
   onClose,
+  closeRef,
   submitLabel = t("button.submit"),
 }: {
   title: string;
@@ -130,6 +135,7 @@ export function ButtonForm({
   error: unknown;
   onSubmit: (answers: Record<string, unknown>) => void;
   onClose?: () => void;
+  closeRef?: MutableRefObject<(() => void) | null>;
   submitLabel?: string;
 }) {
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
@@ -146,9 +152,7 @@ export function ButtonForm({
       <ErrorText error={error} />
       <div className="flex justify-end gap-2 pt-1">
         {onClose && (
-          <Button type="button" variant="ghost" onClick={onClose}>
-            {t("common.cancel")}
-          </Button>
+          <CancelButton onClose={onClose} />
         )}
         <Button type="submit" disabled={busy}>
           {busy && <Loader2 size={14} className="animate-spin" />} {submitLabel}
@@ -158,7 +162,7 @@ export function ButtonForm({
   );
   if (!onClose) return body;
   return (
-    <Modal title={title} onClose={onClose}>
+    <Modal title={title} onClose={onClose} closeRef={closeRef}>
       {body}
     </Modal>
   );

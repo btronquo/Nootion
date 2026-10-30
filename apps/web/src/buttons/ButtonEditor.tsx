@@ -19,7 +19,7 @@ import {
   type SearchResult,
 } from "@nootion/shared";
 import { api } from "../lib/api";
-import { Button, ErrorText, Select } from "../components/ui";
+import { Button, ErrorText, Select, useClosing } from "../components/ui";
 import { PropertyIcon } from "../database/icons";
 import { BUTTON_STYLES } from "./ButtonAction";
 import { copyText, randomId } from "../lib/browser";
@@ -138,6 +138,7 @@ export function ButtonEditor({
   const fields = config.form?.fields ?? [];
   const setFields = (f: FormField[]) => setConfig((c) => ({ ...c, form: f.length ? { title: c.form?.title ?? "", fields: f } : null }));
 
+  const { closing, close } = useClosing(onClose);
   const variables = [
     ...BUTTON_VARIABLES.filter((v) => rowDatabaseId || !v.startsWith("row.")),
     ...(rowDb.data?.properties ?? []).filter((p) => p.type !== "button").map((p) => `row.${p.name}`),
@@ -146,14 +147,15 @@ export function ButtonEditor({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 p-2 sm:p-4 sm:pt-[6vh]"
-      onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+      className="nt-backdrop fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 p-2 sm:p-4 sm:pt-[6vh]"
+      data-closing={closing || undefined}
+      onMouseDown={(e) => e.target === e.currentTarget && close()}
     >
       <div
         role="dialog"
         aria-label={t("button.settings")}
-        className="flex max-h-[calc(100dvh-16px)] w-full max-w-2xl flex-col rounded-xl border border-neutral-200 bg-white shadow-xl sm:max-h-[88vh] dark:border-neutral-800 dark:bg-neutral-900"
-        onKeyDown={(e) => e.key === "Escape" && onClose()}
+        className="nt-dialog flex max-h-[calc(100dvh-16px)] w-full max-w-2xl flex-col rounded-xl border border-neutral-200 bg-white shadow-xl sm:max-h-[88vh] dark:border-neutral-800 dark:bg-neutral-900"
+        onKeyDown={(e) => e.key === "Escape" && close()}
         data-button-editor
       >
         <InsertContext.Provider value={insertCtx}>
@@ -291,7 +293,7 @@ export function ButtonEditor({
               ))}
             </div>
             <div className="flex justify-end gap-2">
-              <Button type="button" variant="ghost" onClick={onClose}>
+              <Button type="button" variant="ghost" onClick={close}>
                 {t("common.cancel")}
               </Button>
               <Button type="button" onClick={() => onSave(config)}>

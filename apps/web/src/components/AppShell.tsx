@@ -11,7 +11,7 @@ import { useSession } from "../lib/session";
 import { buildTree, pageTitle } from "../lib/tree";
 import { DRAG_TYPE, PageTree } from "./PageTree";
 import { Avatar } from "./Avatar";
-import { Button, ErrorText, Field, Modal } from "./ui";
+import { Button, CancelButton, ErrorText, Field, Modal } from "./ui";
 import { usePlugins } from "../plugins/registry";
 import { SearchDialog, useSearchShortcut } from "./SearchDialog";
 import { MobileBar, SidebarLayout } from "./SidebarLayout";
@@ -328,9 +328,7 @@ function CreateWorkspaceDialog({ onClose }: { onClose: () => void }) {
         <p className="text-sm text-neutral-500">{t("workspace.newHelp")}</p>
         <ErrorText error={error} />
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={onClose}>
-            {t("common.cancel")}
-          </Button>
+          <CancelButton onClose={onClose} />
           <Button type="submit">{t("common.create")}</Button>
         </div>
       </form>

@@ -20,7 +20,12 @@ export function Popover({ anchor, onClose, children, width: wanted = 260 }: { an
     const onDown = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node) && !anchor?.contains(e.target as Node)) onClose();
     };
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      // Only this popover closes, not a dialog it sits in.
+      e.preventDefault();
+      onClose();
+    };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
     return () => {
@@ -33,7 +38,7 @@ export function Popover({ anchor, onClose, children, width: wanted = 260 }: { an
     <div
       ref={ref}
       style={{ left: pos?.left ?? -9999, top: pos?.top ?? -9999, width }}
-      className="fixed z-50 max-h-[calc(100dvh-16px)] overflow-y-auto rounded-lg border border-neutral-200 bg-white p-1 text-sm shadow-xl dark:border-neutral-700 dark:bg-neutral-900"
+      className="nt-pop fixed z-50 max-h-[calc(100dvh-16px)] overflow-y-auto rounded-lg border border-neutral-200 bg-white p-1 text-sm shadow-xl dark:border-neutral-700 dark:bg-neutral-900"
     >
       {children}
     </div>,
