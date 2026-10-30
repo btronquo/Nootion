@@ -165,3 +165,9 @@ more interface languages.
   property with a calendar, both ways.
 - Per-user plugin credentials (done): plugins keep encrypted data per user (Nextcloud app passwords, Google OAuth
   tokens), listed in "My account › Connected services". Still to do: plugin property types.
+
+Backlog after V2:
+
+- Google Calendar: when the administrator hasn't set the OAuth client, let a user paste their own client ID and secret
+  in the block (the administrator's client stays the normal way).
+- Plugin property types: a plugin adds a column type to databases (stored value, cell display and editor).
