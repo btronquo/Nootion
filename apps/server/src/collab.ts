@@ -263,6 +263,32 @@ export async function linkChildPage(collab: Collab, db: Db, parentId: string, pa
   );
 }
 
+/** Whether a top-level block is a line holding only a link to the page. */
+function isLinkLine(node: unknown, pageId: string): boolean {
+  if (!(node instanceof Y.XmlElement) || node.nodeName !== "paragraph" || node.length !== 1) return false;
+  const link = node.get(0);
+  return link instanceof Y.XmlElement && link.nodeName === "pageLink" && link.getAttribute("pageId") === pageId;
+}
+
+/** Whether a page's content has a line with only a link to `pageId`. */
+export function hasLinkLine(collab: Collab, db: Db, parentId: string, pageId: string): boolean {
+  const content = readContent(collab, db, parentId).content ?? [];
+  return content.some(
+    (n) => n.type === "paragraph" && n.content?.length === 1 && n.content[0]!.type === "pageLink" && n.content[0]!.attrs?.pageId === pageId,
+  );
+}
+
+/** Removes the lines holding only a link to a page that moved out of this one (links within text stay). */
+export async function unlinkChildPage(collab: Collab, db: Db, parentId: string, pageId: string) {
+  if (!hasLinkLine(collab, db, parentId, pageId)) return;
+  await editContent(collab, db, parentId, (d) =>
+    d.transact(() => {
+      const fragment = d.getXmlFragment(CONTENT_FIELD);
+      for (let i = fragment.length - 1; i >= 0; i--) if (isLinkLine(fragment.get(i), pageId)) fragment.delete(i, 1);
+    }),
+  );
+}
+
 /** A page's content as it is now, with what people are typing included. */
 export function readContent(collab: Collab, db: Db, pageId: string): ProseMirrorNode {
   const live = collab.documents.get(pageId);

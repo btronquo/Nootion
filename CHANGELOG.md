@@ -7,12 +7,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Changed
 
+- Moving a page moves its link with it: out of the old parent page, to the end of the new one, as in Notion.
 - Calmer interface: dialogs fade and rise in, and fade out when closed; menus and popovers pop in; pages fade in
   when you move between them; buttons respond to a press. Everything is off when the system asks for reduced motion.
 - Dialogs put the cursor in their first field, and Escape closes them even when the focus is elsewhere.
 
 ### Added
 
+- Quick capture: "Quick capture" in the sidebar, or Ctrl+Alt+N (⌘⌥N on a Mac), drops a note in your inbox, a page of
+  your personal space made for it. The first line is the title. The installed app also takes what you share to it
+  from other apps (a link, a text), and has a "Capture" shortcut on its icon. File a note by moving it, from the
+  sidebar or its menu. Agents can add to it too (`capture_to_inbox`).
 - Recurring templates ("Repeat" on a template): make a new page from a page template, or a new row from a row
   template, every N days, on some days of the week, or on a day of the month, at a chosen time. New pages go in a
   page of your choice; new rows can get the day in a date column. The template shows when it runs next.

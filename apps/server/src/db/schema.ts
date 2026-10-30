@@ -21,6 +21,8 @@ export const users = sqliteTable(
     locale: text("locale").notNull().default("en"),
     // The user's home page (a page of their personal workspace), created on first visit.
     homePageId: text("home_page_id"),
+    // The page quick notes land in (in their personal workspace), created on first capture.
+    inboxPageId: text("inbox_page_id"),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("users_email_unique").on(t.email)],

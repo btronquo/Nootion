@@ -32,7 +32,7 @@ import { copyTree } from "../templates.js";
 import { syncReminders } from "../reminders.js";
 import { listBacklinks } from "../backlinks.js";
 import { getSnapshot, listVersions, recordAgentVersion, recordSnapshot } from "../history.js";
-import { appendContent, linkChildPage, readContent, writeContent, type ProseMirrorNode } from "../collab.js";
+import { appendContent, hasLinkLine, linkChildPage, unlinkChildPage, readContent, writeContent, type ProseMirrorNode } from "../collab.js";
 import { toMarkdown } from "../markdown.js";
 import { fromAutomation, rowSnapshot } from "../automations.js";
 import { checkContent, parseMarkdown } from "../markdown-in.js";
@@ -298,6 +298,11 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
       const moved = getPageMeta(tx, page.id)!;
       placeAmongSiblings(tx, moved, input.index);
     });
+    // Its link moves with it, as in Notion: out of the old parent, to the end of the new one.
+    if (input.parentId !== page.parentId) {
+      if (page.parentId) await unlinkChildPage(app.collab, db, page.parentId, page.id);
+      if (input.parentId && !hasLinkLine(app.collab, db, input.parentId, page.id)) await linkChildPage(app.collab, db, input.parentId, page);
+    }
     return { page: toSummary(getPageMeta(db, page.id)!) };
   });
 

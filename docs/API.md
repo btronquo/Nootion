@@ -64,11 +64,13 @@ Ids are UUIDs. Dates are ISO 8601.
 | `GET /api/pages/:id` | A page's details: title, icon, cover, `kind` (`page`, `database` or `row`), your role, breadcrumb. |
 | `POST /api/pages` | Creates a page: `{ "workspaceId", "parentId": null, "title", "icon"?, "markdown"? }` (or `content`, see below). A subpage gets a link at the end of its parent, unless `"linkInParent": false`. |
 | `PATCH /api/pages/:id` | Changes `title`, `icon`, `cover` (`https://…` image), `fullWidth`. |
-| `POST /api/pages/:id/move` | Moves it: `{ "parentId": "…" or null, "index"? }`. |
+| `POST /api/pages/:id/move` | Moves it: `{ "parentId": "…" or null, "index"? }`. A line holding only a link to it moves with it, from the old parent to the end of the new one. |
 | `DELETE /api/pages/:id` | Moves it to the trash, with its subpages. |
 | `POST /api/pages/:id/restore` | Takes it out of the trash. |
 | `GET /api/pages/:id/backlinks` | Pages that link to it. |
 | `GET /api/pages/:id/history` | Its versions; `GET /api/pages/:id/history/:versionId` reads one. |
+| `GET /api/inbox` | Your inbox (`pageId`, made on first use in your personal space) and the notes still in it (`items`, newest first). |
+| `POST /api/inbox` | Drops a note in it: `{ "text", "title"?, "url"? }`. Without a title, the first line of the text is the title. Notes are subpages of the inbox: file one by moving it. |
 | `GET /api/pages/templates` | Page templates; `POST /api/pages/:id/apply-template` with `{ "templateId" }` fills an empty page from one. |
 
 ## Page content
