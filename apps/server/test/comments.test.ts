@@ -36,7 +36,13 @@ describe("comments", () => {
     const res = await boris.post(`/api/pages/${page}/comments`, { body: "Le loyer a augmenté ?", anchor: ANCHOR, quote: "Loyer : 800 €" });
     expect(res.statusCode).toBe(200);
     const thread = res.json().thread;
-    expect(thread).toMatchObject({ pageId: page, anchor: ANCHOR, quote: "Loyer : 800 €", resolvedAt: null, comments: [{ authorName: "Boris", body: "Le loyer a augmenté ?" }] });
+    expect(thread).toMatchObject({
+      pageId: page,
+      anchor: ANCHOR,
+      quote: "Loyer : 800 €",
+      resolvedAt: null,
+      comments: [{ authorName: "Boris", body: "Le loyer a augmenté ?" }],
+    });
 
     // A commenter answers; a viewer reads but can't write.
     expect((await alice.post(`/api/comments/threads/${thread.id}/replies`, { body: "Oui, de 20 €" })).statusCode).toBe(200);
@@ -79,10 +85,16 @@ describe("comments", () => {
   it("tells the people mentioned and the thread's participants, in their language", async () => {
     const thread = (await boris.post(`/api/pages/${page}/comments`, { body: `<@${aliceId}> tu peux vérifier ?`, anchor: ANCHOR, quote: "x" })).json().thread;
     expect(sent).toHaveLength(1);
-    expect(JSON.parse(sent[0]!.payload)).toMatchObject({ title: "Boris mentioned you in Budget", body: "@Alice tu peux vérifier ?", url: `/page/${page}?comment=${thread.id}` });
+    expect(JSON.parse(sent[0]!.payload)).toMatchObject({
+      title: "Boris mentioned you in Budget",
+      body: "@Alice tu peux vérifier ?",
+      url: `/page/${page}?comment=${thread.id}`,
+    });
 
     let alices = (await alice.get("/api/comments/notifications")).json().notifications;
-    expect(alices).toMatchObject([{ kind: "mention", pageId: page, pageTitle: "Budget", threadId: thread.id, actorName: "Boris", excerpt: "@Alice tu peux vérifier ?", read: false }]);
+    expect(alices).toMatchObject([
+      { kind: "mention", pageId: page, pageTitle: "Budget", threadId: thread.id, actorName: "Boris", excerpt: "@Alice tu peux vérifier ?", read: false },
+    ]);
 
     // Alice answers: Boris hears of it (not Alice herself).
     await alice.post(`/api/comments/threads/${thread.id}/replies`, { body: "C'est fait" });

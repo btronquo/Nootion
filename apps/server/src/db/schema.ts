@@ -520,3 +520,40 @@ export const commentNotifications = sqliteTable(
   },
   (t) => [index("comment_notifications_user_idx").on(t.userId, t.createdAt), uniqueIndex("comment_notifications_unique").on(t.userId, t.commentId)],
 );
+
+/** "When this happens to a row of the database, run these steps" (see automations.ts). */
+export const automations = sqliteTable(
+  "automations",
+  {
+    id: text("id").primaryKey(),
+    databaseId: text("database_id")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    name: text("name").notNull().default(""),
+    enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+    trigger: text("trigger", { mode: "json" }).notNull(),
+    steps: text("steps", { mode: "json" }).notNull(),
+    // The steps run as this person, with their rights.
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("automations_database_idx").on(t.databaseId)],
+);
+
+export const automationRuns = sqliteTable(
+  "automation_runs",
+  {
+    id: text("id").primaryKey(),
+    automationId: text("automation_id")
+      .notNull()
+      .references(() => automations.id, { onDelete: "cascade" }),
+    rowId: text("row_id"),
+    // For dates reached: "<row>:<date>", so that each date sets it off once.
+    key: text("key"),
+    error: text("error"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("automation_runs_idx").on(t.automationId, t.createdAt), uniqueIndex("automation_runs_key_unique").on(t.automationId, t.key)],
+);

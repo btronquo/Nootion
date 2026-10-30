@@ -13,6 +13,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Database automations ("Automations" above a database): when a row is added, when a column changes (or takes a
+  given value), or when a date arrives, run steps on the row, the same steps as buttons. For example "Status set to
+  Paid → fill in the payment date with today". They can be paused, and their last runs are listed with any error.
 - Comments: select text and comment on it, or comment on the whole page, from the comments panel. Threads have
   replies, can be resolved and reopened, and follow their passage as the page is edited. People with the
   "commenter" role can take part. Type "@" to mention someone: they get a notification, as do the others in the

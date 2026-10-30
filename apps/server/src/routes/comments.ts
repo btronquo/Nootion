@@ -165,7 +165,10 @@ export const commentRoutes: FastifyPluginAsync = async (app) => {
       if (!inserted) continue;
       const locale = target.locale as Locale;
       await app.notifier.push(userId, {
-        title: tIn(locale, kind === "mention" ? "comments.pushMention" : "comments.pushReply", { name: author, page: `${page.icon ? `${page.icon} ` : ""}${page.title || tIn(locale, "common.untitled")}` }),
+        title: tIn(locale, kind === "mention" ? "comments.pushMention" : "comments.pushReply", {
+          name: author,
+          page: `${page.icon ? `${page.icon} ` : ""}${page.title || tIn(locale, "common.untitled")}`,
+        }),
         body: text.slice(0, EXCERPT),
         url: `/page/${thread.pageId}?comment=${threadId}`,
         tag: commentId,
@@ -234,7 +237,15 @@ export function listThreads(db: Db, pageId: string, onlyThread?: string): Commen
 /** The user's latest mentions and replies, on pages they can still read. */
 export function listNotifications(db: Db, userId: string): CommentNotification[] {
   const rows = db
-    .select({ n: commentNotifications, body: comments.body, actorId: comments.authorId, threadId: comments.threadId, pageId: commentThreads.pageId, title: pages.title, icon: pages.icon })
+    .select({
+      n: commentNotifications,
+      body: comments.body,
+      actorId: comments.authorId,
+      threadId: comments.threadId,
+      pageId: commentThreads.pageId,
+      title: pages.title,
+      icon: pages.icon,
+    })
     .from(commentNotifications)
     .innerJoin(comments, eq(comments.id, commentNotifications.commentId))
     .innerJoin(commentThreads, eq(commentThreads.id, comments.threadId))

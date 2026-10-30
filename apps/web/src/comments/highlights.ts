@@ -93,7 +93,10 @@ export const CommentHighlights = Extension.create<{ onOpen: (threadId: string) =
               const range = resolve(state, th.anchor);
               if (!range) continue;
               decorations.push(
-                Decoration.inline(range.from, range.to, { class: `comment-highlight${th.id === active ? " comment-highlight-active" : ""}`, "data-comment-thread": th.id }),
+                Decoration.inline(range.from, range.to, {
+                  class: `comment-highlight${th.id === active ? " comment-highlight-active" : ""}`,
+                  "data-comment-thread": th.id,
+                }),
               );
             }
             return DecorationSet.create(state.doc, decorations);

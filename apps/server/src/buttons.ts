@@ -90,7 +90,7 @@ function answerText(field: FormField, value: unknown): string {
 }
 
 /** A cell's value as text, for {{row.<column>}}: option and people names, dates as written. */
-function cellText(prop: DatabaseProperty, value: unknown, names: Map<string, string>): string {
+export function cellText(prop: DatabaseProperty, value: unknown, names: Map<string, string>): string {
   if (value === null || value === undefined) return "";
   const option = (id: string) => prop.config.options?.find((o) => o.id === id)?.name ?? "";
   switch (prop.type) {

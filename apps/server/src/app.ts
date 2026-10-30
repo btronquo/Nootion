@@ -27,6 +27,8 @@ import { invitationRoutes } from "./routes/invitations.js";
 import { workspaceRoutes } from "./routes/workspaces.js";
 import { pageRoutes } from "./routes/pages.js";
 import { commentRoutes } from "./routes/comments.js";
+import { automationRoutes } from "./routes/automations.js";
+import { createAutomations, type Automations } from "./automations.js";
 import { userRoutes } from "./routes/users.js";
 import { publicRoutes } from "./routes/public.js";
 import { pluginAdminRoutes, pluginRoutes } from "./routes/plugins.js";
@@ -54,6 +56,7 @@ declare module "fastify" {
     plugins: PluginManager;
     extractor: Extractor;
     notifier: Notifier;
+    automations: Automations;
   }
   interface FastifyRequest {
     user: UserRow | null;
@@ -109,6 +112,9 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
   const notifier = createNotifier(opts.db, { dataDir: opts.config.dataDir, appUrl: opts.config.appUrl, log: app.log, send: opts.pushSender });
   app.decorate("notifier", notifier);
   app.addHook("onClose", async () => notifier.stop());
+  const automationRunner = createAutomations(app);
+  app.decorate("automations", automationRunner);
+  app.addHook("onClose", async () => automationRunner.stop());
 
   await app.register(cookie, { secret: opts.config.appSecret });
   await app.register(rateLimit, { global: false });
@@ -206,6 +212,7 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
   await app.register(workspaceRoutes, { prefix: "/api/workspaces" });
   await app.register(pageRoutes, { prefix: "/api/pages" });
   await app.register(commentRoutes, { prefix: "/api" });
+  await app.register(automationRoutes, { prefix: "/api" });
   await app.register(favoriteRoutes, { prefix: "/api/favorites" });
   await app.register(calendarFeedRoutes, { prefix: "/api/calendar-feeds" });
   await app.register(icalRoutes, { prefix: "/api/ical" });
