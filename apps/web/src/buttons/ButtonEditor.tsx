@@ -571,7 +571,7 @@ function ColumnValues({
 }
 
 /** Picks a page by searching for it. */
-function PagePicker({ value, onChange, emptyLabel }: { value: string | null; onChange: (id: string | null) => void; emptyLabel: string }) {
+export function PagePicker({ value, onChange, emptyLabel }: { value: string | null; onChange: (id: string | null) => void; emptyLabel: string }) {
   const [query, setQuery] = useState("");
   const current = useQuery({
     queryKey: ["page", value],

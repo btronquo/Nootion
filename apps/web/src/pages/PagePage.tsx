@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, History, LayoutTemplate, Lock, MessageSquare, MoreHorizontal, Share2, Star, Trash2 } from "lucide-react";
+import { ChevronRight, History, LayoutTemplate, Lock, MessageSquare, MoreHorizontal, Repeat, Share2, Star, Trash2 } from "lucide-react";
 import { atLeast, t, type PageDetail, type PageSummary } from "@nootion/shared";
 import { api } from "../lib/api";
 import { sendOrQueue } from "../lib/offline";
@@ -24,6 +24,7 @@ import { SyncStatus } from "../components/SyncStatus";
 import { useSession } from "../lib/session";
 import { CommentsPanel, type DraftAnchor } from "../comments/CommentsPanel";
 import { useComments } from "../comments/queries";
+import { nextRunText, recurrenceText, RecurrenceDialog, useRecurrence } from "../components/RecurrenceDialog";
 
 /** A page, by the id in the address (or the one given, for the home page). */
 export function PagePage({ id: given }: { id?: string }) {
@@ -210,7 +211,7 @@ function PageView({ page }: { page: PageDetail }) {
           className="w-full resize-none overflow-hidden bg-transparent text-3xl font-bold sm:text-4xl outline-none placeholder:text-neutral-300 dark:placeholder:text-neutral-600"
         />
         )}
-        {page.template && <TemplateBanner page={page} />}
+        {page.template && <TemplateBanner page={page} canEdit={canEdit} />}
         {page.kind === "row" && page.parentId && <RowProperties databaseId={page.parentId} rowId={page.id} />}
         {offerTemplates && empty && <TemplatePicker page={page} />}
         <div className="mt-4">
@@ -310,13 +311,17 @@ function FavoriteButton({ page }: { page: PageDetail }) {
   );
 }
 
-/** Says that the page is a template, and what it is for. */
-function TemplateBanner({ page }: { page: PageDetail }) {
+/** Says that the page is a template, what it is for, and when it repeats. */
+function TemplateBanner({ page, canEdit }: { page: PageDetail; canEdit: boolean }) {
   const database = page.kind === "row" ? page.breadcrumb[page.breadcrumb.length - 1] : undefined;
+  const recurrence = useRecurrence(page.id);
+  const [editing, setEditing] = useState(false);
+  const r = recurrence.data;
   return (
+    <>
     <div className="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200" data-template-banner>
       <LayoutTemplate size={16} className="mt-0.5 shrink-0" />
-      <span>
+      <span className="min-w-0 flex-1">
         {database ? (
           <>
             {t("template.rowBanner", { database: pageTitle(database.title) })}{" "}
@@ -327,8 +332,30 @@ function TemplateBanner({ page }: { page: PageDetail }) {
         ) : (
           t("template.pageBanner")
         )}
+        {r && (
+          <span className="mt-1 flex items-start gap-1.5 text-xs opacity-80" data-recurrence-summary>
+            <Repeat size={12} className="mt-0.5 shrink-0" />
+            <span>
+              {recurrenceText(r)} · {nextRunText(r)}
+              {r.lastError && <span className="text-red-600 dark:text-red-400"> · {t("recurrence.lastError", { error: r.lastError })}</span>}
+            </span>
+          </span>
+        )}
       </span>
+      {canEdit && (
+        <button
+          type="button"
+          className="-my-1 flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium hover:bg-amber-100 dark:hover:bg-amber-900/40"
+          onClick={() => setEditing(true)}
+          data-recurrence-button
+        >
+          <Repeat size={13} /> {t("recurrence.button")}
+        </button>
+      )}
     </div>
+    {/* Outside the banner, so it doesn't take its colors. */}
+    {editing && <RecurrenceDialog page={page} recurrence={r ?? null} onClose={() => setEditing(false)} />}
+    </>
   );
 }
 

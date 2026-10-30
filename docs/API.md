@@ -184,6 +184,24 @@ Triggers: `{ "type": "row_added" }`, `{ "type": "property_changed", "propertyId"
 option's name, `"true"`/`"false"` for a checkbox, or a text; null for any change), and
 `{ "type": "date_reached", "propertyId" }` (a date column: at its time, or at 9:00 for a day).
 
+## Recurring templates
+
+A page template or a row template can make a new page (or row) by itself on a schedule. Setting it needs the
+"editor" role on the template; the pages are made as the person who last saved the schedule, titled with the
+template's title and the day ("Weekly review — 2 Nov 2026").
+
+| Request | What it does |
+| --- | --- |
+| `GET /api/pages/:id/recurrence` | The template's schedule, with `nextRunAt`, `lastRunAt` and `lastError`; null if it doesn't repeat. |
+| `PUT /api/pages/:id/recurrence` | Sets it (see below). |
+| `DELETE /api/pages/:id/recurrence` | Stops it. |
+
+The body: `{ "frequency": "daily" | "weekly" | "monthly", "interval": 1, "weekdays": [1, 4], "monthDay": 1,
+"time": "08:00", "timeZone": "Europe/Paris", "startDate": "2026-11-02", "parentId", "dateProperty", "enabled" }`.
+`weekdays` (0 = Sunday) is for weekly schedules, `monthDay` for monthly ones (the last day of shorter months).
+A page template needs `parentId`, the page the new pages go in; a row template can give `dateProperty`, a date
+column that gets the day of each run.
+
 ## Comments
 
 Threads of comments on a page (not on databases), about a passage or the whole page. A comment's `body` is plain

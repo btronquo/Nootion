@@ -174,7 +174,7 @@ more interface languages.
 - **Database automations** (done): "when a row is added / when a property changes (to a value) / when a date arrives", run
   steps, the same steps as buttons (change the row, add a row elsewhere, create a page, call a webhook). For example
   "Status set to Paid → fill in the payment date". Each automation can be paused, and its last runs are listed.
-- **Recurring templates**: a page or row template created on a schedule (every Monday, on the 1st of the month…),
+- **Recurring templates** (done): a page or row template created on a schedule (every Monday, on the 1st of the month…),
   in a chosen place, with dates filled in for the period.
 - **Quick capture**: an "Inbox" page per person, and a fast way to drop a note there (keyboard shortcut, share target
   of the installed mobile app, API), to file it later by moving it.
