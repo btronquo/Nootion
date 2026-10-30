@@ -14,5 +14,6 @@ export * from "./plugins.js";
 export * from "./notion.js";
 export * from "./comments.js";
 export * from "./automations.js";
+export * from "./recurrence.js";
 export * from "./i18n/index.js";
 import "./i18n/zod.js";

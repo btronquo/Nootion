@@ -13,6 +13,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Recurring templates ("Repeat" on a template): make a new page from a page template, or a new row from a row
+  template, every N days, on some days of the week, or on a day of the month, at a chosen time. New pages go in a
+  page of your choice; new rows can get the day in a date column. The template shows when it runs next.
 - Database automations ("Automations" above a database): when a row is added, when a column changes (or takes a
   given value), or when a date arrives, run steps on the row, the same steps as buttons. For example "Status set to
   Paid → fill in the payment date with today". They can be paused, and their last runs are listed with any error.

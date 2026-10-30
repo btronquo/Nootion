@@ -557,3 +557,19 @@ export const automationRuns = sqliteTable(
   },
   (t) => [index("automation_runs_idx").on(t.automationId, t.createdAt), uniqueIndex("automation_runs_key_unique").on(t.automationId, t.key)],
 );
+
+/** A template that makes a new page or row on a schedule (see recurrences.ts). */
+export const recurrences = sqliteTable("recurrences", {
+  templateId: text("template_id")
+    .primaryKey()
+    .references(() => pages.id, { onDelete: "cascade" }),
+  rule: text("rule", { mode: "json" }).notNull(),
+  nextRunAt: integer("next_run_at", { mode: "timestamp_ms" }),
+  lastRunAt: integer("last_run_at", { mode: "timestamp_ms" }),
+  lastError: text("last_error"),
+  // New pages are made as this person, with their rights.
+  createdBy: text("created_by")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  createdAt: createdAt(),
+});
