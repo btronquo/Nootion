@@ -48,12 +48,16 @@ function TemplateInput({
 }) {
   const { focus } = useContext(InsertContext);
   const ref = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
+  // Variables are inserted later, after other changes: always into the latest text, through the latest callback.
+  const latest = useRef({ value, onChange });
+  latest.current = { value, onChange };
   const onFocus = () =>
     focus((text) => {
       const el = ref.current;
-      const start = el?.selectionStart ?? value.length;
-      const end = el?.selectionEnd ?? value.length;
-      onChange(value.slice(0, start) + text + value.slice(end));
+      const current = latest.current.value;
+      const start = el?.selectionStart ?? current.length;
+      const end = el?.selectionEnd ?? current.length;
+      latest.current.onChange(current.slice(0, start) + text + current.slice(end));
       requestAnimationFrame(() => {
         el?.focus();
         el?.setSelectionRange(start + text.length, start + text.length);
