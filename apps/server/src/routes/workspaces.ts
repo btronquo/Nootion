@@ -11,10 +11,12 @@ import {
 } from "@nootion/shared";
 import { and, count, desc, eq, isNotNull, ne } from "drizzle-orm";
 import { pages, users, workspaceMembers, workspaces } from "../db/schema.js";
+import { scopeAllows } from "../api-tokens.js";
 import { HttpError, notFound, parseBody, requireUser } from "../http.js";
-import { getPageRole, requireWorkspaceRole } from "../permissions.js";
+import { getPageRole, getWorkspaceRole, requireWorkspaceRole } from "../permissions.js";
 import { listWorkspacePages, toSummary } from "../pages.js";
 import { t } from "@nootion/shared";
+import { homePageOf } from "../home.js";
 
 const ANY_ROLE = ["owner", "editor", "commenter", "viewer"] as const;
 
@@ -48,7 +50,10 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
       .orderBy(workspaces.createdAt)
       .all();
     // Personal space first, then shared spaces.
-    const result: WorkspaceSummary[] = [...rows.filter((r) => r.kind === "personal"), ...rows.filter((r) => r.kind === "shared")];
+    const result: WorkspaceSummary[] = [...rows.filter((r) => r.kind === "personal"), ...rows.filter((r) => r.kind === "shared")]
+      // With a personal token: its spaces only, with the role it has there.
+      .filter((r) => scopeAllows(r.id))
+      .map((r) => ({ ...r, role: getWorkspaceRole(db, user.id, r.id) ?? r.role }));
     return { workspaces: result };
   });
 
@@ -107,7 +112,7 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
     const input = parseBody(setMemberInput, req.body);
     requireSharedOwner(user.id, req.params.id);
     const target = db.select().from(users).where(eq(users.id, input.userId)).get();
-    if (!target || target.disabled) throw new HttpError(404, "user_not_found", "Utilisateur introuvable.");
+    if (!target || target.disabled) throw new HttpError(404, "user_not_found", t("error.userNotFound"));
     if (input.role !== "owner" && ownerCount(req.params.id, input.userId) === 0) {
       throw new HttpError(409, "last_owner", t("error.lastOwner"));
     }
@@ -139,7 +144,9 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
   app.get<{ Params: { id: string } }>("/:id/pages", async (req) => {
     const user = requireUser(req);
     requireWorkspaceRole(db, user.id, req.params.id, ANY_ROLE);
-    return { pages: listWorkspacePages(db, req.params.id).map(toSummary) };
+    // The home page is reached from "Home", not from the tree.
+    const home = homePageOf(db, user.id);
+    return { pages: listWorkspacePages(db, req.params.id).filter((p) => p.id !== home).map(toSummary) };
   });
 
   // Pages put in the trash in this workspace that the user is allowed to restore or delete.

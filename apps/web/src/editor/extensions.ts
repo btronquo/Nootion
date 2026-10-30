@@ -5,7 +5,8 @@ import { TableKit } from "@tiptap/extension-table";
 import Image from "@tiptap/extension-image";
 import { Placeholder } from "@tiptap/extensions";
 import type { ClientPluginInfo } from "@nootion/shared";
-import { Callout, DatabaseBlock, FileAttachment, PageLink } from "./nodes";
+import { DetailsContent, DetailsSummary } from "@tiptap/extension-details";
+import { CalendarBlock, Callout, DateMention, Column, Columns, DatabaseBlock, DatabaseRows, FavoritesList, RecentPages, UpcomingEvents, WidgetCommands, FileAttachment, PageLink, Toggle } from "./nodes";
 import { pluginNodes } from "../plugins/nodes";
 import { t } from "@nootion/shared";
 
@@ -15,6 +16,8 @@ export function baseExtensions(opts: {
   plugins: ClientPluginInfo[];
   pageLink?: Parameters<typeof PageLink.configure>[0];
   publicToken?: string;
+  /** The page being edited, for calendar feeds. */
+  pageId?: string;
 }): AnyExtension[] {
   return [
     StarterKit.configure({
@@ -28,12 +31,24 @@ export function baseExtensions(opts: {
     TableKit.configure({ table: { resizable: true } }),
     Image,
     Callout,
+    Toggle,
+    // Its placeholder is shown by CSS (the Placeholder extension only handles top-level blocks).
+    DetailsSummary.configure({ HTMLAttributes: { "data-placeholder": t("toggle.placeholder") } }),
+    DetailsContent,
+    Columns,
+    Column,
     FileAttachment,
     PageLink.configure(opts.pageLink ?? {}),
+    DateMention,
     DatabaseBlock.configure({ publicToken: opts.publicToken ?? null }),
+    CalendarBlock.configure({ pageId: opts.pageId ?? null, publicToken: opts.publicToken ?? null }),
+    ...[RecentPages, FavoritesList, UpcomingEvents, DatabaseRows].map((w) => w.configure({ publicToken: opts.publicToken ?? null })),
+    WidgetCommands,
     ...pluginNodes(opts.plugins),
     Placeholder.configure({
-      placeholder: ({ node }) => (node.type.name === "heading" ? t("editor.headingPlaceholder") : t("editor.placeholder")),
+      placeholder: ({ node }) =>
+        node.type.name === "heading" ? t("editor.headingPlaceholder") : t("editor.placeholder"),
+      // Only top-level blocks: with includeChildren, placeholders stay on lines the cursor has left.
       showOnlyCurrent: true,
     }),
   ];

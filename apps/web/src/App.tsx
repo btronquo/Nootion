@@ -9,6 +9,7 @@ import { AdminPage } from "./pages/AdminPage";
 import { PagePage } from "./pages/PagePage";
 import { WorkspacePage } from "./pages/WorkspacePage";
 import { TrashPage } from "./pages/TrashPage";
+import { RemindersPage } from "./pages/RemindersPage";
 import { PublicPage } from "./pages/PublicPage";
 import { AccountPage } from "./pages/AccountPage";
 import { t } from "@nootion/shared";
@@ -58,6 +59,7 @@ function PrivateApp() {
         <Route path="/page/:id" element={<PagePage />} />
         <Route path="/workspace/:id" element={<WorkspacePage />} />
         <Route path="/trash" element={<TrashPage />} />
+        <Route path="/reminders" element={<RemindersPage />} />
         <Route path="/account" element={<AccountPage />} />
         {user.role === "admin" && <Route path="/admin" element={<AdminPage />} />}
       </Route>

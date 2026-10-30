@@ -4,6 +4,7 @@ import type { Db } from "./db/index.js";
 import { pagePermissions, workspaceMembers } from "./db/schema.js";
 import { notFound } from "./http.js";
 import { getPageMeta } from "./pages.js";
+import { currentTokenScope, scopeAllows } from "./api-tokens.js";
 
 /**
  * Single source of truth for who can see what. Every route that touches a page goes through here.
@@ -39,16 +40,19 @@ export function getChain(db: Db, pageId: string): ChainEntry[] {
 }
 
 export function getWorkspaceRole(db: Db, userId: string, workspaceId: string): WorkspaceRole | null {
+  // A request made with a personal token only reaches the token's spaces, and only reads with a read-only one.
+  if (!scopeAllows(workspaceId)) return null;
   const row = db
     .select({ role: workspaceMembers.role })
     .from(workspaceMembers)
     .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)))
     .get();
+  if (row && currentTokenScope()?.readOnly) return "viewer";
   return row?.role ?? null;
 }
 
 export function roleFromChain(db: Db, userId: string, chain: ChainEntry[]): PageRole | null {
-  if (chain.length === 0) return null;
+  if (chain.length === 0 || !scopeAllows(chain[0].workspaceId)) return null;
   const wsRole = getWorkspaceRole(db, userId, chain[0].workspaceId);
   let role: PageRole | null = wsRole ? WORKSPACE_ROLE_TO_PAGE_ROLE[wsRole] : null;
   const shares = db
@@ -57,6 +61,7 @@ export function roleFromChain(db: Db, userId: string, chain: ChainEntry[]): Page
     .where(and(eq(pagePermissions.userId, userId), inArray(pagePermissions.pageId, chain.map((c) => c.id))))
     .all();
   for (const s of shares) role = maxRole(role, s.role);
+  if (role && currentTokenScope()?.readOnly) return "viewer";
   return role;
 }
 

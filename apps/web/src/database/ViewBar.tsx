@@ -4,6 +4,7 @@ import {
   Copy,
   Download,
   Eye,
+  LayoutTemplate,
   EyeOff,
   ListFilter,
   MoreHorizontal,
@@ -11,6 +12,10 @@ import {
   Rows3,
   SquareKanban,
   Table2,
+  List,
+  LayoutGrid,
+  CalendarDays,
+  GanttChart,
   Trash2,
   Upload,
   X,
@@ -23,6 +28,8 @@ import {
   RELATIVE_DATES,
   VALUELESS_OPERATORS,
   canGroupBy,
+  calendarDateProp,
+  VIEW_TYPES,
   filterKind,
   isActiveFilter,
   type DatabaseData,
@@ -35,6 +42,7 @@ import {
   type ViewType,
 } from "@nootion/shared";
 import { Popover } from "./Popover";
+import { TemplatesMenu } from "./TemplatesMenu";
 import { PropertyIcon } from "./icons";
 import { parseNumberInput } from "./format";
 import { orderedColumns } from "./DatabaseTable";
@@ -47,8 +55,11 @@ type Actions = ReturnType<typeof useDatabaseActions>;
 
 export const viewTypeLabel = (type: ViewType) => t(`view.${type}` as MessageKey);
 
+const VIEW_ICONS: Record<ViewType, typeof Table2> = { table: Table2, board: SquareKanban, list: List, gallery: LayoutGrid, calendar: CalendarDays, timeline: GanttChart };
+const DATE_TYPES = ["date", "created_time", "last_edited_time"];
+
 export function ViewIcon({ type, size = 14 }: { type: ViewType; size?: number }) {
-  const Icon = type === "board" ? SquareKanban : Table2;
+  const Icon = VIEW_ICONS[type] ?? Table2;
   return <Icon size={size} className="shrink-0" />;
 }
 
@@ -75,13 +86,14 @@ export function ViewBar({
   actions?: Actions;
   editable: boolean;
 }) {
-  const [menu, setMenu] = useState<{ kind: "view" | "add" | "filter" | "sort" | "group" | "props" | "more"; anchor: HTMLElement } | null>(null);
+  const [menu, setMenu] = useState<{ kind: "view" | "add" | "filter" | "sort" | "group" | "date" | "props" | "more" | "templates"; anchor: HTMLElement } | null>(null);
   const close = () => setMenu(null);
   const config = view.config;
   const save = (patch: Partial<ViewConfig>) => actions?.updateView.mutate({ viewId: view.id, config: { ...config, ...patch } });
   const activeFilters = (config.filters ?? []).filter((f) => isActiveFilter(f, data)).length;
   const sorts = (config.sorts ?? []).filter((s) => data.properties.some((p) => p.id === s.propertyId)).length;
   const groupProp = view.type === "board" ? boardGroupProp(data, view) : data.properties.find((p) => p.id === config.groupBy);
+  const dateProp = view.type === "calendar" || view.type === "timeline" ? calendarDateProp(data.properties, config.dateProperty) : undefined;
   const tool = (on: boolean) =>
     `flex items-center gap-1 rounded px-1.5 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-800 ${on ? "text-blue-600 dark:text-blue-400" : "text-neutral-500"}`;
 
@@ -90,7 +102,7 @@ export function ViewBar({
 
   return (
     <div className="flex flex-wrap items-center gap-1 border-b border-neutral-200 pb-1 text-sm dark:border-neutral-800">
-      <div role="tablist" aria-label="Vues" className="flex min-w-0 flex-wrap items-center gap-0.5">
+      <div role="tablist" aria-label={t("view.tabs")} className="flex min-w-0 flex-wrap items-center gap-0.5">
         {data.views.map((v) => (
           <button
             key={v.id}
@@ -122,11 +134,21 @@ export function ViewBar({
               <button className={tool(sorts > 0)} onClick={(e) => setMenu({ kind: "sort", anchor: e.currentTarget })}>
                 <ArrowUpDown size={14} /> {t("view.sort")}{sorts > 0 && ` (${sorts})`}
               </button>
-              <button className={tool(!!groupProp && view.type === "table")} onClick={(e) => setMenu({ kind: "group", anchor: e.currentTarget })}>
-                <Rows3 size={14} /> {view.type === "board" ? t("view.columns") : t("view.group")}
-              </button>
+              {(view.type === "table" || view.type === "board") && (
+                <button className={tool(!!groupProp && view.type === "table")} onClick={(e) => setMenu({ kind: "group", anchor: e.currentTarget })}>
+                  <Rows3 size={14} /> {view.type === "board" ? t("view.columns") : t("view.group")}
+                </button>
+              )}
+              {(view.type === "calendar" || view.type === "timeline") && (
+                <button className={tool(false)} onClick={(e) => setMenu({ kind: "date", anchor: e.currentTarget })}>
+                  <CalendarDays size={14} /> {dateProp?.name ?? t("view.dateProperty")}
+                </button>
+              )}
               <button className={tool(false)} onClick={(e) => setMenu({ kind: "props", anchor: e.currentTarget })}>
                 <Eye size={14} /> {t("row.properties")}
+              </button>
+              <button className={tool(data.templates.length > 0)} onClick={(e) => setMenu({ kind: "templates", anchor: e.currentTarget })}>
+                <LayoutTemplate size={14} /> {t("template.button")}
               </button>
             </>
           )}
@@ -135,6 +157,7 @@ export function ViewBar({
           </button>
         </div>
       )}
+      {menu?.kind === "templates" && <TemplatesMenu data={data} anchor={menu.anchor} onClose={close} />}
       {menu?.kind === "more" && actions && (
         <Popover anchor={menu.anchor} onClose={close} width={260}>
           <a className={menuItem} href={`/api/databases/${data.id}/export?viewId=${view.id}`} download onClick={close}>
@@ -170,7 +193,7 @@ export function ViewBar({
       {menu?.kind === "add" && actions && (
         <Popover anchor={menu.anchor} onClose={close} width={200}>
           <div className="px-2 py-1 text-xs text-neutral-500">{t("view.new")}</div>
-          {(["table", "board"] as const).map((type) => (
+          {VIEW_TYPES.map((type) => (
             <button
               key={type}
               className={menuItem}
@@ -217,8 +240,27 @@ export function ViewBar({
           </div>
         </Popover>
       )}
+      {menu?.kind === "date" && (
+        <Popover anchor={menu.anchor} onClose={close} width={240}>
+          <div className="px-2 py-1 text-xs text-neutral-500">{t("view.calendarBy")}</div>
+          {data.properties
+            .filter((p) => DATE_TYPES.includes(p.type))
+            .map((p) => (
+              <button key={p.id} className={menuItem} onClick={() => (save({ dateProperty: p.id }), close())}>
+                <PropertyIcon type={p.type} /> <span className="truncate">{p.name}</span>
+                {dateProp?.id === p.id && <span className="ml-auto text-blue-600">✓</span>}
+              </button>
+            ))}
+        </Popover>
+      )}
       {menu?.kind === "props" && (
         <Popover anchor={menu.anchor} onClose={close} width={260}>
+          {view.type === "gallery" && (
+            <label className={`${menuItem} cursor-pointer`}>
+              <input type="checkbox" className="accent-blue-600" checked={config.showPreview !== false} onChange={(e) => save({ showPreview: e.target.checked })} />
+              {t("view.showPreview")}
+            </label>
+          )}
           <div className="px-2 py-1 text-xs text-neutral-500">{t("view.shownProperties")}</div>
           <div className="max-h-80 overflow-y-auto">
             {orderedColumns(data.properties, config.columns)
@@ -268,8 +310,8 @@ function ViewMenu({
         onKeyDown={(e) => e.key === "Enter" && (rename(), onClose())}
         className={`${control} mb-1 w-full`}
       />
-      <div className="px-2 py-1 text-xs text-neutral-500">Disposition</div>
-      {(["table", "board"] as const).map((type) => (
+      <div className="px-2 py-1 text-xs text-neutral-500">{t("view.layout")}</div>
+      {VIEW_TYPES.map((type) => (
         <button key={type} className={menuItem} onClick={() => actions.updateView.mutate({ viewId: view.id, type })}>
           <ViewIcon type={type} /> {viewTypeLabel(type)}
           {view.type === type && <span className="ml-auto text-blue-600">✓</span>}
@@ -280,7 +322,7 @@ function ViewMenu({
         className={menuItem}
         onClick={async () => {
           onClose();
-          const { view: copy } = await actions.createView.mutateAsync({ name: `${view.name} (copie)`, type: view.type, duplicateOf: view.id });
+          const { view: copy } = await actions.createView.mutateAsync({ name: t("view.copyName", { name: view.name }), type: view.type, duplicateOf: view.id });
           onDuplicated(copy.id);
         }}
       >
@@ -367,7 +409,7 @@ function FilterEditor({ data, config, onChange }: { data: DatabaseData; config: 
               }}
             />
             <select
-              aria-label="Condition"
+              aria-label={t("filter.condition")}
               value={f.operator}
               onChange={(e) =>
                 update(i, {
@@ -468,7 +510,7 @@ function FilterValue({
   );
 
   if (kind === "select" || kind === "multi_select") return select((prop.config.options ?? []).map((o) => ({ value: o.id, label: o.name })));
-  if (kind === "people") return select([{ value: "me", label: "Moi" }, ...(users.data ?? []).map((u) => ({ value: u.id, label: u.name }))]);
+  if (kind === "people") return select([{ value: "me", label: t("filter.me") }, ...(users.data ?? []).map((u) => ({ value: u.id, label: u.name }))]);
   if (kind === "date") {
     if (filter.operator === "within") return select(DATE_PERIODS.map((p) => ({ value: p, label: periodLabel(p) })));
     const relative = (RELATIVE_DATES as readonly string[]).includes(String(value));
