@@ -33,7 +33,8 @@ import { formatMentionDate } from "../lib/reminders";
 import { api } from "../lib/api";
 import { pageTitle } from "../lib/tree";
 import { item } from "./suggestion";
-import { insertFiles, pickFiles } from "./upload";
+import { insertFiles, insertUploaded, pickFiles } from "./upload";
+import { fileSources } from "../plugins/registry";
 import { t } from "@nootion/shared";
 
 export interface CommandContext {
@@ -140,6 +141,19 @@ export function slashItems(ctx: CommandContext) {
           ),
         ),
       ),
+    // Other places to pick files from (cloud drives…), from plugins.
+    ...fileSources().map((source) =>
+      item(
+        source.label,
+        t("command.fileFrom", { source: source.label }),
+        <span className="w-4 text-center text-base leading-none">{source.icon ?? "📁"}</span>,
+        async (e, r) => {
+          del(e, r).run();
+          for (const up of (await source.pick({ pageId: ctx.pageId, multiple: true })) ?? []) insertUploaded(e, up);
+        },
+        `${source.keywords ?? ""} file image fichier`,
+      ),
+    ),
   ];
   return ({ query }: { query: string }) => {
     const q = norm(query).trim();
