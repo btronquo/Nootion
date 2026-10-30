@@ -11,6 +11,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   rows with a date become events, and events created, moved or deleted in Google change the database. Each person
   connects their own Google account (OAuth; the administrator creates the OAuth client once). See
   [docs/GOOGLE_CALENDAR.md](docs/GOOGLE_CALENDAR.md).
+- "My account › Connected services" lists each person's accounts on other services used by plugins (Nextcloud,
+  Google Calendar), with a button to disconnect them. Plugins add theirs with `connectedAccount`.
 - Plugins: `request` (call Nootion's API as a user, with their rights), `redirect` and `appUrl`.
 - Nextcloud plugin: each person connects their own Nextcloud account (Nextcloud's login page, or an app password),
   then picks files to copy into a page (`/nextcloud`) or a "File" column, or inserts a link that opens a file or

@@ -12,6 +12,7 @@ import { Button, ErrorText, Field, LanguageSelect, Rich, Select } from "../compo
 import { setLocale } from "../lib/i18n";
 import { NotionImport } from "../components/NotionImport";
 import { AgentActivityList, ApiTokens, McpConnect } from "../components/ApiTokens";
+import { ConnectedServices, useConnectedServices } from "../components/ConnectedServices";
 import { clearOfflineData } from "../lib/offline";
 import { useRefreshPages, useWorkspaces } from "../lib/queries";
 import { workspaceName } from "../lib/labels";
@@ -19,6 +20,7 @@ import { workspaceName } from "../lib/labels";
 export function AccountPage() {
   const { user } = useSession();
   const { hash } = useLocation();
+  const services = useConnectedServices();
   // Links to a section (#import) open the page there.
   useEffect(() => {
     if (hash) document.getElementById(hash.slice(1))?.scrollIntoView();
@@ -33,6 +35,11 @@ export function AccountPage() {
       <LanguageSection user={user} />
       <ThemeSection />
       <ImportSection />
+      {!!services.data?.length && (
+        <Section title={t("services.title")} id="services">
+          <ConnectedServices accounts={services.data} />
+        </Section>
+      )}
       <Section title={t("mcp.title")} id="mcp">
         <McpConnect />
       </Section>

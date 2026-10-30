@@ -129,15 +129,28 @@ export function activate(nootion) {
     return save(user, loginName, appPassword);
   });
 
-  nootion.route("DELETE", "/login", async ({ user }) => {
-    const acc = nootion.userSecrets.get(user.id);
-    nootion.userSecrets.delete(user.id);
-    pending.delete(user.id);
+  async function disconnect(userId) {
+    const acc = nootion.userSecrets.get(userId);
+    nootion.userSecrets.delete(userId);
+    pending.delete(userId);
     // Revokes the app password in Nextcloud too, when it is still reachable.
     if (acc?.base === base && base) {
       await call(`${base}/ocs/v2.php/core/apppassword`, { method: "DELETE", headers: { ...auth(acc), "ocs-apirequest": "true" } }).catch(() => null);
     }
+  }
+
+  nootion.route("DELETE", "/login", async ({ user }) => {
+    await disconnect(user.id);
     return { connected: false };
+  });
+
+  // Listed in "My account › Connected services".
+  nootion.connectedAccount({
+    describe: (userId) => {
+      const acc = base ? nootion.userSecrets.get(userId) : null;
+      return acc?.base === base ? `${acc.displayName} · ${new URL(browserBase).host}` : null;
+    },
+    disconnect,
   });
 
   /** A folder's content: folders first, then files, by name. */
