@@ -59,6 +59,8 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
         attrs.title = t("page.private");
       }
     }
+    // What buttons do (databases, webhooks) is not published: they show without it, and do nothing.
+    if (attrs && node.type === "buttonBlock") attrs.config = { label: (attrs.config as { label?: string } | undefined)?.label ?? "", steps: [], form: null };
     // Who set a reminder, and when, is nobody else's business.
     if (attrs && node.type === "dateMention") Object.assign(attrs, { reminder: null, remindAt: null, remindUser: null });
     if (attrs) {
@@ -73,13 +75,17 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
     return out;
   };
 
+  // Button columns are published without what they do.
+  const publicProperties = <T extends { config: { button?: unknown } }>(properties: T[]): T[] =>
+    properties.map((p) => (p.config.button ? { ...p, config: { ...p.config, button: undefined } } : p));
+
   const publicPage = (link: typeof publicLinks.$inferSelect, p: typeof pages.$inferSelect) => {
     let row = null;
     if (p.kind === "row" && p.parentId) {
       const properties = listProperties(db, p.parentId);
       const data = toRow(p, properties);
       const { related, rollupTargets } = enrichRows(db, properties, [data], (id) => inScope(link, id));
-      row = { properties, values: data.values, related, rollupTargets };
+      row = { properties: publicProperties(properties), values: data.values, related, rollupTargets };
     }
     return {
       ...toSummary(p),
@@ -114,7 +120,8 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
     if (!inScope(link, req.params.id)) throw notFound();
     const meta = getPageMeta(db, req.params.id);
     if (!meta || meta.kind !== "database") throw notFound();
-    return { database: { ...loadDatabase(db, meta, "viewer", (id) => inScope(link, id)), people: {}, templates: [], defaultTemplateId: null } };
+    const data = loadDatabase(db, meta, "viewer", (id) => inScope(link, id));
+    return { database: { ...data, properties: publicProperties(data.properties), people: {}, templates: [], defaultTemplateId: null } };
   });
 
   app.get<{ Params: { token: string; id: string } }>("/:token/attachments/:id", async (req, reply) => {

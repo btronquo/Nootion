@@ -13,11 +13,20 @@ import { RemindersPage } from "./pages/RemindersPage";
 import { PublicPage } from "./pages/PublicPage";
 import { AccountPage } from "./pages/AccountPage";
 import { OauthAuthorizePage } from "./pages/OauthAuthorizePage";
+import { PublicFormPage } from "./pages/PublicFormPage";
 import { t } from "@nootion/shared";
 
 export function App() {
   const location = useLocation();
   // Public links work for everyone, signed in or not.
+  // So are forms opened from their public link.
+  if (location.pathname.startsWith("/f/")) {
+    return (
+      <Routes>
+        <Route path="/f/:token" element={<PublicFormPage />} />
+      </Routes>
+    );
+  }
   if (location.pathname.startsWith("/p/")) {
     return (
       <Routes>

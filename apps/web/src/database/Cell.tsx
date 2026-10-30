@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Check, FileText, Paperclip, Upload, X } from "lucide-react";
 import {
+  buttonConfigSchema,
+  emptyButtonConfig,
   COMPUTED_TYPES,
   type CellValue,
   type DatabaseProperty,
@@ -20,12 +22,15 @@ import { useDatabase } from "./hooks";
 import { pageTitle } from "../lib/tree";
 import { OptionChip, OptionPicker } from "./OptionPicker";
 import { Popover } from "./Popover";
+import { ButtonAction } from "../buttons/ButtonAction";
 import { t } from "@nootion/shared";
 
 export interface CellProps {
   prop: DatabaseProperty;
   value: CellValue;
   rowId: string;
+  /** The row's database, for button columns. */
+  databaseId?: string;
   people: Record<string, string>;
   editable: boolean;
   onChange: (value: CellValue) => void;
@@ -62,6 +67,20 @@ export function Cell(props: CellProps) {
           checked={value === true}
           disabled={!canEdit}
           onChange={(e) => props.onChange(e.target.checked)}
+        />
+      </div>
+    );
+  }
+
+  if (prop.type === "button") {
+    const config = buttonConfigSchema.safeParse(prop.config.button ?? {});
+    return (
+      <div className={`flex h-full items-center ${panel ? "py-1" : "px-2"}`} data-button-cell>
+        <ButtonAction
+          compact={!panel}
+          label={prop.name}
+          config={config.success ? config.data : emptyButtonConfig()}
+          source={props.databaseId && !props.fileUrl ? { kind: "column", databaseId: props.databaseId, propertyId: prop.id, rowId: props.rowId } : null}
         />
       </div>
     );

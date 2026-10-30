@@ -6,6 +6,8 @@ import { PageLinkView } from "./PageLinkView";
 import { DatabaseBlockView } from "../database/DatabaseBlockView";
 import { CalendarBlockView } from "../database/CalendarBlockView";
 import { DateMentionView } from "./DateMentionView";
+import { ButtonBlockView } from "./ButtonBlockView";
+import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { DatabaseRowsView, FavoritesListView, RecentPagesView, UpcomingEventsView } from "./HomeWidgets";
 import { intlLocale, reminderTime, t } from "@nootion/shared";
 import { formatMentionDate } from "../lib/reminders";
@@ -20,6 +22,7 @@ declare module "@tiptap/core" {
     widget: { insertWidget: (name: WidgetName) => ReturnType };
     toggle: { insertToggle: (level?: 1 | 2 | 3) => ReturnType };
     columns: { insertColumns: (count: number) => ReturnType };
+    buttonBlock: { insertButton: () => ReturnType };
     dateMention: { insertDate: (attrs: { date: string; reminder?: number | null; remindUser?: string | null }) => ReturnType };
   }
 }
@@ -468,5 +471,73 @@ export const Column = Node.create({
   },
   renderHTML({ HTMLAttributes }) {
     return ["div", mergeAttributes(HTMLAttributes, { "data-column": "", class: "column" }), 0];
+  },
+});
+
+/**
+ * A button that runs steps (add a row, create a page, call a webhook…), optionally after a form. Its settings are in
+ * `config`; `id` names it for the server, which reads the settings from the page when it is clicked.
+ */
+export const ButtonBlock = Node.create<{ pageId: string | null }>({
+  name: "buttonBlock",
+  group: "block",
+  atom: true,
+  draggable: true,
+  selectable: true,
+  addOptions() {
+    return { pageId: null };
+  },
+  addAttributes() {
+    return {
+      id: { default: null },
+      config: {
+        default: null,
+        parseHTML: (el) => {
+          try {
+            return JSON.parse(el.dataset.config ?? "null") as unknown;
+          } catch {
+            return null;
+          }
+        },
+        renderHTML: (attrs) => ({ "data-config": JSON.stringify(attrs.config ?? null) }),
+      },
+    };
+  },
+  parseHTML() {
+    return [{ tag: "div[data-button]", getAttrs: (el) => ({ id: (el as HTMLElement).dataset.button || null }) }];
+  },
+  renderHTML({ node, HTMLAttributes }) {
+    return ["div", mergeAttributes(HTMLAttributes, { "data-button": node.attrs.id ?? "" }), (node.attrs.config as { label?: string } | null)?.label || t("command.button")];
+  },
+  addNodeView() {
+    return ReactNodeViewRenderer(ButtonBlockView, { stopEvent: ({ event }) => !event.type.startsWith("drag") });
+  },
+  addCommands() {
+    return {
+      insertButton:
+        () =>
+        ({ commands }) =>
+          commands.insertContent([{ type: this.name, attrs: { id: crypto.randomUUID(), config: null } }, { type: "paragraph" }]),
+    };
+  },
+  addProseMirrorPlugins() {
+    // A copied button gets an id of its own: the server finds a button by its id.
+    return [
+      new Plugin({
+        key: new PluginKey("buttonBlockIds"),
+        appendTransaction: (trs, _old, state) => {
+          if (!trs.some((tr) => tr.docChanged)) return null;
+          const seen = new Set<string>();
+          const tr = state.tr;
+          state.doc.descendants((n, pos) => {
+            if (n.type.name !== this.name) return;
+            const id = n.attrs.id as string | null;
+            if (id && !seen.has(id)) seen.add(id);
+            else tr.setNodeMarkup(pos, undefined, { ...n.attrs, id: crypto.randomUUID() });
+          });
+          return tr.docChanged ? tr : null;
+        },
+      }),
+    ];
   },
 });

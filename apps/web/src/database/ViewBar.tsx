@@ -401,7 +401,7 @@ function FilterEditor({ data, config, onChange }: { data: DatabaseData; config: 
               )}
             </div>
             <PropertySelect
-              properties={data.properties}
+              properties={data.properties.filter((p) => p.type !== "button")}
               value={f.propertyId}
               onChange={(propertyId) => {
                 const p = data.properties.find((x) => x.id === propertyId)!;
@@ -546,7 +546,7 @@ function FilterValue({
 }
 
 function SortEditor({ properties, sorts, onChange }: { properties: DatabaseProperty[]; sorts: ViewSort[]; onChange: (sorts: ViewSort[]) => void }) {
-  const sortable = (p: DatabaseProperty) => p.type !== "file";
+  const sortable = (p: DatabaseProperty) => p.type !== "file" && p.type !== "button";
   const unused = properties.filter((p) => sortable(p) && !sorts.some((s) => s.propertyId === p.id));
   return (
     <div className="space-y-1.5 p-1">

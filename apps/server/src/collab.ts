@@ -111,6 +111,7 @@ export function prosemirrorToText(node: ProseMirrorNode): string {
   if (node.type === "text") return node.text ?? "";
   if (node.type === "pageLink" || node.type === "pageMention") return String(node.attrs?.title ?? "");
   if (node.type === "dateMention") return String(node.attrs?.date ?? "").replace("T", " ");
+  if (node.type === "buttonBlock") return String((node.attrs?.config as { label?: string } | undefined)?.label ?? "");
   const inner = (node.content ?? []).map(prosemirrorToText).join(BLOCK_TYPES.has(node.type) ? "" : "\n");
   return inner.replace(/\n{2,}/g, "\n");
 }

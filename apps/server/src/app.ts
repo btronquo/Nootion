@@ -39,6 +39,10 @@ import { reminderRoutes } from "./routes/reminders.js";
 import { apiTokenRoutes } from "./routes/api-tokens.js";
 import { oauthDiscoveryRoutes, oauthRoutes } from "./routes/oauth.js";
 import { mcpRoutes } from "./mcp.js";
+import { ACT_AS_HEADER, INTERNAL_HEADER, INTERNAL_SECRET } from "./internal.js";
+import { users } from "./db/schema.js";
+import { eq } from "drizzle-orm";
+import { buttonRoutes, publicFormRoutes } from "./routes/buttons.js";
 import { agentAction, findTokenUser, recordActivity, tokenRefusal, withTokenScope, type TokenScope } from "./api-tokens.js";
 
 declare module "fastify" {
@@ -133,6 +137,13 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
       req.tokenScope = found.scope;
       return;
     }
+    // The server calling its own API as a user (see internal.ts); only from inside the process.
+    const actAs = req.headers[ACT_AS_HEADER];
+    if (typeof actAs === "string" && req.headers[INTERNAL_HEADER] === INTERNAL_SECRET) {
+      req.user = opts.db.select().from(users).where(eq(users.id, actAs)).get() ?? null;
+      if (req.user?.disabled) req.user = null;
+      return;
+    }
     const token = req.cookies[SESSION_COOKIE];
     if (token) req.user = findSessionUser(opts.db, token);
   });
@@ -199,6 +210,8 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
   await app.register(homeRoutes, { prefix: "/api" });
   await app.register(reminderRoutes, { prefix: "/api/reminders" });
   await app.register(apiTokenRoutes, { prefix: "/api/tokens" });
+  await app.register(buttonRoutes, { prefix: "/api/buttons" });
+  await app.register(publicFormRoutes, { prefix: "/api/forms" });
   await app.register(oauthRoutes, { prefix: "/api/oauth" });
   await app.register(oauthDiscoveryRoutes);
   await app.register(mcpRoutes);
