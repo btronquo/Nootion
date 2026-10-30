@@ -29,12 +29,19 @@ Google asks each app that reads calendars to have an OAuth client. It's free and
    for example `https://notes.example.org/api/plugins/google_calendar/oauth/callback`. Google only accepts `https`
    addresses, or `http://localhost`. `APP_URL` must be the address people use to open Nootion.
 5. Copy the **client ID** and **client secret** into **Administration › Plugins › Google Calendar**, and turn the
-   plugin on.
+   plugin on. (Or leave them empty: each person then uses their own client, see below.)
 
 > **Test users or published app?** While the app is in "Testing", Google stops the connection of each account after
 > 7 days, and it has to be connected again. Publishing it ("In production") removes that limit; Google then shows an
 > "unverified app" warning when connecting (click **Advanced › Go to Nootion**), which is fine for a family or a
 > small team (up to 100 accounts).
+
+### Without the administrator: your own OAuth client
+
+When the administrator leaves the client ID and secret empty (but turns the plugin on), each person can use their
+own OAuth client instead: follow the steps above in your own Google Cloud project, then paste the client ID and
+secret in the block, which also shows the redirect URI to authorize. That client is yours only, stored encrypted
+(with `APP_SECRET`); **Change** in the block forgets it. Once the administrator sets a client, everyone uses theirs.
 
 ## Syncing a database (everyone)
 
