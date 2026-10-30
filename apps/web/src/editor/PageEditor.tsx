@@ -11,9 +11,9 @@ import { useOnline } from "../lib/api";
 import { NodeSelection } from "@tiptap/pm/state";
 import { useQueryClient } from "@tanstack/react-query";
 import { Bold, Code, Italic, Link as LinkIcon, MessageSquarePlus, Strikethrough, Underline } from "lucide-react";
-import type { PageDetail, PageSummary } from "@nootion/shared";
+import type { PageDetail, PageSummary, UserDirectoryEntry } from "@nootion/shared";
 import { useSession } from "../lib/session";
-import { useRefreshPages } from "../lib/queries";
+import { keys, useRefreshPages, useUserDirectory } from "../lib/queries";
 import { baseExtensions } from "./extensions";
 import { createSuggestionExtension } from "./suggestion";
 import { mentionItems, slashItems, type CommandContext } from "./commands";
@@ -100,6 +100,8 @@ function CollabEditor({
 }) {
   const { user } = useSession();
   const qc = useQueryClient();
+  // Loaded ahead, for "@" mentions of people.
+  useUserDirectory();
   const refreshPages = useRefreshPages();
   const [synced, setSynced] = useState(provider.isSynced);
   const [connected, setConnected] = useState(true);
@@ -138,6 +140,7 @@ function CollabEditor({
       workspaceId: page.workspaceId,
       plugins,
       userId: user?.id ?? null,
+      people: () => qc.getQueryData<UserDirectoryEntry[]>(keys.users) ?? [],
       onPageCreated: () => void refreshPages(),
       linkablePages: () => {
         const seen = new Map<string, PageSummary>();

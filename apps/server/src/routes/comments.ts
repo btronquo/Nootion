@@ -15,7 +15,8 @@ import {
   type CommentThread,
   type Locale,
 } from "@nootion/shared";
-import { commentNotifications, comments, commentThreads, pages, users } from "../db/schema.js";
+import { commentNotifications, comments, commentThreads, pageMentions, pages, users } from "../db/schema.js";
+import { listPageMentions } from "../mentions.js";
 import { HttpError, notFound, parseBody, requireUser } from "../http.js";
 import { getPageRole, requirePageRole } from "../permissions.js";
 import { avatarUrl } from "../users.js";
@@ -114,7 +115,9 @@ export const commentRoutes: FastifyPluginAsync = async (app) => {
 
   app.get("/comments/notifications", async (req) => {
     const user = requireUser(req);
-    return { notifications: listNotifications(db, user.id) };
+    // Mentions in comments and in pages, the latest first.
+    const all = [...listNotifications(db, user.id), ...listPageMentions(db, user.id, user.locale as Locale)];
+    return { notifications: all.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 50) };
   });
 
   app.post("/comments/notifications/read", async (req) => {
@@ -123,6 +126,10 @@ export const commentRoutes: FastifyPluginAsync = async (app) => {
     db.update(commentNotifications)
       .set({ readAt: new Date() })
       .where(and(eq(commentNotifications.userId, user.id), isNull(commentNotifications.readAt), ids ? inArray(commentNotifications.id, ids) : undefined))
+      .run();
+    db.update(pageMentions)
+      .set({ readAt: new Date() })
+      .where(and(eq(pageMentions.userId, user.id), isNull(pageMentions.readAt), ids ? inArray(pageMentions.id, ids) : undefined))
       .run();
     return { ok: true };
   });

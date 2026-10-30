@@ -92,7 +92,8 @@ images (`![alt](https://…)`), dividers (`---`). Links and images must point to
 server's files (`/api/attachments/…`).
 
 The JSON form takes the editor's blocks only (toggles, callouts, columns, dates, links to pages…); read a page's
-`content` to see how they are written. A date with a reminder keeps it only if the reminder is yours.
+`content` to see how they are written. A date with a reminder keeps it only if the reminder is yours. A person is
+`{ "type": "userMention", "attrs": { "id", "userId", "name" } }`: they are told once per `id`, the mention being yours.
 
 ## Databases
 
@@ -218,7 +219,7 @@ at least the "commenter" role.
 | `POST /api/comments/threads/:id/resolve` | `{ "resolved": true }` or `false`. |
 | `PATCH /api/comments/:id` | Changes your comment: `{ "body" }`. |
 | `DELETE /api/comments/:id` | Deletes your comment; the last one of a thread deletes the thread. |
-| `GET /api/comments/notifications` | Your latest mentions and replies. |
+| `GET /api/comments/notifications` | Your latest mentions and replies, and mentions of you in pages (`kind: "page_mention"`, `threadId` null). |
 | `POST /api/comments/notifications/read` | Marks them as read: `{ "ids"? }` (all when left out). |
 
 People mentioned, and the others taking part in a thread when it gets a reply, receive a notification (in the
