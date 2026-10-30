@@ -25,6 +25,7 @@ import { CalendarGrid, moveDate, type CalendarEntry, type CalendarMode } from ".
 import { colorLabel, OPTION_CLASSES } from "./format";
 import { dbKey, useDatabaseList } from "./hooks";
 import { Popover } from "./Popover";
+import { copyText } from "../lib/browser";
 
 export interface Loaded {
   source: CalendarSource;
@@ -330,8 +331,7 @@ function FeedPanel({ anchor, pageId, blockId, onClose }: { anchor: HTMLElement; 
               <button
                 className={`${btn} bg-neutral-100 dark:bg-neutral-800`}
                 onClick={async () => {
-                  await navigator.clipboard?.writeText(feed.data!.url);
-                  setCopied(true);
+                  setCopied(await copyText(feed.data!.url));
                 }}
               >
                 {copied ? t("calendarBlock.copied") : t("calendarBlock.copy")}

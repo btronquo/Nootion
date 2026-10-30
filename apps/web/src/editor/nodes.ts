@@ -11,6 +11,7 @@ import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { DatabaseRowsView, FavoritesListView, RecentPagesView, UpcomingEventsView } from "./HomeWidgets";
 import { intlLocale, reminderTime, t } from "@nootion/shared";
 import { formatMentionDate } from "../lib/reminders";
+import { randomId } from "../lib/browser";
 
 declare module "@tiptap/core" {
   interface Commands<ReturnType> {
@@ -166,7 +167,7 @@ export const DateMention = Node.create({
             {
               type: this.name,
               attrs: {
-                id: crypto.randomUUID(),
+                id: randomId(),
                 date,
                 reminder: remindUser ? reminder : null,
                 remindAt: remindUser && reminder !== null ? reminderTime(date, reminder).toISOString() : null,
@@ -260,7 +261,7 @@ export const CalendarBlock = Node.create<{ pageId: string | null; publicToken: s
       insertCalendar:
         () =>
         ({ commands }) =>
-          commands.insertContent([{ type: this.name, attrs: { id: crypto.randomUUID(), sources: [] } }, { type: "paragraph" }]),
+          commands.insertContent([{ type: this.name, attrs: { id: randomId(), sources: [] } }, { type: "paragraph" }]),
     };
   },
 });
@@ -517,7 +518,7 @@ export const ButtonBlock = Node.create<{ pageId: string | null }>({
       insertButton:
         () =>
         ({ commands }) =>
-          commands.insertContent([{ type: this.name, attrs: { id: crypto.randomUUID(), config: null } }, { type: "paragraph" }]),
+          commands.insertContent([{ type: this.name, attrs: { id: randomId(), config: null } }, { type: "paragraph" }]),
     };
   },
   addProseMirrorPlugins() {
@@ -533,7 +534,7 @@ export const ButtonBlock = Node.create<{ pageId: string | null }>({
             if (n.type.name !== this.name) return;
             const id = n.attrs.id as string | null;
             if (id && !seen.has(id)) seen.add(id);
-            else tr.setNodeMarkup(pos, undefined, { ...n.attrs, id: crypto.randomUUID() });
+            else tr.setNodeMarkup(pos, undefined, { ...n.attrs, id: randomId() });
           });
           return tr.docChanged ? tr : null;
         },

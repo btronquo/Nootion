@@ -8,6 +8,7 @@ import { useSession } from "../lib/session";
 import { pageRoleLabel } from "../lib/labels";
 import { Button, ErrorText, Modal, Select } from "./ui";
 import { t } from "@nootion/shared";
+import { copyText } from "../lib/browser";
 
 const ROLES_DESC = [...PAGE_ROLES].reverse();
 
@@ -123,8 +124,7 @@ export function ShareDialog({ page, onClose }: { page: PageDetail; onClose: () =
               <Button
                 variant="ghost"
                 onClick={async () => {
-                  await navigator.clipboard.writeText(link.data!.url);
-                  setCopied(true);
+                  setCopied(await copyText(link.data!.url));
                 }}
                 title={t("common.copy")}
               >
