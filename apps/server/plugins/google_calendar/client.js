@@ -31,6 +31,16 @@ const TEXTS = {
     minutesAgo: "{n} min ago",
     hoursAgo: "{n} h ago",
     tip: "Tip: a calendar made for this keeps your other events out of the database.",
+    ownIntro:
+      "The administrator hasn't set up Google Calendar for everyone. You can use your own Google OAuth client (free, a few minutes in Google Cloud Console, see docs/GOOGLE_CALENDAR.md), with this authorized redirect URI:",
+    copy: "Copy",
+    copied: "Copied",
+    clientId: "Client ID",
+    clientSecret: "Client secret",
+    saveClient: "Use this client",
+    ownClient: "Your own OAuth client",
+    changeClient: "Change",
+    confirmChangeClient: "Use another OAuth client? Your Google account will be disconnected and your syncs will stop.",
   },
   fr: {
     title: "Google Agenda",
@@ -62,6 +72,16 @@ const TEXTS = {
     minutesAgo: "il y a {n} min",
     hoursAgo: "il y a {n} h",
     tip: "Astuce : un agenda créé pour l'occasion évite d'importer tous vos autres événements dans la base.",
+    ownIntro:
+      "L'administrateur n'a pas configuré Google Agenda pour tout le monde. Vous pouvez utiliser votre propre client OAuth Google (gratuit, quelques minutes dans Google Cloud Console, voir docs/GOOGLE_CALENDAR.md), avec cette URI de redirection autorisée :",
+    copy: "Copier",
+    copied: "Copié",
+    clientId: "ID client",
+    clientSecret: "Code secret du client",
+    saveClient: "Utiliser ce client",
+    ownClient: "Votre propre client OAuth",
+    changeClient: "Changer",
+    confirmChangeClient: "Utiliser un autre client OAuth ? Votre compte Google sera déconnecté et vos synchronisations s'arrêteront.",
   },
 };
 
@@ -110,6 +130,59 @@ export function activate(nootion) {
   }
 
   const Head = ({ children }) => h("div", { className: "gc-head" }, h("span", null, "📅"), children);
+
+  /** A person's own OAuth client, when the administrator hasn't set one up for everyone. */
+  function OwnClient({ redirectUri, onSaved }) {
+    const [clientId, setClientId] = useState("");
+    const [clientSecret, setClientSecret] = useState("");
+    const [copied, setCopied] = useState(false);
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState(null);
+    async function save(e) {
+      e.preventDefault();
+      setBusy(true);
+      setError(null);
+      try {
+        await nootion.api("/own-client", { method: "PUT", body: { clientId, clientSecret } });
+        onSaved();
+      } catch (err) {
+        setError(message(err));
+        setBusy(false);
+      }
+    }
+    return h(
+      "form",
+      { onSubmit: save, "data-gcal-own-client": "" },
+      h("p", { style: { margin: "8px 0 6px", opacity: 0.85 } }, T.ownIntro),
+      h(
+        "div",
+        { className: "gc-row", style: { marginTop: 0 } },
+        h("code", { className: "gc-input", style: { flex: 1, fontSize: 12, wordBreak: "break-all" } }, redirectUri),
+        h(
+          "button",
+          {
+            type: "button",
+            className: "gc-link",
+            onClick: () => navigator.clipboard?.writeText(redirectUri).then(() => setCopied(true), () => {}),
+          },
+          copied ? T.copied : T.copy,
+        ),
+      ),
+      h(
+        "div",
+        { className: "gc-grid" },
+        h("label", null, T.clientId, h("input", { className: "gc-input", value: clientId, required: true, onChange: (e) => setClientId(e.target.value) })),
+        h(
+          "label",
+          null,
+          T.clientSecret,
+          h("input", { className: "gc-input", type: "password", autoComplete: "off", value: clientSecret, required: true, onChange: (e) => setClientSecret(e.target.value) }),
+        ),
+      ),
+      h(Button, { type: "submit", disabled: busy || !clientId.trim() || !clientSecret.trim() }, T.saveClient),
+      error && h("div", { className: "gc-error" }, error),
+    );
+  }
 
   /** Choosing the database, its date column and the calendar. */
   function Setup({ onCreated }) {
@@ -169,6 +242,12 @@ export function activate(nootion) {
       }
     }
 
+    async function forgetClient() {
+      if (!confirm(T.confirmChangeClient)) return;
+      await nootion.api("/own-client", { method: "DELETE" }).catch(() => null);
+      loadStatus();
+    }
+
     async function disconnect() {
       if (!confirm(T.confirmDisconnect)) return;
       await nootion.api("/account", { method: "DELETE" }).catch(() => null);
@@ -177,12 +256,22 @@ export function activate(nootion) {
 
     let body;
     if (!status) body = h("p", { className: "gc-sub" }, error ?? T.loading);
-    else if (!status.configured) body = h("p", { style: { marginTop: 8 } }, T.notConfigured);
+    else if (!status.configured)
+      body = status.ownClientAllowed
+        ? h(OwnClient, { redirectUri: status.redirectUri, onSaved: loadStatus })
+        : h("p", { style: { marginTop: 8 } }, T.notConfigured);
     else if (!status.connected) {
       body = h(
         "div",
         null,
         h("p", { style: { margin: "8px 0 10px", opacity: 0.85 } }, T.intro),
+        status.ownClientId &&
+          h(
+            "p",
+            { className: "gc-sub", style: { margin: "0 0 10px" } },
+            `${T.ownClient} · `,
+            h("button", { type: "button", className: "gc-link", onClick: forgetClient }, T.changeClient),
+          ),
         h(
           Button,
           {

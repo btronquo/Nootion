@@ -14,6 +14,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Google Calendar without the administrator: when no OAuth client is set in Administration, each person can paste
+  their own Google OAuth client in the block (the redirect URI to authorize is shown there).
 - Plugins can add column types to databases: the plugin draws and edits the cells, which keep a text that filters,
   sorts and exports like one. The new built-in **Ratings** plugin (off by default) adds a "Rating" column of one to
   five stars.
