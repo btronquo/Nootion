@@ -5,6 +5,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+
+- MCP server: Claude or another AI assistant can search, read and write pages, and create, query and fill
+  databases, as you, within the spaces you choose and read only or read and write. On claude.ai and Claude's apps,
+  Nootion is added as a custom connector: Claude opens a Nootion page where you choose its spaces and access
+  (OAuth 2.1). Claude Code and other agents can use a personal token. See [docs/MCP.md](docs/MCP.md).
+- Versions of a page written through the API or by an agent are marked with the token's name in the page's
+  history ("via Claude"), and "My account" lists what apps and agents changed.
+
 ## [1.2.0] - 2026-10-30
 
 ### Added

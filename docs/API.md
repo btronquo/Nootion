@@ -1,7 +1,8 @@
 # Nootion API
 
-Nootion's REST API lets scripts and other apps (Home Assistant, n8n, a backup script, an AI assistant…) read and
-write pages, query and fill databases, and search, as you, with a **personal token**.
+Nootion's REST API lets scripts and other apps (Home Assistant, n8n, a backup script…) read and write pages, query
+and fill databases, and search, as you, with a **personal token**. AI assistants connect more simply through the
+[MCP server](MCP.md).
 
 - [Tokens](#tokens)
 - [Requests and errors](#requests-and-errors)
@@ -23,8 +24,9 @@ Create a token in **My account › API tokens**:
   what you can do in those spaces.
 - **Expiry**: 30, 90 or 365 days, or never.
 
-The token (`nt_…`) is shown **once**: copy it then. The list shows when each token was last used; revoke one there
-and apps using it stop at once. A token stops working too when it expires or when your account is disabled.
+The token (`nt_…`) is shown **once**: copy it then. The list shows when each token was last used, apps connected
+with OAuth (such as Claude), and what was changed with your tokens; revoke one there and apps using it stop at once.
+Page versions written with a token are marked with its name in the page's history. A token stops working too when it expires or when your account is disabled.
 
 A token can't change your account, other tokens, sharing or public links, delete anything for good (the trash keeps
 what it deletes), or use the administration.
