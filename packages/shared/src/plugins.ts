@@ -86,6 +86,15 @@ export interface ClientPluginInfo {
   formulaFunctions: PluginFormulaFunction[];
 }
 
+/** A user's account on another service, kept by a plugin. */
+export interface ConnectedAccount {
+  pluginId: string;
+  /** The plugin's name. */
+  name: string;
+  /** What identifies the account ("ada@gmail.com"), or null when the user hasn't connected one. */
+  account: string | null;
+}
+
 /** A plugin as the admin sees it. */
 export interface AdminPluginInfo {
   id: string;

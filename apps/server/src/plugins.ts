@@ -12,6 +12,7 @@ import {
   registerFormulaFunction,
   type AdminPluginInfo,
   type ClientPluginInfo,
+  type ConnectedAccount,
   type FValue,
   type PageRole,
   type PluginFormulaFunction,
@@ -110,6 +111,11 @@ export interface ServerPluginApi {
    * "/databases/<id>/query", { limit: 100 }). Resolves with the JSON answer; throws an HttpError on an error.
    */
   request: <T = any>(userId: string, method: Method, path: string, body?: unknown) => Promise<T>;
+  /**
+   * Lists the user's account on another service in "My account › Connected services": `describe` gives what to show
+   * ("ada@gmail.com"), or null when they haven't connected one; `disconnect` forgets (and revokes) it.
+   */
+  connectedAccount: (spec: { describe: (userId: string) => string | null; disconnect: (userId: string) => unknown }) => void;
 }
 
 /** Types a plugin route may send to be shown in the browser; anything else is downloaded. */
@@ -126,6 +132,7 @@ interface Runtime {
   routes: Route[];
   timers: NodeJS.Timeout[];
   formulas: { info: PluginFormulaFunction; remove: () => void }[];
+  account?: { describe: (userId: string) => string | null; disconnect: (userId: string) => unknown };
   deactivate?: () => unknown;
 }
 
@@ -311,6 +318,9 @@ export class PluginManager {
         if (res.status >= 400) throw new HttpError(res.status, res.json?.error ?? "error", res.json?.message ?? `HTTP ${res.status}`);
         return res.json;
       },
+      connectedAccount: (spec) => {
+        runtime.account = spec;
+      },
     };
     try {
       fs.mkdirSync(dataDir, { recursive: true });
@@ -441,6 +451,31 @@ export class PluginManager {
     await this.deactivate(p);
     p.error = null;
     if (enabled) await this.activate(p);
+  }
+
+  // --- Accounts on other services -----------------------------------------------------------------
+
+  /** Plugins that keep an account of the user on another service, and that account. */
+  userAccounts(userId: string): ConnectedAccount[] {
+    const out: ConnectedAccount[] = [];
+    for (const p of this.installed.values()) {
+      const spec = p.runtime?.account;
+      if (!spec) continue;
+      let account: string | null = null;
+      try {
+        account = spec.describe(userId);
+      } catch (e) {
+        this.opts.log.warn(`Plugin ${p.manifest.id}: describing an account failed: ${e instanceof Error ? e.message : e}`);
+      }
+      out.push({ pluginId: p.manifest.id, name: localized(p.manifest.name), account });
+    }
+    return out;
+  }
+
+  async disconnectAccount(pluginId: string, userId: string) {
+    const spec = this.installed.get(pluginId)?.runtime?.account;
+    if (!spec) throw notFound();
+    await spec.disconnect(userId);
   }
 
   // --- Browser side -----------------------------------------------------------------------------
