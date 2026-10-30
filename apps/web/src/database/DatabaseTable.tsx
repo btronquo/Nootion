@@ -227,6 +227,7 @@ export function TableView({
                     prop={c.prop}
                     value={c.prop.type === "title" ? row.title : (row.values[c.prop.id] ?? null)}
                     rowId={row.id}
+                    databaseId={data.id}
                     people={data.people}
                     editable={editable}
                     fileUrl={fileUrl}
@@ -430,6 +431,7 @@ export function TableView({
             key={menuProp.id}
             prop={menuProp}
             properties={data.properties}
+            databaseId={data.id}
             onRename={(name) => actions.updateProperty.mutate({ propId: menuProp.id, name })}
             onChangeType={(type) => actions.updateProperty.mutate({ propId: menuProp.id, type })}
             onChangeConfig={(config) => actions.updateProperty.mutate({ propId: menuProp.id, config })}

@@ -98,7 +98,7 @@ function exportColumns(data: DatabaseData, viewId?: string): DatabaseProperty[] 
   const view = data.views.find((v) => v.id === viewId) ?? data.views[0];
   const order = new Map((view?.config.columns ?? []).map((c, i) => [c.propertyId, { i, hidden: !!c.hidden }]));
   return [...data.properties]
-    .filter((p) => !viewId || !order.get(p.id)?.hidden)
+    .filter((p) => p.type !== "button" && (!viewId || !order.get(p.id)?.hidden))
     .sort((a, b) => Number(b.type === "title") - Number(a.type === "title") || (order.get(a.id)?.i ?? 1e9) - (order.get(b.id)?.i ?? 1e9));
 }
 

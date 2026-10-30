@@ -77,6 +77,8 @@ offline use and the Notion import.
   to the phone or computer.
 - REST API with personal tokens (per space, read-only or read and write): pages as Markdown, database queries,
   rows, files, search. See [docs/API.md](docs/API.md).
+- Buttons with automations and forms: add a row, change the current row, create a page from a template, open a
+  link, call a webhook, after an optional form that can also be opened by a public link. See [docs/BUTTONS.md](docs/BUTTONS.md).
 - Built-in MCP server: connect Claude (as a custom connector) or another AI agent to search, read and write your
   pages and databases, within the spaces you choose, with every change it makes logged. See [docs/MCP.md](docs/MCP.md).
 - Plugins: editor blocks, API routes, scheduled tasks and formula functions, turned on and set up in the

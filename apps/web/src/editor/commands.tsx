@@ -26,6 +26,7 @@ import {
   ListChecks,
   Star,
   Bell,
+  MousePointerClick,
 } from "lucide-react";
 import { currentLocale, parseNaturalDate, pluginNodeName, type ClientPluginInfo, type PageSummary } from "@nootion/shared";
 import { formatMentionDate } from "../lib/reminders";
@@ -115,6 +116,7 @@ export function slashItems(ctx: CommandContext) {
       },
       "db table",
     ),
+    item("Button", t("command.button"), <MousePointerClick size={16} />, (e, r) => del(e, r).insertButton().run(), "action automation form webhook bouton formulaire"),
     item("Calendar", t("command.calendar"), <CalendarDays size={16} />, (e, r) => del(e, r).insertCalendar().run(), "agenda events dates ical"),
     item("Recent pages", t("command.recentPages"), <Clock size={16} />, (e, r) => del(e, r).insertWidget("recentPages").run(), "widget visited history home"),
     item("Favorites", t("command.favoritesList"), <Star size={16} />, (e, r) => del(e, r).insertWidget("favoritesList").run(), "widget starred home"),
