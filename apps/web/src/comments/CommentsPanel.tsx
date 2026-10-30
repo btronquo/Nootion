@@ -106,7 +106,19 @@ function Quote({ text }: { text: string }) {
   return <p className="mb-2 line-clamp-3 border-l-2 border-amber-400 pl-2 text-sm text-neutral-500">{text}</p>;
 }
 
-function Thread({ thread, pageId, canComment, active, onActive }: { thread: CommentThread; pageId: string; canComment: boolean; active: boolean; onActive: (id: string | null) => void }) {
+function Thread({
+  thread,
+  pageId,
+  canComment,
+  active,
+  onActive,
+}: {
+  thread: CommentThread;
+  pageId: string;
+  canComment: boolean;
+  active: boolean;
+  onActive: (id: string | null) => void;
+}) {
   const update = useThreadUpdate(pageId);
   const resolved = !!thread.resolvedAt;
   const resolve = (value: boolean) =>
@@ -118,7 +130,9 @@ function Thread({ thread, pageId, canComment, active, onActive }: { thread: Comm
       data-thread={thread.id}
     >
       <div className="flex items-start gap-2">
-        <div className="min-w-0 flex-1">{thread.anchor ? <Quote text={thread.quote} /> : <p className="mb-2 text-xs text-neutral-400">{t("comments.onPage")}</p>}</div>
+        <div className="min-w-0 flex-1">
+          {thread.anchor ? <Quote text={thread.quote} /> : <p className="mb-2 text-xs text-neutral-400">{t("comments.onPage")}</p>}
+        </div>
         {canComment && (
           <button
             onClick={(e) => {
@@ -155,7 +169,9 @@ function Thread({ thread, pageId, canComment, active, onActive }: { thread: Comm
 const when = (iso: string) => {
   const d = new Date(iso);
   const sameDay = d.toDateString() === new Date().toDateString();
-  return sameDay ? d.toLocaleTimeString(intlLocale(), { hour: "2-digit", minute: "2-digit" }) : d.toLocaleDateString(intlLocale(), { day: "numeric", month: "short" });
+  return sameDay
+    ? d.toLocaleTimeString(intlLocale(), { hour: "2-digit", minute: "2-digit" })
+    : d.toLocaleDateString(intlLocale(), { day: "numeric", month: "short" });
 };
 
 function Comment({ comment, pageId, threadId, canComment }: { comment: CommentInfo; pageId: string; threadId: string; canComment: boolean }) {
@@ -218,7 +234,8 @@ function Comment({ comment, pageId, threadId, canComment }: { comment: CommentIn
             className="w-full rounded px-2 py-1.5 text-left text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
             onClick={() => {
               setMenu(null);
-              if (confirm(t("comments.confirmDelete"))) void update(() => api<{ thread: CommentThread | null }>(`/comments/${comment.id}`, { method: "DELETE" }), threadId);
+              if (confirm(t("comments.confirmDelete")))
+                void update(() => api<{ thread: CommentThread | null }>(`/comments/${comment.id}`, { method: "DELETE" }), threadId);
             }}
           >
             {t("comments.delete")}
@@ -373,7 +390,10 @@ function Composer({
         data-comment-input
       />
       {query && matches.length > 0 && (
-        <ul className="nt-pop absolute bottom-full left-0 z-10 mb-1 w-64 rounded-lg border border-neutral-200 bg-white p-1 text-sm shadow-lg dark:border-neutral-700 dark:bg-neutral-900" data-mention-list>
+        <ul
+          className="nt-pop absolute bottom-full left-0 z-10 mb-1 w-64 rounded-lg border border-neutral-200 bg-white p-1 text-sm shadow-lg dark:border-neutral-700 dark:bg-neutral-900"
+          data-mention-list
+        >
           {matches.map((u, i) => (
             <li key={u.id}>
               <button

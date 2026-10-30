@@ -34,6 +34,7 @@ import { listBacklinks } from "../backlinks.js";
 import { getSnapshot, listVersions, recordAgentVersion, recordSnapshot } from "../history.js";
 import { appendContent, linkChildPage, readContent, writeContent, type ProseMirrorNode } from "../collab.js";
 import { toMarkdown } from "../markdown.js";
+import { fromAutomation, rowSnapshot } from "../automations.js";
 import { checkContent, parseMarkdown } from "../markdown-in.js";
 
 const contentBody = z.object({ markdown: z.string().max(2_000_000).optional(), content: z.unknown().optional() }).passthrough();
@@ -258,6 +259,8 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     if (coverFile && db.select({ pageId: attachments.pageId }).from(attachments).where(eq(attachments.id, coverFile)).get()?.pageId !== req.params.id) {
       throw new HttpError(400, "bad_cover", t("error.badCover"));
     }
+    // A row's title is one of its database's columns: automations may watch it.
+    const rowBefore = current.kind === "row" && current.parentId && input.title !== undefined ? rowSnapshot(db, current.parentId, current.id) : null;
     const page = db
       .update(pages)
       .set({ ...input, updatedAt: new Date() })
@@ -267,6 +270,10 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     // A template's dates remind nobody; they come back when it is a page again.
     if (input.template !== undefined) {
       syncReminders(db, page.id, db.select({ json: pages.contentJson }).from(pages).where(eq(pages.id, page.id)).get()?.json as ProseMirrorNode | null);
+    }
+    if (rowBefore && current.parentId && !fromAutomation(req)) {
+      const after = rowSnapshot(db, current.parentId, current.id);
+      if (after) await app.automations.rowChanged({ databaseId: current.parentId, rowId: current.id, before: rowBefore, after });
     }
     return { page: toSummary(page) };
   });

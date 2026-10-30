@@ -171,7 +171,7 @@ more interface languages.
 - **Comments** (done): discussion threads on a selected passage or on the whole page, with replies, @mentions of people (who
   get a notification) and threads marked as resolved. People with the "commenter" role can take part, readers see
   them. Comments are kept apart from the content (not in the page history), and shown in a side panel.
-- **Database automations**: "when a row is added / when a property changes (to a value) / when a date arrives", run
+- **Database automations** (done): "when a row is added / when a property changes (to a value) / when a date arrives", run
   steps, the same steps as buttons (change the row, add a row elsewhere, create a page, call a webhook). For example
   "Status set to Paid → fill in the payment date". Each automation can be paused, and its last runs are listed.
 - **Recurring templates**: a page or row template created on a schedule (every Monday, on the 1st of the month…),

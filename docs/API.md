@@ -166,6 +166,24 @@ Operators, by column type:
 | `POST /api/pages/:id/attachments` | Uploads a file (`multipart/form-data`, field `file`): `{ "attachment": { "id", "filename", "url" } }`. Put its `url` in the content (`![photo](/api/attachments/…)`) or in a file column. |
 | `GET /api/attachments/:id` | Downloads it (`?download` to save it under its name). |
 
+## Automations
+
+"When something happens to a row, run steps on it." Steps are the same as buttons' (see the `ButtonStep` type in
+`packages/shared/src/buttons.ts`), without "open". They run as the person who last saved the automation, and what
+they change doesn't set off other automations. Managing them needs the "editor" role on the database.
+
+| Request | What it does |
+| --- | --- |
+| `GET /api/databases/:id/automations` | The database's automations, each with its last `runs` (`error` is null when it went well). |
+| `POST /api/databases/:id/automations` | Creates one: `{ "name"?, "enabled"?, "trigger", "steps" }`. |
+| `PUT /api/automations/:id` | Replaces it (same body). |
+| `POST /api/automations/:id/enabled` | Pauses or resumes it: `{ "enabled": false }`. |
+| `DELETE /api/automations/:id` | Deletes it. |
+
+Triggers: `{ "type": "row_added" }`, `{ "type": "property_changed", "propertyId", "to": "Paid" or null }` (`to`: an
+option's name, `"true"`/`"false"` for a checkbox, or a text; null for any change), and
+`{ "type": "date_reached", "propertyId" }` (a date column: at its time, or at 9:00 for a day).
+
 ## Comments
 
 Threads of comments on a page (not on databases), about a passage or the whole page. A comment's `body` is plain

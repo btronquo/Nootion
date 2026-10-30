@@ -14,13 +14,18 @@ function CommentNotifications() {
   const notifications = useCommentNotifications();
   const qc = useQueryClient();
   const list = notifications.data ?? [];
-  const unread = list.filter((n) => !n.read).map((n) => n.id).join(",");
+  const unread = list
+    .filter((n) => !n.read)
+    .map((n) => n.id)
+    .join(",");
   useEffect(() => {
     if (!unread) return;
     const timer = setTimeout(async () => {
       await api("/comments/notifications/read", { method: "POST", body: { ids: unread.split(",") } });
       // Still shown as new until the next visit, but no longer counted.
-      qc.setQueryData<CommentNotification[]>(commentNotificationsKey, (old) => old?.map((n) => (unread.includes(n.id) ? { ...n, read: true, wasUnread: true } : n)));
+      qc.setQueryData<CommentNotification[]>(commentNotificationsKey, (old) =>
+        old?.map((n) => (unread.includes(n.id) ? { ...n, read: true, wasUnread: true } : n)),
+      );
     }, 1500);
     return () => clearTimeout(timer);
   }, [unread, qc]);
@@ -28,7 +33,10 @@ function CommentNotifications() {
   return (
     <section className="mb-8">
       <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-neutral-500">{t("comments.notifications")}</h2>
-      <ul className="divide-y divide-neutral-200 rounded-lg border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800" data-comment-notifications>
+      <ul
+        className="divide-y divide-neutral-200 rounded-lg border border-neutral-200 dark:divide-neutral-800 dark:border-neutral-800"
+        data-comment-notifications
+      >
         {list.slice(0, 20).map((n) => {
           const fresh = !n.read || (n as { wasUnread?: boolean }).wasUnread;
           return (
@@ -42,12 +50,17 @@ function CommentNotifications() {
                 }}
                 className="flex items-start gap-3 px-3 py-2"
               >
-                {n.kind === "mention" ? <AtSign size={16} className="mt-0.5 shrink-0 text-blue-600" /> : <MessageSquare size={16} className="mt-0.5 shrink-0 text-neutral-400" />}
+                {n.kind === "mention" ? (
+                  <AtSign size={16} className="mt-0.5 shrink-0 text-blue-600" />
+                ) : (
+                  <MessageSquare size={16} className="mt-0.5 shrink-0 text-neutral-400" />
+                )}
                 <span className="min-w-0 flex-1">
                   <span className="block">{t(n.kind === "mention" ? "comments.mentionedYou" : "comments.repliedToYou", { name: n.actorName })}</span>
                   <span className="block truncate text-neutral-600 dark:text-neutral-300">{n.excerpt}</span>
                   <span className="block truncate text-xs text-neutral-500">
-                    {n.pageIcon ?? "📄"} {pageTitle(n.pageTitle)} · {new Date(n.createdAt).toLocaleString(intlLocale(), { dateStyle: "medium", timeStyle: "short" })}
+                    {n.pageIcon ?? "📄"} {pageTitle(n.pageTitle)} ·{" "}
+                    {new Date(n.createdAt).toLocaleString(intlLocale(), { dateStyle: "medium", timeStyle: "short" })}
                   </span>
                 </span>
               </Link>

@@ -19,6 +19,7 @@ import {
   Trash2,
   Upload,
   X,
+  Zap,
 } from "lucide-react";
 import {
   t,
@@ -43,6 +44,7 @@ import {
 } from "@nootion/shared";
 import { Popover } from "./Popover";
 import { TemplatesMenu } from "./TemplatesMenu";
+import { AutomationsDialog } from "./Automations";
 import { PropertyIcon } from "./icons";
 import { parseNumberInput } from "./format";
 import { orderedColumns } from "./DatabaseTable";
@@ -88,6 +90,7 @@ export function ViewBar({
 }) {
   const [menu, setMenu] = useState<{ kind: "view" | "add" | "filter" | "sort" | "group" | "date" | "props" | "more" | "templates"; anchor: HTMLElement } | null>(null);
   const close = () => setMenu(null);
+  const [automations, setAutomations] = useState(false);
   const config = view.config;
   const save = (patch: Partial<ViewConfig>) => actions?.updateView.mutate({ viewId: view.id, config: { ...config, ...patch } });
   const activeFilters = (config.filters ?? []).filter((f) => isActiveFilter(f, data)).length;
@@ -150,6 +153,9 @@ export function ViewBar({
               <button className={tool(data.templates.length > 0)} onClick={(e) => setMenu({ kind: "templates", anchor: e.currentTarget })}>
                 <LayoutTemplate size={14} /> {t("template.button")}
               </button>
+              <button className={tool(false)} onClick={() => setAutomations(true)} data-automations-button>
+                <Zap size={14} /> {t("automation.button")}
+              </button>
             </>
           )}
           <button aria-label={t("view.exportImport")} className={tool(false)} onClick={(e) => setMenu({ kind: "more", anchor: e.currentTarget })}>
@@ -158,6 +164,7 @@ export function ViewBar({
         </div>
       )}
       {menu?.kind === "templates" && <TemplatesMenu data={data} anchor={menu.anchor} onClose={close} />}
+      {automations && <AutomationsDialog data={data} onClose={() => setAutomations(false)} />}
       {menu?.kind === "more" && actions && (
         <Popover anchor={menu.anchor} onClose={close} width={260}>
           <a className={menuItem} href={`/api/databases/${data.id}/export?viewId=${view.id}`} download onClick={close}>

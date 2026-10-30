@@ -107,6 +107,7 @@ export function ButtonEditor({
   onClose,
   defaultLabel,
   publicSource,
+  automation,
 }: {
   initial: ButtonConfig;
   rowDatabaseId: string | null;
@@ -116,6 +117,8 @@ export function ButtonEditor({
   defaultLabel: string;
   /** For a button in a page: its form may get a public link. */
   publicSource?: { pageId: string; blockId: string };
+  /** Editing an automation's steps: its own settings replace the label and the form. */
+  automation?: { title: string; head: ReactNode };
 }) {
   const [config, setConfig] = useState<ButtonConfig>(initial);
   const [adding, setAdding] = useState(false);
@@ -153,76 +156,82 @@ export function ButtonEditor({
     >
       <div
         role="dialog"
-        aria-label={t("button.settings")}
+        aria-label={automation?.title ?? t("button.settings")}
         className="nt-dialog flex max-h-[calc(100dvh-16px)] w-full max-w-2xl flex-col rounded-xl border border-neutral-200 bg-white shadow-xl sm:max-h-[88vh] dark:border-neutral-800 dark:bg-neutral-900"
         onKeyDown={(e) => e.key === "Escape" && close()}
         data-button-editor
       >
         <InsertContext.Provider value={insertCtx}>
           <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4 sm:p-5">
-            <h2 className="text-lg font-semibold">{t("button.settings")}</h2>
-            <div className="flex flex-wrap items-end gap-3">
-              <label className="block min-w-48 flex-1 text-sm">
-                <span className="mb-1 block font-medium">{t("button.label")}</span>
-                <input
-                  className={inputClass}
-                  value={config.label}
-                  placeholder={defaultLabel}
-                  maxLength={100}
-                  onChange={(e) => setConfig({ ...config, label: e.target.value })}
-                />
-              </label>
-              <div className="flex gap-1" role="radiogroup" aria-label={t("button.color")}>
-                {BUTTON_COLORS.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    role="radio"
-                    aria-checked={config.color === c}
-                    aria-label={t(`button.color.${c}` as MessageKey)}
-                    onClick={() => setConfig({ ...config, color: c })}
-                    className={`h-7 w-7 rounded-full border-2 ${BUTTON_STYLES[c]} ${config.color === c ? "ring-2 ring-blue-400 ring-offset-1 dark:ring-offset-neutral-900" : ""}`}
-                  />
-                ))}
-              </div>
-            </div>
+            <h2 className="text-lg font-semibold">{automation?.title ?? t("button.settings")}</h2>
+            {automation ? (
+              automation.head
+            ) : (
+              <>
+                <div className="flex flex-wrap items-end gap-3">
+                  <label className="block min-w-48 flex-1 text-sm">
+                    <span className="mb-1 block font-medium">{t("button.label")}</span>
+                    <input
+                      className={inputClass}
+                      value={config.label}
+                      placeholder={defaultLabel}
+                      maxLength={100}
+                      onChange={(e) => setConfig({ ...config, label: e.target.value })}
+                    />
+                  </label>
+                  <div className="flex gap-1" role="radiogroup" aria-label={t("button.color")}>
+                    {BUTTON_COLORS.map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        role="radio"
+                        aria-checked={config.color === c}
+                        aria-label={t(`button.color.${c}` as MessageKey)}
+                        onClick={() => setConfig({ ...config, color: c })}
+                        className={`h-7 w-7 rounded-full border-2 ${BUTTON_STYLES[c]} ${config.color === c ? "ring-2 ring-blue-400 ring-offset-1 dark:ring-offset-neutral-900" : ""}`}
+                      />
+                    ))}
+                  </div>
+                </div>
 
-            <section>
-              <h3 className="mb-2 text-sm font-semibold">{t("button.form")}</h3>
-              {fields.length === 0 && <p className="mb-2 text-xs text-neutral-500">{t("button.formHint")}</p>}
-              {config.form && (
-                <TemplateFree>
-                  <input
-                    className={`${inputClass} mb-2`}
-                    value={config.form.title}
-                    placeholder={t("button.formTitle")}
-                    aria-label={t("button.formTitle")}
-                    onChange={(e) => setConfig({ ...config, form: { ...config.form!, title: e.target.value } })}
-                  />
-                </TemplateFree>
-              )}
-              <div className="space-y-2">
-                {fields.map((f, i) => (
-                  <FieldEditor
-                    key={f.id}
-                    field={f}
-                    onChange={(nf) => setFields(fields.map((x, k) => (k === i ? nf : x)))}
-                    onRemove={() => setFields(fields.filter((_, k) => k !== i))}
-                  />
-                ))}
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                className="mt-1"
-                onClick={() =>
-                  setFields([...fields, { id: newId(), label: t("button.newField", { number: fields.length + 1 }), type: "text", required: false }])
-                }
-              >
-                <Plus size={14} /> {t("button.addField")}
-              </Button>
-              {publicSource && fields.length > 0 && <PublicLink source={publicSource} saved={!!initial.form} />}
-            </section>
+                <section>
+                  <h3 className="mb-2 text-sm font-semibold">{t("button.form")}</h3>
+                  {fields.length === 0 && <p className="mb-2 text-xs text-neutral-500">{t("button.formHint")}</p>}
+                  {config.form && (
+                    <TemplateFree>
+                      <input
+                        className={`${inputClass} mb-2`}
+                        value={config.form.title}
+                        placeholder={t("button.formTitle")}
+                        aria-label={t("button.formTitle")}
+                        onChange={(e) => setConfig({ ...config, form: { ...config.form!, title: e.target.value } })}
+                      />
+                    </TemplateFree>
+                  )}
+                  <div className="space-y-2">
+                    {fields.map((f, i) => (
+                      <FieldEditor
+                        key={f.id}
+                        field={f}
+                        onChange={(nf) => setFields(fields.map((x, k) => (k === i ? nf : x)))}
+                        onRemove={() => setFields(fields.filter((_, k) => k !== i))}
+                      />
+                    ))}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="mt-1"
+                    onClick={() =>
+                      setFields([...fields, { id: newId(), label: t("button.newField", { number: fields.length + 1 }), type: "text", required: false }])
+                    }
+                  >
+                    <Plus size={14} /> {t("button.addField")}
+                  </Button>
+                  {publicSource && fields.length > 0 && <PublicLink source={publicSource} saved={!!initial.form} />}
+                </section>
+              </>
+            )}
 
             <section>
               <h3 className="mb-2 text-sm font-semibold">{t("button.steps")}</h3>
@@ -251,7 +260,7 @@ export function ButtonEditor({
               </ol>
               {adding ? (
                 <div className="mt-2 flex flex-wrap gap-1" data-add-step>
-                  {STEP_TYPES.filter((type) => type !== "update_row" || rowDatabaseId).map((type) => (
+                  {STEP_TYPES.filter((type) => (type !== "update_row" || rowDatabaseId) && !(automation && type === "open")).map((type) => (
                     <Button
                       key={type}
                       type="button"
