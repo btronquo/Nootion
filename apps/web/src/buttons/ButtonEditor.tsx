@@ -22,6 +22,7 @@ import { api } from "../lib/api";
 import { Button, ErrorText, Select } from "../components/ui";
 import { PropertyIcon } from "../database/icons";
 import { BUTTON_STYLES } from "./ButtonAction";
+import { copyText, randomId } from "../lib/browser";
 
 const inputClass =
   "w-full rounded-md border border-neutral-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-blue-500 dark:border-neutral-700 dark:bg-neutral-900";
@@ -92,7 +93,7 @@ function newStep(type: ButtonStepType): ButtonStep {
   }
 }
 
-const newId = () => crypto.randomUUID().slice(0, 8);
+const newId = () => randomId().slice(0, 8);
 
 /**
  * Settings of a button: its label and color, an optional form, and its steps. `rowDatabaseId` is the database of
@@ -655,7 +656,7 @@ function PublicLink({ source, saved }: { source: { pageId: string; blockId: stri
               className={`${inputClass} min-w-0 flex-1 font-mono text-xs`}
               data-public-form-url
             />
-            <Button type="button" variant="ghost" onClick={() => void navigator.clipboard?.writeText(link.data!.url).catch(() => undefined)}>
+            <Button type="button" variant="ghost" onClick={() => void copyText(link.data!.url)}>
               {t("tokens.copy")}
             </Button>
             <Button type="button" variant="danger" onClick={() => void change("DELETE")}>
