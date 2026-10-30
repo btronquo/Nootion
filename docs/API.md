@@ -62,7 +62,7 @@ Ids are UUIDs. Dates are ISO 8601.
 | `GET /api/workspaces` | The token's spaces, with your role in each (`viewer` with a read-only token). |
 | `GET /api/workspaces/:id/pages` | Every page and database of a space (`id`, `parentId`, `kind`, `title`, `icon`, `position`…). Database rows are not listed: query their database. |
 | `GET /api/pages/:id` | A page's details: title, icon, cover, `kind` (`page`, `database` or `row`), your role, breadcrumb. |
-| `POST /api/pages` | Creates a page: `{ "workspaceId", "parentId": null, "title", "icon"?, "markdown"? }` (or `content`, see below). |
+| `POST /api/pages` | Creates a page: `{ "workspaceId", "parentId": null, "title", "icon"?, "markdown"? }` (or `content`, see below). A subpage gets a link at the end of its parent, unless `"linkInParent": false`. |
 | `PATCH /api/pages/:id` | Changes `title`, `icon`, `cover` (`https://…` image), `fullWidth`. |
 | `POST /api/pages/:id/move` | Moves it: `{ "parentId": "…" or null, "index"? }`. |
 | `DELETE /api/pages/:id` | Moves it to the trash, with its subpages. |

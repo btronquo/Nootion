@@ -74,4 +74,23 @@ describe("backlinks", () => {
     expect((await backlinks(boris, target)).map((p) => p.title)).toEqual(["Journal"]);
     expect((await alice.get(`/api/pages/${secret}/backlinks`)).statusCode).toBe(404);
   });
+
+  it("links a new subpage from its parent, unless the caller places the link itself", async () => {
+    const ws = await boris.personalWorkspace();
+    const parent = await boris.createPage(ws, "Maison");
+    // The line people type on stays last.
+    await boris.put(`/api/pages/${parent}/content`, { content: { type: "doc", content: [{ type: "paragraph", content: [text("Intro")] }, { type: "paragraph" }] } });
+    const child = await boris.createPage(ws, "Travaux", parent);
+    const doc = (await boris.get(`/api/pages/${parent}/content`)).json().content;
+    expect(doc.content).toEqual([
+      { type: "paragraph", content: [text("Intro")] },
+      { type: "paragraph", content: [{ type: "pageLink", attrs: { pageId: child, title: "Travaux" } }] },
+      { type: "paragraph" },
+    ]);
+    expect((await backlinks(boris, child)).map((p) => p.title)).toEqual(["Maison"]);
+
+    const res = await boris.post("/api/pages", { workspaceId: ws, parentId: parent, title: "Placée", linkInParent: false });
+    const placed = res.json().page.id;
+    expect(await backlinks(boris, placed)).toEqual([]);
+  });
 });

@@ -99,7 +99,7 @@ export function slashItems(ctx: CommandContext) {
       <FileText size={16} />,
       async (e, r) => {
         del(e, r).run();
-        const res = await api<{ page: PageSummary }>("/pages", { method: "POST", body: { workspaceId: ctx.workspaceId, parentId: ctx.pageId, title: "" } });
+        const res = await api<{ page: PageSummary }>("/pages", { method: "POST", body: { workspaceId: ctx.workspaceId, parentId: ctx.pageId, title: "", linkInParent: false } });
         e.chain().focus().insertPageLink({ pageId: res.page.id, title: "" }).run();
         ctx.onPageCreated();
       },

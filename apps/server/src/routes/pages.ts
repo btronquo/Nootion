@@ -32,7 +32,7 @@ import { copyTree } from "../templates.js";
 import { syncReminders } from "../reminders.js";
 import { listBacklinks } from "../backlinks.js";
 import { getSnapshot, listVersions, recordAgentVersion, recordSnapshot } from "../history.js";
-import { appendContent, readContent, writeContent, type ProseMirrorNode } from "../collab.js";
+import { appendContent, linkChildPage, readContent, writeContent, type ProseMirrorNode } from "../collab.js";
 import { toMarkdown } from "../markdown.js";
 import { checkContent, parseMarkdown } from "../markdown-in.js";
 
@@ -70,6 +70,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
       await writeContent(app.collab, db, page.id, body);
       recordAgentVersion(db, page.id, readContent(app.collab, db, page.id), user.id);
     }
+    if (page.parentId && input.linkInParent) await linkChildPage(app.collab, db, page.parentId, page);
     return { page: toSummary(page) };
   });
 

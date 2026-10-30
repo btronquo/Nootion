@@ -57,7 +57,7 @@ export function yDocToProsemirrorJSON(doc: Y.Doc, field = CONTENT_FIELD): ProseM
 }
 
 /** Writes ProseMirror JSON into a Yjs element the way y-prosemirror does (the editor reads it back as is). */
-function fillY(parent: Y.XmlFragment | Y.XmlElement, nodes: ProseMirrorNode[]) {
+function fillY(parent: Y.XmlFragment | Y.XmlElement, nodes: ProseMirrorNode[], at = parent.length) {
   let run: ProseMirrorNode[] = [];
   const items: (Y.XmlElement | Y.XmlText)[] = [];
   const pending: { el: Y.XmlElement; node: ProseMirrorNode }[] = [];
@@ -80,7 +80,7 @@ function fillY(parent: Y.XmlFragment | Y.XmlElement, nodes: ProseMirrorNode[]) {
     pending.push({ el, node });
   }
   flush();
-  parent.insert(parent.length, items);
+  parent.insert(at, items);
   for (const { el, run } of texts) {
     let at = 0;
     for (const n of run) {
@@ -245,6 +245,22 @@ export async function writeContent(collab: Collab, db: Db, pageId: string, doc: 
 /** Adds blocks at the end of a page. */
 export async function appendContent(collab: Collab, db: Db, pageId: string, nodes: ProseMirrorNode[]) {
   await editContent(collab, db, pageId, (d) => d.transact(() => fillY(d.getXmlFragment(CONTENT_FIELD), nodes)));
+}
+
+/**
+ * Adds a link to a new subpage at the end of its parent, as if someone had written it there (it can be removed
+ * like any link). It goes before a trailing empty paragraph, so the line people type on stays last.
+ */
+export async function linkChildPage(collab: Collab, db: Db, parentId: string, page: { id: string; title: string }) {
+  const block = { type: "paragraph", content: [{ type: "pageLink", attrs: { pageId: page.id, title: page.title } }] };
+  await editContent(collab, db, parentId, (d) =>
+    d.transact(() => {
+      const fragment = d.getXmlFragment(CONTENT_FIELD);
+      const last = fragment.length ? fragment.get(fragment.length - 1) : null;
+      const blankLast = last instanceof Y.XmlElement && last.nodeName === "paragraph" && last.length === 0 && fragment.length > 1;
+      fillY(fragment, [block], blankLast ? fragment.length - 1 : fragment.length);
+    }),
+  );
 }
 
 /** A page's content as it is now, with what people are typing included. */
