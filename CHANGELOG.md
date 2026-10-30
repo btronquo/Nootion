@@ -7,6 +7,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Nextcloud plugin: each person connects their own Nextcloud account (Nextcloud's login page, or an app password),
+  then picks files to copy into a page (`/nextcloud`) or a "File" column, or inserts a link that opens a file or
+  folder in Nextcloud (`/nextcloud link`). Browse folders, search by name, thumbnails. App passwords are stored
+  encrypted and revoked on disconnecting. See [docs/NEXTCLOUD.md](docs/NEXTCLOUD.md).
+- Plugins: `userSecrets` (encrypted data per user, such as an account on another service), `attachments.create`
+  (attach a file to a page), `binary` (send an image from a route), and in the browser `registerFileSource`
+  (another place to pick files from, offered in the "/" menu and in "File" columns) and `ui` (the app's dialog
+  and buttons). See [docs/PLUGINS.md](docs/PLUGINS.md).
 - Buttons: a block in pages (`/button`) and a column type in databases that run steps when clicked: add a row to a
   database, change the current row, create a page (from a template or not), open a page or a link, call a webhook.
   Steps use variables (`{{today}}`, `{{user}}`, `{{row.<column>}}`, `{{form.<field>}}`…) and run with the rights of

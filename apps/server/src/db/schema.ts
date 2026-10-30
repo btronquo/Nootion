@@ -221,6 +221,20 @@ export const plugins = sqliteTable("plugins", {
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
 });
 
+/** What a plugin keeps for one user (e.g. their account on another service), encrypted. */
+export const pluginUserData = sqliteTable(
+  "plugin_user_data",
+  {
+    pluginId: text("plugin_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    value: text("value").notNull(),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
+  },
+  (t) => [primaryKey({ columns: [t.pluginId, t.userId] })],
+);
+
 /** Notion workspace imported into a Nootion space: its integration token, for importing again. */
 export const notionConnections = sqliteTable("notion_connections", {
   workspaceId: text("workspace_id")
