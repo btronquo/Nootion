@@ -11,8 +11,9 @@ import {
 } from "@nootion/shared";
 import { and, count, desc, eq, isNotNull, ne } from "drizzle-orm";
 import { pages, users, workspaceMembers, workspaces } from "../db/schema.js";
+import { scopeAllows } from "../api-tokens.js";
 import { HttpError, notFound, parseBody, requireUser } from "../http.js";
-import { getPageRole, requireWorkspaceRole } from "../permissions.js";
+import { getPageRole, getWorkspaceRole, requireWorkspaceRole } from "../permissions.js";
 import { listWorkspacePages, toSummary } from "../pages.js";
 import { t } from "@nootion/shared";
 import { homePageOf } from "../home.js";
@@ -49,7 +50,10 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
       .orderBy(workspaces.createdAt)
       .all();
     // Personal space first, then shared spaces.
-    const result: WorkspaceSummary[] = [...rows.filter((r) => r.kind === "personal"), ...rows.filter((r) => r.kind === "shared")];
+    const result: WorkspaceSummary[] = [...rows.filter((r) => r.kind === "personal"), ...rows.filter((r) => r.kind === "shared")]
+      // With a personal token: its spaces only, with the role it has there.
+      .filter((r) => scopeAllows(r.id))
+      .map((r) => ({ ...r, role: getWorkspaceRole(db, user.id, r.id) ?? r.role }));
     return { workspaces: result };
   });
 

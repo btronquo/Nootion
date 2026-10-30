@@ -136,7 +136,7 @@ What makes everyday use comfortable, in this order (quick wins first, then what 
    arrives, in a background job; results point to the page holding the file.
 11. **Dates in plain words and reminders** (done). Typing `@tomorrow`, `@friday`, `@15/11 9:00` in the editor inserts a date;
     a date can carry a reminder, shown in the app (and as a notification of the installed app) when it is due.
-12. **API with personal tokens.** A documented REST API (read and write pages, query and fill databases, search),
+12. **API with personal tokens** (done). A documented REST API (read and write pages, query and fill databases, search),
    with tokens created in "My account", each limited to some spaces and read-only or read-write.
    It is what the V2 MCP server builds on.
 

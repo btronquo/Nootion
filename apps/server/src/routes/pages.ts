@@ -32,7 +32,11 @@ import { copyTree } from "../templates.js";
 import { syncReminders } from "../reminders.js";
 import { listBacklinks } from "../backlinks.js";
 import { getSnapshot, listVersions, recordSnapshot } from "../history.js";
-import { writeContent, type ProseMirrorNode } from "../collab.js";
+import { appendContent, readContent, writeContent, type ProseMirrorNode } from "../collab.js";
+import { toMarkdown } from "../markdown.js";
+import { checkContent, parseMarkdown } from "../markdown-in.js";
+
+const contentBody = z.object({ markdown: z.string().max(2_000_000).optional(), content: z.unknown().optional() }).passthrough();
 
 export const pageRoutes: FastifyPluginAsync = async (app) => {
   const db = app.db;
@@ -60,7 +64,58 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
       })
       .returning()
       .get();
+    // Content given at once (API): Markdown or editor JSON.
+    const body = contentInput(req.body, user.id, true);
+    if (body) await writeContent(app.collab, db, page.id, body);
     return { page: toSummary(page) };
+  });
+
+  /** Content sent through the API: `markdown`, or `content` as the editor's JSON. Null when neither is given. */
+  const contentInput = (raw: unknown, userId: string, optional = false): ProseMirrorNode | null => {
+    const input = parseBody(contentBody, raw ?? {});
+    if (input.markdown !== undefined) return parseMarkdown(input.markdown);
+    if (input.content !== undefined) {
+      try {
+        return checkContent(input.content, userId);
+      } catch (e) {
+        throw new HttpError(400, "bad_content", t("error.badContent", { reason: (e as Error).message }));
+      }
+    }
+    if (optional) return null;
+    throw new HttpError(400, "invalid_input", t("error.contentMissing"));
+  };
+
+  // A page's content, as Markdown and as the editor's JSON (what people are typing included).
+  app.get<{ Params: { id: string } }>("/:id/content", async (req) => {
+    const user = requireUser(req);
+    const { page } = requirePageRole(db, user.id, req.params.id, "viewer");
+    if (page.kind === "database") throw new HttpError(400, "not_a_page", t("error.notAPage"));
+    const content = readContent(app.collab, db, page.id);
+    const base = app.config.appUrl;
+    const markdown = toMarkdown(content, { file: (id) => `${base}/api/attachments/${id}`, page: (id) => `${base}/page/${id}` });
+    return { id: page.id, title: page.title, markdown, content };
+  });
+
+  // Replaces the content (PUT) or adds to its end (POST).
+  app.put<{ Params: { id: string } }>("/:id/content", async (req) => {
+    const user = requireUser(req);
+    const { page } = requirePageRole(db, user.id, req.params.id, "editor");
+    if (page.kind === "database") throw new HttpError(400, "not_a_page", t("error.notAPage"));
+    const doc = contentInput(req.body, user.id)!;
+    recordSnapshot(db, page.id, { content: readContent(app.collab, db, page.id), force: true });
+    await writeContent(app.collab, db, page.id, doc);
+    db.update(pages).set({ updatedAt: new Date() }).where(eq(pages.id, page.id)).run();
+    return { ok: true };
+  });
+
+  app.post<{ Params: { id: string } }>("/:id/content", async (req) => {
+    const user = requireUser(req);
+    const { page } = requirePageRole(db, user.id, req.params.id, "editor");
+    if (page.kind === "database") throw new HttpError(400, "not_a_page", t("error.notAPage"));
+    const doc = contentInput(req.body, user.id)!;
+    await appendContent(app.collab, db, page.id, doc.content ?? []);
+    db.update(pages).set({ updatedAt: new Date() }).where(eq(pages.id, page.id)).run();
+    return { ok: true };
   });
 
   /**
@@ -182,7 +237,8 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
       visibleFrom = Math.max(...chain.map((c, i) => (shared.has(c.id) ? i + 1 : 0)));
     }
     const breadcrumb = breadcrumbFor(chain, (c) => chain.indexOf(c) < visibleFrom);
-    recordVisit(db, user.id, page.id);
+    // Scripts reading pages with a token don't fill "Recently visited".
+    if (!req.tokenScope) recordVisit(db, user.id, page.id);
     return { page: toDetail(page, role, breadcrumb, homePageOf(db, user.id) === page.id) };
   });
 
