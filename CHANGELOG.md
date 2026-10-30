@@ -7,6 +7,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Buttons: a block in pages (`/button`) and a column type in databases that run steps when clicked: add a row to a
+  database, change the current row, create a page (from a template or not), open a page or a link, call a webhook.
+  Steps use variables (`{{today}}`, `{{user}}`, `{{row.<column>}}`, `{{form.<field>}}`…) and run with the rights of
+  the person clicking. A button can first open a form (text, number, date, choice, checkbox, person), and that form
+  can get a public link to collect answers from people without an account. See [docs/BUTTONS.md](docs/BUTTONS.md).
 - MCP server: Claude or another AI assistant can search, read and write pages, and create, query and fill
   databases, as you, within the spaces you choose and read only or read and write. On claude.ai and Claude's apps,
   Nootion is added as a custom connector: Claude opens a Nootion page where you choose its spaces and access

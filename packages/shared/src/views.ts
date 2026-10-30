@@ -433,7 +433,7 @@ export function applyView(
 
 /** Types a view can be grouped by. */
 export function canGroupBy(type: PropertyType): boolean {
-  return type !== "title" && type !== "file";
+  return type !== "title" && type !== "file" && type !== "button";
 }
 
 /** Types whose groups can receive rows (board drag and drop, "new" in a group). */

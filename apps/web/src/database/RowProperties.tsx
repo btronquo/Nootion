@@ -65,6 +65,7 @@ export function RowProperties({ databaseId, rowId }: { databaseId: string; rowId
                 prop={p}
                 value={row.values[p.id] ?? null}
                 rowId={row.id}
+                databaseId={databaseId}
                 people={people}
                 related={related}
                 rollupTarget={rollupTargets[p.id]}
