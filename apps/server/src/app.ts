@@ -36,6 +36,8 @@ import { builtinPluginsDir, PluginManager } from "./plugins.js";
 import { createExtractor, type Extractor } from "./extract.js";
 import { createNotifier, type Notifier, type PushSender } from "./reminders.js";
 import { reminderRoutes } from "./routes/reminders.js";
+import { apiTokenRoutes } from "./routes/api-tokens.js";
+import { findTokenUser, tokenRefusal, withTokenScope, type TokenScope } from "./api-tokens.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -48,10 +50,29 @@ declare module "fastify" {
   }
   interface FastifyRequest {
     user: UserRow | null;
+    tokenScope: TokenScope | null;
   }
 }
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+/** Requests a personal token can make per minute. */
+const TOKEN_REQUESTS_PER_MINUTE = Number(process.env.API_RATE_LIMIT ?? 300);
+
+/** Counts requests per key over a sliding minute; false once the limit is reached. */
+function rateLimiter(perMinute: number) {
+  const hits = new Map<string, number[]>();
+  return (key: string, now = Date.now()) => {
+    const recent = (hits.get(key) ?? []).filter((t) => now - t < 60_000);
+    if (recent.length >= perMinute) {
+      hits.set(key, recent);
+      return false;
+    }
+    recent.push(now);
+    hits.set(key, recent);
+    return true;
+  };
+}
 
 export async function buildApp(opts: { db: Db; config: Config; logger?: boolean; pushSender?: PushSender }): Promise<FastifyInstance> {
   const app = Fastify({
@@ -68,6 +89,8 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
     collab.closeConnections();
   });
   app.decorateRequest("user", null);
+  app.decorateRequest("tokenScope", null);
+  const tokenLimiter = rateLimiter(TOKEN_REQUESTS_PER_MINUTE);
   // Reads the text of attached files in the background, for search.
   const extractor = createExtractor(opts.db, opts.config.dataDir, app.log);
   app.decorate("extractor", extractor);
@@ -91,11 +114,25 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
         throw new HttpError(403, "bad_origin", withLocale(requestLocale(req), () => t("error.badOrigin")));
       }
     }
+    // Personal API tokens ("Authorization: Bearer nt_…"), for scripts and other apps.
+    const bearer = req.url.startsWith("/api/") ? /^Bearer\s+(\S+)$/i.exec(req.headers.authorization ?? "")?.[1] : undefined;
+    if (bearer) {
+      const say = (key: "error.badToken" | "error.tokenNotAllowed" | "error.tokenReadOnly" | "error.tooManyRequests") => withLocale(requestLocale(req), () => t(key));
+      const found = findTokenUser(opts.db, bearer);
+      if (!found) throw new HttpError(401, "bad_token", say("error.badToken"));
+      req.user = found.user;
+      const refusal = tokenRefusal(found.scope, req.method, req.url);
+      if (refusal) throw new HttpError(403, `token_${refusal}`, say(refusal === "read_only" ? "error.tokenReadOnly" : "error.tokenNotAllowed"));
+      if (!tokenLimiter(found.scope.tokenId)) throw new HttpError(429, "too_many_requests", say("error.tooManyRequests"));
+      req.tokenScope = found.scope;
+      return;
+    }
     const token = req.cookies[SESSION_COOKIE];
     if (token) req.user = findSessionUser(opts.db, token);
   });
-  // From here on (the body is parsed), t() speaks the user's language until the response is sent.
-  app.addHook("preValidation", (req, _reply, done) => withLocale(requestLocale(req), done));
+  // From here on (the body is parsed), t() speaks the user's language until the response is sent,
+  // and permission checks stay within the token's scope for requests made with one.
+  app.addHook("preValidation", (req, _reply, done) => withLocale(requestLocale(req), () => withTokenScope(req.tokenScope, done)));
 
   app.setErrorHandler((err, req, reply) => {
     if (err instanceof HttpError) {
@@ -134,6 +171,7 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
   await app.register(icalRoutes, { prefix: "/api/ical" });
   await app.register(homeRoutes, { prefix: "/api" });
   await app.register(reminderRoutes, { prefix: "/api/reminders" });
+  await app.register(apiTokenRoutes, { prefix: "/api/tokens" });
   await app.register(userRoutes, { prefix: "/api/users" });
   await app.register(publicRoutes, { prefix: "/api/public" });
   await app.register(attachmentRoutes, { prefix: "/api" });

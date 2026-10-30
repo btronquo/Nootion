@@ -213,20 +213,43 @@ export async function registerCollabRoute(app: FastifyInstance, collab: Collab) 
   });
 }
 
-/** Replaces a page's content, through the live editing server when someone has it open. */
-export async function writeContent(collab: Collab, db: Db, pageId: string, doc: ProseMirrorNode) {
+/**
+ * Changes a page's content, through the live editing server when someone has it open, else on its stored state
+ * (devices that edited offline still merge their changes with it).
+ */
+export async function editContent(collab: Collab, db: Db, pageId: string, change: (doc: Y.Doc) => void) {
   if (collab.documents.has(pageId)) {
     const connection = await collab.openDirectConnection(pageId);
-    await connection.transact((d) => setProsemirrorJSON(d, doc));
+    await connection.transact(change);
     await connection.disconnect();
     return;
   }
   const y = new Y.Doc();
-  setProsemirrorJSON(y, doc);
+  const row = db.select({ state: pages.contentState }).from(pages).where(eq(pages.id, pageId)).get();
+  if (row?.state) Y.applyUpdate(y, new Uint8Array(row.state));
+  change(y);
   const { state, json, text } = encodeContent(y);
   db.update(pages)
     .set({ contentState: state, contentJson: json, contentText: text })
     .where(eq(pages.id, pageId))
     .run();
   syncReminders(db, pageId, json);
+}
+
+/** Replaces a page's content. */
+export async function writeContent(collab: Collab, db: Db, pageId: string, doc: ProseMirrorNode) {
+  await editContent(collab, db, pageId, (d) => setProsemirrorJSON(d, doc));
+}
+
+/** Adds blocks at the end of a page. */
+export async function appendContent(collab: Collab, db: Db, pageId: string, nodes: ProseMirrorNode[]) {
+  await editContent(collab, db, pageId, (d) => d.transact(() => fillY(d.getXmlFragment(CONTENT_FIELD), nodes)));
+}
+
+/** A page's content as it is now, with what people are typing included. */
+export function readContent(collab: Collab, db: Db, pageId: string): ProseMirrorNode {
+  const live = collab.documents.get(pageId);
+  if (live) return yDocToProsemirrorJSON(live);
+  const row = db.select({ json: pages.contentJson }).from(pages).where(eq(pages.id, pageId)).get();
+  return (row?.json as ProseMirrorNode | null) ?? { type: "doc", content: [] };
 }
