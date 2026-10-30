@@ -84,7 +84,8 @@ offline use and the Notion import.
 - Plugins: editor blocks, API routes, scheduled tasks and formula functions, turned on and set up in the
   administration. Ships with the "Embeds" plugin (`/embed`: YouTube, Vimeo, Spotify, Google Maps, Figma,
   link previews) and the "Nextcloud" plugin (each person connects their account, then copies files into pages and
-  "File" columns, or links to them: see [docs/NEXTCLOUD.md](docs/NEXTCLOUD.md)). See [docs/PLUGINS.md](docs/PLUGINS.md)
+  "File" columns, or links to them: see [docs/NEXTCLOUD.md](docs/NEXTCLOUD.md)) and the "Google Calendar" plugin
+  (syncs a database with a Google calendar, both ways: see [docs/GOOGLE_CALENDAR.md](docs/GOOGLE_CALENDAR.md)). See [docs/PLUGINS.md](docs/PLUGINS.md)
   to write your own.
 - Export a page or a space as Markdown (.zip: subpages, attached files, databases as CSV and JSON),
   export a database as CSV (or CSV for Excel) and JSON with computed formulas, import a CSV into a database
