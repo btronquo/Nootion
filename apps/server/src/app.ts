@@ -231,7 +231,17 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
     appSecret: opts.config.appSecret,
     log: app.log,
     maxUploadMb: opts.config.maxUploadMb,
+    appUrl: opts.config.appUrl,
     onAttachment: () => extractor.wake(),
+    inject: async (userId, method, apiPath, body) => {
+      const res = await app.inject({
+        method,
+        url: `/api${apiPath}`,
+        headers: { [ACT_AS_HEADER]: userId, [INTERNAL_HEADER]: INTERNAL_SECRET, ...(body === undefined ? {} : { "content-type": "application/json" }) },
+        ...(body === undefined ? {} : { payload: JSON.stringify(body) }),
+      });
+      return { status: res.statusCode, json: res.body ? JSON.parse(res.body) : null };
+    },
   });
   app.decorate("plugins", pluginManager);
   app.addHook("onClose", () => pluginManager.stop());

@@ -47,6 +47,11 @@ export interface PluginRequest {
   headers: Record<string, string | string[] | undefined>;
 }
 
+/** Sends the browser to another address (e.g. a sign-in page of another service). */
+export class PluginRedirect {
+  constructor(readonly url: string) {}
+}
+
 /** A file a plugin's route sends back as is (e.g. an image), instead of JSON. */
 export class PluginBinary {
   constructor(
@@ -96,6 +101,15 @@ export interface ServerPluginApi {
   };
   /** Return this from a route to send a file (an image…) instead of JSON. */
   binary: (data: Buffer | Readable, contentType: string) => PluginBinary;
+  /** Return this from a route to send the browser to another address. */
+  redirect: (url: string) => PluginRedirect;
+  /** Address of Nootion as people open it (APP_URL), without a trailing slash. */
+  appUrl: string;
+  /**
+   * Calls Nootion's API as a user, with their rights (as if they had made the request): request(userId, "POST",
+   * "/databases/<id>/query", { limit: 100 }). Resolves with the JSON answer; throws an HttpError on an error.
+   */
+  request: <T = any>(userId: string, method: Method, path: string, body?: unknown) => Promise<T>;
 }
 
 /** Types a plugin route may send to be shown in the browser; anything else is downloaded. */
@@ -139,6 +153,9 @@ export class PluginManager {
       appSecret: string;
       log: FastifyBaseLogger;
       maxUploadMb: number;
+      appUrl: string;
+      /** Calls the API in the process, as the given user. */
+      inject: (userId: string, method: Method, path: string, body?: unknown) => Promise<{ status: number; json: any }>;
       /** Called after a plugin attached a file (to read its text for search). */
       onAttachment?: () => void;
     },
@@ -286,6 +303,14 @@ export class PluginManager {
       },
       attachments: { create: (input) => this.createAttachment(input) },
       binary: (data, contentType) => new PluginBinary(data, contentType),
+      redirect: (url) => new PluginRedirect(url),
+      appUrl: this.opts.appUrl,
+      request: async (userId, method, apiPath, body) => {
+        if (!apiPath.startsWith("/")) throw new Error('An API path starts with "/".');
+        const res = await this.opts.inject(userId, method, apiPath, body);
+        if (res.status >= 400) throw new HttpError(res.status, res.json?.error ?? "error", res.json?.message ?? `HTTP ${res.status}`);
+        return res.json;
+      },
     };
     try {
       fs.mkdirSync(dataDir, { recursive: true });
@@ -462,6 +487,7 @@ export class PluginManager {
         body: req.body,
         headers: req.headers,
       });
+      if (result instanceof PluginRedirect) return reply.redirect(result.url);
       if (result instanceof PluginBinary) {
         const inline = INLINE_PLUGIN_TYPES.has(result.contentType);
         return reply
