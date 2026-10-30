@@ -1,7 +1,10 @@
 import * as React from "react";
+import { createRoot } from "react-dom/client";
 import { useQuery } from "@tanstack/react-query";
 import { currentLocale, FormulaError, t, registerFormulaFunction, type ClientPluginInfo, type Locale } from "@nootion/shared";
 import { api } from "../lib/api";
+import { Button, Modal } from "../components/ui";
+import type { UploadedFile } from "../editor/upload";
 
 /** What a plugin block's component receives. */
 export interface PluginBlockProps {
@@ -11,6 +14,18 @@ export interface PluginBlockProps {
   setData: (data: Record<string, unknown>) => void;
   /** False for readers and on public pages. */
   editable: boolean;
+}
+
+/** Somewhere else files can come from (a cloud drive…): offered next to "upload" in pages and "File" columns. */
+export interface PluginFileSource {
+  /** Shown as "From <label>" and as a "/" command. */
+  label: string;
+  /** An emoji. */
+  icon?: string;
+  /** Extra words that find it in the "/" menu. */
+  keywords?: string;
+  /** Lets the user pick files and attaches copies of them to the page; resolves with nothing when cancelled. */
+  pick: (ctx: { pageId: string; multiple: boolean }) => Promise<UploadedFile[] | undefined | null>;
 }
 
 /** The object given to a plugin's browser code: `export function activate(nootion) { … }`. */
@@ -24,12 +39,42 @@ export interface ClientPluginApi {
   registerBlock: (blockId: string, component: React.ComponentType<PluginBlockProps>) => void;
   /** Language of the interface ("en", "fr"…). The page reloads when it changes. */
   locale: Locale;
+  /** Adds a place to pick files from. */
+  registerFileSource: (source: PluginFileSource) => void;
+  /** Pieces of the app's interface, so that plugins look like the rest of Nootion. */
+  ui: {
+    /** A dialog box: { title, onClose, wide, children }. */
+    Modal: typeof Modal;
+    /** A button: { variant: "primary" | "ghost" | "danger", ...button props }. */
+    Button: typeof Button;
+    /** Shows what `render` draws above the page, until it calls `close(value)`; resolves with that value. */
+    showDialog: <T>(render: (close: (value?: T) => void) => React.ReactNode) => Promise<T | undefined>;
+  };
+}
+
+/** Draws a dialog in a root of its own, outside the page's content (whose styles it must not inherit). */
+function showDialog<T>(render: (close: (value?: T) => void) => React.ReactNode): Promise<T | undefined> {
+  return new Promise((resolve) => {
+    const host = document.createElement("div");
+    document.body.appendChild(host);
+    const root = createRoot(host);
+    const close = (value?: T) => {
+      root.unmount();
+      host.remove();
+      resolve(value);
+    };
+    root.render(React.createElement(React.Fragment, null, render(close)));
+  });
 }
 
 const renderers = new Map<string, React.ComponentType<PluginBlockProps>>();
 const loaded = new Map<string, Promise<void>>();
 const formulaStubs = new Map<string, () => void>();
 const enabled = new Set<string>();
+const sources = new Map<string, PluginFileSource>();
+
+/** Places to pick files from, of enabled plugins. */
+export const fileSources = () => [...sources.entries()].filter(([id]) => enabled.has(id)).map(([, s]) => s);
 
 export const blockRenderer = (pluginId: string, blockId: string) => (enabled.has(pluginId) ? renderers.get(`${pluginId}.${blockId}`) : undefined);
 
@@ -42,6 +87,10 @@ async function loadClient(p: ClientPluginInfo) {
     registerBlock: (blockId, component) => {
       renderers.set(`${p.id}.${blockId}`, component);
     },
+    registerFileSource: (source) => {
+      sources.set(p.id, source);
+    },
+    ui: { Modal, Button, showDialog },
   };
   try {
     const mod = await import(/* @vite-ignore */ p.clientUrl!);

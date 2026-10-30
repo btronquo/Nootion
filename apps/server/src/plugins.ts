@@ -1,9 +1,12 @@
 import { decryptSecret, encryptSecret, secretKey } from "./secrets.js";
 import fs from "node:fs";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { FastifyBaseLogger, FastifyReply, FastifyRequest } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   pluginManifestSchema,
   registerFormulaFunction,
@@ -20,9 +23,10 @@ import {
   type Locale,
 } from "@nootion/shared";
 import type { Db } from "./db/index.js";
-import { plugins } from "./db/schema.js";
+import { attachments, pluginUserData, plugins } from "./db/schema.js";
+import { attachmentPath, uploadsDir } from "./attachments.js";
 import { HttpError, notFound, unauthorized } from "./http.js";
-import { getPageRole } from "./permissions.js";
+import { getPageRole, requirePageRole } from "./permissions.js";
 import { t } from "@nootion/shared";
 
 /** Built-in plugins ship next to the server code (src/ in dev, dist/ in the image). */
@@ -41,6 +45,23 @@ export interface PluginRequest {
   query: Record<string, string>;
   body: unknown;
   headers: Record<string, string | string[] | undefined>;
+}
+
+/** A file a plugin's route sends back as is (e.g. an image), instead of JSON. */
+export class PluginBinary {
+  constructor(
+    readonly data: Buffer | Readable,
+    readonly contentType: string,
+  ) {}
+}
+
+/** A file attached to a page, as the upload route returns it. */
+export interface PluginAttachment {
+  id: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  url: string;
 }
 
 /** The object given to a plugin's server code: `export function activate(nootion) { … }`. */
@@ -63,7 +84,22 @@ export interface ServerPluginApi {
   HttpError: typeof HttpError;
   /** Language of the user being served ("en", "fr"…), to write messages in it. */
   locale: () => Locale;
+  /** What the plugin keeps for each user (an account on another service…), stored encrypted. Any JSON value. */
+  userSecrets: {
+    get: (userId: string) => unknown;
+    set: (userId: string, value: unknown) => void;
+    delete: (userId: string) => void;
+  };
+  /** Attaches a file to a page, as if the user had uploaded it (they must be able to edit the page). */
+  attachments: {
+    create: (input: { userId: string; pageId: string; filename: string; mimeType: string; data: Buffer | Readable | ReadableStream<Uint8Array> }) => Promise<PluginAttachment>;
+  };
+  /** Return this from a route to send a file (an image…) instead of JSON. */
+  binary: (data: Buffer | Readable, contentType: string) => PluginBinary;
 }
+
+/** Types a plugin route may send to be shown in the browser; anything else is downloaded. */
+const INLINE_PLUGIN_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "image/avif"]);
 
 interface Route {
   method: Method;
@@ -93,19 +129,29 @@ export class PluginManager {
   /** Plugin folders that couldn't be read, with why. */
   readonly broken: { dir: string; error: string }[] = [];
   private key: Buffer;
+  private userKey: Buffer;
 
   constructor(
     private db: Db,
-    private opts: { dirs: { path: string; builtin: boolean }[]; dataDir: string; appSecret: string; log: FastifyBaseLogger },
+    private opts: {
+      dirs: { path: string; builtin: boolean }[];
+      dataDir: string;
+      appSecret: string;
+      log: FastifyBaseLogger;
+      maxUploadMb: number;
+      /** Called after a plugin attached a file (to read its text for search). */
+      onAttachment?: () => void;
+    },
   ) {
     this.key = secretKey(opts.appSecret, "nootion-plugin-settings");
+    this.userKey = secretKey(opts.appSecret, "nootion-plugin-user-data");
   }
 
   /** Reads every manifest, then starts the enabled plugins. */
   async start() {
     for (const { path: root, builtin } of this.opts.dirs) {
       if (!fs.existsSync(root)) continue;
-      for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+      for (const entry of fs.readdirSync(root, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
         if (!entry.isDirectory()) continue;
         const dir = path.join(root, entry.name);
         const file = path.join(dir, "manifest.json");
@@ -228,6 +274,18 @@ export class PluginManager {
       pages: { role: (userId, pageId) => getPageRole(this.db, userId, pageId) },
       HttpError,
       locale: currentLocale,
+      userSecrets: {
+        get: (userId) => this.getUserSecret(id, userId),
+        set: (userId, value) => this.setUserSecret(id, userId, value),
+        delete: (userId) => {
+          this.db
+            .delete(pluginUserData)
+            .where(and(eq(pluginUserData.pluginId, id), eq(pluginUserData.userId, userId)))
+            .run();
+        },
+      },
+      attachments: { create: (input) => this.createAttachment(input) },
+      binary: (data, contentType) => new PluginBinary(data, contentType),
     };
     try {
       fs.mkdirSync(dataDir, { recursive: true });
@@ -256,6 +314,59 @@ export class PluginManager {
     } catch (e) {
       this.opts.log.warn(`Plugin ${p.manifest.id}: error while stopping: ${e instanceof Error ? e.message : e}`);
     }
+  }
+
+  // --- Per-user data and files ----------------------------------------------------------------
+
+  private getUserSecret(pluginId: string, userId: string): unknown {
+    const row = this.db
+      .select()
+      .from(pluginUserData)
+      .where(and(eq(pluginUserData.pluginId, pluginId), eq(pluginUserData.userId, userId)))
+      .get();
+    const text = row ? decryptSecret(this.userKey, row.value) : null;
+    return text === null ? null : JSON.parse(text);
+  }
+
+  private setUserSecret(pluginId: string, userId: string, value: unknown) {
+    const encrypted = encryptSecret(this.userKey, JSON.stringify(value ?? null));
+    this.db
+      .insert(pluginUserData)
+      .values({ pluginId, userId, value: encrypted, updatedAt: new Date() })
+      .onConflictDoUpdate({ target: [pluginUserData.pluginId, pluginUserData.userId], set: { value: encrypted, updatedAt: new Date() } })
+      .run();
+  }
+
+  private async createAttachment(input: Parameters<ServerPluginApi["attachments"]["create"]>[0]): Promise<PluginAttachment> {
+    requirePageRole(this.db, input.userId, input.pageId, "editor");
+    const max = this.opts.maxUploadMb * 1024 * 1024;
+    const source = Buffer.isBuffer(input.data) ? Readable.from([input.data]) : input.data instanceof Readable ? input.data : Readable.fromWeb(input.data as never);
+    const id = randomUUID();
+    fs.mkdirSync(uploadsDir(this.opts.dataDir), { recursive: true });
+    const dest = attachmentPath(this.opts.dataDir, id);
+    const tmp = `${dest}.part`;
+    let size = 0;
+    try {
+      await pipeline(
+        source,
+        async function* (chunks: AsyncIterable<Buffer>) {
+          for await (const chunk of chunks) {
+            size += chunk.length;
+            if (size > max) throw new HttpError(413, "too_large", t("error.fileTooLarge", { max: max / 1024 / 1024 }));
+            yield chunk;
+          }
+        },
+        fs.createWriteStream(tmp),
+      );
+      fs.renameSync(tmp, dest);
+    } finally {
+      fs.rmSync(tmp, { force: true });
+    }
+    const filename = (input.filename || "file").replace(/[\\/\r\n]/g, "_").slice(0, 255);
+    const mimeType = input.mimeType.split(";")[0]!.trim().toLowerCase() || "application/octet-stream";
+    this.db.insert(attachments).values({ id, pageId: input.pageId, filename, mimeType, size, createdBy: input.userId }).run();
+    this.opts.onAttachment?.();
+    return { id, filename, mimeType, size, url: `/api/attachments/${id}` };
   }
 
   // --- Admin ------------------------------------------------------------------------------------
@@ -351,6 +462,16 @@ export class PluginManager {
         body: req.body,
         headers: req.headers,
       });
+      if (result instanceof PluginBinary) {
+        const inline = INLINE_PLUGIN_TYPES.has(result.contentType);
+        return reply
+          .header("content-type", inline ? result.contentType : "application/octet-stream")
+          .header("content-disposition", inline ? "inline" : "attachment")
+          .header("x-content-type-options", "nosniff")
+          .header("content-security-policy", "default-src 'none'; sandbox")
+          .header("cache-control", "private, max-age=3600")
+          .send(result.data);
+      }
       return reply.send(result ?? { ok: true });
     }
     throw notFound();

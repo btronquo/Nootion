@@ -230,6 +230,8 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
     dataDir: opts.config.dataDir,
     appSecret: opts.config.appSecret,
     log: app.log,
+    maxUploadMb: opts.config.maxUploadMb,
+    onAttachment: () => extractor.wake(),
   });
   app.decorate("plugins", pluginManager);
   app.addHook("onClose", () => pluginManager.stop());
