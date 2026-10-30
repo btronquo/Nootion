@@ -161,7 +161,7 @@ more interface languages.
   from a phone in a few taps. A form can also get a link of its own, to collect answers from people without an
   account (public form, with rate limiting).
 - **Nextcloud** plugin (done): each person connects their own account, then picks Nextcloud files to copy into a page
-  or a "file" property, or links to a file or folder. **Google Calendar** plugin (syncing a database's date property
-  with a calendar).
+  or a "file" property, or links to a file or folder. **Google Calendar** plugin (done): syncs a database's date
+  property with a calendar, both ways.
 - Per-user plugin credentials (OAuth, Nextcloud account), stored encrypted (started: plugins keep encrypted data per
   user, used by Nextcloud), a page in "My account" listing connected services, and plugin property types.
