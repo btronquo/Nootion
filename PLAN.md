@@ -148,7 +148,7 @@ more interface languages.
 
 ## 9. Version 2
 
-- **MCP server**, so that Claude (or another assistant) can work with Nootion: search, read and write pages, query
+- **MCP server** (done), so that Claude (or another assistant) can work with Nootion: search, read and write pages, query
   databases and add or change rows, within the rights of the token's owner. Served by Nootion itself over HTTP
   (remote MCP), connected to Claude as a custom connector with a token from "My account".
   Each agent token is limited to some spaces and to reading or writing; what an agent changed is logged, and text

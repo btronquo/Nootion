@@ -1,14 +1,17 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
-import { and, desc, eq } from "drizzle-orm";
-import { API_TOKEN_PREFIX, type ApiToken, type CreateApiTokenInput } from "@nootion/shared";
+import { and, desc, eq, inArray } from "drizzle-orm";
+import { API_TOKEN_PREFIX, atLeast, type AgentAction, type AgentActivity, type ApiToken, type CreateApiTokenInput } from "@nootion/shared";
 import type { Db } from "./db/index.js";
-import { apiTokens, users } from "./db/schema.js";
+import { agentActivity, apiTokens, pages, users } from "./db/schema.js";
+import { getPageRole } from "./permissions.js";
 import { hashToken, newToken } from "./auth/tokens.js";
 
 /** What a request made with a personal token may reach. */
 export interface TokenScope {
   tokenId: string;
+  /** The token's name, shown on what it changed. */
+  name: string;
   workspaceIds: string[];
   readOnly: boolean;
 }
@@ -35,6 +38,7 @@ const toApiToken = (r: typeof apiTokens.$inferSelect): ApiToken => ({
   prefix: r.prefix,
   workspaceIds: r.workspaceIds,
   readOnly: r.readOnly,
+  app: r.clientId !== null,
   expiresAt: r.expiresAt?.toISOString() ?? null,
   lastUsedAt: r.lastUsedAt?.toISOString() ?? null,
   createdAt: r.createdAt.toISOString(),
@@ -87,7 +91,7 @@ export function findTokenUser(db: Db, token: string, now = new Date()) {
   if (!row.t.lastUsedAt || now.getTime() - row.t.lastUsedAt.getTime() > 60_000) {
     db.update(apiTokens).set({ lastUsedAt: now }).where(eq(apiTokens.id, row.t.id)).run();
   }
-  const scope: TokenScope = { tokenId: row.t.id, workspaceIds: row.t.workspaceIds, readOnly: row.t.readOnly };
+  const scope: TokenScope = { tokenId: row.t.id, name: row.t.name, workspaceIds: row.t.workspaceIds, readOnly: row.t.readOnly };
   return { user: row.user, scope };
 }
 
@@ -120,4 +124,70 @@ export function tokenRefusal(scope: TokenScope, method: string, url: string): "n
   if (!ALLOWED.some(([methods, re]) => methods.split(" ").includes(m) && re.test(path))) return "not_allowed";
   if (scope.readOnly && m !== "GET" && !READS.some((re) => re.test(path))) return "read_only";
   return null;
+}
+
+// What a change made with a token is, by method and route.
+const ACTIONS: Record<string, AgentAction> = {
+  "POST /api/pages": "page.create",
+  "PATCH /api/pages/:id": "page.update",
+  "DELETE /api/pages/:id": "page.trash",
+  "POST /api/pages/:id/move": "page.move",
+  "POST /api/pages/:id/restore": "page.restore",
+  "POST /api/pages/:id/apply-template": "page.template",
+  "POST /api/pages/:id/history/:versionId/restore": "page.restoreVersion",
+  "PUT /api/pages/:id/content": "content.replace",
+  "POST /api/pages/:id/content": "content.append",
+  "POST /api/pages/:id/attachments": "file.upload",
+  "POST /api/databases": "database.create",
+  "POST /api/databases/:id/rows": "row.create",
+  "PATCH /api/databases/:id/rows/:rowId": "row.update",
+  "POST /api/databases/:id/rows/delete": "row.trash",
+};
+
+/** What a successful request made with a token changed, or null when it only read. */
+export function agentAction(method: string, route: string | undefined): AgentAction | null {
+  if (!route || method === "GET" || method === "HEAD" || route === "/api/databases/:id/query") return null;
+  return ACTIONS[`${method} ${route}`] ?? (route.startsWith("/api/databases/") ? "database.update" : null);
+}
+
+/** Keeps the last 1000 changes made with a user's tokens. */
+export function recordActivity(db: Db, entry: { userId: string; agent: string; action: AgentAction; pageId: string | null }) {
+  db.insert(agentActivity).values({ id: randomUUID(), ...entry }).run();
+  const old = db
+    .select({ id: agentActivity.id })
+    .from(agentActivity)
+    .where(eq(agentActivity.userId, entry.userId))
+    .orderBy(desc(agentActivity.createdAt))
+    .limit(1000)
+    .offset(1000)
+    .all();
+  if (old.length)
+    db.delete(agentActivity)
+      .where(inArray(agentActivity.id, old.map((r) => r.id)))
+      .run();
+}
+
+export function listActivity(db: Db, userId: string, limit = 100): AgentActivity[] {
+  const rows = db.select().from(agentActivity).where(eq(agentActivity.userId, userId)).orderBy(desc(agentActivity.createdAt)).limit(limit).all();
+  const ids = [...new Set(rows.flatMap((r) => (r.pageId ? [r.pageId] : [])))];
+  const found = new Map(
+    ids.length
+      ? db
+          .select({ id: pages.id, title: pages.title, icon: pages.icon })
+          .from(pages)
+          .where(inArray(pages.id, ids))
+          .all()
+          .filter((p) => atLeast(getPageRole(db, userId, p.id), "viewer"))
+          .map((p) => [p.id, p])
+      : [],
+  );
+  return rows.map((r) => ({
+    id: r.id,
+    agent: r.agent,
+    action: r.action as AgentAction,
+    pageId: r.pageId,
+    pageTitle: r.pageId ? (found.get(r.pageId)?.title ?? null) : null,
+    pageIcon: r.pageId ? (found.get(r.pageId)?.icon ?? null) : null,
+    createdAt: r.createdAt.toISOString(),
+  }));
 }

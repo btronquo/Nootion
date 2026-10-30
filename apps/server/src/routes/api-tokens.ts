@@ -2,13 +2,16 @@ import type { FastifyPluginAsync } from "fastify";
 import { createApiTokenInput, t } from "@nootion/shared";
 import { HttpError, notFound, parseBody, requireUser } from "../http.js";
 import { getWorkspaceRole } from "../permissions.js";
-import { createApiToken, deleteApiToken, listApiTokens } from "../api-tokens.js";
+import { createApiToken, deleteApiToken, listActivity, listApiTokens } from "../api-tokens.js";
 
 /** The user's personal API tokens, managed from "My account" (never with a token). */
 export const apiTokenRoutes: FastifyPluginAsync = async (app) => {
   const { db } = app;
 
   app.get("/", async (req) => ({ tokens: listApiTokens(db, requireUser(req).id) }));
+
+  // What apps and agents changed with the user's tokens, latest first.
+  app.get("/activity", async (req) => ({ activity: listActivity(db, requireUser(req).id) }));
 
   app.post("/", async (req) => {
     const user = requireUser(req);
