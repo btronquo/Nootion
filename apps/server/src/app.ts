@@ -37,7 +37,13 @@ import { createExtractor, type Extractor } from "./extract.js";
 import { createNotifier, type Notifier, type PushSender } from "./reminders.js";
 import { reminderRoutes } from "./routes/reminders.js";
 import { apiTokenRoutes } from "./routes/api-tokens.js";
-import { findTokenUser, tokenRefusal, withTokenScope, type TokenScope } from "./api-tokens.js";
+import { oauthDiscoveryRoutes, oauthRoutes } from "./routes/oauth.js";
+import { mcpRoutes } from "./mcp.js";
+import { ACT_AS_HEADER, INTERNAL_HEADER, INTERNAL_SECRET } from "./internal.js";
+import { users } from "./db/schema.js";
+import { eq } from "drizzle-orm";
+import { buttonRoutes, publicFormRoutes } from "./routes/buttons.js";
+import { agentAction, findTokenUser, recordActivity, tokenRefusal, withTokenScope, type TokenScope } from "./api-tokens.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -55,6 +61,8 @@ declare module "fastify" {
 }
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+// Called by apps from anywhere, without cookies: no cross-site check.
+const APP_ENDPOINTS = /^\/api\/oauth\/(token|register|revoke)$/;
 
 /** Requests a personal token can make per minute. */
 const TOKEN_REQUESTS_PER_MINUTE = Number(process.env.API_RATE_LIMIT ?? 300);
@@ -106,9 +114,11 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
   await app.register(multipart, { limits: { fileSize: opts.config.maxUploadMb * 1024 * 1024, files: 1 } });
   await app.register(websocket, { options: { maxPayload: 10 * 1024 * 1024 } });
 
-  app.addHook("onRequest", async (req) => {
+  app.addHook("onRequest", async (req, reply) => {
+    // The page where users allow apps can't be shown inside another site (clickjacking).
+    if (req.url.startsWith("/oauth/")) reply.header("x-frame-options", "DENY").header("content-security-policy", "frame-ancestors 'none'");
     // CSRF: browsers always send Origin on cross-site mutations; reject those not coming from the app itself.
-    if (!SAFE_METHODS.has(req.method) && req.url.startsWith("/api/")) {
+    if (!SAFE_METHODS.has(req.method) && req.url.startsWith("/api/") && !APP_ENDPOINTS.test(req.url.split("?")[0]!)) {
       const origin = req.headers.origin;
       if (origin && origin !== opts.config.appUrl && origin !== `${req.protocol}://${req.host}`) {
         throw new HttpError(403, "bad_origin", withLocale(requestLocale(req), () => t("error.badOrigin")));
@@ -127,12 +137,40 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
       req.tokenScope = found.scope;
       return;
     }
+    // The server calling its own API as a user (see internal.ts); only from inside the process.
+    const actAs = req.headers[ACT_AS_HEADER];
+    if (typeof actAs === "string" && req.headers[INTERNAL_HEADER] === INTERNAL_SECRET) {
+      req.user = opts.db.select().from(users).where(eq(users.id, actAs)).get() ?? null;
+      if (req.user?.disabled) req.user = null;
+      return;
+    }
     const token = req.cookies[SESSION_COOKIE];
     if (token) req.user = findSessionUser(opts.db, token);
   });
   // From here on (the body is parsed), t() speaks the user's language until the response is sent,
   // and permission checks stay within the token's scope for requests made with one.
   app.addHook("preValidation", (req, _reply, done) => withLocale(requestLocale(req), () => withTokenScope(req.tokenScope, done)));
+
+  // What apps and agents change with a token is logged, for "My account".
+  app.addHook("onSend", async (req, reply, payload) => {
+    const scope = req.tokenScope;
+    if (!scope || !req.user || reply.statusCode >= 400) return payload;
+    const action = agentAction(req.method, req.routeOptions.url);
+    if (!action) return payload;
+    const params = req.params as { id?: string; rowId?: string };
+    // The page changed, or the one made (named in the answer).
+    let pageId = params.rowId ?? params.id ?? null;
+    if (action.endsWith(".create") && typeof payload === "string") {
+      try {
+        const body = JSON.parse(payload) as { page?: { id?: string }; database?: { id?: string }; row?: { id?: string } };
+        pageId = body.page?.id ?? body.database?.id ?? body.row?.id ?? null;
+      } catch {
+        // Not JSON: no page named.
+      }
+    }
+    recordActivity(opts.db, { userId: req.user.id, agent: scope.name, action, pageId });
+    return payload;
+  });
 
   app.setErrorHandler((err, req, reply) => {
     if (err instanceof HttpError) {
@@ -172,6 +210,11 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
   await app.register(homeRoutes, { prefix: "/api" });
   await app.register(reminderRoutes, { prefix: "/api/reminders" });
   await app.register(apiTokenRoutes, { prefix: "/api/tokens" });
+  await app.register(buttonRoutes, { prefix: "/api/buttons" });
+  await app.register(publicFormRoutes, { prefix: "/api/forms" });
+  await app.register(oauthRoutes, { prefix: "/api/oauth" });
+  await app.register(oauthDiscoveryRoutes);
+  await app.register(mcpRoutes);
   await app.register(userRoutes, { prefix: "/api/users" });
   await app.register(publicRoutes, { prefix: "/api/public" });
   await app.register(attachmentRoutes, { prefix: "/api" });
@@ -187,6 +230,18 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
     dataDir: opts.config.dataDir,
     appSecret: opts.config.appSecret,
     log: app.log,
+    maxUploadMb: opts.config.maxUploadMb,
+    appUrl: opts.config.appUrl,
+    onAttachment: () => extractor.wake(),
+    inject: async (userId, method, apiPath, body) => {
+      const res = await app.inject({
+        method,
+        url: `/api${apiPath}`,
+        headers: { [ACT_AS_HEADER]: userId, [INTERNAL_HEADER]: INTERNAL_SECRET, ...(body === undefined ? {} : { "content-type": "application/json" }) },
+        ...(body === undefined ? {} : { payload: JSON.stringify(body) }),
+      });
+      return { status: res.statusCode, json: res.body ? JSON.parse(res.body) : null };
+    },
   });
   app.decorate("plugins", pluginManager);
   app.addHook("onClose", () => pluginManager.stop());

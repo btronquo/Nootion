@@ -12,11 +12,21 @@ import { TrashPage } from "./pages/TrashPage";
 import { RemindersPage } from "./pages/RemindersPage";
 import { PublicPage } from "./pages/PublicPage";
 import { AccountPage } from "./pages/AccountPage";
+import { OauthAuthorizePage } from "./pages/OauthAuthorizePage";
+import { PublicFormPage } from "./pages/PublicFormPage";
 import { t } from "@nootion/shared";
 
 export function App() {
   const location = useLocation();
   // Public links work for everyone, signed in or not.
+  // So are forms opened from their public link.
+  if (location.pathname.startsWith("/f/")) {
+    return (
+      <Routes>
+        <Route path="/f/:token" element={<PublicFormPage />} />
+      </Routes>
+    );
+  }
   if (location.pathname.startsWith("/p/")) {
     return (
       <Routes>
@@ -47,13 +57,14 @@ function PrivateApp() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/invite/:token" element={<InvitePage />} />
-        <Route path="*" element={<Navigate to="/login" replace state={{ from: location.pathname }} />} />
+        <Route path="*" element={<Navigate to="/login" replace state={{ from: location.pathname + location.search }} />} />
       </Routes>
     );
   }
 
   return (
     <Routes>
+      <Route path="/oauth/authorize" element={<OauthAuthorizePage />} />
       <Route element={<AppShell />}>
         <Route index element={<HomePage />} />
         <Route path="/page/:id" element={<PagePage />} />

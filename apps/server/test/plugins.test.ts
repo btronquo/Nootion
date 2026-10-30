@@ -71,6 +71,8 @@ describe("plugins", () => {
     const admin = (await boris.get("/api/admin/plugins")).json();
     expect(admin.plugins.map((p: { id: string; enabled: boolean; builtin: boolean }) => [p.id, p.enabled, p.builtin])).toEqual([
       ["embed", true, true],
+      ["google_calendar", false, true],
+      ["nextcloud", false, true],
       ["demo", false, false],
     ]);
     expect(admin.broken).toHaveLength(1);

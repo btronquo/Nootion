@@ -29,13 +29,14 @@ The admin can also download a full backup from **Administration › Backup** (a 
 | `API_RATE_LIMIT` | no | Requests a personal API token can make per minute (default `300`). See [API.md](API.md). |
 
 If Nootion sits behind an HTTPS reverse proxy, put the `https://…` URL in `APP_URL`: the session cookie then becomes `Secure`.
+To connect Claude's connectors to Nootion, that address must be reachable from the internet (see [MCP.md](MCP.md)).
 The proxy must let **WebSockets** through on `/collab` (real-time collaborative editing): in Nginx Proxy Manager, tick *Websockets Support*.
 Also check its upload size limit (`client_max_body_size` in Nginx) for attached files.
 
 ## Installing with Docker
 
 The image is published on GitHub's registry for amd64 and arm64: `ghcr.io/btronquo/nootion`.
-Tags: `latest` (last release), `1.2.0`, `1.2` (last 1.2.x), and `develop` (development version, to try what's coming;
+Tags: `latest` (last release), `2.0.0`, `2.0` (last 2.0.x), and `develop` (development version, to try what's coming;
 not for data you care about).
 
 ### With Docker Compose (recommended)
@@ -76,7 +77,7 @@ docker compose pull && docker compose up -d
 ```
 
 Database migrations are applied automatically at startup. Back up the data folder before a major update, and
-read the [CHANGELOG](../CHANGELOG.md). To stay on a version, use its tag (`ghcr.io/btronquo/nootion:1.2.0`)
+read the [CHANGELOG](../CHANGELOG.md). To stay on a version, use its tag (`ghcr.io/btronquo/nootion:2.0.0`)
 instead of `latest`.
 
 ### Building the image from the source code

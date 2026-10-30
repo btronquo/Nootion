@@ -193,7 +193,7 @@ const NODES = new Set([
   "doc", "paragraph", "text", "hardBreak", "heading", "bulletList", "orderedList", "listItem", "taskList", "taskItem", "blockquote",
   "codeBlock", "horizontalRule", "table", "tableRow", "tableHeader", "tableCell", "image", "callout", "details", "detailsSummary",
   "detailsContent", "columns", "column", "fileAttachment", "pageLink", "dateMention", "databaseBlock", "calendarBlock",
-  "recentPages", "favoritesList", "upcomingEvents", "databaseRows",
+  "recentPages", "favoritesList", "upcomingEvents", "databaseRows", "buttonBlock",
 ]);
 const MARKS = new Set(["bold", "italic", "strike", "underline", "code", "link"]);
 

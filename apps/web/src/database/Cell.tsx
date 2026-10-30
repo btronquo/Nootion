@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Check, FileText, Paperclip, Upload, X } from "lucide-react";
 import {
+  buttonConfigSchema,
+  emptyButtonConfig,
   COMPUTED_TYPES,
   type CellValue,
   type DatabaseProperty,
@@ -15,17 +17,21 @@ import {
 import { useUserDirectory } from "../lib/queries";
 import { uploadFile } from "../editor/upload";
 import { pickFiles } from "../editor/upload";
+import { fileSources } from "../plugins/registry";
 import { formatCalc, formatDate, formatDateString, formatNumber, numberFormatOf, parseNumberInput } from "./format";
 import { useDatabase } from "./hooks";
 import { pageTitle } from "../lib/tree";
 import { OptionChip, OptionPicker } from "./OptionPicker";
 import { Popover } from "./Popover";
+import { ButtonAction } from "../buttons/ButtonAction";
 import { t } from "@nootion/shared";
 
 export interface CellProps {
   prop: DatabaseProperty;
   value: CellValue;
   rowId: string;
+  /** The row's database, for button columns. */
+  databaseId?: string;
   people: Record<string, string>;
   editable: boolean;
   onChange: (value: CellValue) => void;
@@ -62,6 +68,20 @@ export function Cell(props: CellProps) {
           checked={value === true}
           disabled={!canEdit}
           onChange={(e) => props.onChange(e.target.checked)}
+        />
+      </div>
+    );
+  }
+
+  if (prop.type === "button") {
+    const config = buttonConfigSchema.safeParse(prop.config.button ?? {});
+    return (
+      <div className={`flex h-full items-center ${panel ? "py-1" : "px-2"}`} data-button-cell>
+        <ButtonAction
+          compact={!panel}
+          label={prop.name}
+          config={config.success ? config.data : emptyButtonConfig()}
+          source={props.databaseId && !props.fileUrl ? { kind: "column", databaseId: props.databaseId, propertyId: prop.id, rowId: props.rowId } : null}
         />
       </div>
     );
@@ -369,6 +389,23 @@ function FileEditor({ value, rowId, onChange }: CellProps) {
       >
         <Upload size={14} /> {busy ? t("common.uploading") : t("cell.addFile")}
       </button>
+      {fileSources().map((source) => (
+        <button
+          key={source.label}
+          disabled={busy}
+          onClick={async () => {
+            try {
+              const picked = (await source.pick({ pageId: rowId, multiple: true })) ?? [];
+              if (picked.length) onChange([...files, ...picked.map((u) => ({ id: u.id, name: u.filename }))]);
+            } catch (err) {
+              alert(err instanceof Error ? err.message : String(err));
+            }
+          }}
+          className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
+        >
+          <span className="w-3.5 text-center leading-none">{source.icon ?? "📁"}</span> {t("cell.addFileFrom", { source: source.label })}
+        </button>
+      ))}
     </div>
   );
 }

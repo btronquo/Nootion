@@ -26,13 +26,15 @@ import {
   ListChecks,
   Star,
   Bell,
+  MousePointerClick,
 } from "lucide-react";
 import { currentLocale, parseNaturalDate, pluginNodeName, type ClientPluginInfo, type PageSummary } from "@nootion/shared";
 import { formatMentionDate } from "../lib/reminders";
 import { api } from "../lib/api";
 import { pageTitle } from "../lib/tree";
 import { item } from "./suggestion";
-import { insertFiles, pickFiles } from "./upload";
+import { insertFiles, insertUploaded, pickFiles } from "./upload";
+import { fileSources } from "../plugins/registry";
 import { t } from "@nootion/shared";
 
 export interface CommandContext {
@@ -115,12 +117,26 @@ export function slashItems(ctx: CommandContext) {
       },
       "db table",
     ),
+    item("Button", t("command.button"), <MousePointerClick size={16} />, (e, r) => del(e, r).insertButton().run(), "action automation form webhook bouton formulaire"),
     item("Calendar", t("command.calendar"), <CalendarDays size={16} />, (e, r) => del(e, r).insertCalendar().run(), "agenda events dates ical"),
     item("Recent pages", t("command.recentPages"), <Clock size={16} />, (e, r) => del(e, r).insertWidget("recentPages").run(), "widget visited history home"),
     item("Favorites", t("command.favoritesList"), <Star size={16} />, (e, r) => del(e, r).insertWidget("favoritesList").run(), "widget starred home"),
     item("Upcoming events", t("command.upcomingEvents"), <CalendarClock size={16} />, (e, r) => del(e, r).insertWidget("upcomingEvents").run(), "widget agenda next home"),
     item("Database rows", t("command.databaseRows"), <ListChecks size={16} />, (e, r) => del(e, r).insertWidget("databaseRows").run(), "widget todo tasks list home"),
     item("Link to page", t("command.link"), <Link2 size={16} />, (e, r) => del(e, r).insertContent("@").run(), "mention"),
+    // Other places to pick files from (cloud drives…), from plugins (before their blocks: "/nextcloud" picks files, "/nextcloud link" a link block).
+    ...fileSources().map((source) =>
+      item(
+        source.label,
+        t("command.fileFrom", { source: source.label }),
+        <span className="w-4 text-center text-base leading-none">{source.icon ?? "📁"}</span>,
+        async (e, r) => {
+          del(e, r).run();
+          for (const up of (await source.pick({ pageId: ctx.pageId, multiple: true })) ?? []) insertUploaded(e, up);
+        },
+        `${source.keywords ?? ""} file image fichier`,
+      ),
+    ),
     // Blocks of enabled plugins.
     ...ctx.plugins
       .filter((p) => p.enabled)

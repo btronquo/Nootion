@@ -107,6 +107,13 @@ What `activate` receives:
 | `pages.role(userId, pageId)` | a user's role on a page |
 | `HttpError` | error with an HTTP status |
 | `locale()` | language of the user being served (`"en"`, `"fr"`…) |
+| `userSecrets.get / set / delete(userId, value)` | data kept for one user (an account on another service, a token…), any JSON, stored encrypted with `APP_SECRET` and deleted with the user |
+| `attachments.create({ userId, pageId, filename, mimeType, data })` | attaches a file to a page as if the user had uploaded it: they must be able to edit the page, and `MAX_UPLOAD_MB` applies. `data` is a Buffer or a stream (e.g. a `fetch` response's `body`). Returns `{ id, filename, mimeType, size, url }`. |
+| `request(userId, method, path, body)` | calls Nootion's API (`/databases/…`, `/pages/…`, see [API.md](API.md)) as a user, with their rights, as if they had made the request. Resolves with the JSON answer, throws an `HttpError` on an error. |
+| `connectedAccount({ describe, disconnect })` | lists the user's account on another service in **My account › Connected services**: `describe(userId)` returns what to show ("ada@gmail.com") or null when not connected, `disconnect(userId)` forgets and revokes it. |
+| `redirect(url)` | return it from a route to send the browser elsewhere (a sign-in page of another service…) |
+| `appUrl` | Nootion's address (`APP_URL`), e.g. to build an OAuth redirect address |
+| `binary(data, contentType)` | return it from a route to send a file instead of JSON. PNG, JPEG, GIF, WebP and AVIF images are shown in the browser; anything else is downloaded. |
 
 A plugin must never send a user data they couldn't see themselves.
 
@@ -142,3 +149,31 @@ export function activate(nootion) {
 The application's Tailwind classes aren't available to plugins: use inline styles.
 An element with the `nootion-hover-only` class only shows when the block is hovered (handy for edit buttons).
 If the component crashes, only the block shows an error; the rest of the page keeps working.
+
+### Other places to pick files from
+
+A plugin can offer files from somewhere else (a cloud drive…). They are offered as a `/` command and as
+"From …" under "Add a file" in "File" columns:
+
+```js
+nootion.registerFileSource({
+  label: "My drive",
+  icon: "🗂️",
+  keywords: "drive cloud",
+  // Let the user choose, attach copies to the page (with attachments.create on the server), and resolve with
+  // what that returned: [{ id, filename, mimeType, size, url }]. Resolve with nothing when they cancel.
+  pick: ({ pageId, multiple }) => nootion.ui.showDialog((close) => h(MyPicker, { pageId, multiple, close })),
+});
+```
+
+### The app's interface
+
+`nootion.ui` gives a few pieces of Nootion's interface, so that a plugin looks like the rest of the app (light and
+dark themes included):
+
+- `ui.showDialog((close) => element)`: draws `element` above the page, outside its content, until `close(value)` is
+  called; returns a promise of that value.
+- `ui.Modal`: a dialog box, `{ title, onClose, wide, children }`.
+- `ui.Button`: a button, `{ variant: "primary" | "ghost" | "danger", ...button props }`.
+
+The **Nextcloud** plugin uses all of these: [`apps/server/plugins/nextcloud`](../apps/server/plugins/nextcloud).

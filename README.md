@@ -3,7 +3,7 @@
 **An open-source, self-hosted alternative to Notion, Capacities and Docmost**: pages, wikis and real databases,
 on your own server, in a single Docker container.
 
-> Version 1.2.0. See [CHANGELOG.md](CHANGELOG.md) for what changed and [PLAN.md](PLAN.md) for what comes next.
+> Version 2.0.0. See [CHANGELOG.md](CHANGELOG.md) for what changed and [PLAN.md](PLAN.md) for what comes next.
 
 ## Why Nootion
 
@@ -77,9 +77,16 @@ offline use and the Notion import.
   to the phone or computer.
 - REST API with personal tokens (per space, read-only or read and write): pages as Markdown, database queries,
   rows, files, search. See [docs/API.md](docs/API.md).
+- Buttons with automations and forms: add a row, change the current row, create a page from a template, open a
+  link, call a webhook, after an optional form that can also be opened by a public link. See [docs/BUTTONS.md](docs/BUTTONS.md).
+- Built-in MCP server: connect Claude (as a custom connector) or another AI agent to search, read and write your
+  pages and databases, within the spaces you choose, with every change it makes logged. See [docs/MCP.md](docs/MCP.md).
 - Plugins: editor blocks, API routes, scheduled tasks and formula functions, turned on and set up in the
   administration. Ships with the "Embeds" plugin (`/embed`: YouTube, Vimeo, Spotify, Google Maps, Figma,
-  link previews). See [docs/PLUGINS.md](docs/PLUGINS.md) to write your own.
+  link previews) and the "Nextcloud" plugin (each person connects their account, then copies files into pages and
+  "File" columns, or links to them: see [docs/NEXTCLOUD.md](docs/NEXTCLOUD.md)) and the "Google Calendar" plugin
+  (syncs a database with a Google calendar, both ways: see [docs/GOOGLE_CALENDAR.md](docs/GOOGLE_CALENDAR.md)). See [docs/PLUGINS.md](docs/PLUGINS.md)
+  to write your own.
 - Export a page or a space as Markdown (.zip: subpages, attached files, databases as CSV and JSON),
   export a database as CSV (or CSV for Excel) and JSON with computed formulas, import a CSV into a database
   (columns and options created as needed), full backup downloadable by the admin.

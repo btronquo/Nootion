@@ -51,6 +51,7 @@ function RowValues({
             prop={c.prop}
             value={row.values[c.prop.id] ?? null}
             rowId={row.id}
+            databaseId={data.id}
             people={data.people}
             editable={false}
             variant="panel"

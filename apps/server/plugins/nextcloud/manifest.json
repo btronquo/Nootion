@@ -1,0 +1,41 @@
+{
+  "id": "nextcloud",
+  "name": "Nextcloud",
+  "version": "1.0.0",
+  "description": {
+    "en": "Pick files in your Nextcloud: insert a copy in a page or in a \"File\" column, or a link that opens the file in Nextcloud. Each person connects their own Nextcloud account. Commands \"/nextcloud\" and \"/nextcloud link\".",
+    "fr": "Choisissez des fichiers dans votre Nextcloud : insérez-en une copie dans une page ou une colonne « Fichier », ou un lien qui ouvre le fichier dans Nextcloud. Chacun connecte son propre compte Nextcloud. Commandes « /nextcloud » et « /nextcloud lien »."
+  },
+  "author": "Nootion",
+  "server": "server.js",
+  "client": "client.js",
+  "blocks": [
+    {
+      "id": "link",
+      "title": { "en": "Nextcloud link", "fr": "Nextcloud lien" },
+      "description": { "en": "A file or folder that opens in Nextcloud", "fr": "Un fichier ou dossier qui s'ouvre dans Nextcloud" },
+      "icon": "☁️",
+      "keywords": { "en": "nextcloud link cloud file folder drive", "fr": "nextcloud lien cloud fichier dossier" }
+    }
+  ],
+  "settings": [
+    {
+      "key": "url",
+      "label": { "en": "Nextcloud address", "fr": "Adresse de Nextcloud" },
+      "type": "text",
+      "help": {
+        "en": "The address Nootion's server uses to reach Nextcloud, e.g. https://cloud.example.org or http://192.168.1.20:8080.",
+        "fr": "L'adresse à laquelle le serveur de Nootion joint Nextcloud, par exemple https://cloud.exemple.fr ou http://192.168.1.20:8080."
+      }
+    },
+    {
+      "key": "browserUrl",
+      "label": { "en": "Address in the browser (optional)", "fr": "Adresse dans le navigateur (facultatif)" },
+      "type": "text",
+      "help": {
+        "en": "Only if people open Nextcloud at another address than the one above (e.g. the server uses an internal Docker address). Used for links and for connecting accounts.",
+        "fr": "Seulement si les gens ouvrent Nextcloud à une autre adresse que celle du dessus (par exemple une adresse Docker interne côté serveur). Sert aux liens et à la connexion des comptes."
+      }
+    }
+  ]
+}
