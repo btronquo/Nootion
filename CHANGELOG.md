@@ -3,7 +3,7 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and version numbers follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [3.1.0] - 2026-10-31
 
 ### Added
 
@@ -46,7 +46,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Fixed
 
-- Hovering a page in the graph fades the highlight in and out instead of switching it at once.
 - "Saving…" above the editor only shows when a save takes more than a second and a half (a slow connection),
   instead of flashing at each change.
 - The sidebar shows the pages others add, rename, move or delete in a shared space (or share with you) right away,
@@ -275,6 +274,7 @@ First public version.
 - Markdown (.zip), CSV and JSON export, CSV import, full backup download.
 - Single Docker image (amd64 and arm64), data in `/data`, migrations applied at startup.
 
+[3.1.0]: ../../releases/tag/v3.1.0
 [3.0.0]: ../../releases/tag/v3.0.0
 [2.0.1]: ../../releases/tag/v2.0.1
 [2.0.0]: ../../releases/tag/v2.0.0
