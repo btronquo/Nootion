@@ -7,6 +7,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- E-mail, set by administrators in Administration > E-mail, through an SMTP server or Resend, with a test e-mail:
+  - reminders, mentions and comment replies are also sent by e-mail; each user picks which in My account;
+  - an invitation made for an address is sent to it;
+  - "Forgot your password?" on the sign-in page sends a link (valid an hour, once) to choose a new password.
 - A demo page, "Discover Nootion", given to each new user on their first visit: every kind of block, a "Projects"
   database with its six views, a subpage and all the widgets, filled with made-up data. It is an ordinary page to
   delete; "Create the demo page" in My account makes a new one. `DEMO_PAGE=false` turns it off.

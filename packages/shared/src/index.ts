@@ -17,5 +17,6 @@ export * from "./automations.js";
 export * from "./recurrence.js";
 export * from "./inbox.js";
 export * from "./backups.js";
+export * from "./mail.js";
 export * from "./i18n/index.js";
 import "./i18n/zod.js";

@@ -109,6 +109,18 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 
 To update: `git pull`, then the same command. To try the `develop` branch, `git checkout develop` first.
 
+## Sending e-mail
+
+Nootion sends nothing by e-mail until an administrator sets it up in **Administration > E-mail**:
+
+- **SMTP**: any mail server or service (your host's, Gmail with an app password, Brevo, Mailgun, Amazon SES…).
+  Usually port 587 with STARTTLS, or 465 with SSL/TLS.
+- **Resend**: an API key with the right to send, and the sender's domain verified in Resend.
+
+"Send a test e-mail" checks the settings. The password or key is stored encrypted with `APP_SECRET`. Once set up,
+reminders, mentions and replies are also e-mailed (each user can turn them off in My account), invitations with an
+address are sent to it, and the sign-in page offers "Forgot your password?".
+
 ## Installing the app on a phone or computer
 
 Nootion is a web app that can be installed (PWA): it then opens in its own window, with its icon on the home screen.

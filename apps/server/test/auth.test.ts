@@ -10,7 +10,7 @@ beforeEach(async () => {
 describe("first launch", () => {
   it("asks to create the admin, then closes", async () => {
     const c = new Client(app);
-    expect((await c.get("/api/setup")).json()).toEqual({ needsSetup: true });
+    expect((await c.get("/api/setup")).json()).toEqual({ needsSetup: true, mail: false });
 
     const res = await c.post("/api/setup", ADMIN);
     expect(res.statusCode).toBe(200);
@@ -18,7 +18,7 @@ describe("first launch", () => {
     expect(res.json().user.passwordHash).toBeUndefined();
     expect((await c.get("/api/auth/me")).statusCode).toBe(200);
 
-    expect((await c.get("/api/setup")).json()).toEqual({ needsSetup: false });
+    expect((await c.get("/api/setup")).json()).toEqual({ needsSetup: false, mail: false });
     const again = await new Client(app).post("/api/setup", { ...ADMIN, email: "pirate@example.com" });
     expect(again.statusCode).toBe(409);
   });

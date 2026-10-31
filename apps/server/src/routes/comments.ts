@@ -172,15 +172,19 @@ export const commentRoutes: FastifyPluginAsync = async (app) => {
         .get();
       if (!inserted) continue;
       const locale = target.locale as Locale;
-      await app.notifier.push(userId, {
-        title: tIn(locale, kind === "mention" ? "comments.pushMention" : "comments.pushReply", {
-          name: author,
-          page: `${iconText(page.icon)}${page.title || tIn(locale, "common.untitled")}`,
-        }),
-        body: text.slice(0, EXCERPT),
-        url: `/page/${thread.pageId}?comment=${threadId}`,
-        tag: commentId,
-      });
+      await app.notifier.push(
+        userId,
+        {
+          title: tIn(locale, kind === "mention" ? "comments.pushMention" : "comments.pushReply", {
+            name: author,
+            page: `${iconText(page.icon)}${page.title || tIn(locale, "common.untitled")}`,
+          }),
+          body: text.slice(0, EXCERPT),
+          url: `/page/${thread.pageId}?comment=${threadId}`,
+          tag: commentId,
+        },
+        kind === "mention" ? "mentions" : "replies",
+      );
     }
   }
 };

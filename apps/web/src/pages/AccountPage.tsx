@@ -1,8 +1,8 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Monitor, Moon, Sun } from "lucide-react";
-import { AVATAR_MAX_BYTES, t, type Locale, type PublicUser } from "@nootion/shared";
+import { AVATAR_MAX_BYTES, EMAIL_KINDS, t, type EmailKind, type EmailPrefs, type Locale, type PublicUser } from "@nootion/shared";
 import { api, ApiError } from "../lib/api";
 import { useSession } from "../lib/session";
 import { getTheme, setTheme, type ThemeChoice } from "../lib/theme";
@@ -34,6 +34,7 @@ export function AccountPage() {
       <PasswordSection />
       <LanguageSection user={user} />
       <ThemeSection />
+      <EmailPrefsSection />
       <ImportSection />
       <DemoSection />
       {!!services.data?.length && (
@@ -324,6 +325,39 @@ function ThemeSection() {
         ))}
       </div>
       <p className="mt-2 text-xs text-neutral-500">{t("account.themeHelp")}</p>
+    </Section>
+  );
+}
+
+/** Which e-mails the user gets (once administrators set up e-mail). */
+function EmailPrefsSection() {
+  const qc = useQueryClient();
+  const prefs = useQuery({ queryKey: ["email-prefs"], queryFn: () => api<{ enabled: boolean; prefs: EmailPrefs }>("/account/email") });
+  const toggle = async (kind: EmailKind, on: boolean) => {
+    const data = await api<{ enabled: boolean; prefs: EmailPrefs }>("/account/email", { method: "PUT", body: { [kind]: on } });
+    qc.setQueryData(["email-prefs"], data);
+  };
+  if (!prefs.data) return null;
+  return (
+    <Section title={t("account.emails")} id="email">
+      {!prefs.data.enabled ? (
+        <p className="text-sm text-neutral-500">{t("account.emailsOff")}</p>
+      ) : (
+        <div className="space-y-2">
+          <p className="mb-3 text-sm text-neutral-600 dark:text-neutral-400">{t("account.emailsHelp")}</p>
+          {EMAIL_KINDS.map((kind) => (
+            <label key={kind} className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-blue-600"
+                checked={prefs.data.prefs[kind]}
+                onChange={(e) => void toggle(kind, e.target.checked)}
+              />
+              {t(`account.email_${kind}`)}
+            </label>
+          ))}
+        </div>
+      )}
     </Section>
   );
 }

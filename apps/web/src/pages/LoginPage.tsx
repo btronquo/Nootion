@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { t } from "@nootion/shared";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
@@ -13,6 +14,8 @@ export function LoginPage() {
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
+  // "Forgot password" only when the server can send its e-mail.
+  const setup = useQuery({ queryKey: ["setup-status"], queryFn: () => api<{ mail?: boolean }>("/setup") });
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -32,13 +35,35 @@ export function LoginPage() {
   return (
     <AuthCard title={t("login.title")}>
       <form onSubmit={submit} className="space-y-4">
-        <Field label={t("auth.email")} type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required autoFocus autoComplete="username" />
-        <Field label={t("auth.password")} type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required autoComplete="current-password" />
+        <Field
+          label={t("auth.email")}
+          type="email"
+          value={form.email}
+          onChange={(e) => setForm({ ...form, email: e.target.value })}
+          required
+          autoFocus
+          autoComplete="username"
+        />
+        <Field
+          label={t("auth.password")}
+          type="password"
+          value={form.password}
+          onChange={(e) => setForm({ ...form, password: e.target.value })}
+          required
+          autoComplete="current-password"
+        />
         <ErrorText error={error} />
         <Button type="submit" disabled={busy} className="w-full">
           {t("login.submit")}
         </Button>
       </form>
+      {setup.data?.mail && (
+        <p className="mt-4 text-center text-sm">
+          <Link to="/forgot" className="text-neutral-500 hover:underline">
+            {t("forgot.link")}
+          </Link>
+        </p>
+      )}
     </AuthCard>
   );
 }
