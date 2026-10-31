@@ -5,6 +5,8 @@ on your own server, in a single Docker container.
 
 > Version 3.0.0. See [CHANGELOG.md](CHANGELOG.md) for what changed and [PLAN.md](PLAN.md) for what comes next.
 
+![A Nootion page with its sidebar, a callout, a table of contents and formatted text](docs/screenshots/editor.png)
+
 ## Why Nootion
 
 Notion and Capacities are closed cloud services: your notes live on their servers, under their terms and prices.
@@ -30,6 +32,19 @@ the freedom of an open-source app you host yourself, and the databases that make
 - **Light.** Runs on a small home server or NAS (amd64 and arm64), no separate database server or Redis.
 
 The interface is available in English and French; each user picks their language.
+
+## Screenshots
+
+| | |
+| --- | --- |
+| ![The Projects database as a table, with status, priority, date range and owner columns](docs/screenshots/database-table.png) | ![The same database as a board grouped by status](docs/screenshots/database-board.png) |
+| **Databases**: one database, many views (table, board, calendar, timeline, gallery, list). | **Board** view, grouped by any select column. |
+| ![The database as a monthly calendar, with multi-day entries shown as bars](docs/screenshots/database-calendar.png) | ![Clock, weather, donut and bar charts and progress bars widgets](docs/screenshots/widgets.png) |
+| **Calendar** with date ranges and times. | **Widgets** for dashboards: charts, progress, weather, clock and more. |
+| ![The demo page in dark mode](docs/screenshots/dark.png) | |
+| **Dark mode**, following the system or picked by hand. | |
+
+These come from "Discover Nootion", the demo page every new user gets.
 
 ## Getting started
 
