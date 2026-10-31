@@ -28,6 +28,7 @@ import { SourcesPanel, useSourceDatabases } from "../database/CalendarBlockView"
 import { OPTION_CLASSES } from "../database/format";
 import { useDatabase, useDatabaseActions, useDatabaseList } from "../database/hooks";
 import { Popover } from "../database/Popover";
+import { pageIcon } from "../lib/icons";
 
 /** Frame of a widget: a small title with an icon, optional tools on the right. */
 function Widget({ icon, title, tools, children, name }: { icon: ReactNode; title: ReactNode; tools?: ReactNode; children: ReactNode; name: string }) {
@@ -73,7 +74,7 @@ export function RecentPagesView({ extension }: NodeViewProps) {
           >
             <div className="h-12 bg-neutral-100 dark:bg-neutral-800">{p.cover && <CoverFill cover={p.cover} position={p.coverPosition} />}</div>
             <div className="-mt-4 flex flex-1 flex-col gap-1 px-3 pb-3">
-              <span className="text-2xl leading-none">{p.icon ?? (p.kind === "database" ? "🗃" : <FileText size={22} className="text-neutral-400" />)}</span>
+              <span className="text-2xl leading-none">{pageIcon(p.icon) ?? (p.kind === "database" ? "🗃" : <FileText size={22} className="text-neutral-400" />)}</span>
               <span className="line-clamp-2 text-sm font-medium">{pageTitle(p.title)}</span>
               <span className="mt-auto text-xs text-neutral-400">{shortDate(p.visitedAt)}</span>
             </div>
@@ -98,7 +99,7 @@ export function FavoritesListView({ extension }: NodeViewProps) {
             to={`/page/${p.id}`}
             className="flex min-w-0 items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
           >
-            <span className="w-5 shrink-0 text-center">{p.icon ?? (p.kind === "database" ? "🗃" : "📄")}</span>
+            <span className="w-5 shrink-0 text-center">{pageIcon(p.icon) ?? (p.kind === "database" ? "🗃" : "📄")}</span>
             <span className="truncate">{pageTitle(p.title)}</span>
           </Link>
         ))}
@@ -205,7 +206,7 @@ export function UpcomingEventsView({ node, updateAttributes, editor, extension }
                     >
                       <span className={`h-3 w-1 shrink-0 rounded-full ${OPTION_CLASSES[e.color]}`} />
                       <span className="truncate">
-                        {e.row.icon && `${e.row.icon} `}
+                        {e.row.icon && <>{pageIcon(e.row.icon)} </>}
                         {pageTitle(e.row.title)}
                       </span>
                       <span className="ml-auto shrink-0 text-xs text-neutral-400">{[e.time, e.database].filter(Boolean).join(" · ")}</span>
@@ -313,7 +314,7 @@ function DatabaseRows({
 
   const title = data ? (
     <Link to={`/page/${id}`} className="hover:underline">
-      {data.icon ?? "🗃"} {pageTitle(data.title)}
+      {pageIcon(data.icon) ?? "🗃"} {pageTitle(data.title)}
       {view && data.views.length > 1 && <span className="font-normal text-neutral-400"> · {view.name}</span>}
     </Link>
   ) : (
@@ -352,7 +353,7 @@ function DatabaseRows({
                 to={`/page/${row.id}`}
                 className={`min-w-0 truncate hover:underline ${check && row.values[check.id] === true ? "text-neutral-400 line-through" : ""}`}
               >
-                {row.icon && `${row.icon} `}
+                {row.icon && <>{pageIcon(row.icon)} </>}
                 {pageTitle(row.title)}
               </Link>
             </div>
@@ -397,7 +398,7 @@ function RowsSettings({
             </option>
             {list.data?.map((d) => (
               <option key={d.id} value={d.id}>
-                {d.icon ?? "🗃"} {pageTitle(d.title)}
+                {pageIcon(d.icon) ?? "🗃"} {pageTitle(d.title)}
               </option>
             ))}
           </select>

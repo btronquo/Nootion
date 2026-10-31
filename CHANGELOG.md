@@ -7,6 +7,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- A new icon picker: every emoji, by category, with a search in your language, recent ones and "Random"; and your
+  own images ("Custom" tab), uploaded once and shared by everyone on the server.
 - Nicer to-do boxes, as in Notion: a bit bigger, blue with a check that pops in when checked, and the line through
   the text fades in.
 - Block handles in the editor, as in Notion: hovering a block shows "+", which adds a block below it and opens the

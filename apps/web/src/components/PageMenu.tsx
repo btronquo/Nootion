@@ -10,6 +10,7 @@ import { keys, useFavorites, useRefreshPages } from "../lib/queries";
 import { pageTitle } from "../lib/tree";
 import { Popover } from "../database/Popover";
 import { Modal } from "./ui";
+import { pageIcon } from "../lib/icons";
 
 /** Where a menu opens: under a button, or where the mouse was right-clicked. */
 export type MenuAnchor = HTMLElement | { x: number; y: number };
@@ -169,7 +170,7 @@ function MoveDialog({ page, all, onClose }: { page: PageSummary; all: PageSummar
         {choices.map((p) => (
           <button key={p.id} type="button" className={row} onClick={() => void move(p.id)}>
             <span className="w-4 shrink-0 text-center">
-              {p.icon ?? (p.kind === "database" ? <Database size={14} className="inline text-neutral-400" /> : <FileText size={14} className="inline text-neutral-400" />)}
+              {pageIcon(p.icon) ?? (p.kind === "database" ? <Database size={14} className="inline text-neutral-400" /> : <FileText size={14} className="inline text-neutral-400" />)}
             </span>
             <span className="truncate">{pageTitle(p.title)}</span>
           </button>

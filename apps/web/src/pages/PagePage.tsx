@@ -25,6 +25,7 @@ import { useSession } from "../lib/session";
 import { CommentsPanel, type DraftAnchor } from "../comments/CommentsPanel";
 import { useComments } from "../comments/queries";
 import { nextRunText, recurrenceText, RecurrenceDialog, useRecurrence } from "../components/RecurrenceDialog";
+import { pageIcon } from "../lib/icons";
 
 /** A page, by the id in the address (or the one given, for the home page). */
 export function PagePage({ id: given }: { id?: string }) {
@@ -135,7 +136,7 @@ function PageView({ page }: { page: PageDetail }) {
             </span>
           ))}
           <span className="truncate px-1 text-neutral-800 dark:text-neutral-200">
-            {page.icon} {pageTitle(title)}
+            {pageIcon(page.icon)} {pageTitle(title)}
           </span>
         </nav>
         <div className="flex shrink-0 items-center gap-1">
@@ -391,7 +392,7 @@ function TemplatePicker({ page }: { page: PageDetail }) {
             onClick={() => apply(tpl.id)}
             className="flex items-center gap-2 rounded-lg border border-neutral-200 px-3 py-2 hover:bg-neutral-50 disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
           >
-            <span>{tpl.icon ?? "📄"}</span>
+            <span>{pageIcon(tpl.icon) ?? "📄"}</span>
             <span className="max-w-48 truncate">{applying === tpl.id ? t("template.applying") : pageTitle(tpl.title)}</span>
           </button>
         ))}
