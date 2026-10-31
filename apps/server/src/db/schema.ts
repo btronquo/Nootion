@@ -612,3 +612,13 @@ export const backupSchedules = sqliteTable("backup_schedules", {
   lastSize: integer("last_size"),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
 });
+
+/** Images people uploaded to use as page icons, shared by everyone on the server. Pages refer to one as "icon:<id>". */
+export const customIcons = sqliteTable("custom_icons", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  // The file's name in the "icons" folder of the data folder.
+  file: text("file").notNull(),
+  createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: createdAt(),
+});

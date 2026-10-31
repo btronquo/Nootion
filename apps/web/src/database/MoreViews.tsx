@@ -14,6 +14,7 @@ import { isEmpty } from "./BoardView";
 import type { useDatabaseActions } from "./hooks";
 import { CoverFill } from "../components/PageCover";
 import { pageTitle } from "../lib/tree";
+import { pageIcon } from "../lib/icons";
 
 export interface MoreViewProps {
   data: DatabaseData;
@@ -70,7 +71,7 @@ function RowValues({
 
 export const RowTitle = ({ row }: { row: DatabaseRow }) => (
   <>
-    {row.icon && <span className="mr-1">{row.icon}</span>}
+    {row.icon && <span className="mr-1">{pageIcon(row.icon)}</span>}
     {row.title ? row.title : <span className="text-neutral-400">{pageTitle("")}</span>}
   </>
 );
@@ -148,7 +149,7 @@ export function GalleryView(props: MoreViewProps) {
                 <CoverFill cover={coverUrl(row.cover)} position={row.coverPosition} />
               ) : (
                 <div className="flex h-full items-center justify-center text-3xl text-neutral-300 dark:text-neutral-600">
-                  {row.icon ?? <FileText size={28} />}
+                  {pageIcon(row.icon) ?? <FileText size={28} />}
                 </div>
               )}
             </div>

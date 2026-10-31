@@ -6,6 +6,7 @@ import { OptionChip } from "./OptionPicker";
 import { isEmpty } from "./BoardView";
 import type { useDatabaseActions } from "./hooks";
 import { pageTitle } from "../lib/tree";
+import { pageIcon } from "../lib/icons";
 
 /**
  * Table view on phones: one card per row with its filled-in properties. A tap opens the row,
@@ -59,7 +60,7 @@ export function RowCards({
         className="cursor-pointer rounded-lg border border-neutral-200 bg-white px-3 py-2 active:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900 dark:active:bg-neutral-800"
       >
         <div className="font-medium">
-          {row.icon && <span className="mr-1">{row.icon}</span>}
+          {row.icon && <span className="mr-1">{pageIcon(row.icon)}</span>}
           {row.title ? row.title : <span className="text-neutral-400">{pageTitle("")}</span>}
         </div>
         {shown

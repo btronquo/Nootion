@@ -26,6 +26,7 @@ import { colorLabel, OPTION_CLASSES } from "./format";
 import { dbKey, useDatabaseList } from "./hooks";
 import { Popover } from "./Popover";
 import { copyText } from "../lib/browser";
+import { pageIcon } from "../lib/icons";
 
 export interface Loaded {
   source: CalendarSource;
@@ -285,7 +286,7 @@ export function SourcesPanel({
           >
             <CalendarPlus size={14} className="shrink-0 text-neutral-400" />
             <span className="truncate">
-              {d.icon ?? "🗃"} {pageTitle(d.title)}
+              {pageIcon(d.icon) ?? "🗃"} {pageTitle(d.title)}
             </span>
           </button>
         ))}

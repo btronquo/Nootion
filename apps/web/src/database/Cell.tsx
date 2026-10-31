@@ -26,6 +26,7 @@ import { Popover } from "./Popover";
 import { ButtonAction } from "../buttons/ButtonAction";
 import { pluginCell } from "../plugins/PluginCell";
 import { t } from "@nootion/shared";
+import { pageIcon } from "../lib/icons";
 
 export interface CellProps {
   prop: DatabaseProperty;
@@ -188,7 +189,7 @@ function Display(props: CellProps) {
               onClick={(e) => e.stopPropagation()}
               className="flex max-w-full items-center gap-1 truncate rounded bg-neutral-100 px-1.5 py-0.5 text-xs underline-offset-2 hover:underline dark:bg-neutral-800"
             >
-              {related[id]?.icon ?? <FileText size={11} className="shrink-0" />} <span className="truncate">{pageTitle(related[id]?.title ?? "")}</span>
+              {pageIcon(related[id]?.icon) ?? <FileText size={11} className="shrink-0" />} <span className="truncate">{pageTitle(related[id]?.title ?? "")}</span>
             </Link>
           ))}
         </div>
@@ -332,7 +333,7 @@ function RelationPicker({ prop, value, onChange }: CellProps) {
             className="flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800"
           >
             <span className="flex min-w-0 items-center gap-1.5">
-              {r.icon ?? <FileText size={14} className="shrink-0 text-neutral-400" />}
+              {pageIcon(r.icon) ?? <FileText size={14} className="shrink-0 text-neutral-400" />}
               <span className="truncate">{pageTitle(r.title)}</span>
             </span>
             {selected.includes(r.id) && <Check size={14} />}

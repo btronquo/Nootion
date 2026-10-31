@@ -38,6 +38,7 @@ import { Avatar } from "../components/Avatar";
 import { insertFiles, insertUploaded, pickFiles } from "./upload";
 import { fileSources } from "../plugins/registry";
 import { t } from "@nootion/shared";
+import { pageIcon } from "../lib/icons";
 
 export interface CommandContext {
   pageId: string;
@@ -182,7 +183,7 @@ export function mentionItems(ctx: CommandContext) {
       .filter((p) => p.id !== ctx.pageId && norm(pageTitle(p.title)).includes(q))
       .slice(0, 12)
       .map((p) =>
-        item(pageTitle(p.title), "", p.icon ?? <FileText size={16} />, (e, r) => e.chain().focus().deleteRange(r).insertPageLink({ pageId: p.id, title: p.title }).run()),
+        item(pageTitle(p.title), "", pageIcon(p.icon) ?? <FileText size={16} />, (e, r) => e.chain().focus().deleteRange(r).insertPageLink({ pageId: p.id, title: p.title }).run()),
       );
     const date = (text: string) => {
       const found = parseNaturalDate(text, new Date(), currentLocale() === "en" ? "mdy" : "dmy");

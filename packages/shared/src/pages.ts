@@ -169,3 +169,19 @@ export interface Backlink extends PageSummary {
   /** Text around the link, to see what it says. */
   excerpt: string;
 }
+
+/** A page icon can be an emoji, or an image uploaded by someone ("icon:<id>"). */
+export const CUSTOM_ICON_PREFIX = "icon:";
+export const ICON_MAX_BYTES = 1024 * 1024;
+export const customIconId = (icon: string | null | undefined): string | null => (icon?.startsWith(CUSTOM_ICON_PREFIX) ? icon.slice(CUSTOM_ICON_PREFIX.length) : null);
+export const customIconUrl = (id: string) => `/api/icons/${id}/image`;
+
+export interface CustomIcon {
+  id: string;
+  name: string;
+  url: string;
+  /** Whether the reader may delete it: who uploaded it, and administrators. */
+  canDelete: boolean;
+}
+/** The icon as text before a title (in notifications, exports…): the emoji, or nothing for an image. */
+export const iconText = (icon: string | null | undefined): string => (icon && !customIconId(icon) ? `${icon} ` : "");

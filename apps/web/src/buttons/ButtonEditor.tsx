@@ -23,6 +23,7 @@ import { Button, ErrorText, Select, useClosing } from "../components/ui";
 import { PropertyIcon } from "../database/icons";
 import { BUTTON_STYLES } from "./ButtonAction";
 import { copyText, randomId } from "../lib/browser";
+import { pageIcon } from "../lib/icons";
 
 const inputClass =
   "w-full rounded-md border border-neutral-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-blue-500 dark:border-neutral-700 dark:bg-neutral-900";
@@ -429,7 +430,7 @@ function StepEditor({
                 <option value="">—</option>
                 {(databases.data ?? []).map((d) => (
                   <option key={d.id} value={d.id}>
-                    {d.icon ? `${d.icon} ` : ""}
+                    {d.icon && <>{pageIcon(d.icon)} </>}
                     {d.title || t("common.untitled")}
                   </option>
                 ))}
@@ -464,7 +465,7 @@ function StepEditor({
                 <option value="">{t("button.noTemplate")}</option>
                 {(templates.data ?? []).map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.icon ? `${p.icon} ` : ""}
+                    {p.icon && <>{pageIcon(p.icon)} </>}
                     {p.title || t("common.untitled")}
                   </option>
                 ))}
@@ -588,7 +589,10 @@ export function PagePicker({ value, onChange, emptyLabel }: { value: string | nu
       <div className="flex items-center gap-2 text-sm">
         <span className="min-w-0 flex-1 truncate">
           {value ? (
-            `${current.data?.icon ? `${current.data.icon} ` : ""}${current.data?.title || t("common.untitled")}`
+            <>
+              {current.data?.icon && <>{pageIcon(current.data.icon)} </>}
+              {current.data?.title || t("common.untitled")}
+            </>
           ) : (
             <span className="text-neutral-500">{emptyLabel}</span>
           )}
@@ -618,7 +622,7 @@ export function PagePicker({ value, onChange, emptyLabel }: { value: string | nu
                   setQuery("");
                 }}
               >
-                {r.icon ? `${r.icon} ` : ""}
+                {r.icon && <>{pageIcon(r.icon)} </>}
                 {r.title || t("common.untitled")}
                 {r.path.length > 0 && <span className="ml-1 text-xs text-neutral-500">· {r.path.join(" / ")}</span>}
               </button>

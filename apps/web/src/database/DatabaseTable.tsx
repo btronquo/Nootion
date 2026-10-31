@@ -44,6 +44,7 @@ import { useSession } from "../lib/session";
 import { pageTitle } from "../lib/tree";
 import { CREATABLE_TYPES } from "@nootion/shared";
 import { usePluginPropertyTypes } from "../plugins/registry";
+import { pageIcon } from "../lib/icons";
 
 const DEFAULT_WIDTH = 180;
 const TITLE_WIDTH = 260;
@@ -636,7 +637,7 @@ function RelationSetup({ data, onCreate }: { data: DatabaseData; onCreate: (data
       <div className="max-h-64 overflow-y-auto">
         {databases.map((d) => (
           <button key={d.id} onClick={() => setPicked(d)} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800">
-            <span className="w-4 text-center">{d.icon ?? "🗃"}</span>
+            <span className="w-4 text-center">{pageIcon(d.icon) ?? "🗃"}</span>
             <span className="truncate">
               {pageTitle(d.title)}
               {d.id === data.id && <span className="text-neutral-400"> ({t("relation.thisDatabase")})</span>}

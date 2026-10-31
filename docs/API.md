@@ -73,6 +73,8 @@ Ids are UUIDs. Dates are ISO 8601.
 | `POST /api/inbox` | Drops a note in it: `{ "text", "title"?, "url"? }`. Without a title, the first line of the text is the title. Notes are subpages of the inbox: file one by moving it. |
 | `GET /api/pages/templates` | Page templates; `POST /api/pages/:id/apply-template` with `{ "templateId" }` fills an empty page from one. |
 
+An `icon` is an emoji, or `icon:<id>` for an image uploaded in the icon picker: `GET /api/icons` lists them, and the image is at `/api/icons/<id>/image`.
+
 ## Page content
 
 Pages and database rows have content. It is read and written as **Markdown**, or as the editor's JSON

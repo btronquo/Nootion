@@ -8,6 +8,7 @@ import {
   commentMentions,
   commentPlainText,
   createThreadInput,
+  iconText,
   resolveThreadInput,
   t,
   tIn,
@@ -174,7 +175,7 @@ export const commentRoutes: FastifyPluginAsync = async (app) => {
       await app.notifier.push(userId, {
         title: tIn(locale, kind === "mention" ? "comments.pushMention" : "comments.pushReply", {
           name: author,
-          page: `${page.icon ? `${page.icon} ` : ""}${page.title || tIn(locale, "common.untitled")}`,
+          page: `${iconText(page.icon)}${page.title || tIn(locale, "common.untitled")}`,
         }),
         body: text.slice(0, EXCERPT),
         url: `/page/${thread.pageId}?comment=${threadId}`,
