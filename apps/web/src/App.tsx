@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useSession } from "./lib/session";
 import { SetupPage } from "./pages/SetupPage";
+import { ForgotPasswordPage, ResetPasswordPage } from "./pages/PasswordPages";
 import { LoginPage } from "./pages/LoginPage";
 import { InvitePage } from "./pages/InvitePage";
 import { AppShell } from "./components/AppShell";
@@ -63,6 +64,8 @@ function PrivateApp() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/invite/:token" element={<InvitePage />} />
+        <Route path="/forgot" element={<ForgotPasswordPage />} />
+        <Route path="/reset/:token" element={<ResetPasswordPage />} />
         <Route path="*" element={<Navigate to="/login" replace state={{ from: location.pathname + location.search }} />} />
       </Routes>
     );

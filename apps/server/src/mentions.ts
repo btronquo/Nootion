@@ -80,15 +80,19 @@ export async function syncMentions(app: FastifyInstance, pageId: string, content
     if (!inserted) continue;
     const locale = target.locale as Locale;
     const actor = actorId ? db.select({ name: users.name }).from(users).where(eq(users.id, actorId)).get()?.name : null;
-    await app.notifier.push(f.userId, {
-      title: tIn(locale, "mentions.push", {
-        name: actor ?? tIn(locale, "mentions.someone"),
-        page: `${iconText(page.icon)}${page.title || tIn(locale, "common.untitled")}`,
-      }),
-      body: f.excerpt,
-      url: `/page/${pageId}`,
-      tag: inserted.id,
-    });
+    await app.notifier.push(
+      f.userId,
+      {
+        title: tIn(locale, "mentions.push", {
+          name: actor ?? tIn(locale, "mentions.someone"),
+          page: `${iconText(page.icon)}${page.title || tIn(locale, "common.untitled")}`,
+        }),
+        body: f.excerpt,
+        url: `/page/${pageId}`,
+        tag: inserted.id,
+      },
+      "mentions",
+    );
   }
 }
 

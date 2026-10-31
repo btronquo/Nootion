@@ -3,7 +3,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, inArray, isNull, lte } from "drizzle-orm";
 import webpush from "web-push";
-import { atLeast, type Reminder } from "@nootion/shared";
+import { atLeast, type EmailKind, type Reminder } from "@nootion/shared";
 import type { Db } from "./db/index.js";
 import { pages, pushSubscriptions, reminders } from "./db/schema.js";
 import { prosemirrorToText, type ProseMirrorNode } from "./collab.js";
@@ -139,7 +139,17 @@ export type PushSender = (sub: { endpoint: string; keys: { p256dh: string; auth:
  * Background job that sends reminders as they fall due to every device of their user that accepted notifications.
  * The app also shows them itself while it is open.
  */
-export function createNotifier(db: Db, opts: { dataDir: string; appUrl: string; log: { warn: (o: unknown, msg: string) => void }; send?: PushSender }) {
+export function createNotifier(
+  db: Db,
+  opts: {
+    dataDir: string;
+    appUrl: string;
+    log: { warn: (o: unknown, msg: string) => void };
+    send?: PushSender;
+    /** Also e-mails the notification, when it has a kind (in the background). */
+    email?: (userId: string, kind: EmailKind, payload: { title: string; body: string; url: string }) => void;
+  },
+) {
   let send = opts.send;
   const sender = (): PushSender => {
     if (send) return send;
@@ -150,7 +160,8 @@ export function createNotifier(db: Db, opts: { dataDir: string; appUrl: string; 
   };
 
   /** Sends a notification to every device of a user. */
-  async function push(userId: string, payload: { title: string; body: string; url: string; tag: string }) {
+  async function push(userId: string, payload: { title: string; body: string; url: string; tag: string }, kind?: EmailKind) {
+    if (kind) opts.email?.(userId, kind, payload);
     for (const s of db.select().from(pushSubscriptions).where(eq(pushSubscriptions.userId, userId)).all()) {
       try {
         await sender()({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, JSON.stringify(payload));
@@ -177,7 +188,11 @@ export function createNotifier(db: Db, opts: { dataDir: string; appUrl: string; 
       for (const { r, title, icon } of due) {
         db.update(reminders).set({ notifiedAt: now }).where(eq(reminders.id, r.id)).run();
         if (now.getTime() - r.remindAt.getTime() > TOO_LATE || !atLeast(getPageRole(db, r.userId, r.pageId), "viewer")) continue;
-        await push(r.userId, { title: `${icon ? `${icon} ` : ""}${title || "Nootion"}`, body: r.text || r.date.replace("T", " "), url: `/page/${r.pageId}`, tag: r.id });
+        await push(
+          r.userId,
+          { title: `${icon ? `${icon} ` : ""}${title || "Nootion"}`, body: r.text || r.date.replace("T", " "), url: `/page/${r.pageId}`, tag: r.id },
+          "reminders",
+        );
       }
     } finally {
       running = false;
