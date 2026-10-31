@@ -43,6 +43,7 @@ They go to:
 If Nootion sits behind an HTTPS reverse proxy, put the `https://…` URL in `APP_URL`: the session cookie then becomes `Secure`.
 To connect Claude's connectors to Nootion, that address must be reachable from the internet (see [MCP.md](MCP.md)).
 The proxy must let **WebSockets** through on `/collab` (real-time collaborative editing): in Nginx Proxy Manager, tick *Websockets Support*.
+`/api/events` is a long-lived stream (server-sent events) that keeps the sidebar up to date when others add pages: Nootion asks Nginx not to buffer it; other proxies may need buffering turned off for it.
 Also check its upload size limit (`client_max_body_size` in Nginx) for attached files.
 
 ## Installing with Docker

@@ -35,6 +35,7 @@ import { createRecurrences, type Recurrences } from "./recurrences.js";
 import { recurrenceRoutes } from "./routes/recurrences.js";
 import { createBackups, type Backups } from "./backups.js";
 import { backupRoutes } from "./routes/backups.js";
+import { createLiveEvents, liveEventRoutes, type LiveEvents } from "./events.js";
 import { userRoutes } from "./routes/users.js";
 import { publicRoutes } from "./routes/public.js";
 import { pluginAdminRoutes, pluginRoutes } from "./routes/plugins.js";
@@ -65,6 +66,7 @@ declare module "fastify" {
     automations: Automations;
     recurrences: Recurrences;
     backups: Backups;
+    liveEvents: LiveEvents;
   }
   interface FastifyRequest {
     user: UserRow | null;
@@ -130,6 +132,10 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
   const backupRunner = createBackups(app);
   app.decorate("backups", backupRunner);
   app.addHook("onClose", async () => backupRunner.stop());
+  // Tells open tabs when the page tree changes.
+  const liveEvents = createLiveEvents(opts.db);
+  app.decorate("liveEvents", liveEvents);
+  app.addHook("preClose", async () => liveEvents.stop());
 
   await app.register(cookie, { secret: opts.config.appSecret });
   await app.register(rateLimit, { global: false });
@@ -235,6 +241,7 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
   await app.register(icalRoutes, { prefix: "/api/ical" });
   await app.register(homeRoutes, { prefix: "/api" });
   await app.register(inboxRoutes, { prefix: "/api" });
+  await app.register(liveEventRoutes, { prefix: "/api" });
   await app.register(reminderRoutes, { prefix: "/api/reminders" });
   await app.register(apiTokenRoutes, { prefix: "/api/tokens" });
   await app.register(buttonRoutes, { prefix: "/api/buttons" });

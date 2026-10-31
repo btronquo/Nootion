@@ -20,6 +20,7 @@ import { MobileBar, SidebarLayout } from "./SidebarLayout";
 import { useIsTouch } from "../lib/mobile";
 import { clearOfflineData } from "../lib/offline";
 import { SyncStatus } from "./SyncStatus";
+import { useLiveEvents } from "../lib/live";
 
 export function AppShell() {
   const { user, refresh } = useSession();
@@ -27,6 +28,7 @@ export function AppShell() {
   const workspaces = useWorkspaces();
   // Loaded ahead: page editors wait for the plugins' blocks before opening.
   usePlugins();
+  useLiveEvents(!!user);
   const [creatingWorkspace, setCreatingWorkspace] = useState(false);
   const [searching, setSearching] = useState(false);
   const [capturing, setCapturing] = useState(false);
