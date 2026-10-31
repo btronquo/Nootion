@@ -7,6 +7,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- The page's top bar tells when it was last edited ("Edited at 14:32", "Edited yesterday at…", the full date on
+  hover), and shows "Saved" for a moment once your changes are on the server.
 - Date ranges and times in databases, as in Notion: the date editor has an end date and an "Include time" switch, for
   things that last several days or have a start and end time. The calendar shows them as one bar across the days,
   with the start time on the first day and the end time on the last ("14:00–15:00" when on one day).

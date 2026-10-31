@@ -12,6 +12,7 @@ import { NodeSelection } from "@tiptap/pm/state";
 import { useQueryClient } from "@tanstack/react-query";
 import { Bold, Code, Italic, Link as LinkIcon, MessageSquarePlus, Strikethrough, Underline } from "lucide-react";
 import type { PageDetail, PageSummary, UserDirectoryEntry } from "@nootion/shared";
+import { markSaved } from "../lib/saved";
 import { useSession } from "../lib/session";
 import { keys, useRefreshPages, useUserDirectory } from "../lib/queries";
 import { baseExtensions } from "./extensions";
@@ -60,7 +61,17 @@ interface Peer {
  * and the changes merge with everyone else's when the connection comes back.
  */
 /** `onEmpty` hears whether the page has no content yet (to offer templates). */
-export function PageEditor({ page, canEdit, onEmpty, comments }: { page: PageDetail; canEdit: boolean; onEmpty?: (empty: boolean) => void; comments?: EditorComments }) {
+export function PageEditor({
+  page,
+  canEdit,
+  onEmpty,
+  comments,
+}: {
+  page: PageDetail;
+  canEdit: boolean;
+  onEmpty?: (empty: boolean) => void;
+  comments?: EditorComments;
+}) {
   const [collab, setCollab] = useState<{ doc: Y.Doc; provider: HocuspocusProvider; local: IndexeddbPersistence } | null>(null);
   const plugins = usePlugins();
   useEffect(() => {
@@ -77,7 +88,19 @@ export function PageEditor({ page, canEdit, onEmpty, comments }: { page: PageDet
   // The editor's schema needs the plugins' blocks: without them, their blocks would be dropped from the page.
   if (plugins.isError) return <p className="text-sm text-red-600">{t("editor.pluginsFailed")}</p>;
   if (!collab || !plugins.data) return null;
-  return <CollabEditor key={page.id} page={page} canEdit={canEdit} onEmpty={onEmpty} comments={comments} doc={collab.doc} provider={collab.provider} local={collab.local} plugins={plugins.data} />;
+  return (
+    <CollabEditor
+      key={page.id}
+      page={page}
+      canEdit={canEdit}
+      onEmpty={onEmpty}
+      comments={comments}
+      doc={collab.doc}
+      provider={collab.provider}
+      local={collab.local}
+      plugins={plugins.data}
+    />
+  );
 }
 
 function CollabEditor({
@@ -115,6 +138,19 @@ function CollabEditor({
     const timer = window.setTimeout(() => setSlowSave(true), 1500);
     return () => window.clearTimeout(timer);
   }, [saving]);
+  // Shown in the page's top bar: "Saved", then "Edited at 14:32".
+  const wasSaving = useRef(false);
+  useEffect(() => {
+    if (wasSaving.current && !saving) markSaved(page.id, true);
+    wasSaving.current = saving;
+  }, [saving, page.id]);
+  useEffect(() => {
+    const onUpdate = (_: Uint8Array, origin: unknown) => {
+      if (origin === provider && provider.isSynced) markSaved(page.id, false);
+    };
+    doc.on("update", onUpdate);
+    return () => doc.off("update", onUpdate);
+  }, [doc, provider, page.id]);
   // Whether this device already had the page: only then can it be edited before the server answers.
   const [hasLocal, setHasLocal] = useState<boolean | null>(null);
   useEffect(() => {
@@ -227,7 +263,12 @@ function CollabEditor({
     <div>
       <div className="mb-2 flex h-6 items-center justify-end gap-2 text-xs text-neutral-400">
         {peers.map((p) => (
-          <span key={p.clientId} className="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold text-white" style={{ background: p.color }} title={t("editor.presence", { name: p.name })}>
+          <span
+            key={p.clientId}
+            className="flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold text-white"
+            style={{ background: p.color }}
+            title={t("editor.presence", { name: p.name })}
+          >
             {p.name.slice(0, 1).toUpperCase()}
           </span>
         ))}
@@ -263,8 +304,16 @@ const bubbleShown = ({ editor: e, from, to }: { editor: Editor; from: number; to
 
 function CommentMenu({ editor, onComment }: { editor: Editor; onComment: () => void }) {
   return (
-    <BubbleMenu editor={editor} shouldShow={bubbleShown} className="flex items-center rounded-lg border border-neutral-200 bg-white p-1 shadow-lg dark:border-neutral-700 dark:bg-neutral-900">
-      <button className="flex items-center gap-1.5 rounded px-2 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800" onClick={onComment} data-comment-button>
+    <BubbleMenu
+      editor={editor}
+      shouldShow={bubbleShown}
+      className="flex items-center rounded-lg border border-neutral-200 bg-white p-1 shadow-lg dark:border-neutral-700 dark:bg-neutral-900"
+    >
+      <button
+        className="flex items-center gap-1.5 rounded px-2 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
+        onClick={onComment}
+        data-comment-button
+      >
         <MessageSquarePlus size={15} /> {t("comments.comment")}
       </button>
     </BubbleMenu>
@@ -311,7 +360,12 @@ function FormatMenu({ editor, onComment }: { editor: Editor; onComment?: () => v
         onClick={() => {
           if (state.link) return editor.chain().focus().unsetLink().run();
           const url = prompt(t("editor.linkPrompt"));
-          if (url) editor.chain().focus().setLink({ href: /^[a-z]+:/i.test(url) ? url : `https://${url}` }).run();
+          if (url)
+            editor
+              .chain()
+              .focus()
+              .setLink({ href: /^[a-z]+:/i.test(url) ? url : `https://${url}` })
+              .run();
         }}
       >
         <LinkIcon size={15} />
@@ -319,7 +373,12 @@ function FormatMenu({ editor, onComment }: { editor: Editor; onComment?: () => v
       {onComment && (
         <>
           <span className="mx-0.5 h-5 w-px bg-neutral-200 dark:bg-neutral-700" />
-          <button className="flex items-center gap-1 rounded px-1.5 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800" onClick={onComment} title={t("comments.comment")} data-comment-button>
+          <button
+            className="flex items-center gap-1 rounded px-1.5 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            onClick={onComment}
+            title={t("comments.comment")}
+            data-comment-button
+          >
             <MessageSquarePlus size={15} />
           </button>
         </>
@@ -334,12 +393,24 @@ function TableMenu({ editor }: { editor: Editor }) {
   const b = "rounded px-2 py-1 hover:bg-neutral-100 dark:hover:bg-neutral-800";
   return (
     <div className="sticky top-0 z-10 mb-2 flex flex-wrap max-md:top-[52px] gap-1 rounded-lg border border-neutral-200 bg-white p-1 text-xs shadow-sm dark:border-neutral-700 dark:bg-neutral-900">
-      <button className={b} onClick={() => editor.chain().focus().addRowAfter().run()}>+ {t("editor.row")}</button>
-      <button className={b} onClick={() => editor.chain().focus().addColumnAfter().run()}>+ {t("editor.column")}</button>
-      <button className={b} onClick={() => editor.chain().focus().deleteRow().run()}>− {t("editor.row")}</button>
-      <button className={b} onClick={() => editor.chain().focus().deleteColumn().run()}>− {t("editor.column")}</button>
-      <button className={b} onClick={() => editor.chain().focus().toggleHeaderRow().run()}>{t("editor.header")}</button>
-      <button className={`${b} text-red-600`} onClick={() => editor.chain().focus().deleteTable().run()}>{t("editor.deleteTable")}</button>
+      <button className={b} onClick={() => editor.chain().focus().addRowAfter().run()}>
+        + {t("editor.row")}
+      </button>
+      <button className={b} onClick={() => editor.chain().focus().addColumnAfter().run()}>
+        + {t("editor.column")}
+      </button>
+      <button className={b} onClick={() => editor.chain().focus().deleteRow().run()}>
+        − {t("editor.row")}
+      </button>
+      <button className={b} onClick={() => editor.chain().focus().deleteColumn().run()}>
+        − {t("editor.column")}
+      </button>
+      <button className={b} onClick={() => editor.chain().focus().toggleHeaderRow().run()}>
+        {t("editor.header")}
+      </button>
+      <button className={`${b} text-red-600`} onClick={() => editor.chain().focus().deleteTable().run()}>
+        {t("editor.deleteTable")}
+      </button>
     </div>
   );
 }
