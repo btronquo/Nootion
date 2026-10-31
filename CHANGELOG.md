@@ -27,6 +27,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Fixed
 
+- Hovering a page in the graph fades the highlight in and out instead of switching it at once.
 - "Saving…" above the editor only shows when a save takes more than a second and a half (a slow connection),
   instead of flashing at each change.
 - The sidebar shows the pages others add, rename, move or delete in a shared space (or share with you) right away,
