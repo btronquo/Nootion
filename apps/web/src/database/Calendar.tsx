@@ -9,6 +9,7 @@ import {
   rowDays,
   shiftDate,
   t,
+  type DatabaseProperty,
   type DatabaseRow,
   type DateValue,
   type OptionColor,
@@ -42,6 +43,26 @@ export interface CalendarEntry {
   color?: OptionColor;
   /** Shown on hover, after the title (the database it comes from). */
   hint?: string;
+  /** Its first and last day, for an event over several days, and its start and end times. */
+  first?: string;
+  last?: string;
+  startTime?: string | null;
+  endTime?: string | null;
+}
+
+const timeOf = (iso: string | null | undefined) => {
+  if (!iso || iso.length <= 10) return null;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d.toLocaleTimeString(intlLocale(), { hour: "2-digit", minute: "2-digit" });
+};
+
+/** Places a row on the days of its date (or date range), with its times. */
+export function placeRow(map: Map<string, CalendarEntry[]>, entry: CalendarEntry, prop: DatabaseProperty) {
+  const days = rowDays(prop, entry.row);
+  if (!days.length) return;
+  const value = prop.type === "date" ? (entry.row.values[prop.id] as DateValue | null | undefined) : null;
+  const placed = { ...entry, first: days[0], last: days[days.length - 1], startTime: timeOf(value?.start), endTime: timeOf(value?.end) };
+  for (const day of days) map.set(day, [...(map.get(day) ?? []), placed]);
 }
 
 const DRAG = "application/x-nootion-row";
@@ -181,26 +202,37 @@ export function CalendarGrid({
                   </button>
                 )}
               </div>
-              {(entries.get(day) ?? []).map((entry) => (
-                <div
-                  key={entry.key}
-                  draggable={entry.movable}
-                  onDragStart={(e) => {
-                    e.dataTransfer.setData(DRAG, `${entry.key}|${day}`);
-                    e.dataTransfer.effectAllowed = "move";
-                  }}
-                  onClick={() => navigate(entry.href)}
-                  title={[entry.row.title || t("common.untitled"), entry.hint].filter(Boolean).join(" · ")}
-                  data-row={entry.row.id}
-                  className={`cursor-pointer truncate rounded px-1 py-0.5 text-[11px] leading-tight shadow-sm hover:brightness-95 sm:text-xs ${
-                    entry.color
-                      ? OPTION_CLASSES[entry.color]
-                      : "border border-neutral-200 bg-white hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:hover:bg-neutral-700"
-                  }`}
-                >
-                  <RowTitle row={entry.row} />
-                </div>
-              ))}
+              {(entries.get(day) ?? []).map((entry) => {
+                // Over several days it shows as one bar across them: square where it goes on.
+                const goesOn = entry.first !== entry.last;
+                const isFirst = !goesOn || day === entry.first;
+                const isLast = !goesOn || day === entry.last;
+                return (
+                  <div
+                    key={entry.key}
+                    draggable={entry.movable}
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData(DRAG, `${entry.key}|${day}`);
+                      e.dataTransfer.effectAllowed = "move";
+                    }}
+                    onClick={() => navigate(entry.href)}
+                    title={[entry.row.title || t("common.untitled"), entry.hint].filter(Boolean).join(" · ")}
+                    data-row={entry.row.id}
+                    className={`cursor-pointer truncate rounded px-1 py-0.5 text-[11px] leading-tight shadow-sm hover:brightness-95 sm:text-xs ${isFirst ? "" : "-ml-1 rounded-l-none border-l-0 sm:-ml-1.5"} ${isLast ? "" : "-mr-1 rounded-r-none border-r-0 sm:-mr-1.5"} ${
+                      entry.color
+                        ? OPTION_CLASSES[entry.color]
+                        : "border border-neutral-200 bg-white hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:hover:bg-neutral-700"
+                    }`}
+                  >
+                    {isFirst && entry.startTime && (
+                      <span className="mr-1 tabular-nums opacity-70">{!goesOn && entry.endTime ? `${entry.startTime}–${entry.endTime}` : entry.startTime}</span>
+                    )}
+                    {!isFirst && <span className="mr-0.5 opacity-50">↳</span>}
+                    <RowTitle row={entry.row} />
+                    {goesOn && isLast && entry.endTime && <span className="ml-1 tabular-nums opacity-70">→ {entry.endTime}</span>}
+                  </div>
+                );
+              })}
             </div>
           );
         })}
@@ -224,8 +256,7 @@ export function CalendarView(props: MoreViewProps) {
     const map = new Map<string, CalendarEntry[]>();
     if (prop)
       for (const row of rows) {
-        const entry = { key: row.id, row, href: rowHref(row), movable };
-        for (const day of rowDays(prop, row)) map.set(day, [...(map.get(day) ?? []), entry]);
+        placeRow(map, { key: row.id, row, href: rowHref(row), movable }, prop);
       }
     return map;
   }, [prop, rows, rowHref, movable]);

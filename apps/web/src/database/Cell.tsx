@@ -95,7 +95,7 @@ export function Cell(props: CellProps) {
   }
 
   // A plugin column whose plugin is off is edited as a plain text.
-  const inline = ["title", "text", "number", "currency", "percent", "url", "email", "date", "plugin"].includes(prop.type);
+  const inline = ["title", "text", "number", "currency", "percent", "url", "email", "plugin"].includes(prop.type);
   return (
     <div
       ref={ref}
@@ -111,13 +111,9 @@ export function Cell(props: CellProps) {
       }}
       className={`relative min-h-[34px] ${panel ? "rounded px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800" : "h-full px-2 py-1.5"} ${canEdit ? "cursor-text" : ""} outline-none focus-visible:ring-2 focus-visible:ring-blue-400`}
     >
-      {editing && inline ? (
-        <InlineEditor {...props} onDone={() => setEditing(false)} />
-      ) : (
-        <Display {...props} />
-      )}
+      {editing && inline ? <InlineEditor {...props} onDone={() => setEditing(false)} /> : <Display {...props} />}
       {editing && !inline && (
-        <Popover anchor={ref.current} onClose={() => setEditing(false)} width={prop.type === "file" ? 300 : 260}>
+        <Popover anchor={ref.current} onClose={() => setEditing(false)} width={prop.type === "date" ? 340 : prop.type === "file" ? 300 : 260}>
           <PopupEditor {...props} />
         </Popover>
       )}
@@ -145,7 +141,13 @@ function Display(props: CellProps) {
       return <span className="text-neutral-500">{formatDateString(value as string)}</span>;
     case "url":
       return (
-        <a href={/^[a-z]+:/i.test(String(value)) ? String(value) : `https://${value}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="truncate text-blue-600 underline dark:text-blue-400">
+        <a
+          href={/^[a-z]+:/i.test(String(value)) ? String(value) : `https://${value}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="truncate text-blue-600 underline dark:text-blue-400"
+        >
           {String(value)}
         </a>
       );
@@ -189,7 +191,8 @@ function Display(props: CellProps) {
               onClick={(e) => e.stopPropagation()}
               className="flex max-w-full items-center gap-1 truncate rounded bg-neutral-100 px-1.5 py-0.5 text-xs underline-offset-2 hover:underline dark:bg-neutral-800"
             >
-              {pageIcon(related[id]?.icon) ?? <FileText size={11} className="shrink-0" />} <span className="truncate">{pageTitle(related[id]?.title ?? "")}</span>
+              {pageIcon(related[id]?.icon) ?? <FileText size={11} className="shrink-0" />}{" "}
+              <span className="truncate">{pageTitle(related[id]?.title ?? "")}</span>
             </Link>
           ))}
         </div>
@@ -237,7 +240,14 @@ function Display(props: CellProps) {
       return (
         <div className={wrap}>
           {(value as FileValue[]).map((f) => (
-            <a key={f.id} href={fileUrl(f.id)} target="_blank" rel="noopener" onClick={(e) => e.stopPropagation()} className="flex items-center gap-1 truncate rounded bg-neutral-100 px-1.5 py-0.5 text-xs hover:underline dark:bg-neutral-800">
+            <a
+              key={f.id}
+              href={fileUrl(f.id)}
+              target="_blank"
+              rel="noopener"
+              onClick={(e) => e.stopPropagation()}
+              className="flex items-center gap-1 truncate rounded bg-neutral-100 px-1.5 py-0.5 text-xs hover:underline dark:bg-neutral-800"
+            >
               <Paperclip size={11} /> {f.name}
             </a>
           ))}
@@ -250,8 +260,7 @@ function Display(props: CellProps) {
 
 function InlineEditor({ prop, value, onChange, onDone }: CellProps & { onDone: () => void }) {
   const isNumber = prop.type === "number" || prop.type === "currency" || prop.type === "percent";
-  const isDate = prop.type === "date";
-  const initial = isDate ? ((value as DateValue | null)?.start ?? "") : value === null || value === undefined ? "" : isNumber ? String(value).replace(".", ",") : String(value);
+  const initial = value === null || value === undefined ? "" : isNumber ? String(value).replace(".", ",") : String(value);
   const [text, setText] = useState(initial);
   const [invalid, setInvalid] = useState(false);
   const input = useRef<HTMLInputElement>(null);
@@ -263,8 +272,6 @@ function InlineEditor({ prop, value, onChange, onDone }: CellProps & { onDone: (
       const n = parseNumberInput(text);
       if (Number.isNaN(n)) return setInvalid(true);
       onChange(n);
-    } else if (isDate) {
-      onChange(text ? { start: text, end: (value as DateValue | null)?.end ?? null } : null);
     } else {
       onChange(prop.type === "title" ? text : text.trim() || null);
     }
@@ -274,9 +281,9 @@ function InlineEditor({ prop, value, onChange, onDone }: CellProps & { onDone: (
   return (
     <input
       ref={input}
-      type={isDate ? (prop.config.includeTime ? "datetime-local" : "date") : prop.type === "email" ? "email" : "text"}
+      type={prop.type === "email" ? "email" : "text"}
       inputMode={isNumber ? "decimal" : undefined}
-      value={isDate && prop.config.includeTime ? text.slice(0, 16) : text}
+      value={text}
       onChange={(e) => {
         setText(e.target.value);
         setInvalid(false);
@@ -301,19 +308,151 @@ function PopupEditor(props: CellProps) {
   if (prop.type === "select" || prop.type === "multi_select") {
     const multi = prop.type === "multi_select";
     const selected = value === null || value === undefined ? [] : multi ? (value as string[]) : [value as string];
-    return <OptionPicker prop={prop} multi={multi} selected={selected} onChange={(ids) => onChange(multi ? (ids.length ? ids : null) : (ids[0] ?? null))} onCreate={onCreateOption} />;
+    return (
+      <OptionPicker
+        prop={prop}
+        multi={multi}
+        selected={selected}
+        onChange={(ids) => onChange(multi ? (ids.length ? ids : null) : (ids[0] ?? null))}
+        onCreate={onCreateOption}
+      />
+    );
   }
   if (prop.type === "relation") return <RelationPicker {...props} />;
   if (prop.type === "person") return <PersonPicker selected={(value as string[] | null) ?? []} onChange={(ids) => onChange(ids.length ? ids : null)} />;
   if (prop.type === "file") return <FileEditor {...props} />;
+  if (prop.type === "date") return <DateEditor {...props} />;
   return null;
+}
+
+const dayPart = (v: string) => v.slice(0, 10);
+const timePart = (v: string) => (v.length > 10 ? v.slice(11, 16) : "");
+const join = (day: string, time: string, withTime: boolean) => (withTime && time ? `${day}T${time}` : day);
+
+/** Start date, optional end date and optional times, like Notion's date picker. */
+function DateEditor({ prop, value, onChange }: CellProps) {
+  const current = value as DateValue | null;
+  const [start, setStart] = useState(current?.start ? dayPart(current.start) : "");
+  const [startTime, setStartTime] = useState(current?.start ? timePart(current.start) : "");
+  const [hasEnd, setHasEnd] = useState(!!current?.end);
+  const [end, setEnd] = useState(current?.end ? dayPart(current.end) : "");
+  const [endTime, setEndTime] = useState(current?.end ? timePart(current.end) : "");
+  const [withTime, setWithTime] = useState(!!prop.config.includeTime || timePart(current?.start ?? "") !== "" || timePart(current?.end ?? "") !== "");
+  const first = useRef<HTMLInputElement>(null);
+  useEffect(() => first.current?.focus(), []);
+
+  const save = (next: { start: string; startTime: string; hasEnd: boolean; end: string; endTime: string; withTime: boolean }) => {
+    if (!next.start) return onChange(null);
+    const from = join(next.start, next.startTime, next.withTime);
+    let to = next.hasEnd && next.end ? join(next.end, next.endTime, next.withTime) : null;
+    // An end before the start is moved onto the start, as Notion does.
+    if (to && to < from) {
+      to = from;
+      setEnd(next.start);
+      setEndTime(next.startTime);
+    }
+    onChange({ start: from, end: to });
+  };
+  const state = { start, startTime, hasEnd, end, endTime, withTime };
+  const update = (patch: Partial<typeof state>) => save({ ...state, ...patch });
+
+  const input =
+    "min-w-0 rounded border border-neutral-300 bg-transparent px-2 py-1 text-sm outline-none focus:border-blue-500 dark:border-neutral-700 dark:[color-scheme:dark]";
+  const row = (
+    label: string,
+    day: string,
+    time: string,
+    setDay: (v: string) => void,
+    setTime: (v: string) => void,
+    key: "start" | "end",
+    ref?: React.Ref<HTMLInputElement>,
+  ) => (
+    <label className="flex items-center gap-2 text-xs text-neutral-500">
+      <span className="w-12 shrink-0">{label}</span>
+      <input
+        ref={ref}
+        type="date"
+        aria-label={label}
+        value={day}
+        onChange={(e) => {
+          setDay(e.target.value);
+          update({ [key]: e.target.value });
+        }}
+        className={`${input} flex-1`}
+      />
+      {withTime && (
+        <input
+          type="time"
+          aria-label={key === "start" ? t("cell.startTime") : t("cell.endTime")}
+          value={time}
+          onChange={(e) => {
+            setTime(e.target.value);
+            update({ [key === "start" ? "startTime" : "endTime"]: e.target.value });
+          }}
+          className={`${input} w-[6.5rem]`}
+        />
+      )}
+    </label>
+  );
+  const toggle = (label: string, on: boolean, flip: () => void) => (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      onClick={flip}
+      className="flex w-full items-center justify-between rounded px-1 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
+    >
+      {label}
+      <span className={`relative h-4 w-7 rounded-full transition-colors ${on ? "bg-[#2383e2]" : "bg-neutral-300 dark:bg-neutral-600"}`}>
+        <span className={`absolute top-0.5 left-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform ${on ? "translate-x-3" : ""}`} />
+      </span>
+    </button>
+  );
+
+  return (
+    <div className="space-y-2 p-1" onKeyDown={(e) => e.stopPropagation()}>
+      {row(hasEnd ? t("cell.start") : t("cell.date"), start, startTime, setStart, setStartTime, "start", first)}
+      {hasEnd && row(t("cell.end"), end, endTime, setEnd, setEndTime, "end")}
+      <div className="border-t border-neutral-200 pt-1 dark:border-neutral-800">
+        {toggle(t("cell.endDate"), hasEnd, () => {
+          const next = !hasEnd;
+          const nextEnd = next && !end ? start : end;
+          setHasEnd(next);
+          setEnd(nextEnd);
+          update({ hasEnd: next, end: nextEnd });
+        })}
+        {toggle(t("cell.includeTime"), withTime, () => {
+          setWithTime(!withTime);
+          update({ withTime: !withTime });
+        })}
+        <button
+          type="button"
+          onClick={() => {
+            setStart("");
+            setStartTime("");
+            setEnd("");
+            setEndTime("");
+            setHasEnd(false);
+            onChange(null);
+          }}
+          className="w-full rounded px-1 py-1 text-left text-sm text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+        >
+          {t("cell.clearDate")}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function RelationPicker({ prop, value, onChange }: CellProps) {
   const target = useDatabase(prop.config.databaseId ?? "");
   const [query, setQuery] = useState("");
   const selected = (value as string[] | null) ?? [];
-  const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const norm = (s: string) =>
+    s
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
   const rows = (target.data?.rows ?? []).filter((r) => norm(pageTitle(r.title)).includes(norm(query)));
   return (
     <div>

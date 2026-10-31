@@ -21,7 +21,7 @@ import {
 import { api } from "../lib/api";
 import { sendOrQueue } from "../lib/offline";
 import { pageTitle } from "../lib/tree";
-import { CalendarGrid, moveDate, type CalendarEntry, type CalendarMode } from "./Calendar";
+import { CalendarGrid, moveDate, placeRow, type CalendarEntry, type CalendarMode } from "./Calendar";
 import { colorLabel, OPTION_CLASSES } from "./format";
 import { dbKey, useDatabaseList } from "./hooks";
 import { Popover } from "./Popover";
@@ -79,7 +79,7 @@ export function CalendarBlockView({ node, updateAttributes, editor, extension }:
           color: source.color,
           hint: pageTitle(data.title),
         };
-        for (const day of rowDays(prop, row)) map.set(day, [...(map.get(day) ?? []), entry]);
+        placeRow(map, entry, prop);
       }
     }
     return map;
