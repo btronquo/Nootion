@@ -7,6 +7,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- A demo page, "Discover Nootion", given to each new user on their first visit: every kind of block, a "Projects"
+  database with its six views, a subpage and all the widgets, filled with made-up data. It is an ordinary page to
+  delete; "Create the demo page" in My account makes a new one. `DEMO_PAGE=false` turns it off.
 - Widgets in the "/" menu, for dashboards and home pages:
   - Chart: the rows of a database view by status, month, person… as bars, columns, a line or a donut, counting rows
     or adding up a number column.

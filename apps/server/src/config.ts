@@ -14,6 +14,8 @@ export interface Config {
   notionApiUrl: string;
   /** Pause between two requests to Notion (it allows about 3 per second). */
   notionRequestInterval: number;
+  /** Gives each new user a demo page (on their first visit). Off with DEMO_PAGE=false. */
+  demoPage?: boolean;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -33,6 +35,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     isProduction,
     maxUploadMb: Number(env.MAX_UPLOAD_MB ?? 50),
     notionRequestInterval: Number(env.NOTION_REQUEST_INTERVAL ?? 340),
+    demoPage: env.DEMO_PAGE !== "false",
     notionApiUrl: (env.NOTION_API_URL ?? "https://api.notion.com").replace(/\/+$/, ""),
   };
 }

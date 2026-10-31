@@ -222,48 +222,50 @@ function ChartBody({ kind, list, fmt }: { kind: Kind; list: Group[]; fmt: (n: nu
     const r = 38;
     const shown = list.find((g) => g.key === hover);
     return (
-      <div className={`${box} flex flex-wrap items-center gap-6`} data-chart="donut">
-        <svg viewBox="-70 -70 140 140" className="h-40 w-40 shrink-0">
-          {list.map((g) => {
-            const share = Math.max(g.value, 0) / total;
-            const a0 = angle;
-            const a1 = (angle += share * Math.PI * 2);
-            if (share >= 0.9999) return <circle key={g.key} r={(R + r) / 2} fill="none" stroke={g.color} strokeWidth={R - r} />;
-            const large = a1 - a0 > Math.PI ? 1 : 0;
-            const p = (rad: number, a: number) => `${rad * Math.cos(a)} ${rad * Math.sin(a)}`;
-            return (
-              <path
+      <div className="@container" data-chart="donut">
+        <div className={`${box} flex flex-col items-center gap-4 @sm:flex-row @sm:gap-6`}>
+          <svg viewBox="-70 -70 140 140" className="h-40 w-40 shrink-0">
+            {list.map((g) => {
+              const share = Math.max(g.value, 0) / total;
+              const a0 = angle;
+              const a1 = (angle += share * Math.PI * 2);
+              if (share >= 0.9999) return <circle key={g.key} r={(R + r) / 2} fill="none" stroke={g.color} strokeWidth={R - r} />;
+              const large = a1 - a0 > Math.PI ? 1 : 0;
+              const p = (rad: number, a: number) => `${rad * Math.cos(a)} ${rad * Math.sin(a)}`;
+              return (
+                <path
+                  key={g.key}
+                  d={`M ${p(R, a0)} A ${R} ${R} 0 ${large} 1 ${p(R, a1)} L ${p(r, a1)} A ${r} ${r} 0 ${large} 0 ${p(r, a0)} Z`}
+                  fill={g.color}
+                  opacity={dim(g)}
+                  className="transition-opacity duration-200"
+                  onMouseEnter={() => setHover(g.key)}
+                  onMouseLeave={() => setHover(null)}
+                />
+              );
+            })}
+            <text textAnchor="middle" dominantBaseline="middle" className="fill-neutral-700 text-[13px] font-semibold dark:fill-neutral-200">
+              {fmt(shown ? shown.value : total)}
+            </text>
+          </svg>
+          <ul className="w-full min-w-0 flex-1 space-y-1 text-xs">
+            {list.map((g) => (
+              <li
                 key={g.key}
-                d={`M ${p(R, a0)} A ${R} ${R} 0 ${large} 1 ${p(R, a1)} L ${p(r, a1)} A ${r} ${r} 0 ${large} 0 ${p(r, a0)} Z`}
-                fill={g.color}
-                opacity={dim(g)}
-                className="transition-opacity duration-200"
+                className="flex items-center gap-2"
+                style={{ opacity: dim(g) }}
                 onMouseEnter={() => setHover(g.key)}
                 onMouseLeave={() => setHover(null)}
-              />
-            );
-          })}
-          <text textAnchor="middle" dominantBaseline="middle" className="fill-neutral-700 text-[13px] font-semibold dark:fill-neutral-200">
-            {fmt(shown ? shown.value : total)}
-          </text>
-        </svg>
-        <ul className="min-w-0 flex-1 space-y-1 text-xs">
-          {list.map((g) => (
-            <li
-              key={g.key}
-              className="flex items-center gap-2"
-              style={{ opacity: dim(g) }}
-              onMouseEnter={() => setHover(g.key)}
-              onMouseLeave={() => setHover(null)}
-            >
-              <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: g.color }} />
-              <span className="min-w-0 truncate">{g.label}</span>
-              <span className="ml-auto tabular-nums text-neutral-500">
-                {fmt(g.value)} · {Math.round((Math.max(g.value, 0) / total) * 100)}%
-              </span>
-            </li>
-          ))}
-        </ul>
+              >
+                <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: g.color }} />
+                <span className="min-w-0 truncate">{g.label}</span>
+                <span className="ml-auto tabular-nums text-neutral-500">
+                  {fmt(g.value)} · {Math.round((Math.max(g.value, 0) / total) * 100)}%
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     );
   }

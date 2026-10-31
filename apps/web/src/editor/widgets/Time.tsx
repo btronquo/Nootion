@@ -204,10 +204,10 @@ export function CountdownView({ node, updateAttributes, editor, extension }: Nod
       ) : (
         <div className={`${box} text-center`} data-countdown>
           {past && <p className="mb-2 text-xs text-neutral-500">{abs < 86_400_000 ? `🎉 ${t("widget.countdownToday")}` : t("widget.countdownSince")}</p>}
-          <div className="flex justify-center gap-2 sm:gap-4">
+          <div className="flex justify-center gap-2">
             {units.map(([n, unit]) => (
-              <div key={unit} className="min-w-14 rounded-lg bg-neutral-50 px-2 py-2 dark:bg-neutral-800/60 sm:min-w-18">
-                <div className="text-2xl font-semibold tabular-nums sm:text-3xl">{String(n).padStart(2, "0")}</div>
+              <div key={unit} className="max-w-20 min-w-0 flex-1 rounded-lg bg-neutral-50 px-1 py-2 dark:bg-neutral-800/60">
+                <div className="text-2xl font-semibold tabular-nums">{String(n).padStart(2, "0")}</div>
                 <div className="text-[11px] text-neutral-500">{unit}</div>
               </div>
             ))}
@@ -392,52 +392,54 @@ export function PomodoroView({ node, updateAttributes, editor, extension }: Node
 
   return (
     <Widget name="pomodoro" icon={<Timer size={14} />} title={t("widget.pomodoro")} tools={editable && settings.button}>
-      <div className={`${box} flex flex-col items-center gap-3 sm:flex-row sm:justify-center sm:gap-8`} data-pomodoro={phase}>
-        <div className="relative h-32 w-32">
-          <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
-            <circle cx={60} cy={60} r={R} fill="none" strokeWidth={6} className="stroke-neutral-100 dark:stroke-neutral-800" />
-            <circle
-              cx={60}
-              cy={60}
-              r={R}
-              fill="none"
-              stroke={color}
-              strokeWidth={6}
-              strokeLinecap="round"
-              strokeDasharray={C}
-              strokeDashoffset={C * (1 - share)}
-              className="transition-[stroke-dashoffset] duration-300 ease-linear"
-            />
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-2xl font-semibold tabular-nums">{mmss}</span>
-            <span className="text-[11px] text-neutral-500">{t(`widget.pomodoro_${phase}`)}</span>
-          </div>
-        </div>
-        <div className="flex flex-col items-center gap-2">
-          <div className="flex items-center gap-1">
-            <button className={btn} onClick={reset} aria-label={t("widget.pomodoroReset")} title={t("widget.pomodoroReset")}>
-              <RotateCcw size={16} />
-            </button>
-            <button
-              className="flex h-11 w-11 items-center justify-center rounded-full text-white shadow-sm transition-transform active:scale-95"
-              style={{ background: color }}
-              onClick={endsAt ? pause : start}
-              aria-label={endsAt ? t("widget.pomodoroPause") : t("widget.pomodoroStart")}
-            >
-              {endsAt ? <Pause size={18} /> : <Play size={18} className="translate-x-px" />}
-            </button>
-            <button className={btn} onClick={() => next(false)} aria-label={t("widget.pomodoroSkip")} title={t("widget.pomodoroSkip")}>
-              <SkipForward size={16} />
-            </button>
-          </div>
-          <div className="flex gap-1" aria-label={t("widget.pomodoroRound", { round: ((round - 1) % a.rounds) + 1, rounds: a.rounds })}>
-            {Array.from({ length: a.rounds }, (_, i) => (
-              <span
-                key={i}
-                className={`h-1.5 w-1.5 rounded-full ${i < ((round - 1) % a.rounds) + (phase === "work" ? 0 : 1) ? "bg-[#e03e3e]" : "bg-neutral-200 dark:bg-neutral-700"}`}
+      <div className={`${box} @container`} data-pomodoro={phase}>
+        <div className="flex flex-col items-center gap-3 @md:flex-row @md:justify-center @md:gap-8">
+          <div className="relative h-32 w-32">
+            <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90">
+              <circle cx={60} cy={60} r={R} fill="none" strokeWidth={6} className="stroke-neutral-100 dark:stroke-neutral-800" />
+              <circle
+                cx={60}
+                cy={60}
+                r={R}
+                fill="none"
+                stroke={color}
+                strokeWidth={6}
+                strokeLinecap="round"
+                strokeDasharray={C}
+                strokeDashoffset={C * (1 - share)}
+                className="transition-[stroke-dashoffset] duration-300 ease-linear"
               />
-            ))}
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-2xl font-semibold tabular-nums">{mmss}</span>
+              <span className="text-[11px] text-neutral-500">{t(`widget.pomodoro_${phase}`)}</span>
+            </div>
+          </div>
+          <div className="flex flex-col items-center gap-2">
+            <div className="flex items-center gap-1">
+              <button className={btn} onClick={reset} aria-label={t("widget.pomodoroReset")} title={t("widget.pomodoroReset")}>
+                <RotateCcw size={16} />
+              </button>
+              <button
+                className="flex h-11 w-11 items-center justify-center rounded-full text-white shadow-sm transition-transform active:scale-95"
+                style={{ background: color }}
+                onClick={endsAt ? pause : start}
+                aria-label={endsAt ? t("widget.pomodoroPause") : t("widget.pomodoroStart")}
+              >
+                {endsAt ? <Pause size={18} /> : <Play size={18} className="translate-x-px" />}
+              </button>
+              <button className={btn} onClick={() => next(false)} aria-label={t("widget.pomodoroSkip")} title={t("widget.pomodoroSkip")}>
+                <SkipForward size={16} />
+              </button>
+            </div>
+            <div className="flex gap-1" aria-label={t("widget.pomodoroRound", { round: ((round - 1) % a.rounds) + 1, rounds: a.rounds })}>
+              {Array.from({ length: a.rounds }, (_, i) => (
+                <span
+                  key={i}
+                  className={`h-1.5 w-1.5 rounded-full ${i < ((round - 1) % a.rounds) + (phase === "work" ? 0 : 1) ? "bg-[#e03e3e]" : "bg-neutral-200 dark:bg-neutral-700"}`}
+                />
+              ))}
+            </div>
           </div>
         </div>
       </div>
