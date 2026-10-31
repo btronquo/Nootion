@@ -7,6 +7,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Widgets in the "/" menu, for dashboards and home pages:
+  - Chart: the rows of a database view by status, month, person… as bars, columns, a line or a donut, counting rows
+    or adding up a number column.
+  - Progress bar: of the year, month, week or day, of the rows checked in a database, or towards a goal of your own.
+  - Countdown to a date and time, ticking every second.
+  - Pomodoro timer, with short and long breaks, a chime, and the time left in the tab's title.
+  - Habit tracker: a grid of days as on GitHub, with the current streak; tick today in one click.
+  - Clock (any time zone) and weather with the next days' forecast (from Open-Meteo, asked by the browser).
+  - Quote of the day, from a set of classics or from a database of your own.
+  - Image carousel, with uploaded images or addresses, changing on its own or by hand.
 - The page's top bar tells when it was last edited ("Edited at 14:32", "Edited yesterday at…", the full date on
   hover), and shows "Saved" for a moment once your changes are on the server.
 - Date ranges and times in databases, as in Notion: the date editor has an end date and an "Include time" switch, for

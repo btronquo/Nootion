@@ -31,7 +31,7 @@ import { Popover } from "../database/Popover";
 import { pageIcon } from "../lib/icons";
 
 /** Frame of a widget: a small title with an icon, optional tools on the right. */
-function Widget({ icon, title, tools, children, name }: { icon: ReactNode; title: ReactNode; tools?: ReactNode; children: ReactNode; name: string }) {
+export function Widget({ icon, title, tools, children, name }: { icon: ReactNode; title: ReactNode; tools?: ReactNode; children: ReactNode; name: string }) {
   return (
     <NodeViewWrapper className="home-widget my-6" contentEditable={false} data-drag-handle="" data-widget={name}>
       <div className="mb-2 flex items-center gap-1.5 text-sm font-medium text-neutral-500">
@@ -44,13 +44,13 @@ function Widget({ icon, title, tools, children, name }: { icon: ReactNode; title
   );
 }
 
-const tool =
+export const tool =
   "flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-normal text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800 dark:hover:bg-neutral-800 dark:hover:text-neutral-200";
-const empty = "rounded-lg border border-dashed border-neutral-300 px-3 py-4 text-sm text-neutral-500 dark:border-neutral-700";
+export const empty = "rounded-lg border border-dashed border-neutral-300 px-3 py-4 text-sm text-neutral-500 dark:border-neutral-700";
 const shortDate = (iso: string) => new Date(iso).toLocaleDateString(intlLocale(), { day: "numeric", month: "short" });
 
 /** Widgets only make sense for a signed-in reader; on public pages they show nothing. */
-const isPublic = (extension: NodeViewProps["extension"]) => !!extension.options.publicToken;
+export const isPublic = (extension: NodeViewProps["extension"]) => !!extension.options.publicToken;
 
 /** Cards of the pages the reader opened lately. */
 export function RecentPagesView({ extension }: NodeViewProps) {
