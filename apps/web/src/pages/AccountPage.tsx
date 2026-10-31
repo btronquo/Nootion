@@ -35,6 +35,7 @@ export function AccountPage() {
       <LanguageSection user={user} />
       <ThemeSection />
       <ImportSection />
+      <DemoSection />
       {!!services.data?.length && (
         <Section title={t("services.title")} id="services">
           <ConnectedServices accounts={services.data} />
@@ -179,9 +180,23 @@ function EmailSection({ user }: { user: PublicUser }) {
   return (
     <Section title={t("auth.email")}>
       <form onSubmit={save} className="space-y-3">
-        <Field label={t("account.emailAddress")} type="email" value={email} onChange={(e) => (setEmail(e.target.value), setSaved(false))} required autoComplete="email" />
+        <Field
+          label={t("account.emailAddress")}
+          type="email"
+          value={email}
+          onChange={(e) => (setEmail(e.target.value), setSaved(false))}
+          required
+          autoComplete="email"
+        />
         {email.trim().toLowerCase() !== user.email && (
-          <Field label={t("account.currentPassword")} type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required autoComplete="current-password" />
+          <Field
+            label={t("account.currentPassword")}
+            type="password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            required
+            autoComplete="current-password"
+          />
         )}
         <ErrorText error={error} />
         <div className="flex items-center gap-3">
@@ -221,9 +236,32 @@ function PasswordSection() {
   return (
     <Section title={t("auth.password")}>
       <form onSubmit={save} className="space-y-3">
-        <Field label={t("account.currentPassword")} type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required autoComplete="current-password" />
-        <Field label={t("account.newPassword")} type="password" value={newPassword} onChange={(e) => (setNewPassword(e.target.value), setSaved(false))} required minLength={8} autoComplete="new-password" />
-        <Field label={t("account.confirmPassword")} type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required minLength={8} autoComplete="new-password" />
+        <Field
+          label={t("account.currentPassword")}
+          type="password"
+          value={currentPassword}
+          onChange={(e) => setCurrentPassword(e.target.value)}
+          required
+          autoComplete="current-password"
+        />
+        <Field
+          label={t("account.newPassword")}
+          type="password"
+          value={newPassword}
+          onChange={(e) => (setNewPassword(e.target.value), setSaved(false))}
+          required
+          minLength={8}
+          autoComplete="new-password"
+        />
+        <Field
+          label={t("account.confirmPassword")}
+          type="password"
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          required
+          minLength={8}
+          autoComplete="new-password"
+        />
         <p className="text-xs text-neutral-500">{t("account.otherDevices")}</p>
         <ErrorText error={error} />
         <div className="flex items-center gap-3">
@@ -286,6 +324,33 @@ function ThemeSection() {
         ))}
       </div>
       <p className="mt-2 text-xs text-neutral-500">{t("account.themeHelp")}</p>
+    </Section>
+  );
+}
+
+/** The demo page again, for those who deleted it (or never had it). */
+function DemoSection() {
+  const navigate = useNavigate();
+  const refresh = useRefreshPages();
+  const [busy, setBusy] = useState(false);
+  return (
+    <Section title={t("account.demo")} id="demo">
+      <p className="mb-3 text-sm text-neutral-600 dark:text-neutral-400">{t("account.demoHelp")}</p>
+      <Button
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          try {
+            const { pageId } = await api<{ pageId: string }>("/demo", { method: "POST" });
+            await refresh();
+            navigate(`/page/${pageId}`);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        ✨ {t("account.demoCreate")}
+      </Button>
     </Section>
   );
 }
@@ -402,7 +467,13 @@ function DeleteSection() {
         <form className="space-y-3" onSubmit={deleteAccount}>
           <h3 className="font-semibold">{t("account.deleteAccount")}</h3>
           <p className="text-sm text-neutral-600 dark:text-neutral-400">{t("account.deleteAccountHelp")}</p>
-          <Field label={t("account.currentPassword")} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <Field
+            label={t("account.currentPassword")}
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
           <Button type="submit" variant="danger" disabled={busy || !password}>
             {t("account.deleteAccountButton")}
           </Button>

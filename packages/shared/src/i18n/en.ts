@@ -13,6 +13,10 @@ export const en = {
   "account.deleteAccountButton": "Delete my account for good",
   "account.deleteAccountHelp":
     "Deletes your account, your personal space and the shared spaces only you are in, for good. What you wrote in spaces shared with others stays there.",
+  "account.demo": "Demo page",
+  "account.demoCreate": "Create the demo page",
+  "account.demoHelp":
+    "A page that shows every kind of block, a database with its views and the widgets, filled with made-up data. Delete it whenever you like.",
   "account.displayName": "First name or display name",
   "account.emailAddress": "Email address",
   "account.emptied": { one: "{count} page deleted.", other: "{count} pages deleted." },

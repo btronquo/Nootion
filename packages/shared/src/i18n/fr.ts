@@ -14,6 +14,10 @@ export const fr: Messages = {
   "account.deleteAccountButton": "Supprimer définitivement mon compte",
   "account.deleteAccountHelp":
     "Supprime définitivement votre compte, votre espace personnel et les espaces partagés dont vous êtes le seul membre. Ce que vous avez écrit dans des espaces partagés avec d'autres y reste.",
+  "account.demo": "Page de démo",
+  "account.demoCreate": "Créer la page de démo",
+  "account.demoHelp":
+    "Une page qui montre tous les types de blocs, une base avec ses vues et les widgets, remplis de données inventées. Supprimez-la quand vous voulez.",
   "account.displayName": "Prénom ou nom affiché",
   "account.emailAddress": "Adresse email",
   "account.emptied": { one: "{count} page supprimée.", other: "{count} pages supprimées." },

@@ -13,7 +13,7 @@ export async function makeApp(
 ): Promise<FastifyInstance> {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "nootion-test-"));
   prepare?.(dataDir);
-  const config = loadConfig({ APP_SECRET: "test-secret-0123456789", APP_URL: "http://localhost:3000", DATA_DIR: dataDir, ...env });
+  const config = loadConfig({ APP_SECRET: "test-secret-0123456789", APP_URL: "http://localhost:3000", DATA_DIR: dataDir, DEMO_PAGE: "false", ...env });
   return buildApp({ db: openDb(":memory:"), config, ...extra });
 }
 
