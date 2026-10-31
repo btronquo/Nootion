@@ -16,6 +16,18 @@ ZFS or Btrfs. Markdown exports (pages) and CSV/JSON exports (databases) can be
 downloaded from the interface; they give you your data in a readable format, they don't replace backups.
 The admin can also download a full backup from **Administration › Backup** (a .zip to unzip into `/data`, with the container stopped, to restore).
 
+**Automatic backups** (Administration › Automatic backups) make that same .zip every day or every week, at a set
+time, and keep the last copies (`nootion-backup-YYYY-MM-DD-HHMM.zip`; other files in the folder are left alone).
+They go to:
+
+- a folder of the server: mount one in the container, for example a NAS share, with
+  `-v /volume1/backups/nootion:/backups`, and type `/backups`;
+- a WebDAV folder, such as a Nextcloud one: its WebDAV address (Files › Settings › WebDAV in Nextcloud, followed by
+  the folder, e.g. `https://cloud.example.com/remote.php/dav/files/boris/Backups/Nootion`), a user name and an app
+  password (stored encrypted with `APP_SECRET`).
+
+"Back up now" tries the destination at once; the page shows the next run and how the last one went.
+
 ## Environment variables
 
 | Variable | Required | Description |
@@ -36,7 +48,7 @@ Also check its upload size limit (`client_max_body_size` in Nginx) for attached 
 ## Installing with Docker
 
 The image is published on GitHub's registry for amd64 and arm64: `ghcr.io/btronquo/nootion`.
-Tags: `latest` (last release), `2.0.1`, `2.0` (last 2.0.x), and `develop` (development version, to try what's coming;
+Tags: `latest` (last release), `3.0.0`, `3.0` (last 3.0.x), and `develop` (development version, to try what's coming;
 not for data you care about).
 
 ### With Docker Compose (recommended)

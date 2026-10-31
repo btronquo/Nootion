@@ -98,7 +98,7 @@ export interface ViewContext {
   me?: string | null;
 }
 
-const TEXT_TYPES: readonly PropertyType[] = ["title", "text", "url", "email"];
+const TEXT_TYPES: readonly PropertyType[] = ["title", "text", "url", "email", "plugin"];
 const NUMBER_TYPES: readonly PropertyType[] = ["number", "currency", "percent"];
 const DATE_TYPES: readonly PropertyType[] = ["date", "created_time", "last_edited_time"];
 
@@ -438,7 +438,7 @@ export function canGroupBy(type: PropertyType): boolean {
 
 /** Types whose groups can receive rows (board drag and drop, "new" in a group). */
 export function canMoveBetweenGroups(type: PropertyType): boolean {
-  return ["select", "multi_select", "checkbox", "person", "text", "url", "email", "number", "currency", "percent"].includes(type);
+  return ["select", "multi_select", "checkbox", "person", "text", "url", "email", "number", "currency", "percent", "plugin"].includes(type);
 }
 
 export interface RowGroup {
@@ -557,7 +557,7 @@ export function initialValues(
         if (id) values[prop.id] = [id];
       } else if (prop.type === "checkbox" && (f.operator === "checked" || f.operator === "unchecked")) values[prop.id] = f.operator === "checked";
       else if (["number", "currency", "percent"].includes(prop.type) && f.operator === "eq") values[prop.id] = Number(f.value);
-      else if (["text", "url", "email"].includes(prop.type) && f.operator === "is") values[prop.id] = String(f.value);
+      else if (["text", "url", "email", "plugin"].includes(prop.type) && f.operator === "is") values[prop.id] = String(f.value);
     }
   }
   if (group && canMoveBetweenGroups(group.prop.type)) values[group.prop.id] = moveToGroup(group.prop, values[group.prop.id] ?? null, "", group.key);

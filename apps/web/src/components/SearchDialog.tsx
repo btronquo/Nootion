@@ -4,6 +4,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Database, FileText, Paperclip, Search } from "lucide-react";
 import { t, type SearchResult } from "@nootion/shared";
 import { api } from "../lib/api";
+import { useClosing } from "./ui";
 
 /** Opens the search dialog with Ctrl+K (Cmd+K on a Mac). */
 export function useSearchShortcut(open: () => void) {
@@ -57,6 +58,8 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
   });
   const results = query ? (search.data?.results ?? []) : [];
 
+  const { closing, close } = useClosing(onClose);
+
   useEffect(() => setActive(0), [query]);
   useEffect(() => {
     listRef.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: "nearest" });
@@ -78,15 +81,15 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
     } else if (e.key === "Enter") {
       e.preventDefault();
       open(results[active]);
-    } else if (e.key === "Escape") onClose();
+    } else if (e.key === "Escape") close();
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 px-4 pt-[12vh]" onMouseDown={onClose}>
+    <div className="nt-backdrop fixed inset-0 z-50 flex items-start justify-center bg-black/30 px-4 pt-[12vh]" data-closing={closing || undefined} onMouseDown={close}>
       <div
         role="dialog"
         aria-label={t("search.title")}
-        className="w-full max-w-xl overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-800 dark:bg-neutral-900"
+        className="nt-dialog w-full max-w-xl overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-800 dark:bg-neutral-900"
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2 border-b border-neutral-200 px-4 dark:border-neutral-800">

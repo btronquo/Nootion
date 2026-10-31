@@ -24,6 +24,7 @@ describe("search", () => {
     const maison = await boris.createPage(ws, "Maison");
     const travaux = await boris.createPage(ws, "Travaux de la toiture", maison);
     setText(travaux, "Devis de l'entreprise Dupont pour la réfection complète.");
+    setText(maison, ""); // Without the link to its subpage.
     const autre = await boris.createPage(ws, "Recettes");
     setText(autre, "Gâteau au chocolat");
 

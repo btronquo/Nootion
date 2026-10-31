@@ -62,13 +62,15 @@ Ids are UUIDs. Dates are ISO 8601.
 | `GET /api/workspaces` | The token's spaces, with your role in each (`viewer` with a read-only token). |
 | `GET /api/workspaces/:id/pages` | Every page and database of a space (`id`, `parentId`, `kind`, `title`, `icon`, `position`…). Database rows are not listed: query their database. |
 | `GET /api/pages/:id` | A page's details: title, icon, cover, `kind` (`page`, `database` or `row`), your role, breadcrumb. |
-| `POST /api/pages` | Creates a page: `{ "workspaceId", "parentId": null, "title", "icon"?, "markdown"? }` (or `content`, see below). |
+| `POST /api/pages` | Creates a page: `{ "workspaceId", "parentId": null, "title", "icon"?, "markdown"? }` (or `content`, see below). A subpage gets a link at the end of its parent, unless `"linkInParent": false`. |
 | `PATCH /api/pages/:id` | Changes `title`, `icon`, `cover` (`https://…` image), `fullWidth`. |
-| `POST /api/pages/:id/move` | Moves it: `{ "parentId": "…" or null, "index"? }`. |
+| `POST /api/pages/:id/move` | Moves it: `{ "parentId": "…" or null, "index"? }`. A line holding only a link to it moves with it, from the old parent to the end of the new one. |
 | `DELETE /api/pages/:id` | Moves it to the trash, with its subpages. |
 | `POST /api/pages/:id/restore` | Takes it out of the trash. |
 | `GET /api/pages/:id/backlinks` | Pages that link to it. |
 | `GET /api/pages/:id/history` | Its versions; `GET /api/pages/:id/history/:versionId` reads one. |
+| `GET /api/inbox` | Your inbox (`pageId`, made on first use in your personal space) and the notes still in it (`items`, newest first). |
+| `POST /api/inbox` | Drops a note in it: `{ "text", "title"?, "url"? }`. Without a title, the first line of the text is the title. Notes are subpages of the inbox: file one by moving it. |
 | `GET /api/pages/templates` | Page templates; `POST /api/pages/:id/apply-template` with `{ "templateId" }` fills an empty page from one. |
 
 ## Page content
@@ -90,7 +92,8 @@ images (`![alt](https://…)`), dividers (`---`). Links and images must point to
 server's files (`/api/attachments/…`).
 
 The JSON form takes the editor's blocks only (toggles, callouts, columns, dates, links to pages…); read a page's
-`content` to see how they are written. A date with a reminder keeps it only if the reminder is yours.
+`content` to see how they are written. A date with a reminder keeps it only if the reminder is yours. A person is
+`{ "type": "userMention", "attrs": { "id", "userId", "name" } }`: they are told once per `id`, the mention being yours.
 
 ## Databases
 
@@ -165,6 +168,62 @@ Operators, by column type:
 | --- | --- |
 | `POST /api/pages/:id/attachments` | Uploads a file (`multipart/form-data`, field `file`): `{ "attachment": { "id", "filename", "url" } }`. Put its `url` in the content (`![photo](/api/attachments/…)`) or in a file column. |
 | `GET /api/attachments/:id` | Downloads it (`?download` to save it under its name). |
+
+## Automations
+
+"When something happens to a row, run steps on it." Steps are the same as buttons' (see the `ButtonStep` type in
+`packages/shared/src/buttons.ts`), without "open". They run as the person who last saved the automation, and what
+they change doesn't set off other automations. Managing them needs the "editor" role on the database.
+
+| Request | What it does |
+| --- | --- |
+| `GET /api/databases/:id/automations` | The database's automations, each with its last `runs` (`error` is null when it went well). |
+| `POST /api/databases/:id/automations` | Creates one: `{ "name"?, "enabled"?, "trigger", "steps" }`. |
+| `PUT /api/automations/:id` | Replaces it (same body). |
+| `POST /api/automations/:id/enabled` | Pauses or resumes it: `{ "enabled": false }`. |
+| `DELETE /api/automations/:id` | Deletes it. |
+
+Triggers: `{ "type": "row_added" }`, `{ "type": "property_changed", "propertyId", "to": "Paid" or null }` (`to`: an
+option's name, `"true"`/`"false"` for a checkbox, or a text; null for any change), and
+`{ "type": "date_reached", "propertyId" }` (a date column: at its time, or at 9:00 for a day).
+
+## Recurring templates
+
+A page template or a row template can make a new page (or row) by itself on a schedule. Setting it needs the
+"editor" role on the template; the pages are made as the person who last saved the schedule, titled with the
+template's title and the day ("Weekly review — 2 Nov 2026").
+
+| Request | What it does |
+| --- | --- |
+| `GET /api/pages/:id/recurrence` | The template's schedule, with `nextRunAt`, `lastRunAt` and `lastError`; null if it doesn't repeat. |
+| `PUT /api/pages/:id/recurrence` | Sets it (see below). |
+| `DELETE /api/pages/:id/recurrence` | Stops it. |
+
+The body: `{ "frequency": "daily" | "weekly" | "monthly", "interval": 1, "weekdays": [1, 4], "monthDay": 1,
+"time": "08:00", "timeZone": "Europe/Paris", "startDate": "2026-11-02", "parentId", "dateProperty", "enabled" }`.
+`weekdays` (0 = Sunday) is for weekly schedules, `monthDay` for monthly ones (the last day of shorter months).
+A page template needs `parentId`, the page the new pages go in; a row template can give `dateProperty`, a date
+column that gets the day of each run.
+
+## Comments
+
+Threads of comments on a page (not on databases), about a passage or the whole page. A comment's `body` is plain
+text where `<@userId>` mentions someone (ids from `GET /api/users`). Reading needs access to the page; writing needs
+at least the "commenter" role.
+
+| Request | What it does |
+| --- | --- |
+| `GET /api/pages/:id/comments` | The page's threads, open ones first, each with its `comments`. |
+| `POST /api/pages/:id/comments` | Starts a thread: `{ "body" }` on the whole page. (The editor also sends an `anchor`, positions in the live document.) |
+| `POST /api/comments/threads/:id/replies` | Answers a thread: `{ "body" }`. Answering a resolved thread opens it again. |
+| `POST /api/comments/threads/:id/resolve` | `{ "resolved": true }` or `false`. |
+| `PATCH /api/comments/:id` | Changes your comment: `{ "body" }`. |
+| `DELETE /api/comments/:id` | Deletes your comment; the last one of a thread deletes the thread. |
+| `GET /api/comments/notifications` | Your latest mentions and replies, and mentions of you in pages (`kind: "page_mention"`, `threadId` null). |
+| `POST /api/comments/notifications/read` | Marks them as read: `{ "ids"? }` (all when left out). |
+
+People mentioned, and the others taking part in a thread when it gets a reply, receive a notification (in the
+app's Notifications, and on their devices when they turned notifications on).
 
 ## Search
 

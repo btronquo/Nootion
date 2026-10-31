@@ -109,6 +109,8 @@ export const createPageInput = z.object({
   parentId: z.string().min(1).nullable().default(null),
   title: titleSchema.default(""),
   icon: iconSchema.optional(),
+  /** Adds a link to the new page at the end of its parent (the default). False when the caller places the link itself. */
+  linkInParent: z.boolean().default(true),
 });
 export type CreatePageInput = z.infer<typeof createPageInput>;
 

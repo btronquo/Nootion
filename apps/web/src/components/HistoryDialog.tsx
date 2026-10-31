@@ -115,7 +115,7 @@ export function HistoryDialog({ page, onClose }: { page: PageDetail; onClose: ()
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-white dark:bg-neutral-900" role="dialog" aria-modal="true" aria-label={t("history.title")} data-history>
+    <div className="nt-backdrop fixed inset-0 z-50 flex flex-col bg-white dark:bg-neutral-900" role="dialog" aria-modal="true" aria-label={t("history.title")} data-history>
       <header className="flex items-center gap-2 border-b border-neutral-200 px-4 py-2 dark:border-neutral-800">
         <History size={16} className="text-neutral-500" />
         <h2 className="min-w-0 flex-1 truncate font-semibold">

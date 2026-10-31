@@ -10,6 +10,7 @@ import { PagePage } from "./pages/PagePage";
 import { WorkspacePage } from "./pages/WorkspacePage";
 import { TrashPage } from "./pages/TrashPage";
 import { RemindersPage } from "./pages/RemindersPage";
+import { CapturePage } from "./components/QuickCapture";
 import { PublicPage } from "./pages/PublicPage";
 import { AccountPage } from "./pages/AccountPage";
 import { OauthAuthorizePage } from "./pages/OauthAuthorizePage";
@@ -71,6 +72,7 @@ function PrivateApp() {
         <Route path="/workspace/:id" element={<WorkspacePage />} />
         <Route path="/trash" element={<TrashPage />} />
         <Route path="/reminders" element={<RemindersPage />} />
+        <Route path="/capture" element={<CapturePage />} />
         <Route path="/account" element={<AccountPage />} />
         {user.role === "admin" && <Route path="/admin" element={<AdminPage />} />}
       </Route>

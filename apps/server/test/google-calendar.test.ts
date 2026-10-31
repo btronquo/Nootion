@@ -60,7 +60,13 @@ const eventNamed = (summary: string) => live().find((e) => e.summary === summary
 describe("google calendar plugin", () => {
   it("connects each person's Google account with OAuth", async () => {
     await connect(boris);
-    expect((await boris.get("/api/plugins/google_calendar/status")).json()).toEqual({ configured: true, connected: true, email: "boris@gmail.com" });
+    expect((await boris.get("/api/plugins/google_calendar/status")).json()).toMatchObject({
+      configured: true,
+      connected: true,
+      email: "boris@gmail.com",
+      ownClientAllowed: false,
+      ownClientId: null,
+    });
     const stored = app.db.$client.prepare("select value from plugin_user_data where plugin_id = 'google_calendar'").all() as { value: string }[];
     expect(stored[0]!.value).not.toContain("refresh-1");
     expect((await boris.get("/api/plugins/google_calendar/calendars")).json().calendars).toEqual([
@@ -201,5 +207,39 @@ describe("google calendar plugin", () => {
     expect((await boris.post("/api/plugins/google_calendar/syncs", { databaseId: db, propertyId: title, calendarId: CAL })).statusCode).toBe(400);
     expect((await boris.request("DELETE", `/api/plugins/google_calendar/syncs/${sync.id}`)).statusCode).toBe(200);
     expect((await boris.get(`/api/plugins/google_calendar/syncs/${sync.id}`)).statusCode).toBe(404);
+  });
+
+  it("lets each person use their own OAuth client when the administrator hasn't set one", async () => {
+    await boris.patch("/api/admin/plugins/google_calendar", { enabled: true });
+    const alice = await inviteUser(app, boris, { name: "Alice", email: "alice@example.com", password: "alice-password" });
+    expect((await alice.get("/api/plugins/google_calendar/status")).json()).toMatchObject({
+      configured: false,
+      ownClientAllowed: true,
+      redirectUri: "http://localhost:3000/api/plugins/google_calendar/oauth/callback",
+    });
+    expect((await alice.put("/api/plugins/google_calendar/own-client", { clientId: "client-id", clientSecret: "" })).statusCode).toBe(400);
+    expect((await alice.put("/api/plugins/google_calendar/own-client", { clientId: "client-id", clientSecret: "client-secret" })).statusCode).toBe(200);
+    expect((await alice.get("/api/plugins/google_calendar/status")).json()).toMatchObject({ configured: true, connected: false, ownClientId: "client-id" });
+    // Hers only: Boris still has none.
+    expect((await boris.get("/api/plugins/google_calendar/status")).json().configured).toBe(false);
+
+    const start = new URL((await alice.get("/api/plugins/google_calendar/oauth/start")).headers.location as string);
+    expect(start.searchParams.get("client_id")).toBe("client-id");
+    await alice.get(`/api/plugins/google_calendar/oauth/callback?code=good-code&state=${start.searchParams.get("state")}`);
+    expect((await alice.get("/api/plugins/google_calendar/status")).json()).toMatchObject({ connected: true, email: "boris@gmail.com" });
+    expect((await alice.get("/api/plugins/google_calendar/calendars")).json().calendars).toHaveLength(1);
+    const stored = app.db.$client.prepare("select value from plugin_user_data where plugin_id = 'google_calendar'").all() as { value: string }[];
+    expect(JSON.stringify(stored)).not.toContain("client-secret");
+
+    // Disconnecting keeps her client; forgetting it removes everything.
+    await alice.delete("/api/plugins/google_calendar/account");
+    expect((await alice.get("/api/plugins/google_calendar/status")).json()).toMatchObject({ configured: true, connected: false });
+    await alice.delete("/api/plugins/google_calendar/own-client");
+    expect((await alice.get("/api/plugins/google_calendar/status")).json()).toMatchObject({ configured: false, ownClientId: null });
+
+    // Once the administrator sets a client, everyone uses it and nobody can set their own.
+    await boris.patch("/api/admin/plugins/google_calendar", { values: { clientId: "client-id", clientSecret: "client-secret" } });
+    expect((await alice.put("/api/plugins/google_calendar/own-client", { clientId: "other", clientSecret: "x" })).statusCode).toBe(400);
+    expect((await alice.get("/api/plugins/google_calendar/status")).json()).toMatchObject({ configured: true, ownClientAllowed: false });
   });
 });

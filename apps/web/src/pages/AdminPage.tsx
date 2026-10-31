@@ -6,6 +6,7 @@ import { api } from "../lib/api";
 import { useSession } from "../lib/session";
 import { Button, ErrorText, Field, Rich } from "../components/ui";
 import { PluginsAdmin } from "./PluginsAdmin";
+import { BackupsAdmin } from "./BackupsAdmin";
 import { copyText } from "../lib/browser";
 
 const dateFmt = () => new Intl.DateTimeFormat(intlLocale(), { dateStyle: "medium" });
@@ -145,6 +146,8 @@ export function AdminPage() {
           {t("admin.downloadBackup")}
         </a>
       </section>
+
+      <BackupsAdmin />
 
       <PluginsAdmin />
 

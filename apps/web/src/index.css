@@ -18,6 +18,71 @@ body {
   @apply bg-white text-neutral-900 antialiased dark:bg-neutral-900 dark:text-neutral-100;
 }
 
+/* ---------- Motion ----------
+   Short, quiet animations: overlays fade, dialogs rise a little, menus pop.
+   Closing ones play while the element has data-closing, before it unmounts.
+   "backwards" leaves no transform once done, so fixed children stay fixed. */
+@keyframes nt-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes nt-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes nt-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+@keyframes nt-sink-out {
+  to {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+}
+@keyframes nt-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+.nt-backdrop {
+  animation: nt-fade-in 180ms ease-out backwards;
+}
+.nt-dialog {
+  animation: nt-rise-in 220ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+.nt-pop {
+  animation: nt-pop-in 140ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+.nt-backdrop[data-closing] {
+  animation: nt-fade-out 140ms ease-in forwards;
+}
+[data-closing] .nt-dialog {
+  animation: nt-sink-out 140ms ease-in forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nt-backdrop,
+  .nt-dialog,
+  .nt-pop,
+  .nt-backdrop[data-closing],
+  [data-closing] .nt-dialog {
+    animation: none;
+  }
+}
+
+/* ---------- Comments ---------- */
+.comment-highlight {
+  @apply cursor-pointer rounded-sm border-b-2 border-amber-300 bg-amber-100/60 transition-colors duration-150 dark:border-amber-600 dark:bg-amber-900/30;
+}
+.comment-highlight-active {
+  @apply bg-amber-200/80 dark:bg-amber-800/50;
+}
+
 /* ---------- Page content (editor and public view) ---------- */
 .nootion-content {
   @apply min-h-[40vh] text-[16px] leading-7 outline-none;
@@ -165,6 +230,13 @@ body {
 /* A date in the text: "@tomorrow 9am". */
 .nootion-content .date-mention {
   @apply cursor-pointer whitespace-nowrap rounded px-0.5 text-neutral-500 before:content-['@'] hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800;
+}
+/* Someone mentioned: "@Alice". */
+.nootion-content .user-mention {
+  @apply whitespace-nowrap rounded px-0.5 font-medium text-blue-700 dark:text-blue-300;
+}
+.nootion-content .user-mention.ProseMirror-selectednode {
+  @apply bg-blue-100 dark:bg-blue-900/40;
 }
 .nootion-content .date-mention-remind {
   @apply text-blue-600 before:content-none dark:text-blue-400;

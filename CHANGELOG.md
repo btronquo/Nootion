@@ -3,7 +3,44 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and version numbers follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [3.0.0] - 2026-10-31
+
+### Changed
+
+- Moving a page moves its link with it: out of the old parent page, to the end of the new one, as in Notion.
+- Calmer interface: dialogs fade and rise in, and fade out when closed; menus and popovers pop in; pages fade in
+  when you move between them; buttons respond to a press. Everything is off when the system asks for reduced motion.
+- Dialogs put the cursor in their first field, and Escape closes them even when the focus is elsewhere.
+
+### Added
+
+- Google Calendar without the administrator: when no OAuth client is set in Administration, each person can paste
+  their own Google OAuth client in the block (the redirect URI to authorize is shown there).
+- Plugins can add column types to databases: the plugin draws and edits the cells, which keep a text that filters,
+  sorts and exports like one. The new built-in **Ratings** plugin (off by default) adds a "Rating" column of one to
+  five stars.
+- Automatic backups (Administration): the full backup every day or every week at a set time, to a folder of the
+  server (a NAS share) or a WebDAV folder such as Nextcloud, keeping the last N copies. "Back up now" tries it at
+  once, and the page shows how the last one went.
+- Mention people in a page: type "@" and their name. They get a notification (in the app, and on their devices) if
+  they can read the page, listed with the comment ones in "Notifications".
+- "/table of contents": links to the page's headings, kept up to date, that scroll to them.
+- Quick capture: "Quick capture" in the sidebar, or Ctrl+Alt+N (⌘⌥N on a Mac), drops a note in your inbox, a page of
+  your personal space made for it. The first line is the title. The installed app also takes what you share to it
+  from other apps (a link, a text), and has a "Capture" shortcut on its icon. File a note by moving it, from the
+  sidebar or its menu. Agents can add to it too (`capture_to_inbox`).
+- Recurring templates ("Repeat" on a template): make a new page from a page template, or a new row from a row
+  template, every N days, on some days of the week, or on a day of the month, at a chosen time. New pages go in a
+  page of your choice; new rows can get the day in a date column. The template shows when it runs next.
+- Database automations ("Automations" above a database): when a row is added, when a column changes (or takes a
+  given value), or when a date arrives, run steps on the row, the same steps as buttons. For example "Status set to
+  Paid → fill in the payment date with today". They can be paused, and their last runs are listed with any error.
+- Comments: select text and comment on it, or comment on the whole page, from the comments panel. Threads have
+  replies, can be resolved and reopened, and follow their passage as the page is edited. People with the
+  "commenter" role can take part. Type "@" to mention someone: they get a notification, as do the others in the
+  thread when it gets a reply. "Reminders" in the sidebar becomes "Notifications" and lists them too.
+- A new subpage gets a link at the end of its parent page, as in Notion (from the sidebar, the API, the MCP server
+  or a button). It is an ordinary link: remove it if you don't want it.
 
 ## [2.0.1] - 2026-10-30
 
@@ -189,6 +226,7 @@ First public version.
 - Markdown (.zip), CSV and JSON export, CSV import, full backup download.
 - Single Docker image (amd64 and arm64), data in `/data`, migrations applied at startup.
 
+[3.0.0]: ../../releases/tag/v3.0.0
 [2.0.1]: ../../releases/tag/v2.0.1
 [2.0.0]: ../../releases/tag/v2.0.0
 [1.2.0]: ../../releases/tag/v1.2.0

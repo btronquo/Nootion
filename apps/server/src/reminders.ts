@@ -149,6 +149,20 @@ export function createNotifier(db: Db, opts: { dataDir: string; appUrl: string; 
     return (send = (sub, payload) => webpush.sendNotification(sub, payload, { vapidDetails: { subject, ...keys }, TTL: 3600 }));
   };
 
+  /** Sends a notification to every device of a user. */
+  async function push(userId: string, payload: { title: string; body: string; url: string; tag: string }) {
+    for (const s of db.select().from(pushSubscriptions).where(eq(pushSubscriptions.userId, userId)).all()) {
+      try {
+        await sender()({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, JSON.stringify(payload));
+      } catch (err) {
+        const status = (err as { statusCode?: number }).statusCode;
+        // The device unsubscribed or the browser was reset.
+        if (status === 404 || status === 410) db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, s.endpoint)).run();
+        else opts.log.warn({ err }, "Couldn't send a notification");
+      }
+    }
+  }
+
   let running = false;
   async function tick(now = new Date()) {
     if (running) return;
@@ -163,22 +177,7 @@ export function createNotifier(db: Db, opts: { dataDir: string; appUrl: string; 
       for (const { r, title, icon } of due) {
         db.update(reminders).set({ notifiedAt: now }).where(eq(reminders.id, r.id)).run();
         if (now.getTime() - r.remindAt.getTime() > TOO_LATE || !atLeast(getPageRole(db, r.userId, r.pageId), "viewer")) continue;
-        const payload = JSON.stringify({
-          title: `${icon ? `${icon} ` : ""}${title || "Nootion"}`,
-          body: r.text || r.date.replace("T", " "),
-          url: `/page/${r.pageId}`,
-          tag: r.id,
-        });
-        for (const s of db.select().from(pushSubscriptions).where(eq(pushSubscriptions.userId, r.userId)).all()) {
-          try {
-            await sender()({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload);
-          } catch (err) {
-            const status = (err as { statusCode?: number }).statusCode;
-            // The device unsubscribed or the browser was reset.
-            if (status === 404 || status === 410) db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, s.endpoint)).run();
-            else opts.log.warn({ err }, "Couldn't send a reminder");
-          }
-        }
+        await push(r.userId, { title: `${icon ? `${icon} ` : ""}${title || "Nootion"}`, body: r.text || r.date.replace("T", " "), url: `/page/${r.pageId}`, tag: r.id });
       }
     } finally {
       running = false;
@@ -190,6 +189,7 @@ export function createNotifier(db: Db, opts: { dataDir: string; appUrl: string; 
   return {
     publicKey: () => vapidKeys(opts.dataDir).publicKey,
     tick,
+    push,
     stop: () => clearInterval(timer),
   };
 }

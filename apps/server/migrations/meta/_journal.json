@@ -148,6 +148,48 @@
       "when": 1793354438674,
       "tag": "0020_plugin_user_data",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1793383356901,
+      "tag": "0021_comments",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1793384112514,
+      "tag": "0022_automations",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1793384622366,
+      "tag": "0023_recurrences",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1793385210628,
+      "tag": "0024_inbox",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1793385607773,
+      "tag": "0025_page_mentions",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1793386122504,
+      "tag": "0026_backups",
+      "breakpoints": true
     }
   ]
 }

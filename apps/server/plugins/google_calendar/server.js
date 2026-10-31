@@ -26,6 +26,8 @@ const TEXTS = {
     needEditor: "You need to be able to edit the database.",
     revoked: "{name}'s Google account is no longer connected: they have to connect it again.",
     link: "Open in Nootion",
+    adminClient: "The administrator has set up Google Calendar: everyone uses their OAuth client.",
+    badClient: "Paste the client ID and the client secret of a Google OAuth client.",
   },
   fr: {
     notConfigured: "L'administrateur n'a pas encore configuré Google Agenda (Administration › Plugins).",
@@ -39,13 +41,27 @@ const TEXTS = {
     needEditor: "Il faut pouvoir modifier la base de données.",
     revoked: "Le compte Google de {name} n'est plus connecté : il faut le reconnecter.",
     link: "Ouvrir dans Nootion",
+    adminClient: "L'administrateur a configuré Google Agenda : tout le monde utilise son client OAuth.",
+    badClient: "Collez l'ID client et le code secret d'un client OAuth Google.",
   },
 };
 
 export function activate(nootion) {
-  const clientId = String(nootion.settings.clientId ?? "").trim();
-  const clientSecret = String(nootion.settings.clientSecret ?? "").trim();
-  const configured = !!clientId && !!clientSecret;
+  // The administrator's OAuth client; without one, each person can use their own.
+  const adminClient = { clientId: String(nootion.settings.clientId ?? "").trim(), clientSecret: String(nootion.settings.clientSecret ?? "").trim() };
+  const adminConfigured = !!adminClient.clientId && !!adminClient.clientSecret;
+  /** The OAuth client a user connects with: the administrator's, or their own; null when there is none. */
+  const clientFor = (userId) => {
+    if (adminConfigured) return adminClient;
+    const own = nootion.userSecrets.get(userId)?.ownClient;
+    return own?.clientId && own?.clientSecret ? own : null;
+  };
+  /** The user's Google account, when connected with the client they use now. */
+  const accountOf = (userId) => {
+    const acc = nootion.userSecrets.get(userId);
+    const client = clientFor(userId);
+    return client && acc?.refreshToken && acc.clientId === client.clientId ? acc : null;
+  };
   const redirectUri = `${nootion.appUrl}/api/plugins/google_calendar/oauth/callback`;
   const lang = () => TEXTS[nootion.locale()] ?? TEXTS.en;
   const text = (key, vars = {}) => lang()[key].replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? "");
@@ -84,11 +100,11 @@ export function activate(nootion) {
     return fail(502, "google_error", "google", { error: typeof error === "string" ? error : JSON.stringify(error) });
   }
 
-  async function tokenRequest(params) {
+  async function tokenRequest(client, params) {
     const res = await call(`${OAUTH_URL}/token`, {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, ...params }).toString(),
+      body: new URLSearchParams({ client_id: client.clientId, client_secret: client.clientSecret, ...params }).toString(),
     });
     if (!res.ok) {
       const err = await googleError(res);
@@ -100,15 +116,15 @@ export function activate(nootion) {
 
   /** A valid access token for the user, refreshed when it is about to expire. */
   async function accessToken(userId) {
-    const acc = nootion.userSecrets.get(userId);
-    if (!acc?.refreshToken || acc.clientId !== clientId) throw fail(409, "google_not_connected", "notConnected");
+    const acc = accountOf(userId);
+    if (!acc) throw fail(409, "google_not_connected", "notConnected");
     if (acc.accessToken && acc.expiresAt > Date.now() + 60_000) return acc.accessToken;
     let data;
     try {
-      data = await tokenRequest({ grant_type: "refresh_token", refresh_token: acc.refreshToken });
+      data = await tokenRequest(clientFor(userId), { grant_type: "refresh_token", refresh_token: acc.refreshToken });
     } catch (e) {
-      // Access was removed in the Google account: forget it.
-      if (e.revoked) nootion.userSecrets.delete(userId);
+      // Access was removed in the Google account: forget it (their own OAuth client stays).
+      if (e.revoked) forgetAccount(userId);
       throw e.revoked ? fail(409, "google_not_connected", "notConnected") : e;
     }
     const next = { ...acc, accessToken: data.access_token, expiresAt: Date.now() + Number(data.expires_in ?? 3600) * 1000 };
@@ -136,20 +152,53 @@ export function activate(nootion) {
 
   // --- Account ---------------------------------------------------------------------------------
 
+  /** Forgets the user's Google account, keeping the OAuth client they set up. */
+  function forgetAccount(userId) {
+    const own = nootion.userSecrets.get(userId)?.ownClient;
+    if (own) nootion.userSecrets.set(userId, { ownClient: own });
+    else nootion.userSecrets.delete(userId);
+  }
+
   nootion.route("GET", "/status", ({ user }) => {
-    const acc = configured ? nootion.userSecrets.get(user.id) : null;
-    const connected = !!acc?.refreshToken && acc.clientId === clientId;
-    return { configured, connected, email: connected ? acc.email : null };
+    const acc = accountOf(user.id);
+    const own = !adminConfigured && !!clientFor(user.id);
+    return {
+      configured: !!clientFor(user.id),
+      connected: !!acc,
+      email: acc?.email ?? null,
+      // Without the administrator's client, each person can paste their own.
+      ownClientAllowed: !adminConfigured,
+      ownClientId: own ? clientFor(user.id).clientId : null,
+      redirectUri,
+    };
+  });
+
+  // A person's own OAuth client, when the administrator hasn't set one. Changing it disconnects their account.
+  nootion.route("PUT", "/own-client", async ({ user, body }) => {
+    if (adminConfigured) throw fail(400, "google_admin_client", "adminClient");
+    const clientId = String(body?.clientId ?? "").trim();
+    const clientSecret = String(body?.clientSecret ?? "").trim();
+    if (!/^[\w.-]{3,200}$/.test(clientId) || !clientSecret || clientSecret.length > 200) throw fail(400, "google_bad_client", "badClient");
+    if (accountOf(user.id)) await disconnect(user.id);
+    nootion.userSecrets.set(user.id, { ownClient: { clientId, clientSecret } });
+    return { ok: true };
+  });
+
+  nootion.route("DELETE", "/own-client", async ({ user }) => {
+    await disconnect(user.id);
+    nootion.userSecrets.delete(user.id);
+    return { ok: true };
   });
 
   // The browser goes there; Google sends it back to /oauth/callback.
   nootion.route("GET", "/oauth/start", ({ user, query }) => {
-    if (!configured) throw fail(400, "google_not_configured", "notConfigured");
+    const client = clientFor(user.id);
+    if (!client) throw fail(400, "google_not_configured", "notConfigured");
     const state = randomBytes(24).toString("base64url");
     const back = typeof query.return === "string" && /^\/(?!\/)/.test(query.return) ? query.return : "/";
     pending.set(state, { userId: user.id, back, at: Date.now() });
     const params = new URLSearchParams({
-      client_id: clientId,
+      client_id: client.clientId,
       redirect_uri: redirectUri,
       response_type: "code",
       scope: SCOPES.join(" "),
@@ -165,10 +214,13 @@ export function activate(nootion) {
     const p = pending.get(String(query.state ?? ""));
     pending.delete(String(query.state ?? ""));
     if (!p || p.userId !== user.id || Date.now() - p.at > 15 * 60 * 1000 || !query.code) throw fail(400, "google_oauth_failed", "expired");
-    const data = await tokenRequest({ grant_type: "authorization_code", code: String(query.code), redirect_uri: redirectUri });
+    const client = clientFor(user.id);
+    if (!client) throw fail(400, "google_not_configured", "notConfigured");
+    const data = await tokenRequest(client, { grant_type: "authorization_code", code: String(query.code), redirect_uri: redirectUri });
     if (!data.refresh_token) throw fail(400, "google_oauth_failed", "expired");
     nootion.userSecrets.set(user.id, {
-      clientId,
+      ...(adminConfigured ? {} : { ownClient: nootion.userSecrets.get(user.id)?.ownClient }),
+      clientId: client.clientId,
       refreshToken: data.refresh_token,
       accessToken: data.access_token,
       expiresAt: Date.now() + Number(data.expires_in ?? 3600) * 1000,
@@ -180,7 +232,7 @@ export function activate(nootion) {
 
   async function disconnect(userId) {
     const acc = nootion.userSecrets.get(userId);
-    nootion.userSecrets.delete(userId);
+    forgetAccount(userId);
     if (acc?.refreshToken) {
       await call(`${OAUTH_URL}/revoke`, {
         method: "POST",
@@ -201,8 +253,8 @@ export function activate(nootion) {
   // Listed in "My account › Connected services".
   nootion.connectedAccount({
     describe: (userId) => {
-      const acc = configured ? nootion.userSecrets.get(userId) : null;
-      return acc?.refreshToken && acc.clientId === clientId ? (acc.email ?? "Google") : null;
+      const acc = accountOf(userId);
+      return acc ? (acc.email ?? "Google") : null;
     },
     disconnect,
   });
@@ -255,7 +307,7 @@ export function activate(nootion) {
   });
 
   nootion.route("POST", "/syncs", async ({ user, body }) => {
-    if (!configured) throw fail(400, "google_not_configured", "notConfigured");
+    if (!clientFor(user.id)) throw fail(400, "google_not_configured", "notConfigured");
     const databaseId = String(body?.databaseId ?? "");
     const propertyId = String(body?.propertyId ?? "");
     const calendarId = String(body?.calendarId ?? "");

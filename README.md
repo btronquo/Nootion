@@ -3,7 +3,7 @@
 **An open-source, self-hosted alternative to Notion, Capacities and Docmost**: pages, wikis and real databases,
 on your own server, in a single Docker container.
 
-> Version 2.0.1. See [CHANGELOG.md](CHANGELOG.md) for what changed and [PLAN.md](PLAN.md) for what comes next.
+> Version 3.0.0. See [CHANGELOG.md](CHANGELOG.md) for what changed and [PLAN.md](PLAN.md) for what comes next.
 
 ## Why Nootion
 
@@ -18,11 +18,14 @@ the freedom of an open-source app you host yourself, and the databases that make
   a reading list or a CRM.
 - **Leave Notion without losing anything.** The Notion import brings pages, databases, relations, rollups,
   formulas, files and links between pages, and can run again to fetch what changed.
-- **Write together.** Real-time collaborative editing, shared spaces with roles, page sharing and read-only
-  public links, with every access checked on the server.
+- **Write together.** Real-time collaborative editing, comments and @mentions, shared spaces with roles, page
+  sharing and read-only public links, with every access checked on the server.
+- **Let it run by itself.** Database automations, recurring templates, buttons, and automatic backups to a NAS or
+  Nextcloud.
 - **On the phone, even offline.** Installs as an app on phones and computers; pages already opened stay readable
   and editable offline and sync when the connection comes back, merged with others' changes.
-- **Yours to extend.** Plugins add editor blocks, API routes, scheduled tasks and formula functions.
+- **Yours to extend.** Plugins add editor blocks, database column types, API routes, scheduled tasks and formula
+  functions.
 - **Open for good.** Licensed under the AGPL-3.0: the code, and the code of any hosted version of it, stays open.
 - **Light.** Runs on a small home server or NAS (amd64 and arm64), no separate database server or Redis.
 
@@ -51,7 +54,11 @@ offline use and the Notion import.
 - Pages are private by default: share a page with a user (inherited by subpages), or through a revocable read-only public link.
   Every access check is done on the server (`apps/server/src/permissions.ts`) and covered by tests.
 - Notion-like page editor ("/" commands, to-do lists, tables, callouts, toggles, columns, images and attached files,
-  links between pages with "@"), with real-time collaborative editing.
+  links between pages with "@", people mentions, table of contents), with real-time collaborative editing.
+- Comments on a passage or on the whole page: threads with replies, resolved and reopened, that follow their
+  passage as the page is edited. "@" mentions someone, in a comment or in the page, and notifies them.
+- Quick capture (Ctrl+Alt+N or ⌘⌥N, or shared from another app to the installed app): a note dropped in your inbox,
+  to file later.
 - Databases: typed columns (text, number, currency amount, percent, date, select, multi-select, checkbox, link,
   email, person, files, created time, last edited time, created by), table view (column order, width and visibility),
   each row opens as a page with its properties. A database can be a page of its own or embedded in a page
@@ -69,7 +76,10 @@ offline use and the Notion import.
 - A personal home page with widgets: recently visited pages, favorites, upcoming events, the first rows of a
   database view (e.g. the open to-dos), arranged by each user.
 - Templates: row templates (content and default values, one used for every new row if chosen) and page templates
-  offered on any empty page, copied with their subpages, databases and files.
+  offered on any empty page, copied with their subpages, databases and files. A template can repeat: a new page or
+  row every N days, on some days of the week or on a day of the month.
+- Database automations: when a row is added, a column changes or a date arrives, run steps on the row (e.g. "Status
+  set to Paid → fill in the payment date"), with the last runs and their errors listed.
 - Page history: versions kept automatically with their authors, changes highlighted, any version restored.
 - Backlinks: each page lists the pages that mention it.
 - Search inside attached files: PDFs, images and scans (OCR), text files.
@@ -81,15 +91,18 @@ offline use and the Notion import.
   link, call a webhook, after an optional form that can also be opened by a public link. See [docs/BUTTONS.md](docs/BUTTONS.md).
 - Built-in MCP server: connect Claude (as a custom connector) or another AI agent to search, read and write your
   pages and databases, within the spaces you choose, with every change it makes logged. See [docs/MCP.md](docs/MCP.md).
-- Plugins: editor blocks, API routes, scheduled tasks and formula functions, turned on and set up in the
-  administration. Ships with the "Embeds" plugin (`/embed`: YouTube, Vimeo, Spotify, Google Maps, Figma,
+- Plugins: editor blocks, database column types, API routes, scheduled tasks and formula functions, turned on and
+  set up in the administration. Ships with the "Embeds" plugin (`/embed`: YouTube, Vimeo, Spotify, Google Maps, Figma,
   link previews) and the "Nextcloud" plugin (each person connects their account, then copies files into pages and
   "File" columns, or links to them: see [docs/NEXTCLOUD.md](docs/NEXTCLOUD.md)) and the "Google Calendar" plugin
-  (syncs a database with a Google calendar, both ways: see [docs/GOOGLE_CALENDAR.md](docs/GOOGLE_CALENDAR.md)). See [docs/PLUGINS.md](docs/PLUGINS.md)
+  (syncs a database with a Google calendar, both ways, with the administrator's OAuth client or each person's own:
+  see [docs/GOOGLE_CALENDAR.md](docs/GOOGLE_CALENDAR.md)) and the "Ratings" plugin (a column of one to five stars). See [docs/PLUGINS.md](docs/PLUGINS.md)
   to write your own.
 - Export a page or a space as Markdown (.zip: subpages, attached files, databases as CSV and JSON),
   export a database as CSV (or CSV for Excel) and JSON with computed formulas, import a CSV into a database
-  (columns and options created as needed), full backup downloadable by the admin.
+  (columns and options created as needed), full backup downloadable by the admin, and automatic backups every
+  day or week to a folder of the server or a WebDAV folder (Nextcloud), keeping the last copies.
+  See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 - Full-text search in page titles and content (Ctrl+K or ⌘K), accent-insensitive, limited to the pages the user can read.
 - English and French interface, chosen per user.
 - Works on phones and installs as an app (PWA, over HTTPS): sidebar as a drawer, editing toolbar above the keyboard,

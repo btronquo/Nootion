@@ -57,7 +57,7 @@ export function yDocToProsemirrorJSON(doc: Y.Doc, field = CONTENT_FIELD): ProseM
 }
 
 /** Writes ProseMirror JSON into a Yjs element the way y-prosemirror does (the editor reads it back as is). */
-function fillY(parent: Y.XmlFragment | Y.XmlElement, nodes: ProseMirrorNode[]) {
+function fillY(parent: Y.XmlFragment | Y.XmlElement, nodes: ProseMirrorNode[], at = parent.length) {
   let run: ProseMirrorNode[] = [];
   const items: (Y.XmlElement | Y.XmlText)[] = [];
   const pending: { el: Y.XmlElement; node: ProseMirrorNode }[] = [];
@@ -80,7 +80,7 @@ function fillY(parent: Y.XmlFragment | Y.XmlElement, nodes: ProseMirrorNode[]) {
     pending.push({ el, node });
   }
   flush();
-  parent.insert(parent.length, items);
+  parent.insert(at, items);
   for (const { el, run } of texts) {
     let at = 0;
     for (const n of run) {
@@ -111,6 +111,7 @@ export function prosemirrorToText(node: ProseMirrorNode): string {
   if (node.type === "text") return node.text ?? "";
   if (node.type === "pageLink" || node.type === "pageMention") return String(node.attrs?.title ?? "");
   if (node.type === "dateMention") return String(node.attrs?.date ?? "").replace("T", " ");
+  if (node.type === "userMention") return `@${String(node.attrs?.name ?? "")}`;
   if (node.type === "buttonBlock") return String((node.attrs?.config as { label?: string } | undefined)?.label ?? "");
   const inner = (node.content ?? []).map(prosemirrorToText).join(BLOCK_TYPES.has(node.type) ? "" : "\n");
   return inner.replace(/\n{2,}/g, "\n");
@@ -129,6 +130,8 @@ export function createCollab(db: Db) {
   const sockets = new Set<WebSocketLike & { close(code?: number, reason?: string): void }>();
   // Who edited each open page since its last version.
   const editors = new Map<string, Set<string>>();
+  // Set by the app: what else to do once a page's content is saved.
+  const storeHooks: { onStored?: (pageId: string, json: ProseMirrorNode) => void } = {};
   const hocuspocus = new Hocuspocus<CollabContext>({
     debounce: 1500,
     maxDebounce: 10000,
@@ -164,6 +167,7 @@ export function createCollab(db: Db) {
         .where(eq(pages.id, documentName))
         .run();
       syncReminders(db, documentName, json);
+      storeHooks.onStored?.(documentName, json);
       // A version every few minutes while people edit.
       if (recordSnapshot(db, documentName, { content: json, authors: editors.get(documentName) })) editors.delete(documentName);
     },
@@ -176,6 +180,7 @@ export function createCollab(db: Db) {
   });
   return Object.assign(hocuspocus, {
     sockets,
+    storeHooks,
     /**
      * Drops every live socket. Clients reconnect within a second and are authenticated again,
      * so anyone who just lost access is cut off while everybody else keeps editing.
@@ -235,6 +240,7 @@ export async function editContent(collab: Collab, db: Db, pageId: string, change
     .where(eq(pages.id, pageId))
     .run();
   syncReminders(db, pageId, json);
+  collab.storeHooks.onStored?.(pageId, json);
 }
 
 /** Replaces a page's content. */
@@ -245,6 +251,48 @@ export async function writeContent(collab: Collab, db: Db, pageId: string, doc: 
 /** Adds blocks at the end of a page. */
 export async function appendContent(collab: Collab, db: Db, pageId: string, nodes: ProseMirrorNode[]) {
   await editContent(collab, db, pageId, (d) => d.transact(() => fillY(d.getXmlFragment(CONTENT_FIELD), nodes)));
+}
+
+/**
+ * Adds a link to a new subpage at the end of its parent, as if someone had written it there (it can be removed
+ * like any link). It goes before a trailing empty paragraph, so the line people type on stays last.
+ */
+export async function linkChildPage(collab: Collab, db: Db, parentId: string, page: { id: string; title: string }) {
+  const block = { type: "paragraph", content: [{ type: "pageLink", attrs: { pageId: page.id, title: page.title } }] };
+  await editContent(collab, db, parentId, (d) =>
+    d.transact(() => {
+      const fragment = d.getXmlFragment(CONTENT_FIELD);
+      const last = fragment.length ? fragment.get(fragment.length - 1) : null;
+      const blankLast = last instanceof Y.XmlElement && last.nodeName === "paragraph" && last.length === 0 && fragment.length > 1;
+      fillY(fragment, [block], blankLast ? fragment.length - 1 : fragment.length);
+    }),
+  );
+}
+
+/** Whether a top-level block is a line holding only a link to the page. */
+function isLinkLine(node: unknown, pageId: string): boolean {
+  if (!(node instanceof Y.XmlElement) || node.nodeName !== "paragraph" || node.length !== 1) return false;
+  const link = node.get(0);
+  return link instanceof Y.XmlElement && link.nodeName === "pageLink" && link.getAttribute("pageId") === pageId;
+}
+
+/** Whether a page's content has a line with only a link to `pageId`. */
+export function hasLinkLine(collab: Collab, db: Db, parentId: string, pageId: string): boolean {
+  const content = readContent(collab, db, parentId).content ?? [];
+  return content.some(
+    (n) => n.type === "paragraph" && n.content?.length === 1 && n.content[0]!.type === "pageLink" && n.content[0]!.attrs?.pageId === pageId,
+  );
+}
+
+/** Removes the lines holding only a link to a page that moved out of this one (links within text stay). */
+export async function unlinkChildPage(collab: Collab, db: Db, parentId: string, pageId: string) {
+  if (!hasLinkLine(collab, db, parentId, pageId)) return;
+  await editContent(collab, db, parentId, (d) =>
+    d.transact(() => {
+      const fragment = d.getXmlFragment(CONTENT_FIELD);
+      for (let i = fragment.length - 1; i >= 0; i--) if (isLinkLine(fragment.get(i), pageId)) fragment.delete(i, 1);
+    }),
+  );
 }
 
 /** A page's content as it is now, with what people are typing included. */

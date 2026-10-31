@@ -52,6 +52,7 @@ import type { Db } from "../db/index.js";
 import { databaseCsv, databaseJson, safeName } from "../export.js";
 import { IMPORT_MAX_ROWS, parseCsv, planImport } from "../import.js";
 import { t } from "@nootion/shared";
+import { fromAutomation, rowSnapshot } from "../automations.js";
 
 /** Content-Disposition header of a download, with a non-ASCII-safe file name. */
 export function attachmentHeader(filename: string) {
@@ -230,6 +231,11 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     } else {
       delete config.databaseId;
     }
+    if (input.type === "plugin") {
+      if (!config.plugin || !app.plugins.propertyType(config.plugin.id, config.plugin.type)) throw new HttpError(400, "plugin_type", t("error.pluginType"));
+    } else {
+      delete config.plugin;
+    }
     if (input.type === "rollup") checkRollupConfig(db, listProperties(db, req.params.id), config);
     if (input.type === "formula" && config.expression?.trim()) checkFormula(listProperties(db, req.params.id), null, config.expression);
     const nextPos = (databaseId: string) =>
@@ -289,6 +295,8 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
         twinPropertyId: prop.config.twinPropertyId ?? null,
       };
     }
+    // So is a plugin column's type.
+    if (input.config && prop.type === "plugin") input.config = { ...input.config, plugin: prop.config.plugin };
     if (input.config && prop.type === "rollup") checkRollupConfig(db, properties, input.config);
     if (input.config?.expression?.trim() && prop.type === "formula" && input.config.expression !== prop.config.expression) {
       checkFormula(properties, prop.id, input.config.expression);
@@ -428,6 +436,10 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
       await writeContent(app.collab, db, id, parseMarkdown(markdown.slice(0, 2_000_000)));
       recordAgentVersion(db, id, readContent(app.collab, db, id), user.id);
     }
+    if (!fromAutomation(req)) {
+      const after = rowSnapshot(db, database.id, id);
+      if (after) await app.automations.rowChanged({ databaseId: database.id, rowId: id, before: null, after });
+    }
     return rowResponse(user.id, database.id, id);
   });
 
@@ -479,6 +491,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     input.values = valuesByIds(properties, input.values);
     checkRelationAccess(user.id, properties, input.values);
     const { values, title } = validateValues(db, properties, req.params.rowId, input.values);
+    const snapshot = rowSnapshot(db, req.params.id, req.params.rowId);
     db.transaction((tx) => {
       const current = tx.select({ props: pages.props }).from(pages).where(eq(pages.id, req.params.rowId)).get()!;
       const before = { ...(current.props ?? {}) } as Record<string, CellValue>;
@@ -501,6 +514,8 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
           syncTwin(tx, p, req.params.rowId, (before[p.id] as string[] | null) ?? [], (props[p.id] as string[] | null) ?? []);
       }
     });
+    const after = rowSnapshot(db, req.params.id, req.params.rowId);
+    if (snapshot && after && !fromAutomation(req)) await app.automations.rowChanged({ databaseId: req.params.id, rowId: req.params.rowId, before: snapshot, after });
     return rowResponse(user.id, req.params.id, req.params.rowId);
   });
 

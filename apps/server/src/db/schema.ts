@@ -21,6 +21,8 @@ export const users = sqliteTable(
     locale: text("locale").notNull().default("en"),
     // The user's home page (a page of their personal workspace), created on first visit.
     homePageId: text("home_page_id"),
+    // The page quick notes land in (in their personal workspace), created on first capture.
+    inboxPageId: text("inbox_page_id"),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("users_email_unique").on(t.email)],
@@ -465,3 +467,148 @@ export const publicForms = sqliteTable(
   },
   (t) => [uniqueIndex("public_forms_block_unique").on(t.pageId, t.blockId)],
 );
+
+/** A discussion on a page: about a passage (anchor) or the whole page. Its messages are in `comments`. */
+export const commentThreads = sqliteTable(
+  "comment_threads",
+  {
+    id: text("id").primaryKey(),
+    pageId: text("page_id")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    // Encoded Yjs relative positions (base64) of the passage's start and end; null for the whole page.
+    anchorStart: text("anchor_start"),
+    anchorEnd: text("anchor_end"),
+    quote: text("quote").notNull().default(""),
+    resolvedAt: integer("resolved_at", { mode: "timestamp_ms" }),
+    resolvedBy: text("resolved_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("comment_threads_page_idx").on(t.pageId)],
+);
+
+export const comments = sqliteTable(
+  "comments",
+  {
+    id: text("id").primaryKey(),
+    threadId: text("thread_id")
+      .notNull()
+      .references(() => commentThreads.id, { onDelete: "cascade" }),
+    authorId: text("author_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    // Plain text; `<@userId>` mentions someone.
+    body: text("body").notNull(),
+    editedAt: integer("edited_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("comments_thread_idx").on(t.threadId)],
+);
+
+/** Someone was mentioned in a comment, or a thread they take part in got a reply. */
+export const commentNotifications = sqliteTable(
+  "comment_notifications",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    commentId: text("comment_id")
+      .notNull()
+      .references(() => comments.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: ["mention", "reply"] }).notNull(),
+    readAt: integer("read_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("comment_notifications_user_idx").on(t.userId, t.createdAt), uniqueIndex("comment_notifications_unique").on(t.userId, t.commentId)],
+);
+
+/** "When this happens to a row of the database, run these steps" (see automations.ts). */
+export const automations = sqliteTable(
+  "automations",
+  {
+    id: text("id").primaryKey(),
+    databaseId: text("database_id")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    name: text("name").notNull().default(""),
+    enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+    trigger: text("trigger", { mode: "json" }).notNull(),
+    steps: text("steps", { mode: "json" }).notNull(),
+    // The steps run as this person, with their rights.
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("automations_database_idx").on(t.databaseId)],
+);
+
+export const automationRuns = sqliteTable(
+  "automation_runs",
+  {
+    id: text("id").primaryKey(),
+    automationId: text("automation_id")
+      .notNull()
+      .references(() => automations.id, { onDelete: "cascade" }),
+    rowId: text("row_id"),
+    // For dates reached: "<row>:<date>", so that each date sets it off once.
+    key: text("key"),
+    error: text("error"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("automation_runs_idx").on(t.automationId, t.createdAt), uniqueIndex("automation_runs_key_unique").on(t.automationId, t.key)],
+);
+
+/** A template that makes a new page or row on a schedule (see recurrences.ts). */
+export const recurrences = sqliteTable("recurrences", {
+  templateId: text("template_id")
+    .primaryKey()
+    .references(() => pages.id, { onDelete: "cascade" }),
+  rule: text("rule", { mode: "json" }).notNull(),
+  nextRunAt: integer("next_run_at", { mode: "timestamp_ms" }),
+  lastRunAt: integer("last_run_at", { mode: "timestamp_ms" }),
+  lastError: text("last_error"),
+  // New pages are made as this person, with their rights.
+  createdBy: text("created_by")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  createdAt: createdAt(),
+});
+
+/** People mentioned in page content ("@Name"): one row per mention, which is also their notification. */
+export const pageMentions = sqliteTable(
+  "page_mentions",
+  {
+    id: text("id").primaryKey(),
+    pageId: text("page_id")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    // The id of the mention in the content.
+    mentionId: text("mention_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    actorId: text("actor_id").references(() => users.id, { onDelete: "set null" }),
+    // The line it is on, as it was written.
+    excerpt: text("excerpt").notNull().default(""),
+    readAt: integer("read_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("page_mentions_user_idx").on(t.userId, t.createdAt), uniqueIndex("page_mentions_unique").on(t.pageId, t.mentionId)],
+);
+
+/** The schedule of automatic backups (one row, "default"), and how the last one went. */
+export const backupSchedules = sqliteTable("backup_schedules", {
+  id: text("id").primaryKey(),
+  // BackupScheduleInput, without the WebDAV password.
+  config: text("config", { mode: "json" }).notNull(),
+  // The WebDAV password, encrypted with APP_SECRET.
+  secret: text("secret"),
+  nextRunAt: integer("next_run_at", { mode: "timestamp_ms" }),
+  lastRunAt: integer("last_run_at", { mode: "timestamp_ms" }),
+  lastError: text("last_error"),
+  lastName: text("last_name"),
+  lastSize: integer("last_size"),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
+});

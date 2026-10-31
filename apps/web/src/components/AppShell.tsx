@@ -1,8 +1,9 @@
-import { useCallback, useState } from "react";
-import { Link, NavLink, Outlet, useMatch, useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+import { Link, NavLink, Outlet, useMatch, useNavigate, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { LogOut, Plus, Settings, Share2, Trash2, Users, User, Download, Search, Star, X, Database, FileText, Home, Bell } from "lucide-react";
+import { LogOut, Plus, Settings, Share2, Trash2, Users, User, Download, Search, Star, X, Database, FileText, Home, Bell, Inbox } from "lucide-react";
 import { disablePush, useReminderNotifications, useReminders } from "../lib/reminders";
+import { useCommentNotifications } from "../comments/queries";
 import { t, type PageSummary, type WorkspaceSummary } from "@nootion/shared";
 import { workspaceName } from "../lib/labels";
 import { api, isOfflineError } from "../lib/api";
@@ -11,9 +12,10 @@ import { useSession } from "../lib/session";
 import { buildTree, pageTitle } from "../lib/tree";
 import { DRAG_TYPE, PageTree } from "./PageTree";
 import { Avatar } from "./Avatar";
-import { Button, ErrorText, Field, Modal } from "./ui";
+import { Button, CancelButton, ErrorText, Field, Modal } from "./ui";
 import { usePlugins } from "../plugins/registry";
 import { SearchDialog, useSearchShortcut } from "./SearchDialog";
+import { captureShortcutLabel, QuickCaptureDialog, useCaptureShortcut } from "./QuickCapture";
 import { MobileBar, SidebarLayout } from "./SidebarLayout";
 import { useIsTouch } from "../lib/mobile";
 import { clearOfflineData } from "../lib/offline";
@@ -27,6 +29,7 @@ export function AppShell() {
   usePlugins();
   const [creatingWorkspace, setCreatingWorkspace] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [capturing, setCapturing] = useState(false);
   const touch = useIsTouch();
   // Pages have their own header, with the menu button.
   // Pages (and the home page) have their own header with the menu button.
@@ -34,8 +37,17 @@ export function AppShell() {
   const onHome = useMatch({ path: "/", end: true });
   const onPage = onPageRoute || onHome;
   useSearchShortcut(useCallback(() => setSearching(true), []));
+  useCaptureShortcut(useCallback(() => setCapturing(true), []));
+  // "Capture" from the installed app's icon menu opens "/?capture".
+  const [params, setParams] = useSearchParams();
+  useEffect(() => {
+    if (!params.has("capture")) return;
+    setCapturing(true);
+    setParams((p) => (p.delete("capture"), p), { replace: true });
+  }, [params, setParams]);
   useReminderNotifications();
-  const due = useReminders().data?.filter((r) => r.due).length ?? 0;
+  // Reminders due and unread mentions or replies.
+  const due = (useReminders().data?.filter((r) => r.due).length ?? 0) + (useCommentNotifications().data?.filter((n) => !n.read).length ?? 0);
 
   async function logout() {
     // This device stops receiving the account's reminders.
@@ -75,6 +87,16 @@ export function AppShell() {
           <kbd className="ml-auto rounded border border-neutral-300 px-1 font-sans text-[10px] text-neutral-400 dark:border-neutral-700">
             {/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K"}
           </kbd>
+        )}
+      </button>
+      <button
+        onClick={() => setCapturing(true)}
+        className="mx-2 mb-1 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-neutral-600 hover:bg-neutral-200/50 dark:text-neutral-400 dark:hover:bg-neutral-800/60"
+        data-quick-capture-button
+      >
+        <Inbox size={16} /> {t("inbox.capture")}
+        {!touch && (
+          <kbd className="ml-auto rounded border border-neutral-300 px-1 font-sans text-[10px] text-neutral-400 dark:border-neutral-700">{captureShortcutLabel()}</kbd>
         )}
       </button>
       <NavLink
@@ -148,6 +170,7 @@ export function AppShell() {
       <Outlet />
       {creatingWorkspace && <CreateWorkspaceDialog onClose={() => setCreatingWorkspace(false)} />}
       {searching && <SearchDialog onClose={() => setSearching(false)} />}
+      {capturing && <QuickCaptureDialog onClose={() => setCapturing(false)} />}
     </SidebarLayout>
   );
 }
@@ -328,9 +351,7 @@ function CreateWorkspaceDialog({ onClose }: { onClose: () => void }) {
         <p className="text-sm text-neutral-500">{t("workspace.newHelp")}</p>
         <ErrorText error={error} />
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={onClose}>
-            {t("common.cancel")}
-          </Button>
+          <CancelButton onClose={onClose} />
           <Button type="submit">{t("common.create")}</Button>
         </div>
       </form>

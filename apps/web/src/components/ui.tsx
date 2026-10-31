@@ -1,4 +1,5 @@
 import type React from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
 import { currentLocale, LOCALE_NAMES, LOCALES, t, type Locale } from "@nootion/shared";
 
@@ -10,7 +11,7 @@ export function Button({ variant = "primary", className = "", ...props }: Button
   }[variant];
   return (
     <button
-      className={`inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${styles} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition duration-150 outline-none focus-visible:ring-2 focus-visible:ring-neutral-400/60 active:scale-[.98] disabled:cursor-not-allowed disabled:active:scale-100 disabled:opacity-50 ${styles} ${className}`}
       {...props}
     />
   );
@@ -48,17 +49,78 @@ export function AuthCard({ title, subtitle, children }: { title: string; subtitl
   );
 }
 
-export function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
+/** Plays the closing animation (the element gets data-closing) before calling onClose. */
+export function useClosing(onClose: () => void, ms = 140) {
+  const [closing, setClosing] = useState(false);
+  const started = useRef(false);
+  const latest = useRef(onClose);
+  latest.current = onClose;
+  const close = useCallback(() => {
+    if (started.current) return;
+    started.current = true;
+    setClosing(true);
+    setTimeout(() => latest.current(), window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? 0 : ms);
+  }, [ms]);
+  return { closing, close };
+}
+
+const ModalCloseContext = createContext<(() => void) | null>(null);
+
+/** Inside a Modal: closes it with its animation. */
+export function useModalClose(fallback: () => void) {
+  return useContext(ModalCloseContext) ?? fallback;
+}
+
+/** A Cancel button that closes the surrounding Modal with its animation. */
+export function CancelButton({ onClose, label = t("common.cancel") }: { onClose: () => void; label?: string }) {
+  const close = useModalClose(onClose);
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 p-4 pt-[10vh]" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <Button type="button" variant="ghost" onClick={close}>
+      {label}
+    </Button>
+  );
+}
+
+export function Modal({
+  title,
+  onClose,
+  children,
+  wide,
+  closeRef,
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+  wide?: boolean;
+  /** Filled with the animated close, to close from outside (after a submit). */
+  closeRef?: React.MutableRefObject<(() => void) | null>;
+}) {
+  const { closing, close } = useClosing(onClose);
+  if (closeRef) closeRef.current = close;
+  const dialog = useRef<HTMLDivElement>(null);
+  // Ready to type in: the first field gets the focus, and Escape closes from anywhere.
+  useEffect(() => {
+    const el = dialog.current;
+    // Not on touch screens, where it would pop the keyboard up.
+    if (el && !el.contains(document.activeElement) && window.matchMedia?.("(hover: hover)").matches) el.querySelector<HTMLElement>("input, textarea, select")?.focus();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && !e.defaultPrevented && close();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [close]);
+  return (
+    <div
+      className="nt-backdrop fixed inset-0 z-50 flex items-start justify-center bg-black/30 p-4 pt-[10vh]"
+      data-closing={closing || undefined}
+      onMouseDown={(e) => e.target === e.currentTarget && close()}
+    >
       <div
+        ref={dialog}
         role="dialog"
         aria-label={title}
-        className={`w-full ${wide ? "max-w-xl" : "max-w-md"} rounded-xl border border-neutral-200 bg-white p-5 shadow-xl dark:border-neutral-800 dark:bg-neutral-900`}
-        onKeyDown={(e) => e.key === "Escape" && onClose()}
+        className={`nt-dialog w-full ${wide ? "max-w-xl" : "max-w-md"} rounded-xl border border-neutral-200 bg-white p-5 shadow-xl dark:border-neutral-800 dark:bg-neutral-900`}
       >
         <h2 className="mb-4 text-lg font-semibold">{title}</h2>
-        {children}
+        <ModalCloseContext.Provider value={close}>{children}</ModalCloseContext.Provider>
       </div>
     </div>
   );
