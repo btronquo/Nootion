@@ -19,6 +19,8 @@ export function useLiveEvents(signedIn: boolean) {
         qc.invalidateQueries({ queryKey: keys.shared }),
         qc.invalidateQueries({ queryKey: keys.favorites }),
         qc.invalidateQueries({ queryKey: ["trash"] }),
+        qc.invalidateQueries({ queryKey: ["library"] }),
+        qc.invalidateQueries({ queryKey: ["graph"] }),
       ]);
     let opened = false;
     source.onopen = () => {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useMatch, useNavigate, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { LogOut, Plus, Settings, Share2, Trash2, Users, User, Download, Search, Star, X, Database, FileText, Home, Bell, Inbox } from "lucide-react";
+import { LogOut, Plus, Settings, Share2, Trash2, Users, User, Download, Search, Star, X, Database, FileText, Home, Bell, Inbox, Library, Waypoints } from "lucide-react";
 import { disablePush, useReminderNotifications, useReminders } from "../lib/reminders";
 import { useCommentNotifications } from "../comments/queries";
 import { t, type PageSummary, type WorkspaceSummary } from "@nootion/shared";
@@ -124,6 +124,22 @@ export function AppShell() {
           </span>
         )}
       </NavLink>
+      {(
+        [
+          ["/pages", <Library size={16} key="i" />, t("library.title")],
+          ["/graph", <Waypoints size={16} key="i" />, t("graph.title")],
+        ] as const
+      ).map(([to, icon, label]) => (
+        <NavLink
+          key={to}
+          to={to}
+          className={({ isActive }) =>
+            `mx-2 mb-1 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-neutral-200/50 dark:hover:bg-neutral-800/60 ${isActive ? "bg-neutral-200/70 font-medium text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100" : "text-neutral-600 dark:text-neutral-400"}`
+          }
+        >
+          {icon} {label}
+        </NavLink>
+      ))}
       <nav className="flex-1 space-y-5 overflow-y-auto px-2 py-2">
         <FavoritesSection />
         {workspaces.data?.map((ws) => (

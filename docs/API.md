@@ -68,6 +68,8 @@ Ids are UUIDs. Dates are ISO 8601.
 | `DELETE /api/pages/:id` | Moves it to the trash, with its subpages. |
 | `POST /api/pages/:id/restore` | Takes it out of the trash. |
 | `GET /api/pages/:id/backlinks` | Pages that link to it. |
+| `GET /api/pages/all` | Every page and database you can read, with its space, `path`, author and dates. |
+| `GET /api/pages/graph` | The same pages as `nodes`, and `links` between them: `child` (a subpage) or `link` (a link or mention in the content). |
 | `GET /api/pages/:id/history` | Its versions; `GET /api/pages/:id/history/:versionId` reads one. |
 | `GET /api/inbox` | Your inbox (`pageId`, made on first use in your personal space) and the notes still in it (`items`, newest first). |
 | `POST /api/inbox` | Drops a note in it: `{ "text", "title"?, "url"? }`. Without a title, the first line of the text is the title. Notes are subpages of the inbox: file one by moving it. |
