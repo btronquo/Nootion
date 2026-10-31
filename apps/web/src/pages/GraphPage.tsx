@@ -130,7 +130,32 @@ function GraphCanvas({ nodes, links }: { nodes: Node[]; links: Link[] }) {
       });
 
     const dark = () => document.documentElement.classList.contains("dark");
+    // Hovering fades the highlight in and out rather than switching it at once.
+    const fade = new Map<object, { a: number; h: number; la: number }>();
+    const state = (key: object, a: number, la = 0) => {
+      let st = fade.get(key);
+      if (!st) fade.set(key, (st = { a, h: 0, la }));
+      return st;
+    };
+    let last = performance.now();
+    let frame = 0;
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
     function draw() {
+      const now = performance.now();
+      // At most one frame's worth: the first frame after a pause starts the fade, not ends it.
+      const step = reduced ? 1 : 1 - Math.exp(-Math.min(now - last, 34) / 120);
+      last = now;
+      let settled = true;
+      const ease = (from: number, to: number) => {
+        const next = from + (to - from) * step;
+        if (Math.abs(to - next) > 0.005) {
+          settled = false;
+          return next;
+        }
+        return to;
+      };
+
       const dpr = window.devicePixelRatio || 1;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, width, height);
@@ -139,45 +164,67 @@ function GraphCanvas({ nodes, links }: { nodes: Node[]; links: Link[] }) {
       const d = dark();
       const near = hover ? neighbours.get(hover.id) : null;
       const lit = (n: Node) => !hover || n === hover || !!near?.has(n.id);
+      const DIM = 0.3;
 
       for (const l of links) {
         const s = l.source as Node;
         const e = l.target as Node;
-        const on = hover && (s === hover || e === hover);
-        ctx.strokeStyle = on ? "#2383e2" : d ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.2)";
-        ctx.globalAlpha = hover && !on ? 0.3 : 1;
-        ctx.lineWidth = (on ? 1.6 : 1) / Math.sqrt(view.k);
+        const on = !!hover && (s === hover || e === hover);
+        const st = state(l, 1);
+        st.a = ease(st.a, hover && !on ? DIM : 1);
+        st.h = ease(st.h, on ? 1 : 0);
+        ctx.lineWidth = (1 + 0.6 * st.h) / Math.sqrt(view.k);
         if (l.kind === "child") ctx.setLineDash([3, 3]);
         ctx.beginPath();
         ctx.moveTo(s.x!, s.y!);
         ctx.lineTo(e.x!, e.y!);
+        ctx.globalAlpha = st.a * (1 - st.h);
+        ctx.strokeStyle = d ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.2)";
         ctx.stroke();
+        if (st.h > 0) {
+          ctx.globalAlpha = st.h;
+          ctx.strokeStyle = "#2383e2";
+          ctx.stroke();
+        }
         ctx.setLineDash([]);
       }
       for (const n of nodes) {
         const r = radius(n);
-        ctx.globalAlpha = lit(n) ? 1 : 0.25;
-        ctx.fillStyle = n === hover ? "#2383e2" : n.kind === "database" ? (d ? "#7aa7d9" : "#5b8fc7") : d ? "#a3a3a3" : "#8a8a8a";
+        const st = state(n, 1);
+        st.a = ease(st.a, lit(n) ? 1 : DIM);
+        st.h = ease(st.h, n === hover ? 1 : 0);
         ctx.beginPath();
         ctx.arc(n.x!, n.y!, r, 0, Math.PI * 2);
+        ctx.globalAlpha = st.a;
+        ctx.fillStyle = n.kind === "database" ? (d ? "#7aa7d9" : "#5b8fc7") : d ? "#a3a3a3" : "#8a8a8a";
         ctx.fill();
+        if (st.h > 0) {
+          ctx.globalAlpha = st.a * st.h;
+          ctx.fillStyle = "#2383e2";
+          ctx.fill();
+        }
         const img = images.get(n.id);
-        if (img?.complete && img.naturalWidth) ctx.drawImage(img, n.x! - r, n.y! - r, r * 2, r * 2);
+        if (img?.complete && img.naturalWidth) {
+          ctx.globalAlpha = st.a;
+          ctx.drawImage(img, n.x! - r, n.y! - r, r * 2, r * 2);
+        }
       }
-      // Titles: of the hovered page and its neighbours, of the big dots, and of all once zoomed in.
+      // Titles: of the big dots, of all in a small graph or once zoomed in, and of the hovered page's neighbours.
       ctx.font = `${12 / view.k}px system-ui, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
       for (const n of nodes) {
-        // A small graph shows them all.
-        const show = hover ? lit(n) : nodes.length <= 80 || view.k > 1.4 || n.degree >= 6;
-        if (!show) continue;
-        ctx.globalAlpha = 1;
+        const usual = nodes.length <= 80 || view.k > 1.4 || n.degree >= 6;
+        const st = state(n, 1);
+        st.la = ease(st.la, hover ? (lit(n) ? 1 : usual ? DIM : 0) : usual ? 1 : 0);
+        if (st.la <= 0.01) continue;
+        ctx.globalAlpha = st.la;
         ctx.fillStyle = d ? "#e5e5e5" : "#262626";
         const emoji = n.icon && !customIconId(n.icon) ? `${n.icon} ` : "";
         ctx.fillText(emoji + pageTitle(n.title), n.x!, n.y! + radius(n) + 3 / view.k);
       }
       ctx.globalAlpha = 1;
+      if (!settled && !frame) frame = requestAnimationFrame(() => ((frame = 0), draw()));
     }
 
     function resize() {
@@ -276,6 +323,7 @@ function GraphCanvas({ nodes, links }: { nodes: Node[]; links: Link[] }) {
     el.addEventListener("pointerleave", onLeave);
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => {
+      cancelAnimationFrame(frame);
       sim.stop();
       observer.disconnect();
       el.removeEventListener("pointerdown", onDown);
