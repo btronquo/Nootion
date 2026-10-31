@@ -22,6 +22,7 @@ import { usePlugins } from "../plugins/registry";
 import type { ClientPluginInfo } from "@nootion/shared";
 import { t } from "@nootion/shared";
 import { MobileToolbar } from "./MobileToolbar";
+import { BlockHandle } from "./BlockHandle";
 import { useIsTouch } from "../lib/mobile";
 import type { CommentThread } from "@nootion/shared";
 import { CommentHighlights, selectionAnchor, setCommentHighlights } from "../comments/highlights";
@@ -238,6 +239,7 @@ function CollabEditor({
       {editor && comments?.canComment && (touch || !canEdit) && <CommentMenu editor={editor} onComment={() => startComment(editor, comments)} />}
       {editor && canEdit && touch && <MobileToolbar editor={editor} />}
       {editor && canEdit && <TableMenu editor={editor} />}
+      {editor && editable && !touch && <BlockHandle editor={editor} />}
       <EditorContent editor={editor} />
     </div>
   );

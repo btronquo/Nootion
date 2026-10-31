@@ -7,6 +7,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Block handles in the editor, as in Notion: hovering a block shows "+", which adds a block below it and opens the
+  "/" menu, and the dots, which move the block (or a list item) by dragging, or select it with a click.
 - A menu on each page of the sidebar, opened by right-clicking it or with its "…" button: add to favorites, copy
   link, duplicate (with its subpages), rename, move to another page, move to the trash, open in a new tab.
 
