@@ -5,6 +5,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+
+- A menu on each page of the sidebar, opened by right-clicking it or with its "…" button: add to favorites, copy
+  link, duplicate (with its subpages), rename, move to another page, move to the trash, open in a new tab.
+
 ### Fixed
 
 - The sidebar shows the pages others add, rename, move or delete in a shared space (or share with you) right away,

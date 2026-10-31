@@ -1,11 +1,12 @@
 import { useState, type DragEvent } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { ChevronRight, Database, FileText, Plus, Trash2 } from "lucide-react";
+import { ChevronRight, Database, FileText, MoreHorizontal, Plus } from "lucide-react";
 import type { PageSummary } from "@nootion/shared";
 import { api } from "../lib/api";
 import { useRefreshPages } from "../lib/queries";
 import { pageTitle, type TreeNode } from "../lib/tree";
 import { t } from "@nootion/shared";
+import { PageMenu, type MenuAnchor } from "./PageMenu";
 
 export const DRAG_TYPE = "application/x-nootion-page";
 
@@ -44,6 +45,8 @@ function isInside(all: PageSummary[], pageId: string, ancestorId: string): boole
 function PageTreeItem({ node, depth, workspaceId, editable, all }: TreeProps & { node: TreeNode; depth: number }) {
   const [open, setOpen] = useState(false);
   const [drop, setDrop] = useState<DropZone | null>(null);
+  const [menu, setMenu] = useState<MenuAnchor | null>(null);
+  const [renaming, setRenaming] = useState(false);
   const navigate = useNavigate();
   const refresh = useRefreshPages();
   const { page, children } = node;
@@ -55,10 +58,11 @@ function PageTreeItem({ node, depth, workspaceId, editable, all }: TreeProps & {
     navigate(`/page/${res.page.id}`);
   }
 
-  async function trash() {
-    await api(`/pages/${page.id}`, { method: "DELETE" });
+  async function rename(title: string) {
+    setRenaming(false);
+    if (title === page.title) return;
+    await api(`/pages/${page.id}`, { method: "PATCH", body: { title } }).catch((err) => alert(err.message));
     await refresh();
-    if (location.pathname.startsWith(`/page/${page.id}`)) navigate("/");
   }
 
   function zoneFor(e: DragEvent<HTMLElement>): DropZone {
@@ -108,6 +112,10 @@ function PageTreeItem({ node, depth, workspaceId, editable, all }: TreeProps & {
         }}
         onDragLeave={() => setDrop(null)}
         onDrop={onDrop}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setMenu({ x: e.clientX, y: e.clientY });
+        }}
       >
         <button
           className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-neutral-400 touch:h-8 touch:w-8 hover:bg-neutral-200 dark:hover:bg-neutral-800"
@@ -116,6 +124,20 @@ function PageTreeItem({ node, depth, workspaceId, editable, all }: TreeProps & {
         >
           <ChevronRight size={14} className={`transition ${open ? "rotate-90" : ""} ${children.length ? "" : "opacity-30"}`} />
         </button>
+        {renaming ? (
+          <input
+            autoFocus
+            defaultValue={page.title}
+            aria-label={t("common.rename")}
+            className="min-w-0 flex-1 rounded border border-blue-500 bg-white px-1 py-0.5 text-sm outline-none dark:bg-neutral-900"
+            onFocus={(e) => e.currentTarget.select()}
+            onBlur={(e) => void rename(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") e.currentTarget.blur();
+              if (e.key === "Escape") setRenaming(false);
+            }}
+          />
+        ) : (
         <NavLink
           to={`/page/${page.id}`}
           className={({ isActive }) =>
@@ -125,17 +147,25 @@ function PageTreeItem({ node, depth, workspaceId, editable, all }: TreeProps & {
           <span className="w-4 shrink-0 text-center">{page.icon ?? (page.kind === "database" ? <Database size={14} className="inline text-neutral-400" /> : <FileText size={14} className="inline text-neutral-400" />)}</span>
           <span className="truncate">{pageTitle(page.title)}</span>
         </NavLink>
-        {editable && (
-          <span className="hidden shrink-0 items-center group-hover:flex touch:flex">
-            <button className="rounded p-1 text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-800" onClick={trash} title={t("page.trash")}>
-              <Trash2 size={13} />
-            </button>
+        )}
+        <span className={`shrink-0 items-center group-hover:flex touch:flex ${menu ? "flex" : "hidden"}`}>
+          <button
+            className="rounded p-1 text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-800"
+            onClick={(e) => setMenu(e.currentTarget)}
+            title={t("page.options")}
+            aria-label={t("page.options")}
+            aria-haspopup="menu"
+          >
+            <MoreHorizontal size={14} />
+          </button>
+          {editable && (
             <button className="rounded p-1 text-neutral-500 hover:bg-neutral-200 dark:hover:bg-neutral-800" onClick={addChild} title={t("tree.addSubpage")}>
               <Plus size={14} />
             </button>
-          </span>
-        )}
+          )}
+        </span>
       </div>
+      {menu && <PageMenu page={page} all={all} anchor={menu} editable={editable} onClose={() => setMenu(null)} onRename={() => setRenaming(true)} />}
       {open && children.length > 0 && (
         <ul>
           {children.map((c) => (
