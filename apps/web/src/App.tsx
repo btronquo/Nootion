@@ -16,6 +16,11 @@ import { AccountPage } from "./pages/AccountPage";
 import { OauthAuthorizePage } from "./pages/OauthAuthorizePage";
 import { PublicFormPage } from "./pages/PublicFormPage";
 import { t } from "@nootion/shared";
+import { LibraryPage } from "./pages/LibraryPage";
+import { lazy, Suspense } from "react";
+
+// The graph (and its layout code) loads only when opened.
+const GraphPage = lazy(() => import("./pages/GraphPage").then((m) => ({ default: m.GraphPage })));
 
 export function App() {
   const location = useLocation();
@@ -71,6 +76,15 @@ function PrivateApp() {
         <Route path="/page/:id" element={<PagePage />} />
         <Route path="/workspace/:id" element={<WorkspacePage />} />
         <Route path="/trash" element={<TrashPage />} />
+        <Route path="/pages" element={<LibraryPage />} />
+        <Route
+          path="/graph"
+          element={
+            <Suspense fallback={null}>
+              <GraphPage />
+            </Suspense>
+          }
+        />
         <Route path="/reminders" element={<RemindersPage />} />
         <Route path="/capture" element={<CapturePage />} />
         <Route path="/account" element={<AccountPage />} />

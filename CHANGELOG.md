@@ -7,6 +7,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- "All pages" in the sidebar: every page and database you can open, with where it is, who made it and when it
+  changed, to search by title, filter by kind or space, and sort.
+- "Graph" in the sidebar, as in Obsidian: every page as a dot, with lines for the links and mentions between pages
+  (dotted for subpages). Hover a page to light up its links, click to open it, zoom and drag to look around.
 - The sidebar can be put away, as in Notion: « at its top, or Ctrl+\ (⌘\ on a Mac). It then shows over the page while
   the menu button or the left edge of the window is hovered; a click on the menu button keeps it open again.
 - A new icon picker: every emoji, by category, with a search in your language, recent ones and "Random"; and your
