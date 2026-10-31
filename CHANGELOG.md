@@ -7,6 +7,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Date ranges and times in databases, as in Notion: the date editor has an end date and an "Include time" switch, for
+  things that last several days or have a start and end time. The calendar shows them as one bar across the days,
+  with the start time on the first day and the end time on the last ("14:00–15:00" when on one day).
 - "All pages" in the sidebar: every page and database you can open, with where it is, who made it and when it
   changed, to search by title, filter by kind or space, and sort.
 - "Graph" in the sidebar, as in Obsidian: every page as a dot, with lines for the links and mentions between pages
