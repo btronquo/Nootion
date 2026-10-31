@@ -410,7 +410,7 @@ function DateEditor({ prop, value, onChange }: CellProps) {
   );
 
   return (
-    <div className="space-y-2 p-1" onKeyDown={(e) => e.stopPropagation()}>
+    <div className="space-y-2 p-1" onKeyDown={(e) => e.key !== "Escape" && e.stopPropagation()}>
       {row(hasEnd ? t("cell.start") : t("cell.date"), start, startTime, setStart, setStartTime, "start", first)}
       {hasEnd && row(t("cell.end"), end, endTime, setEnd, setEndTime, "end")}
       <div className="border-t border-neutral-200 pt-1 dark:border-neutral-800">

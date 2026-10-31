@@ -75,6 +75,9 @@ offline use and the Notion import.
   with a private iCal link to follow them in a phone or desktop calendar (Google, Apple, Outlook, Thunderbird).
 - A personal home page with widgets: recently visited pages, favorites, upcoming events, the first rows of a
   database view (e.g. the open to-dos), arranged by each user.
+- Widgets for any page, from the "/" menu: charts of a database (bars, columns, line, donut), progress bars (of the
+  year, of a goal, of the rows checked), countdown, Pomodoro timer, habit tracker, clock, weather, quote of the day and
+  image carousel.
 - Templates: row templates (content and default values, one used for every new row if chosen) and page templates
   offered on any empty page, copied with their subpages, databases and files. A template can repeat: a new page or
   row every N days, on some days of the week or on a day of the month.

@@ -28,6 +28,14 @@ import {
   Bell,
   MousePointerClick,
   ListTree,
+  BarChart3,
+  Clock3,
+  CloudSun,
+  Gauge,
+  Grid3x3,
+  Hourglass,
+  Images,
+  Timer,
 } from "lucide-react";
 import { currentLocale, parseNaturalDate, pluginNodeName, type ClientPluginInfo, type PageSummary, type UserDirectoryEntry } from "@nootion/shared";
 import { formatMentionDate } from "../lib/reminders";
@@ -105,7 +113,10 @@ export function slashItems(ctx: CommandContext) {
       <FileText size={16} />,
       async (e, r) => {
         del(e, r).run();
-        const res = await api<{ page: PageSummary }>("/pages", { method: "POST", body: { workspaceId: ctx.workspaceId, parentId: ctx.pageId, title: "", linkInParent: false } });
+        const res = await api<{ page: PageSummary }>("/pages", {
+          method: "POST",
+          body: { workspaceId: ctx.workspaceId, parentId: ctx.pageId, title: "", linkInParent: false },
+        });
         e.chain().focus().insertPageLink({ pageId: res.page.id, title: "" }).run();
         ctx.onPageCreated();
       },
@@ -117,18 +128,78 @@ export function slashItems(ctx: CommandContext) {
       <Database size={16} />,
       async (e, r) => {
         del(e, r).run();
-        const res = await api<{ database: { id: string } }>("/databases", { method: "POST", body: { workspaceId: ctx.workspaceId, parentId: ctx.pageId, title: "" } });
+        const res = await api<{ database: { id: string } }>("/databases", {
+          method: "POST",
+          body: { workspaceId: ctx.workspaceId, parentId: ctx.pageId, title: "" },
+        });
         e.chain().focus().insertDatabase(res.database.id).run();
         ctx.onPageCreated();
       },
       "db table",
     ),
-    item("Button", t("command.button"), <MousePointerClick size={16} />, (e, r) => del(e, r).insertButton().run(), "action automation form webhook bouton formulaire"),
+    item(
+      "Button",
+      t("command.button"),
+      <MousePointerClick size={16} />,
+      (e, r) => del(e, r).insertButton().run(),
+      "action automation form webhook bouton formulaire",
+    ),
     item("Calendar", t("command.calendar"), <CalendarDays size={16} />, (e, r) => del(e, r).insertCalendar().run(), "agenda events dates ical"),
     item("Recent pages", t("command.recentPages"), <Clock size={16} />, (e, r) => del(e, r).insertWidget("recentPages").run(), "widget visited history home"),
     item("Favorites", t("command.favoritesList"), <Star size={16} />, (e, r) => del(e, r).insertWidget("favoritesList").run(), "widget starred home"),
-    item("Upcoming events", t("command.upcomingEvents"), <CalendarClock size={16} />, (e, r) => del(e, r).insertWidget("upcomingEvents").run(), "widget agenda next home"),
-    item("Database rows", t("command.databaseRows"), <ListChecks size={16} />, (e, r) => del(e, r).insertWidget("databaseRows").run(), "widget todo tasks list home"),
+    item(
+      "Upcoming events",
+      t("command.upcomingEvents"),
+      <CalendarClock size={16} />,
+      (e, r) => del(e, r).insertWidget("upcomingEvents").run(),
+      "widget agenda next home",
+    ),
+    item(
+      "Database rows",
+      t("command.databaseRows"),
+      <ListChecks size={16} />,
+      (e, r) => del(e, r).insertWidget("databaseRows").run(),
+      "widget todo tasks list home",
+    ),
+    item(
+      "Chart",
+      t("command.chart"),
+      <BarChart3 size={16} />,
+      (e, r) => del(e, r).insertWidget("chart").run(),
+      "widget graph graphique diagramme stats bar pie donut",
+    ),
+    item(
+      "Progress bar",
+      t("command.progressBar"),
+      <Gauge size={16} />,
+      (e, r) => del(e, r).insertWidget("progressBar").run(),
+      "widget progression goal objectif year année",
+    ),
+    item(
+      "Countdown",
+      t("command.countdown"),
+      <Hourglass size={16} />,
+      (e, r) => del(e, r).insertWidget("countdown").run(),
+      "widget compte rebours deadline timer",
+    ),
+    item("Pomodoro", t("command.pomodoro"), <Timer size={16} />, (e, r) => del(e, r).insertWidget("pomodoro").run(), "widget minuteur focus timer"),
+    item(
+      "Habit tracker",
+      t("command.habitTracker"),
+      <Grid3x3 size={16} />,
+      (e, r) => del(e, r).insertWidget("habitTracker").run(),
+      "widget habitude streak suivi",
+    ),
+    item("Clock", t("command.clock"), <Clock3 size={16} />, (e, r) => del(e, r).insertWidget("clock").run(), "widget horloge heure time zone"),
+    item("Weather", t("command.weather"), <CloudSun size={16} />, (e, r) => del(e, r).insertWidget("weather").run(), "widget météo meteo forecast"),
+    item("Quote", t("command.quote"), <Quote size={16} />, (e, r) => del(e, r).insertWidget("quoteOfDay").run(), "widget citation jour daily"),
+    item(
+      "Carousel",
+      t("command.carousel"),
+      <Images size={16} />,
+      (e, r) => del(e, r).insertWidget("imageCarousel").run(),
+      "widget carrousel diaporama slideshow gallery images",
+    ),
     item("Link to page", t("command.link"), <Link2 size={16} />, (e, r) => del(e, r).insertContent("@").run(), "mention"),
     // Other places to pick files from (cloud drives…), from plugins (before their blocks: "/nextcloud" picks files, "/nextcloud link" a link block).
     ...fileSources().map((source) =>
@@ -167,7 +238,9 @@ export function slashItems(ctx: CommandContext) {
     if (q.length > 25) return [];
     // Searched in English and in the user's language. "/heading1" and "/heading 1" both match "Heading 1".
     const compact = q.replace(/[\s-]/g, "");
-    const found = all.filter((i) => norm(`${i.title} ${i.hint} ${i.keywords}`).includes(q) || norm(`${i.title}|${i.hint}`).replace(/[\s-]/g, "").includes(compact));
+    const found = all.filter(
+      (i) => norm(`${i.title} ${i.hint} ${i.keywords}`).includes(q) || norm(`${i.title}|${i.hint}`).replace(/[\s-]/g, "").includes(compact),
+    );
     // Names starting with what was typed come first: "/2 col" puts "2 columns" before "Toggle heading 2".
     const starts = (i: (typeof all)[number]) => norm(i.title).startsWith(q) || norm(i.hint ?? "").startsWith(q);
     return [...found.filter(starts), ...found.filter((i) => !starts(i))];
@@ -183,7 +256,9 @@ export function mentionItems(ctx: CommandContext) {
       .filter((p) => p.id !== ctx.pageId && norm(pageTitle(p.title)).includes(q))
       .slice(0, 12)
       .map((p) =>
-        item(pageTitle(p.title), "", pageIcon(p.icon) ?? <FileText size={16} />, (e, r) => e.chain().focus().deleteRange(r).insertPageLink({ pageId: p.id, title: p.title }).run()),
+        item(pageTitle(p.title), "", pageIcon(p.icon) ?? <FileText size={16} />, (e, r) =>
+          e.chain().focus().deleteRange(r).insertPageLink({ pageId: p.id, title: p.title }).run(),
+        ),
       );
     const date = (text: string) => {
       const found = parseNaturalDate(text, new Date(), currentLocale() === "en" ? "mdy" : "dmy");
