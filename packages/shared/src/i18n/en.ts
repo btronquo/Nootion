@@ -987,6 +987,8 @@ export const en = {
   "share.publicLink": "Public link (read only)",
   "share.removeAccess": "Remove access",
   "share.title": "Share page",
+  "sidebar.collapse": "Close the sidebar",
+  "sidebar.dock": "Keep the sidebar open",
   "sidebar.label": "Sidebar",
   "sidebar.open": "Open the menu",
   "sidebar.shared": "Shared with me",

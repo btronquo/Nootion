@@ -993,6 +993,8 @@ export const fr: Messages = {
   "share.publicLink": "Lien public (lecture seule)",
   "share.removeAccess": "Retirer l'accès",
   "share.title": "Partager la page",
+  "sidebar.collapse": "Fermer la barre latérale",
+  "sidebar.dock": "Garder la barre latérale ouverte",
   "sidebar.label": "Barre latérale",
   "sidebar.open": "Ouvrir le menu",
   "sidebar.shared": "Partagé avec moi",

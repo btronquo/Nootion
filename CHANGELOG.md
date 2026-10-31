@@ -7,6 +7,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- The sidebar can be put away, as in Notion: « at its top, or Ctrl+\ (⌘\ on a Mac). It then shows over the page while
+  the menu button or the left edge of the window is hovered; a click on the menu button keeps it open again.
 - A new icon picker: every emoji, by category, with a search in your language, recent ones and "Random"; and your
   own images ("Custom" tab), uploaded once and shared by everyone on the server.
 - Nicer to-do boxes, as in Notion: a bit bigger, blue with a check that pops in when checked, and the line through
