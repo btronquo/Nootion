@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { NodeViewProps } from "@tiptap/react";
 import { NodeViewWrapper } from "@tiptap/react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, CloudSun, Flame, Grid3x3, ImagePlus, Images, Quote, Shuffle, Trash2, Upload } from "lucide-react";
+import { ChevronLeft, ChevronRight, CloudSun, Flame, Grid3x3, ImagePlus, Images, MessageSquareQuote, Shuffle, Trash2, Upload } from "lucide-react";
 import { currentLocale, intlLocale, localDay, t } from "@nootion/shared";
 import { pageTitle } from "../../lib/tree";
 import { pickFiles, uploadFile } from "../upload";
@@ -348,7 +348,7 @@ export function QuoteView({ node, updateAttributes, editor, extension }: NodeVie
   return (
     <Widget
       name="quote"
-      icon={<Quote size={14} />}
+      icon={<MessageSquareQuote size={14} />}
       title={t("widget.quote")}
       tools={
         <>

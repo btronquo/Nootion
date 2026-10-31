@@ -36,6 +36,7 @@ import {
   Hourglass,
   Images,
   Timer,
+  MessageSquareQuote,
 } from "lucide-react";
 import { currentLocale, parseNaturalDate, pluginNodeName, type ClientPluginInfo, type PageSummary, type UserDirectoryEntry } from "@nootion/shared";
 import { formatMentionDate } from "../lib/reminders";
@@ -192,7 +193,7 @@ export function slashItems(ctx: CommandContext) {
     ),
     item("Clock", t("command.clock"), <Clock3 size={16} />, (e, r) => del(e, r).insertWidget("clock").run(), "widget horloge heure time zone"),
     item("Weather", t("command.weather"), <CloudSun size={16} />, (e, r) => del(e, r).insertWidget("weather").run(), "widget météo meteo forecast"),
-    item("Quote", t("command.quote"), <Quote size={16} />, (e, r) => del(e, r).insertWidget("quoteOfDay").run(), "widget citation jour daily"),
+    item("Quote of the day", t("command.quoteOfDay"), <MessageSquareQuote size={16} />, (e, r) => del(e, r).insertWidget("quoteOfDay").run(), "widget citation jour daily"),
     item(
       "Carousel",
       t("command.carousel"),
