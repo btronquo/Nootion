@@ -48,7 +48,7 @@ Also check its upload size limit (`client_max_body_size` in Nginx) for attached 
 ## Installing with Docker
 
 The image is published on GitHub's registry for amd64 and arm64: `ghcr.io/btronquo/nootion`.
-Tags: `latest` (last release), `2.0.1`, `2.0` (last 2.0.x), and `develop` (development version, to try what's coming;
+Tags: `latest` (last release), `3.0.0`, `3.0` (last 3.0.x), and `develop` (development version, to try what's coming;
 not for data you care about).
 
 ### With Docker Compose (recommended)
