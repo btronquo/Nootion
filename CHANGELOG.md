@@ -3,6 +3,13 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and version numbers follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- The sidebar shows the pages others add, rename, move or delete in a shared space (or share with you) right away,
+  without reloading the page.
+
 ## [3.0.0] - 2026-10-31
 
 ### Changed
