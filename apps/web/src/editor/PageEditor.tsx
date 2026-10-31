@@ -107,6 +107,14 @@ function CollabEditor({
   const [synced, setSynced] = useState(provider.isSynced);
   const [connected, setConnected] = useState(true);
   const [unsynced, setUnsynced] = useState(0);
+  // "Saving…" only when it takes a while (a slow connection): a save is usually too quick to read.
+  const [slowSave, setSlowSave] = useState(false);
+  const saving = unsynced > 0;
+  useEffect(() => {
+    if (!saving) return setSlowSave(false);
+    const timer = window.setTimeout(() => setSlowSave(true), 1500);
+    return () => window.clearTimeout(timer);
+  }, [saving]);
   // Whether this device already had the page: only then can it be edited before the server answers.
   const [hasLocal, setHasLocal] = useState<boolean | null>(null);
   useEffect(() => {
@@ -229,7 +237,7 @@ function CollabEditor({
           </span>
         ) : !synced ? (
           <span>{t("common.loading")}</span>
-        ) : unsynced > 0 ? (
+        ) : slowSave ? (
           <span>{t("editor.saving")}</span>
         ) : null}
       </div>
