@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Monitor, Moon, Sun } from "lucide-react";
+import { Monitor, Moon, Settings, Sun } from "lucide-react";
 import { AVATAR_MAX_BYTES, EMAIL_KINDS, t, type EmailKind, type EmailPrefs, type Locale, type PublicUser } from "@nootion/shared";
 import { api, ApiError } from "../lib/api";
 import { useSession } from "../lib/session";
@@ -28,7 +28,18 @@ export function AccountPage() {
   if (!user) return null;
   return (
     <div className="mx-auto max-w-2xl space-y-10 px-5 py-8 sm:px-8 sm:py-12">
-      <h1 className="text-2xl font-bold">{t("account.title")}</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-2xl font-bold">{t("account.title")}</h1>
+        {/* Also reachable from here, should the sidebar's footer be out of reach. */}
+        {user.role === "admin" && (
+          <Link
+            to="/admin"
+            className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
+          >
+            <Settings size={16} /> {t("admin.title")}
+          </Link>
+        )}
+      </div>
       <ProfileSection user={user} />
       <EmailSection user={user} />
       <PasswordSection />

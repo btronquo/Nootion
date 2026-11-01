@@ -86,6 +86,8 @@ export function SidebarLayout({ sidebar, children }: { sidebar: ReactNode; child
   useEffect(() => setPeeking(false), [location.pathname]);
   const state = useMemo(() => ({ open: () => setOpen(true), collapsed, toggle, peek }), [collapsed, toggle, peek]);
 
+  // On phones it takes the visible height (above the browser's toolbars) and scrolls as a whole, so that its
+  // footer (account, administration) can always be reached; on wide screens only its page list scrolls.
   const desktop = collapsed
     ? `md:top-12 md:bottom-3 md:rounded-r-xl md:border md:border-l-0 md:shadow-2xl ${peeking ? "md:translate-x-0" : "md:-translate-x-full"}`
     : "md:static md:z-auto md:translate-x-0 md:transition-none";
@@ -102,7 +104,7 @@ export function SidebarLayout({ sidebar, children }: { sidebar: ReactNode; child
           inert={collapsed && !peeking && !open ? true : undefined}
           onMouseEnter={collapsed ? () => peek(true) : undefined}
           onMouseLeave={collapsed ? () => peek(false) : undefined}
-          className={`group/sidebar fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] shrink-0 flex-col border-r border-neutral-200 bg-neutral-50 transition-transform duration-200 md:w-64 dark:border-neutral-800 dark:bg-neutral-950 ${open ? "translate-x-0 shadow-2xl" : "-translate-x-full"} ${desktop}`}
+          className={`group/sidebar fixed top-0 left-0 z-50 flex h-dvh w-72 max-w-[85vw] shrink-0 flex-col overflow-y-auto border-r pb-[env(safe-area-inset-bottom)] md:h-auto md:overflow-visible md:pb-0 border-neutral-200 bg-neutral-50 transition-transform duration-200 md:w-64 dark:border-neutral-800 dark:bg-neutral-950 ${open ? "translate-x-0 shadow-2xl" : "-translate-x-full"} ${desktop}`}
         >
           <button
             onClick={toggle}
