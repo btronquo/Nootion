@@ -140,7 +140,7 @@ export function AppShell() {
           {icon} {label}
         </NavLink>
       ))}
-      <nav className="flex-1 space-y-5 overflow-y-auto px-2 py-2">
+      <nav className="flex-1 space-y-5 px-2 py-2 md:overflow-y-auto">
         <FavoritesSection />
         {workspaces.data?.map((ws) => (
           <WorkspaceSection key={ws.id} workspace={ws} />
