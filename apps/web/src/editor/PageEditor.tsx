@@ -24,6 +24,7 @@ import type { ClientPluginInfo } from "@nootion/shared";
 import { t } from "@nootion/shared";
 import { MobileToolbar } from "./MobileToolbar";
 import { BlockHandle } from "./BlockHandle";
+import { BlockShortcuts } from "./blockActions";
 import { useIsTouch } from "../lib/mobile";
 import type { CommentThread } from "@nootion/shared";
 import { CommentHighlights, selectionAnchor, setCommentHighlights } from "../comments/highlights";
@@ -207,6 +208,7 @@ function CollabEditor({
         createSuggestionExtension("slashCommands", "/", slashItems(ctx), t("editor.noCommand")),
         createSuggestionExtension("pageMentions", "@", mentionItems(ctx), t("editor.noPage")),
         CommentHighlights.configure({ onOpen: (id) => commentsRef.current?.onOpen(id) }),
+        BlockShortcuts,
       ],
       editorProps: {
         attributes: { class: "nootion-content", "aria-label": t("editor.content") },
@@ -288,7 +290,7 @@ function CollabEditor({
       {editor && comments?.canComment && (touch || !canEdit) && <CommentMenu editor={editor} onComment={() => startComment(editor, comments)} />}
       {editor && canEdit && touch && <MobileToolbar editor={editor} />}
       {editor && canEdit && <TableMenu editor={editor} />}
-      {editor && editable && !touch && <BlockHandle editor={editor} />}
+      {editor && editable && !touch && <BlockHandle editor={editor} onComment={comments?.canComment ? () => startComment(editor, comments) : undefined} />}
       <EditorContent editor={editor} />
     </div>
   );

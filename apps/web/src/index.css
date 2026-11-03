@@ -193,6 +193,12 @@ body {
 .nootion-content img {
   @apply my-2 max-w-full rounded-md;
 }
+.nootion-content > .ProseMirror-selectednode:not(img, [data-node-view-wrapper]),
+.nootion-content li.ProseMirror-selectednode {
+  /* The block whose menu is open (or picked with its handle), as in Notion. */
+  background-color: rgb(35 131 226 / 0.14);
+  border-radius: 3px;
+}
 .nootion-content img.ProseMirror-selectednode {
   @apply outline-2 outline-blue-500;
 }
