@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useSession } from "./lib/session";
 import { SetupPage } from "./pages/SetupPage";
+import { ForgotPasswordPage, ResetPasswordPage } from "./pages/PasswordPages";
 import { LoginPage } from "./pages/LoginPage";
 import { InvitePage } from "./pages/InvitePage";
 import { AppShell } from "./components/AppShell";
@@ -16,6 +17,11 @@ import { AccountPage } from "./pages/AccountPage";
 import { OauthAuthorizePage } from "./pages/OauthAuthorizePage";
 import { PublicFormPage } from "./pages/PublicFormPage";
 import { t } from "@nootion/shared";
+import { LibraryPage } from "./pages/LibraryPage";
+import { lazy, Suspense } from "react";
+
+// The graph (and its layout code) loads only when opened.
+const GraphPage = lazy(() => import("./pages/GraphPage").then((m) => ({ default: m.GraphPage })));
 
 export function App() {
   const location = useLocation();
@@ -58,6 +64,8 @@ function PrivateApp() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/invite/:token" element={<InvitePage />} />
+        <Route path="/forgot" element={<ForgotPasswordPage />} />
+        <Route path="/reset/:token" element={<ResetPasswordPage />} />
         <Route path="*" element={<Navigate to="/login" replace state={{ from: location.pathname + location.search }} />} />
       </Routes>
     );
@@ -71,6 +79,15 @@ function PrivateApp() {
         <Route path="/page/:id" element={<PagePage />} />
         <Route path="/workspace/:id" element={<WorkspacePage />} />
         <Route path="/trash" element={<TrashPage />} />
+        <Route path="/pages" element={<LibraryPage />} />
+        <Route
+          path="/graph"
+          element={
+            <Suspense fallback={null}>
+              <GraphPage />
+            </Suspense>
+          }
+        />
         <Route path="/reminders" element={<RemindersPage />} />
         <Route path="/capture" element={<CapturePage />} />
         <Route path="/account" element={<AccountPage />} />

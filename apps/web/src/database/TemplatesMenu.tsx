@@ -6,6 +6,7 @@ import { api } from "../lib/api";
 import { pageTitle } from "../lib/tree";
 import { dbKey } from "./hooks";
 import { Popover } from "./Popover";
+import { pageIcon } from "../lib/icons";
 
 const item = "flex min-w-0 flex-1 items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800";
 const icon = "rounded p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-200";
@@ -49,7 +50,7 @@ export function TemplatesMenu({ data, anchor, onClose }: { data: DatabaseData; a
         return (
           <div key={tpl.id} className="flex items-center gap-0.5" data-template={tpl.id}>
             <button className={item} onClick={() => addRow(tpl.id)} title={t("template.useNow")}>
-              <span className="w-5 shrink-0 text-center">{tpl.icon ?? "📄"}</span>
+              <span className="w-5 shrink-0 text-center">{pageIcon(tpl.icon) ?? "📄"}</span>
               <span className="truncate">{templateName(tpl)}</span>
               {isDefault && (
                 <span className="ml-auto shrink-0 rounded bg-blue-100 px-1.5 text-[10px] text-blue-700 dark:bg-blue-900/60 dark:text-blue-200">

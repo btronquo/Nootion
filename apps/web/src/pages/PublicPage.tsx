@@ -12,6 +12,7 @@ import { PublicDatabase } from "../database/DatabaseBlockView";
 import { t } from "@nootion/shared";
 import { MobileBar, SidebarLayout } from "../components/SidebarLayout";
 import { CoverBanner } from "../components/PageCover";
+import { pageIcon } from "../lib/icons";
 
 /** Read-only view of a page published with a public link. Works without an account. */
 export function PublicPage() {
@@ -44,7 +45,7 @@ export function PublicPage() {
         <div className={`mx-auto px-5 pb-24 ${page.data?.cover ? "pt-6" : "pt-8 sm:pt-16"} sm:px-12 ${page.data?.fullWidth ? "max-w-none sm:px-24" : page.data?.kind === "database" ? "max-w-6xl" : "max-w-3xl"}`}>
           {page.data && (
             <>
-              {page.data.icon && <div className="mb-2 text-5xl">{page.data.icon}</div>}
+              {page.data.icon && <div className="mb-2 text-5xl">{pageIcon(page.data.icon)}</div>}
               <h1 className="text-3xl font-bold sm:text-4xl">{pageTitle(page.data.title)}</h1>
               {page.data.row && <PublicRowProperties row={page.data.row} token={token} rowId={page.data.id} />}
               {page.data.kind === "database" && (
@@ -130,7 +131,7 @@ function PublicTree({ nodes, token, currentId, rootId, depth = 0 }: { nodes: Tre
             className={`flex items-center gap-1.5 rounded px-2 py-1 text-sm ${page.id === currentId ? "bg-neutral-200/80 font-medium dark:bg-neutral-800" : "hover:bg-neutral-200/50 dark:hover:bg-neutral-800/60"}`}
             style={{ paddingLeft: 8 + depth * 12 }}
           >
-            <span className="w-4 shrink-0 text-center">{page.icon ?? (page.kind === "database" ? <Database size={14} className="inline text-neutral-400" /> : <FileText size={14} className="inline text-neutral-400" />)}</span>
+            <span className="w-4 shrink-0 text-center">{pageIcon(page.icon) ?? (page.kind === "database" ? <Database size={14} className="inline text-neutral-400" /> : <FileText size={14} className="inline text-neutral-400" />)}</span>
             <span className="truncate">{pageTitle(page.title)}</span>
           </Link>
           {children.length > 0 && <PublicTree nodes={children} token={token} currentId={currentId} rootId={rootId} depth={depth + 1} />}

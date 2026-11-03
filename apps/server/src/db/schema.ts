@@ -13,7 +13,9 @@ export const users = sqliteTable(
     email: text("email").notNull(),
     name: text("name").notNull(),
     passwordHash: text("password_hash").notNull(),
-    role: text("role", { enum: ["admin", "member"] }).notNull().default("member"),
+    role: text("role", { enum: ["admin", "member"] })
+      .notNull()
+      .default("member"),
     disabled: integer("disabled", { mode: "boolean" }).notNull().default(false),
     // File name of the profile picture in <data>/avatars, or null.
     avatar: text("avatar"),
@@ -23,6 +25,14 @@ export const users = sqliteTable(
     homePageId: text("home_page_id"),
     // The page quick notes land in (in their personal workspace), created on first capture.
     inboxPageId: text("inbox_page_id"),
+    // E-mails the user turned off, by kind (EmailPrefs); missing kinds are on.
+    emailPrefs: text("email_prefs", { mode: "json" }).$type<Record<string, boolean>>().notNull().default({}),
+    // The account at the SSO provider (the "sub" of its tokens), once linked.
+    ssoSubject: text("sso_subject").unique(),
+    // The provider's id for the account, given over SCIM.
+    scimExternalId: text("scim_external_id"),
+    // The newest release this administrator said not to be told about again.
+    dismissedUpdate: text("dismissed_update"),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("users_email_unique").on(t.email)],
@@ -46,7 +56,9 @@ export const invitations = sqliteTable("invitations", {
   id: text("id").primaryKey(),
   tokenHash: text("token_hash").notNull().unique(),
   email: text("email"),
-  role: text("role", { enum: ["admin", "member"] }).notNull().default("member"),
+  role: text("role", { enum: ["admin", "member"] })
+    .notNull()
+    .default("member"),
   createdBy: text("created_by")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
@@ -88,7 +100,9 @@ export const pages = sqliteTable(
       .references(() => workspaces.id, { onDelete: "cascade" }),
     parentId: text("parent_id"),
     // "database": the page is a database (its rows are its children). "row": a database row.
-    kind: text("kind", { enum: ["page", "database", "row"] }).notNull().default("page"),
+    kind: text("kind", { enum: ["page", "database", "row"] })
+      .notNull()
+      .default("page"),
     title: text("title").notNull().default(""),
     icon: text("icon"),
     fullWidth: integer("full_width", { mode: "boolean" }).notNull().default(false),
@@ -178,7 +192,9 @@ export const attachments = sqliteTable(
     createdAt: createdAt(),
     // Text read from the file (PDF text, OCR of images and scans), for search.
     text: text("text"),
-    textStatus: text("text_status", { enum: ["pending", "done", "unsupported", "failed"] }).notNull().default("pending"),
+    textStatus: text("text_status", { enum: ["pending", "done", "unsupported", "failed"] })
+      .notNull()
+      .default("pending"),
   },
   (t) => [index("attachments_page_idx").on(t.pageId)],
 );
@@ -220,7 +236,9 @@ export const plugins = sqliteTable("plugins", {
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(false),
   /** Setting values by key; passwords are encrypted. */
   settings: text("settings", { mode: "json" }).$type<Record<string, unknown>>().notNull().default({}),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
 });
 
 /** What a plugin keeps for one user (e.g. their account on another service), encrypted. */
@@ -232,7 +250,9 @@ export const pluginUserData = sqliteTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     value: text("value").notNull(),
-    updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
+    updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+      .notNull()
+      .$defaultFn(() => new Date()),
   },
   (t) => [primaryKey({ columns: [t.pluginId, t.userId] })],
 );
@@ -610,5 +630,58 @@ export const backupSchedules = sqliteTable("backup_schedules", {
   lastError: text("last_error"),
   lastName: text("last_name"),
   lastSize: integer("last_size"),
-  updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull().$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+/** Images people uploaded to use as page icons, shared by everyone on the server. Pages refer to one as "icon:<id>". */
+export const customIcons = sqliteTable("custom_icons", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  // The file's name in the "icons" folder of the data folder.
+  file: text("file").notNull(),
+  createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: createdAt(),
+});
+
+/** How the server sends e-mail (one row, "default"): SMTP or Resend. */
+export const mailSettings = sqliteTable("mail_settings", {
+  id: text("id").primaryKey(),
+  // MailSettingsInput, without the password or key.
+  config: text("config", { mode: "json" }).notNull(),
+  // The SMTP password or the Resend key, encrypted with APP_SECRET.
+  secret: text("secret"),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+/** Links sent by "Forgot password", valid for an hour and once. */
+export const passwordResets = sqliteTable(
+  "password_resets",
+  {
+    // SHA-256 of the token in the link.
+    tokenHash: text("token_hash").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    usedAt: integer("used_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("password_resets_user_idx").on(t.userId)],
+);
+
+export const ssoSettings = sqliteTable("sso_settings", {
+  id: text("id").primaryKey(),
+  // SsoSettingsInput, without the client secret.
+  config: text("config", { mode: "json" }).notNull(),
+  // The client secret, encrypted with APP_SECRET.
+  secret: text("secret"),
+  // SHA-256 of the SCIM token, or null when SCIM is off.
+  scimTokenHash: text("scim_token_hash"),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
 });

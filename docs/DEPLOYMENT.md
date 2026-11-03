@@ -37,18 +37,21 @@ They go to:
 | `TZ` | no | Time zone (e.g. `Europe/Paris`). |
 | `PORT` | no | Port the server listens on inside the container (default `3000`). To change the port on the host, change `ports:` instead. |
 | `MAX_UPLOAD_MB` | no | Maximum size of an attached file, in MB (default `50`). |
+| `DEMO_PAGE` | no | `false` to stop giving new users a demo page on their first visit (default: given). |
+| `UPDATE_CHECK` | no | `false` to stop looking for new releases (default: the server asks GitHub twice a day, sending nothing about your server, and tells administrators). |
 | `OCR_LANGS` | no | Languages read in images and scanned PDFs, joined by `+` (default `fra+eng`). The image ships French and English; other languages need their `tesseract-ocr-<lang>` package. |
 | `API_RATE_LIMIT` | no | Requests a personal API token can make per minute (default `300`). See [API.md](API.md). |
 
 If Nootion sits behind an HTTPS reverse proxy, put the `https://…` URL in `APP_URL`: the session cookie then becomes `Secure`.
 To connect Claude's connectors to Nootion, that address must be reachable from the internet (see [MCP.md](MCP.md)).
 The proxy must let **WebSockets** through on `/collab` (real-time collaborative editing): in Nginx Proxy Manager, tick *Websockets Support*.
+`/api/events` is a long-lived stream (server-sent events) that keeps the sidebar up to date when others add pages: Nootion asks Nginx not to buffer it; other proxies may need buffering turned off for it.
 Also check its upload size limit (`client_max_body_size` in Nginx) for attached files.
 
 ## Installing with Docker
 
 The image is published on GitHub's registry for amd64 and arm64: `ghcr.io/btronquo/nootion`.
-Tags: `latest` (last release), `3.0.0`, `3.0` (last 3.0.x), and `develop` (development version, to try what's coming;
+Tags: `latest` (last release), `3.2.0`, `3.2` (last 3.2.x), and `develop` (development version, to try what's coming;
 not for data you care about).
 
 ### With Docker Compose (recommended)
@@ -92,6 +95,10 @@ Database migrations are applied automatically at startup. Back up the data folde
 read the [CHANGELOG](../CHANGELOG.md). To stay on a version, use its tag (`ghcr.io/btronquo/nootion:2.0.1`)
 instead of `latest`.
 
+The version running shows at the bottom of the sidebar and of the Administration page. When a newer release is
+out, administrators see a ⚠ next to "Administration" and a notice at the top of that page, which they can hide
+until the next release.
+
 ### Building the image from the source code
 
 ```bash
@@ -106,6 +113,24 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
 
 To update: `git pull`, then the same command. To try the `develop` branch, `git checkout develop` first.
+
+## Single sign-on (SSO)
+
+People can sign in with their company account (Microsoft Entra ID, Google Workspace, Okta, Keycloak… any OpenID
+Connect provider), set in **Administration > Single sign-on (SSO)**, and SCIM lets the provider disable those who
+leave. The server must reach the provider over HTTPS. See [SSO.md](SSO.md) for the steps in Entra ID.
+
+## Sending e-mail
+
+Nootion sends nothing by e-mail until an administrator sets it up in **Administration > E-mail**:
+
+- **SMTP**: any mail server or service (your host's, Gmail with an app password, Brevo, Mailgun, Amazon SES…).
+  Usually port 587 with STARTTLS, or 465 with SSL/TLS.
+- **Resend**: an API key with the right to send, and the sender's domain verified in Resend.
+
+"Send a test e-mail" checks the settings. The password or key is stored encrypted with `APP_SECRET`. Once set up,
+reminders, mentions and replies are also e-mailed (each user can turn them off in My account), invitations with an
+address are sent to it, and the sign-in page offers "Forgot your password?".
 
 ## Installing the app on a phone or computer
 

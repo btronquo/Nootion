@@ -10,6 +10,9 @@ import { ButtonBlockView } from "./ButtonBlockView";
 import { TableOfContentsView } from "./TableOfContentsView";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { DatabaseRowsView, FavoritesListView, RecentPagesView, UpcomingEventsView } from "./HomeWidgets";
+import { ChartView } from "./widgets/Chart";
+import { ClockView, CountdownView, PomodoroView, ProgressView } from "./widgets/Time";
+import { CarouselView, HabitView, QuoteView, WeatherView } from "./widgets/Extra";
 import { intlLocale, reminderTime, t } from "@nootion/shared";
 import { formatMentionDate } from "../lib/reminders";
 import { randomId } from "../lib/browser";
@@ -129,7 +132,10 @@ export const PageLink = Node.create<{ live: boolean; hrefFor: (pageId: string) =
       insertPageLink:
         (attrs) =>
         ({ commands }) =>
-          commands.insertContent([{ type: this.name, attrs }, { type: "text", text: " " }]),
+          commands.insertContent([
+            { type: this.name, attrs },
+            { type: "text", text: " " },
+          ]),
     };
   },
 });
@@ -269,18 +275,31 @@ export const CalendarBlock = Node.create<{ pageId: string | null; publicToken: s
   },
 });
 
-export type WidgetName = "recentPages" | "favoritesList" | "upcomingEvents" | "databaseRows";
+export type WidgetName =
+  | "recentPages"
+  | "favoritesList"
+  | "upcomingEvents"
+  | "databaseRows"
+  | "chart"
+  | "progressBar"
+  | "countdown"
+  | "pomodoro"
+  | "habitTracker"
+  | "clock"
+  | "weather"
+  | "quoteOfDay"
+  | "imageCarousel";
 
 /** A widget block (home page): no content of its own, it shows live data from its attributes. */
 function widget(name: WidgetName, view: Parameters<typeof ReactNodeViewRenderer>[0], attrs: Record<string, unknown> = {}) {
-  return Node.create<{ publicToken: string | null }>({
+  return Node.create<{ publicToken: string | null; pageId: string | null }>({
     name,
     group: "block",
     atom: true,
     draggable: true,
     selectable: true,
     addOptions() {
-      return { publicToken: null };
+      return { publicToken: null, pageId: null };
     },
     addAttributes() {
       return Object.fromEntries(
@@ -298,7 +317,11 @@ function widget(name: WidgetName, view: Parameters<typeof ReactNodeViewRenderer>
                 },
                 renderHTML: (a: Record<string, unknown>) => ({ [`data-${key}`]: JSON.stringify(a[key] ?? value) }),
               }
-            : { default: value },
+            : typeof value === "number"
+              ? { default: value, parseHTML: (el: HTMLElement) => (el.hasAttribute(key) ? Number(el.getAttribute(key)) : value) }
+              : typeof value === "boolean"
+                ? { default: value, parseHTML: (el: HTMLElement) => (el.hasAttribute(key) ? el.getAttribute(key) === "true" : value) }
+                : { default: value },
         ]),
       );
     },
@@ -318,6 +341,39 @@ export const RecentPages = widget("recentPages", RecentPagesView);
 export const FavoritesList = widget("favoritesList", FavoritesListView);
 export const UpcomingEvents = widget("upcomingEvents", UpcomingEventsView, { sources: [], days: 14 });
 export const DatabaseRows = widget("databaseRows", DatabaseRowsView, { databaseId: null, viewId: null, limit: 5 });
+export const Chart = widget("chart", ChartView, { databaseId: null, viewId: null, kind: "bar", groupBy: null, measure: "count" });
+export const ProgressBar = widget("progressBar", ProgressView, {
+  mode: "year",
+  label: "",
+  value: 0,
+  goal: 100,
+  databaseId: null,
+  viewId: null,
+  checkbox: null,
+});
+export const Countdown = widget("countdown", CountdownView, { target: "", label: "" });
+export const Pomodoro = widget("pomodoro", PomodoroView, { work: 25, rest: 5, longRest: 15, rounds: 4 });
+export const HabitTracker = widget("habitTracker", HabitView, { name: "", days: [], color: "green" });
+export const Clock = widget("clock", ClockView, { timeZone: "", label: "", seconds: false });
+export const Weather = widget("weather", WeatherView, { city: "", latitude: null, longitude: null });
+export const QuoteOfDay = widget("quoteOfDay", QuoteView, { databaseId: null, viewId: null, authorProp: null });
+export const ImageCarousel = widget("imageCarousel", CarouselView, { images: [], interval: 5, ratio: "16 / 9" });
+/** Every widget block, configured together. */
+export const WIDGETS = [
+  RecentPages,
+  FavoritesList,
+  UpcomingEvents,
+  DatabaseRows,
+  Chart,
+  ProgressBar,
+  Countdown,
+  Pomodoro,
+  HabitTracker,
+  Clock,
+  Weather,
+  QuoteOfDay,
+  ImageCarousel,
+];
 
 /** Inserts any widget (command shared by the widget nodes). */
 export const WidgetCommands = Node.create({
@@ -354,7 +410,11 @@ export const Toggle = Details.extend({
         (level) =>
         ({ editor, chain }) => {
           const ok = chain()
-            .insertContent({ type: this.name, attrs: { level: level ?? null }, content: [{ type: "detailsSummary" }, { type: "detailsContent", content: [{ type: "paragraph" }] }] })
+            .insertContent({
+              type: this.name,
+              attrs: { level: level ?? null },
+              content: [{ type: "detailsSummary" }, { type: "detailsContent", content: [{ type: "paragraph" }] }],
+            })
             .run();
           // A new toggle opens at once, ready to be filled.
           if (ok) requestAnimationFrame(() => openToggleAtCursor(editor));
@@ -420,7 +480,10 @@ export const Columns = Node.create({
         ({ chain, tr }) => {
           const at = tr.selection.from;
           return chain()
-            .insertContent([{ type: this.name, content: Array.from({ length: count }, () => ({ type: "column", content: [{ type: "paragraph" }] })) }, { type: "paragraph" }])
+            .insertContent([
+              { type: this.name, content: Array.from({ length: count }, () => ({ type: "column", content: [{ type: "paragraph" }] })) },
+              { type: "paragraph" },
+            ])
             .command(({ tr }) => {
               // The cursor goes into the first column.
               let columns: number | null = null;
@@ -511,7 +574,11 @@ export const ButtonBlock = Node.create<{ pageId: string | null }>({
     return [{ tag: "div[data-button]", getAttrs: (el) => ({ id: (el as HTMLElement).dataset.button || null }) }];
   },
   renderHTML({ node, HTMLAttributes }) {
-    return ["div", mergeAttributes(HTMLAttributes, { "data-button": node.attrs.id ?? "" }), (node.attrs.config as { label?: string } | null)?.label || t("command.button")];
+    return [
+      "div",
+      mergeAttributes(HTMLAttributes, { "data-button": node.attrs.id ?? "" }),
+      (node.attrs.config as { label?: string } | null)?.label || t("command.button"),
+    ];
   },
   addNodeView() {
     return ReactNodeViewRenderer(ButtonBlockView, { stopEvent: ({ event }) => !event.type.startsWith("drag") });

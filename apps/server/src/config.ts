@@ -14,6 +14,12 @@ export interface Config {
   notionApiUrl: string;
   /** Pause between two requests to Notion (it allows about 3 per second). */
   notionRequestInterval: number;
+  /** Gives each new user a demo page (on their first visit). Off with DEMO_PAGE=false. */
+  demoPage?: boolean;
+  /** Looks for new Nootion releases (on GitHub) to tell administrators. Off with UPDATE_CHECK=false. */
+  updateCheck?: boolean;
+  /** Where the latest release is read from. Changed in tests only. */
+  updateCheckUrl?: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -33,6 +39,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     isProduction,
     maxUploadMb: Number(env.MAX_UPLOAD_MB ?? 50),
     notionRequestInterval: Number(env.NOTION_REQUEST_INTERVAL ?? 340),
+    demoPage: env.DEMO_PAGE !== "false",
+    updateCheck: env.UPDATE_CHECK !== "false",
+    updateCheckUrl: env.UPDATE_CHECK_URL ?? "https://api.github.com/repos/btronquo/Nootion/releases/latest",
     notionApiUrl: (env.NOTION_API_URL ?? "https://api.notion.com").replace(/\/+$/, ""),
   };
 }

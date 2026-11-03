@@ -1,4 +1,15 @@
-import { intlLocale, t, type CalcResult, type CellValue, type DatabaseProperty, type DateValue, type FileValue, type MessageKey, type OptionColor, type PropertyType } from "@nootion/shared";
+import {
+  intlLocale,
+  t,
+  type CalcResult,
+  type CellValue,
+  type DatabaseProperty,
+  type DateValue,
+  type FileValue,
+  type MessageKey,
+  type OptionColor,
+  type PropertyType,
+} from "@nootion/shared";
 
 export const typeLabel = (type: PropertyType) => t(`type.${type}` as MessageKey);
 
@@ -20,8 +31,10 @@ export const CURRENCIES = ["EUR", "USD", "GBP", "CHF", "CAD", "JPY"];
 
 export function formatNumber(value: number, prop: DatabaseProperty): string {
   const decimals = prop.config.decimals;
-  const opts: Intl.NumberFormatOptions = decimals !== undefined ? { minimumFractionDigits: decimals, maximumFractionDigits: decimals } : { maximumFractionDigits: 10 };
-  if (prop.type === "currency") return new Intl.NumberFormat(intlLocale(), { style: "currency", currency: prop.config.currency ?? "EUR", ...opts }).format(value);
+  const opts: Intl.NumberFormatOptions =
+    decimals !== undefined ? { minimumFractionDigits: decimals, maximumFractionDigits: decimals } : { maximumFractionDigits: 10 };
+  if (prop.type === "currency")
+    return new Intl.NumberFormat(intlLocale(), { style: "currency", currency: prop.config.currency ?? "EUR", ...opts }).format(value);
   if (prop.type === "percent") return new Intl.NumberFormat(intlLocale(), { style: "percent", ...opts }).format(value / 100);
   return new Intl.NumberFormat(intlLocale(), opts).format(value);
 }
@@ -36,8 +49,16 @@ export function formatDateString(iso: string): string {
   return (hasTime ? dateTimeFmt : dateFmt)().format(d);
 }
 
+const timeFmt = () => new Intl.DateTimeFormat(intlLocale(), { hour: "2-digit", minute: "2-digit" });
+
 export function formatDate(v: DateValue): string {
-  return v.end ? `${formatDateString(v.start)} → ${formatDateString(v.end)}` : formatDateString(v.start);
+  if (!v.end) return formatDateString(v.start);
+  // Same day with times: "14 Oct 2026, 14:00 → 15:00".
+  if (v.end.length > 10 && v.start.length > 10 && v.end.slice(0, 10) === v.start.slice(0, 10)) {
+    const end = new Date(v.end);
+    if (!Number.isNaN(end.getTime())) return `${formatDateString(v.start)} → ${timeFmt().format(end)}`;
+  }
+  return `${formatDateString(v.start)} → ${formatDateString(v.end)}`;
 }
 
 /** Plain-text rendering of a cell (used for copy, titles, read-only displays). */
@@ -56,7 +77,10 @@ export function formatValue(prop: DatabaseProperty, value: CellValue, people: Re
     case "select":
       return prop.config.options?.find((o) => o.id === value)?.name ?? "";
     case "multi_select":
-      return (value as string[]).map((id) => prop.config.options?.find((o) => o.id === id)?.name).filter(Boolean).join(", ");
+      return (value as string[])
+        .map((id) => prop.config.options?.find((o) => o.id === id)?.name)
+        .filter(Boolean)
+        .join(", ");
     case "person":
     case "created_by":
       return (value as string[]).map((id) => people[id] ?? "?").join(", ");

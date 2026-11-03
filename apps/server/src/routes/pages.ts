@@ -190,6 +190,39 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     return { ok: true };
   });
 
+  // Copies a page with its subpages, right after it.
+  app.post<{ Params: { id: string } }>("/:id/duplicate", async (req) => {
+    const user = requireUser(req);
+    const { page } = requirePageRole(db, user.id, req.params.id, "viewer");
+    if (page.kind === "row" || page.id === homePageOf(db, user.id)) throw new HttpError(400, "not_a_page", t("error.notAPage"));
+    if (page.parentId) requirePageRole(db, user.id, page.parentId, "editor");
+    else requireWorkspaceRole(db, user.id, page.workspaceId, CAN_CREATE_ROOT_PAGES);
+    const id = await copyTree(db, app.collab, app.config.dataDir, page.id, {
+      workspaceId: page.workspaceId,
+      parentId: page.parentId,
+      position: page.position + 1,
+      userId: user.id,
+      template: page.template,
+    });
+    db.transaction((tx) => {
+      tx.update(pages)
+        .set({ title: page.title ? t("page.copyTitle", { title: page.title }) : "" })
+        .where(eq(pages.id, id))
+        .run();
+      const siblings = sortPages(
+        tx
+          .select(pageMeta)
+          .from(pages)
+          .where(and(eq(pages.workspaceId, page.workspaceId), page.parentId ? eq(pages.parentId, page.parentId) : isNull(pages.parentId), isNull(pages.deletedAt)))
+          .all(),
+      ).filter((p) => p.id !== id);
+      placeAmongSiblings(tx, getPageMeta(tx, id)!, siblings.findIndex((p) => p.id === page.id) + 1);
+    });
+    const copy = getPageMeta(db, id)!;
+    if (page.parentId && hasLinkLine(app.collab, db, page.parentId, page.id)) await linkChildPage(app.collab, db, page.parentId, copy);
+    return { page: toSummary(copy) };
+  });
+
   app.get<{ Params: { id: string } }>("/:id/backlinks", async (req) => {
     const user = requireUser(req);
     requirePageRole(db, user.id, req.params.id, "viewer");

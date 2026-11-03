@@ -10,6 +10,7 @@ import { pageRoleLabel } from "../lib/labels";
 import { pageTitle } from "../lib/tree";
 import { Button } from "../components/ui";
 import { ShareDialog } from "../components/ShareDialog";
+import { EditedAt } from "../components/EditedAt";
 import { HistoryDialog } from "../components/HistoryDialog";
 import { Backlinks } from "../components/Backlinks";
 import { IconPicker } from "../components/IconPicker";
@@ -25,6 +26,7 @@ import { useSession } from "../lib/session";
 import { CommentsPanel, type DraftAnchor } from "../comments/CommentsPanel";
 import { useComments } from "../comments/queries";
 import { nextRunText, recurrenceText, RecurrenceDialog, useRecurrence } from "../components/RecurrenceDialog";
+import { pageIcon } from "../lib/icons";
 
 /** A page, by the id in the address (or the one given, for the home page). */
 export function PagePage({ id: given }: { id?: string }) {
@@ -135,11 +137,12 @@ function PageView({ page }: { page: PageDetail }) {
             </span>
           ))}
           <span className="truncate px-1 text-neutral-800 dark:text-neutral-200">
-            {page.icon} {pageTitle(title)}
+            {pageIcon(page.icon)} {pageTitle(title)}
           </span>
         </nav>
         <div className="flex shrink-0 items-center gap-1">
           <SyncStatus />
+          <EditedAt pageId={page.id} updatedAt={page.updatedAt} />
           {hasComments && (
             <Button
               variant="ghost"
@@ -163,7 +166,10 @@ function PageView({ page }: { page: PageDetail }) {
             <MoreHorizontal size={16} />
           </Button>
           {!canManage && (
-            <span title={pageRoleLabel(page.role)} className="flex items-center gap-1 rounded bg-neutral-100 px-2 py-1 text-xs text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+            <span
+              title={pageRoleLabel(page.role)}
+              className="flex items-center gap-1 rounded bg-neutral-100 px-2 py-1 text-xs text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300"
+            >
               <Lock size={12} /> <span className="hidden sm:inline">{pageRoleLabel(page.role)}</span>
             </span>
           )}
@@ -194,34 +200,43 @@ function PageView({ page }: { page: PageDetail }) {
             <p className="mt-2 text-sm text-neutral-500">{t("home.hint")}</p>
           </>
         ) : (
-        <textarea
-          ref={titleRef}
-          rows={1}
-          value={title}
-          readOnly={!canEdit}
-          onChange={(e) => onTitleChange(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              document.querySelector<HTMLElement>(".nootion-content")?.focus();
-            }
-          }}
-          placeholder={page.template ? t("template.untitled") : t("common.untitled")}
-          aria-label={t("page.titleLabel")}
-          className="w-full resize-none overflow-hidden bg-transparent text-3xl font-bold sm:text-4xl outline-none placeholder:text-neutral-300 dark:placeholder:text-neutral-600"
-        />
+          <textarea
+            ref={titleRef}
+            rows={1}
+            value={title}
+            readOnly={!canEdit}
+            onChange={(e) => onTitleChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                document.querySelector<HTMLElement>(".nootion-content")?.focus();
+              }
+            }}
+            placeholder={page.template ? t("template.untitled") : t("common.untitled")}
+            aria-label={t("page.titleLabel")}
+            className="w-full resize-none overflow-hidden bg-transparent text-3xl font-bold sm:text-4xl outline-none placeholder:text-neutral-300 dark:placeholder:text-neutral-600"
+          />
         )}
         {page.template && <TemplateBanner page={page} canEdit={canEdit} />}
         {page.kind === "row" && page.parentId && <RowProperties databaseId={page.parentId} rowId={page.id} />}
         {offerTemplates && empty && <TemplatePicker page={page} />}
         <div className="mt-4">
-          {page.kind === "database" ? <DatabaseTable id={page.id} /> : <PageEditor
+          {page.kind === "database" ? (
+            <DatabaseTable id={page.id} />
+          ) : (
+            <PageEditor
               page={page}
               canEdit={canEdit}
               onEmpty={offerTemplates ? setEmpty : undefined}
               comments={{
                 // The passage of a comment being written shows as the open one.
-                threads: draft && commentsOpen ? [...(threads.data ?? []), { id: "draft", pageId: page.id, anchor: draft.anchor, quote: draft.quote, resolvedAt: null, resolvedByName: null, comments: [] }] : (threads.data ?? []),
+                threads:
+                  draft && commentsOpen
+                    ? [
+                        ...(threads.data ?? []),
+                        { id: "draft", pageId: page.id, anchor: draft.anchor, quote: draft.quote, resolvedAt: null, resolvedByName: null, comments: [] },
+                      ]
+                    : (threads.data ?? []),
                 active: commentsOpen ? (draft ? "draft" : activeThread) : null,
                 canComment,
                 onOpen: (id) => {
@@ -234,7 +249,8 @@ function PageView({ page }: { page: PageDetail }) {
                   setCommentsOpen(true);
                 },
               }}
-            />}
+            />
+          )}
         </div>
         {!page.home && <Backlinks pageId={page.id} />}
       </div>
@@ -244,7 +260,13 @@ function PageView({ page }: { page: PageDetail }) {
           {canEdit && (
             <label className="flex cursor-pointer items-center justify-between gap-2 rounded px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800">
               {t("page.fullWidth")}
-              <input type="checkbox" role="switch" className="h-4 w-4 accent-blue-600" checked={page.fullWidth} onChange={(e) => save({ fullWidth: e.target.checked })} />
+              <input
+                type="checkbox"
+                role="switch"
+                className="h-4 w-4 accent-blue-600"
+                checked={page.fullWidth}
+                onChange={(e) => save({ fullWidth: e.target.checked })}
+              />
             </label>
           )}
           {canEdit && page.kind === "page" && !page.home && (
@@ -319,42 +341,45 @@ function TemplateBanner({ page, canEdit }: { page: PageDetail; canEdit: boolean 
   const r = recurrence.data;
   return (
     <>
-    <div className="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200" data-template-banner>
-      <LayoutTemplate size={16} className="mt-0.5 shrink-0" />
-      <span className="min-w-0 flex-1">
-        {database ? (
-          <>
-            {t("template.rowBanner", { database: pageTitle(database.title) })}{" "}
-            <Link to={`/page/${database.id}`} className="underline">
-              {t("template.backToDatabase")}
-            </Link>
-          </>
-        ) : (
-          t("template.pageBanner")
-        )}
-        {r && (
-          <span className="mt-1 flex items-start gap-1.5 text-xs opacity-80" data-recurrence-summary>
-            <Repeat size={12} className="mt-0.5 shrink-0" />
-            <span>
-              {recurrenceText(r)} · {nextRunText(r)}
-              {r.lastError && <span className="text-red-600 dark:text-red-400"> · {t("recurrence.lastError", { error: r.lastError })}</span>}
+      <div
+        className="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
+        data-template-banner
+      >
+        <LayoutTemplate size={16} className="mt-0.5 shrink-0" />
+        <span className="min-w-0 flex-1">
+          {database ? (
+            <>
+              {t("template.rowBanner", { database: pageTitle(database.title) })}{" "}
+              <Link to={`/page/${database.id}`} className="underline">
+                {t("template.backToDatabase")}
+              </Link>
+            </>
+          ) : (
+            t("template.pageBanner")
+          )}
+          {r && (
+            <span className="mt-1 flex items-start gap-1.5 text-xs opacity-80" data-recurrence-summary>
+              <Repeat size={12} className="mt-0.5 shrink-0" />
+              <span>
+                {recurrenceText(r)} · {nextRunText(r)}
+                {r.lastError && <span className="text-red-600 dark:text-red-400"> · {t("recurrence.lastError", { error: r.lastError })}</span>}
+              </span>
             </span>
-          </span>
+          )}
+        </span>
+        {canEdit && (
+          <button
+            type="button"
+            className="-my-1 flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium hover:bg-amber-100 dark:hover:bg-amber-900/40"
+            onClick={() => setEditing(true)}
+            data-recurrence-button
+          >
+            <Repeat size={13} /> {t("recurrence.button")}
+          </button>
         )}
-      </span>
-      {canEdit && (
-        <button
-          type="button"
-          className="-my-1 flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium hover:bg-amber-100 dark:hover:bg-amber-900/40"
-          onClick={() => setEditing(true)}
-          data-recurrence-button
-        >
-          <Repeat size={13} /> {t("recurrence.button")}
-        </button>
-      )}
-    </div>
-    {/* Outside the banner, so it doesn't take its colors. */}
-    {editing && <RecurrenceDialog page={page} recurrence={r ?? null} onClose={() => setEditing(false)} />}
+      </div>
+      {/* Outside the banner, so it doesn't take its colors. */}
+      {editing && <RecurrenceDialog page={page} recurrence={r ?? null} onClose={() => setEditing(false)} />}
     </>
   );
 }
@@ -391,7 +416,7 @@ function TemplatePicker({ page }: { page: PageDetail }) {
             onClick={() => apply(tpl.id)}
             className="flex items-center gap-2 rounded-lg border border-neutral-200 px-3 py-2 hover:bg-neutral-50 disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-800"
           >
-            <span>{tpl.icon ?? "📄"}</span>
+            <span>{pageIcon(tpl.icon) ?? "📄"}</span>
             <span className="max-w-48 truncate">{applying === tpl.id ? t("template.applying") : pageTitle(tpl.title)}</span>
           </button>
         ))}

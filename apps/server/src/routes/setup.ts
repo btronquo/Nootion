@@ -10,7 +10,8 @@ import { startSession } from "./session-cookie.js";
 export const setupRoutes: FastifyPluginAsync = async (app) => {
   const hasUsers = () => (app.db.select({ n: count() }).from(users).get()?.n ?? 0) > 0;
 
-  app.get("/setup", async () => ({ needsSetup: !hasUsers() }));
+  // Also tells the sign-in page whether "Forgot password" can send its e-mail, and about SSO.
+  app.get("/setup", async () => ({ needsSetup: !hasUsers(), mail: app.mailer.enabled(), sso: app.sso.info() }));
 
   // Creates the first administrator. Closed for good once any account exists.
   app.post("/setup", { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (req, reply) => {

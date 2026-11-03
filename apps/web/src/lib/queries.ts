@@ -64,5 +64,7 @@ export function useRefreshPages() {
       qc.invalidateQueries({ queryKey: ["page"] }),
       qc.invalidateQueries({ queryKey: ["trash"] }),
       qc.invalidateQueries({ queryKey: keys.favorites }),
+      qc.invalidateQueries({ queryKey: ["library"] }),
+      qc.invalidateQueries({ queryKey: ["graph"] }),
     ]);
 }

@@ -3,6 +3,71 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and version numbers follow
 [Semantic Versioning](https://semver.org/).
 
+## [3.2.0] - 2026-11-03
+
+3.1.0 was tagged on the code of 3.0.0 by mistake: its changes come with this version, listed below.
+
+### Added
+
+- Single sign-on (SSO) with any OpenID Connect provider (Microsoft Entra ID, Google Workspace, Okta, Keycloak…),
+  set in Administration > Single sign-on: "Sign in with Microsoft" on the sign-in page and on invitations, existing
+  accounts linked by their address, new accounts for invited people, some domains or everyone, sessions limited
+  to 12 hours by default, and passwords that can be turned off (except for administrators).
+  SCIM lets the provider create accounts, keep them up to date and disable people who leave. See
+  [docs/SSO.md](docs/SSO.md).
+- The version running shows at the bottom of the sidebar. When a newer release is out, administrators see a ⚠ next
+  to "Administration" and a notice in Administration with a link to what's new, which they can hide until the next
+  release; "Check now" looks right away. `UPDATE_CHECK=false` turns the check off.
+- E-mail, set by administrators in Administration > E-mail, through an SMTP server or Resend, with a test e-mail:
+  - reminders, mentions and comment replies are also sent by e-mail; each user picks which in My account;
+  - an invitation made for an address is sent to it;
+  - "Forgot your password?" on the sign-in page sends a link (valid an hour, once) to choose a new password.
+- A demo page, "Discover Nootion", given to each new user on their first visit: every kind of block, a "Projects"
+  database with its six views, a subpage and all the widgets, filled with made-up data. It is an ordinary page to
+  delete; "Create the demo page" in My account makes a new one. `DEMO_PAGE=false` turns it off.
+- Widgets in the "/" menu, for dashboards and home pages:
+  - Chart: the rows of a database view by status, month, person… as bars, columns, a line or a donut, counting rows
+    or adding up a number column.
+  - Progress bar: of the year, month, week or day, of the rows checked in a database, or towards a goal of your own.
+  - Countdown to a date and time, ticking every second.
+  - Pomodoro timer, with short and long breaks, a chime, and the time left in the tab's title.
+  - Habit tracker: a grid of days as on GitHub, with the current streak; tick today in one click.
+  - Clock (any time zone) and weather with the next days' forecast (from Open-Meteo, asked by the browser).
+  - Quote of the day, from a set of classics or from a database of your own.
+  - Image carousel, with uploaded images or addresses, changing on its own or by hand.
+- The page's top bar tells when it was last edited ("Edited at 14:32", "Edited yesterday at…", the full date on
+  hover), and shows "Saved" for a moment once your changes are on the server.
+- Date ranges and times in databases, as in Notion: the date editor has an end date and an "Include time" switch, for
+  things that last several days or have a start and end time. The calendar shows them as one bar across the days,
+  with the start time on the first day and the end time on the last ("14:00–15:00" when on one day).
+- "All pages" in the sidebar: every page and database you can open, with where it is, who made it and when it
+  changed, to search by title, filter by kind or space, and sort.
+- "Graph" in the sidebar, as in Obsidian: every page as a dot, with lines for the links and mentions between pages
+  (dotted for subpages). Hover a page to light up its links, click to open it, zoom and drag to look around.
+- The sidebar can be put away, as in Notion: « at its top, or Ctrl+\ (⌘\ on a Mac). It then shows over the page while
+  the menu button or the left edge of the window is hovered; a click on the menu button keeps it open again.
+- A new icon picker: every emoji, by category, with a search in your language, recent ones and "Random"; and your
+  own images ("Custom" tab), uploaded once and shared by everyone on the server.
+- Nicer to-do boxes, as in Notion: a bit bigger, blue with a check that pops in when checked, and the line through
+  the text fades in.
+- Block handles in the editor, as in Notion: hovering a block shows "+", which adds a block below it and opens the
+  "/" menu, and the dots, which move the block (or a list item) by dragging, or select it with a click.
+- A menu on each page of the sidebar, opened by right-clicking it or with its "…" button: add to favorites, copy
+  link, duplicate (with its subpages), rename, move to another page, move to the trash, open in a new tab.
+
+### Fixed
+
+- "Saving…" above the editor only shows when a save takes more than a second and a half (a slow connection),
+  instead of flashing at each change.
+- The sidebar shows the pages others add, rename, move or delete in a shared space (or share with you) right away,
+  without reloading the page.
+- On phones, the bottom of the sidebar (My account, Administration) no longer hides under the browser's toolbar;
+  My account also links to the administration for administrators.
+
+## [3.1.0] - 2026-10-31
+
+Tagged on the code of 3.0.0 by mistake; its changes are in 3.2.0.
+
 ## [3.0.0] - 2026-10-31
 
 ### Changed
@@ -226,6 +291,8 @@ First public version.
 - Markdown (.zip), CSV and JSON export, CSV import, full backup download.
 - Single Docker image (amd64 and arm64), data in `/data`, migrations applied at startup.
 
+[3.2.0]: ../../releases/tag/v3.2.0
+[3.1.0]: ../../releases/tag/v3.1.0
 [3.0.0]: ../../releases/tag/v3.0.0
 [2.0.1]: ../../releases/tag/v2.0.1
 [2.0.0]: ../../releases/tag/v2.0.0

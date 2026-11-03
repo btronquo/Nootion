@@ -161,3 +161,26 @@ describe("page templates", () => {
     expect((await alice.post(`/api/pages/${own}/apply-template`, { templateId: tpl })).statusCode).toBe(404);
   });
 });
+
+describe("duplicating a page", () => {
+  it("copies it with its subpages right after it, and its link in the parent", async () => {
+    const ws = await boris.personalWorkspace();
+    const parent = await boris.createPage(ws, "Projets");
+    const page = (await boris.post("/api/pages", { workspaceId: ws, parentId: parent, title: "Cuisine", linkInParent: true })).json().page.id;
+    await boris.createPage(ws, "Devis", page);
+    await boris.createPage(ws, "Salle de bain", parent);
+    const res = await boris.post(`/api/pages/${page}/duplicate`);
+    expect(res.statusCode, res.body).toBe(200);
+    const copy = res.json().page;
+    expect(copy).toMatchObject({ title: "Cuisine (copie)", parentId: parent });
+    const tree = (await boris.get(`/api/workspaces/${ws}/pages`)).json().pages as { id: string; title: string; parentId: string | null }[];
+    expect(tree.filter((p) => p.parentId === parent).map((p) => p.title)).toEqual(["Cuisine", "Cuisine (copie)", "Salle de bain"]);
+    expect(tree.filter((p) => p.parentId === copy.id).map((p) => p.title)).toEqual(["Devis"]);
+    const links = JSON.stringify(content(parent));
+    expect(links).toContain(copy.id);
+
+    const alice = await inviteUser(app, boris, { name: "Alice", email: "alice@example.com", password: "alice-password" });
+    await boris.put(`/api/pages/${page}/shares`, { userId: await alice.id(), role: "viewer" });
+    expect((await alice.post(`/api/pages/${page}/duplicate`)).statusCode).toBe(404);
+  });
+});

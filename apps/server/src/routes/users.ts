@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { users } from "../db/schema.js";
 import { notFound, requireUser } from "../http.js";
 import { avatarsDir, avatarUrl } from "../users.js";
+import { IMAGE_MIME } from "../images.js";
 
 export const userRoutes: FastifyPluginAsync = async (app) => {
   // Directory of active accounts on this instance, used to pick people when sharing.
@@ -28,7 +29,7 @@ export const userRoutes: FastifyPluginAsync = async (app) => {
     if (!u?.avatar) throw notFound();
     const file = path.join(avatarsDir(app.config.dataDir), u.avatar);
     if (!fs.existsSync(file)) throw notFound();
-    const type = AVATAR_MIME[path.extname(u.avatar)] ?? "application/octet-stream";
+    const type = IMAGE_MIME[path.extname(u.avatar)] ?? "application/octet-stream";
     return reply
       .header("Content-Type", type)
       .header("X-Content-Type-Options", "nosniff")
@@ -36,5 +37,3 @@ export const userRoutes: FastifyPluginAsync = async (app) => {
       .send(fs.createReadStream(file));
   });
 };
-
-const AVATAR_MIME: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".webp": "image/webp", ".gif": "image/gif" };

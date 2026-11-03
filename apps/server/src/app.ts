@@ -35,6 +35,16 @@ import { createRecurrences, type Recurrences } from "./recurrences.js";
 import { recurrenceRoutes } from "./routes/recurrences.js";
 import { createBackups, type Backups } from "./backups.js";
 import { backupRoutes } from "./routes/backups.js";
+import { mailRoutes, passwordResetRoutes } from "./routes/mail.js";
+import { createMailer, type Mailer, type MailSender } from "./mail.js";
+import { createSso, SCIM_PATH, type Sso } from "./sso.js";
+import { ssoAdminRoutes, ssoLoginRoutes } from "./routes/sso.js";
+import { scimRoutes } from "./routes/scim.js";
+import { createUpdates, currentVersion, type Updates } from "./updates.js";
+import { updateRoutes } from "./routes/updates.js";
+import { createLiveEvents, liveEventRoutes, type LiveEvents } from "./events.js";
+import { iconRoutes } from "./routes/icons.js";
+import { libraryRoutes } from "./routes/library.js";
 import { userRoutes } from "./routes/users.js";
 import { publicRoutes } from "./routes/public.js";
 import { pluginAdminRoutes, pluginRoutes } from "./routes/plugins.js";
@@ -65,6 +75,10 @@ declare module "fastify" {
     automations: Automations;
     recurrences: Recurrences;
     backups: Backups;
+    mailer: Mailer;
+    sso: Sso;
+    updates: Updates;
+    liveEvents: LiveEvents;
   }
   interface FastifyRequest {
     user: UserRow | null;
@@ -94,7 +108,7 @@ function rateLimiter(perMinute: number) {
   };
 }
 
-export async function buildApp(opts: { db: Db; config: Config; logger?: boolean; pushSender?: PushSender }): Promise<FastifyInstance> {
+export async function buildApp(opts: { db: Db; config: Config; logger?: boolean; pushSender?: PushSender; mailSender?: MailSender }): Promise<FastifyInstance> {
   const app = Fastify({
     logger: opts.logger ?? false,
     trustProxy: true,
@@ -118,7 +132,24 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
   app.addHook("onReady", async () => extractor.wake());
   app.addHook("onClose", async () => extractor.stop());
   // Sends reminders to the devices of their users as they fall due.
-  const notifier = createNotifier(opts.db, { dataDir: opts.config.dataDir, appUrl: opts.config.appUrl, log: app.log, send: opts.pushSender });
+  // E-mail, once administrators set a provider.
+  const mailer = createMailer({ db: opts.db, appSecret: opts.config.appSecret, appUrl: opts.config.appUrl, log: app.log, sender: opts.mailSender });
+  app.decorate("mailer", mailer);
+  // Single sign-on, once administrators set a provider.
+  app.decorate("sso", createSso({ db: opts.db, appSecret: opts.config.appSecret, appUrl: opts.config.appUrl }));
+  // Tells administrators when a newer Nootion is out.
+  const updates = createUpdates({ enabled: opts.config.updateCheck ?? false, url: opts.config.updateCheckUrl ?? "", log: app.log });
+  app.decorate("updates", updates);
+  app.addHook("onReady", async () => updates.start());
+  app.addHook("onClose", async () => updates.stop());
+  app.addHook("onClose", async () => mailer.idle());
+  const notifier = createNotifier(opts.db, {
+    dataDir: opts.config.dataDir,
+    appUrl: opts.config.appUrl,
+    log: app.log,
+    send: opts.pushSender,
+    email: mailer.notifyLater,
+  });
   app.decorate("notifier", notifier);
   app.addHook("onClose", async () => notifier.stop());
   const automationRunner = createAutomations(app);
@@ -130,6 +161,10 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
   const backupRunner = createBackups(app);
   app.decorate("backups", backupRunner);
   app.addHook("onClose", async () => backupRunner.stop());
+  // Tells open tabs when the page tree changes.
+  const liveEvents = createLiveEvents(opts.db);
+  app.decorate("liveEvents", liveEvents);
+  app.addHook("preClose", async () => liveEvents.stop());
 
   await app.register(cookie, { secret: opts.config.appSecret });
   await app.register(rateLimit, { global: false });
@@ -143,13 +178,19 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
     if (!SAFE_METHODS.has(req.method) && req.url.startsWith("/api/") && !APP_ENDPOINTS.test(req.url.split("?")[0]!)) {
       const origin = req.headers.origin;
       if (origin && origin !== opts.config.appUrl && origin !== `${req.protocol}://${req.host}`) {
-        throw new HttpError(403, "bad_origin", withLocale(requestLocale(req), () => t("error.badOrigin")));
+        throw new HttpError(
+          403,
+          "bad_origin",
+          withLocale(requestLocale(req), () => t("error.badOrigin")),
+        );
       }
     }
     // Personal API tokens ("Authorization: Bearer nt_…"), for scripts and other apps.
-    const bearer = req.url.startsWith("/api/") ? /^Bearer\s+(\S+)$/i.exec(req.headers.authorization ?? "")?.[1] : undefined;
+    // (SCIM has its own token, checked by its routes.)
+    const bearer = req.url.startsWith("/api/") && !req.url.startsWith(SCIM_PATH) ? /^Bearer\s+(\S+)$/i.exec(req.headers.authorization ?? "")?.[1] : undefined;
     if (bearer) {
-      const say = (key: "error.badToken" | "error.tokenNotAllowed" | "error.tokenReadOnly" | "error.tooManyRequests") => withLocale(requestLocale(req), () => t(key));
+      const say = (key: "error.badToken" | "error.tokenNotAllowed" | "error.tokenReadOnly" | "error.tooManyRequests") =>
+        withLocale(requestLocale(req), () => t(key));
       const found = findTokenUser(opts.db, bearer);
       if (!found) throw new HttpError(401, "bad_token", say("error.badToken"));
       req.user = found.user;
@@ -208,7 +249,12 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
 
   // When access may have been taken away, drop live editing sessions: clients reconnect at once
   // and go through the permission check again.
-  const ACCESS_CHANGES = [/^\/api\/pages\/[^/]+\/shares/, /^\/api\/pages\/[^/]+(\/permanent)?$/, /^\/api\/workspaces\/[^/]+(\/members.*|\/content)?$/, /^\/api\/admin\/users\//];
+  const ACCESS_CHANGES = [
+    /^\/api\/pages\/[^/]+\/shares/,
+    /^\/api\/pages\/[^/]+(\/permanent)?$/,
+    /^\/api\/workspaces\/[^/]+(\/members.*|\/content)?$/,
+    /^\/api\/admin\/users\//,
+  ];
   app.addHook("onResponse", async (req, reply) => {
     if (SAFE_METHODS.has(req.method) || reply.statusCode >= 400) return;
     const url = req.url.split("?")[0];
@@ -219,22 +265,31 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
     if (req.method === "DELETE") cleanOrphanFiles(opts.db, opts.config.dataDir);
   });
 
-  app.get("/api/health", async () => ({ ok: true, version: process.env.NOOTION_VERSION ?? "dev" }));
+  app.get("/api/health", async () => ({ ok: true, version: currentVersion() }));
   await app.register(setupRoutes, { prefix: "/api" });
   await app.register(authRoutes, { prefix: "/api/auth" });
   await app.register(adminRoutes, { prefix: "/api/admin" });
   await app.register(invitationRoutes, { prefix: "/api/invitations" });
   await app.register(workspaceRoutes, { prefix: "/api/workspaces" });
   await app.register(pageRoutes, { prefix: "/api/pages" });
+  await app.register(libraryRoutes, { prefix: "/api/pages" });
   await app.register(commentRoutes, { prefix: "/api" });
   await app.register(automationRoutes, { prefix: "/api" });
   await app.register(recurrenceRoutes, { prefix: "/api/pages" });
   await app.register(backupRoutes, { prefix: "/api/admin/backups" });
+  await app.register(mailRoutes, { prefix: "/api" });
+  await app.register(passwordResetRoutes, { prefix: "/api/auth" });
+  await app.register(ssoAdminRoutes, { prefix: "/api/admin/sso" });
+  await app.register(ssoLoginRoutes, { prefix: "/api/auth/sso" });
+  await app.register(scimRoutes, { prefix: SCIM_PATH });
+  await app.register(updateRoutes, { prefix: "/api/admin/update" });
   await app.register(favoriteRoutes, { prefix: "/api/favorites" });
   await app.register(calendarFeedRoutes, { prefix: "/api/calendar-feeds" });
   await app.register(icalRoutes, { prefix: "/api/ical" });
   await app.register(homeRoutes, { prefix: "/api" });
   await app.register(inboxRoutes, { prefix: "/api" });
+  await app.register(liveEventRoutes, { prefix: "/api" });
+  await app.register(iconRoutes, { prefix: "/api/icons" });
   await app.register(reminderRoutes, { prefix: "/api/reminders" });
   await app.register(apiTokenRoutes, { prefix: "/api/tokens" });
   await app.register(buttonRoutes, { prefix: "/api/buttons" });
@@ -277,8 +332,6 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
   await app.register(pluginAdminRoutes, { prefix: "/api/admin/plugins" });
   await registerCollabRoute(app, collab);
   await pluginManager.start();
-
-
 
   const webDir = opts.config.webDir;
   if (webDir && fs.existsSync(path.join(webDir, "index.html"))) {

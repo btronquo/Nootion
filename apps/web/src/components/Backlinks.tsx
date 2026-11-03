@@ -5,6 +5,7 @@ import { ChevronRight, Link2 } from "lucide-react";
 import { t, type Backlink } from "@nootion/shared";
 import { api } from "../lib/api";
 import { pageTitle } from "../lib/tree";
+import { pageIcon } from "../lib/icons";
 
 /** "Linked from": the pages that link to or mention this one. Hidden when there are none. */
 export function Backlinks({ pageId }: { pageId: string }) {
@@ -31,7 +32,7 @@ export function Backlinks({ pageId }: { pageId: string }) {
             <li key={p.id}>
               <Link to={`/page/${p.id}`} className="block rounded px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800">
                 <span className="flex items-center gap-2 text-sm font-medium">
-                  <span className="w-5 shrink-0 text-center">{p.icon ?? (p.kind === "database" ? "🗃" : "📄")}</span>
+                  <span className="w-5 shrink-0 text-center">{pageIcon(p.icon) ?? (p.kind === "database" ? "🗃" : "📄")}</span>
                   <span className="truncate">{pageTitle(p.title)}</span>
                 </span>
                 {p.excerpt && <span className="ml-7 block truncate text-xs text-neutral-500">{p.excerpt}</span>}
