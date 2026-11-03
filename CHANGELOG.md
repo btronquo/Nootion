@@ -3,6 +3,13 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and version numbers follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- The sidebar can be resized by dragging its right edge, as in Notion (from 200 to 480 pixels, remembered per
+  browser); clicking the edge puts it away. With the keyboard: focus the edge, then the arrows.
+
 ## [3.2.1] - 2026-11-03
 
 ### Fixed
