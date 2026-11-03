@@ -9,6 +9,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 - The sidebar can be resized by dragging its right edge, as in Notion (from 200 to 480 pixels, remembered per
   browser); clicking the edge puts it away. With the keyboard: focus the edge, then the arrows.
+- A click on the dots left of a block opens its menu, as in Notion: turn it into another kind (text, headings,
+  lists, to-do, quote, callout, code), duplicate, move up or down, comment or delete it, with a search box.
+  Ctrl+D duplicates the block the cursor is in, and Ctrl+Shift+Up/Down moves it.
 
 ## [3.2.1] - 2026-11-03
 
