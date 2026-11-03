@@ -8,6 +8,7 @@ import { Button, ErrorText, Field, Rich } from "../components/ui";
 import { PluginsAdmin } from "./PluginsAdmin";
 import { BackupsAdmin } from "./BackupsAdmin";
 import { MailAdmin } from "./MailAdmin";
+import { SsoAdmin } from "./SsoAdmin";
 import { copyText } from "../lib/browser";
 
 const dateFmt = () => new Intl.DateTimeFormat(intlLocale(), { dateStyle: "medium" });
@@ -159,6 +160,8 @@ export function AdminPage() {
       <BackupsAdmin />
 
       <MailAdmin />
+
+      <SsoAdmin />
 
       <PluginsAdmin />
 

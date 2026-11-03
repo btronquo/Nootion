@@ -27,6 +27,10 @@ export const users = sqliteTable(
     inboxPageId: text("inbox_page_id"),
     // E-mails the user turned off, by kind (EmailPrefs); missing kinds are on.
     emailPrefs: text("email_prefs", { mode: "json" }).$type<Record<string, boolean>>().notNull().default({}),
+    // The account at the SSO provider (the "sub" of its tokens), once linked.
+    ssoSubject: text("sso_subject").unique(),
+    // The provider's id for the account, given over SCIM.
+    scimExternalId: text("scim_external_id"),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("users_email_unique").on(t.email)],
@@ -666,3 +670,16 @@ export const passwordResets = sqliteTable(
   },
   (t) => [index("password_resets_user_idx").on(t.userId)],
 );
+
+export const ssoSettings = sqliteTable("sso_settings", {
+  id: text("id").primaryKey(),
+  // SsoSettingsInput, without the client secret.
+  config: text("config", { mode: "json" }).notNull(),
+  // The client secret, encrypted with APP_SECRET.
+  secret: text("secret"),
+  // SHA-256 of the SCIM token, or null when SCIM is off.
+  scimTokenHash: text("scim_token_hash"),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});

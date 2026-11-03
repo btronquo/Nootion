@@ -7,6 +7,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Single sign-on (SSO) with any OpenID Connect provider (Microsoft Entra ID, Google Workspace, Okta, Keycloak…),
+  set in Administration > Single sign-on: "Sign in with Microsoft" on the sign-in page and on invitations, existing
+  accounts linked by their address, new accounts for invited people, some domains or everyone, sessions limited
+  to 12 hours by default, and passwords that can be turned off (except for administrators).
+  SCIM lets the provider create accounts, keep them up to date and disable people who leave. See
+  [docs/SSO.md](docs/SSO.md).
 - E-mail, set by administrators in Administration > E-mail, through an SMTP server or Resend, with a test e-mail:
   - reminders, mentions and comment replies are also sent by e-mail; each user picks which in My account;
   - an invitation made for an address is sent to it;
