@@ -105,6 +105,8 @@ offline use and the Notion import.
   to the phone or computer, and by e-mail.
 - E-mail through any SMTP server or Resend, set in Administration: reminders, mentions, replies, invitations and
   "Forgot password"; each user picks the e-mails they get.
+- Single sign-on with Microsoft Entra ID, Google, Okta, Keycloak or any OpenID Connect provider, and SCIM so that
+  people who leave the company are disabled automatically. See [docs/SSO.md](docs/SSO.md).
 - REST API with personal tokens (per space, read-only or read and write): pages as Markdown, database queries,
   rows, files, search. See [docs/API.md](docs/API.md).
 - Buttons with automations and forms: add a row, change the current row, create a page from a template, open a
