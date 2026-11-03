@@ -169,3 +169,37 @@ export interface Backlink extends PageSummary {
   /** Text around the link, to see what it says. */
   excerpt: string;
 }
+
+/** A page icon can be an emoji, or an image uploaded by someone ("icon:<id>"). */
+export const CUSTOM_ICON_PREFIX = "icon:";
+export const ICON_MAX_BYTES = 1024 * 1024;
+export const customIconId = (icon: string | null | undefined): string | null => (icon?.startsWith(CUSTOM_ICON_PREFIX) ? icon.slice(CUSTOM_ICON_PREFIX.length) : null);
+export const customIconUrl = (id: string) => `/api/icons/${id}/image`;
+
+export interface CustomIcon {
+  id: string;
+  name: string;
+  url: string;
+  /** Whether the reader may delete it: who uploaded it, and administrators. */
+  canDelete: boolean;
+}
+/** The icon as text before a title (in notifications, exports…): the emoji, or nothing for an image. */
+export const iconText = (icon: string | null | undefined): string => (icon && !customIconId(icon) ? `${icon} ` : "");
+
+/** A page in "All pages": where it is, who made it, when it changed. */
+export interface LibraryPage extends PageSummary {
+  /** The space's name, or null for the reader's personal space. */
+  workspaceName: string | null;
+  /** Titles of the ancestors the reader can see, from the top. */
+  path: string[];
+  createdByName: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** The pages and how they are linked, for the graph. */
+export interface PageGraph {
+  nodes: { id: string; title: string; icon: string | null; kind: PageKind; workspaceId: string }[];
+  /** "child": a subpage of `source`; "link": `source` links to or mentions `target`. */
+  links: { source: string; target: string; kind: "child" | "link" }[];
+}

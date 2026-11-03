@@ -6,6 +6,7 @@ import { api } from "../lib/api";
 import { useRefreshPages, useWorkspaces } from "../lib/queries";
 import { pageTitle } from "../lib/tree";
 import { Button } from "../components/ui";
+import { pageIcon } from "../lib/icons";
 
 const dateFmt = () => new Intl.DateTimeFormat(intlLocale(), { dateStyle: "medium", timeStyle: "short" });
 
@@ -42,7 +43,7 @@ export function TrashPage() {
             {pages.map((p) => (
               <li key={p.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
                 <span className="min-w-0 truncate">
-                  {p.icon} {pageTitle(p.title)} <span className="text-neutral-400">· {t("trash.deletedOn", { date: dateFmt().format(new Date(p.deletedAt)) })}</span>
+                  {pageIcon(p.icon)} {pageTitle(p.title)} <span className="text-neutral-400">· {t("trash.deletedOn", { date: dateFmt().format(new Date(p.deletedAt)) })}</span>
                 </span>
                 <span className="flex shrink-0 gap-1">
                   <Button variant="ghost" onClick={() => restore(p.id)}>

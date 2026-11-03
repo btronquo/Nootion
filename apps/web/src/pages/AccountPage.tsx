@@ -1,8 +1,8 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
-import { Monitor, Moon, Sun } from "lucide-react";
-import { AVATAR_MAX_BYTES, t, type Locale, type PublicUser } from "@nootion/shared";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Monitor, Moon, Settings, Sun } from "lucide-react";
+import { AVATAR_MAX_BYTES, EMAIL_KINDS, t, type EmailKind, type EmailPrefs, type Locale, type PublicUser } from "@nootion/shared";
 import { api, ApiError } from "../lib/api";
 import { useSession } from "../lib/session";
 import { getTheme, setTheme, type ThemeChoice } from "../lib/theme";
@@ -28,13 +28,26 @@ export function AccountPage() {
   if (!user) return null;
   return (
     <div className="mx-auto max-w-2xl space-y-10 px-5 py-8 sm:px-8 sm:py-12">
-      <h1 className="text-2xl font-bold">{t("account.title")}</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-2xl font-bold">{t("account.title")}</h1>
+        {/* Also reachable from here, should the sidebar's footer be out of reach. */}
+        {user.role === "admin" && (
+          <Link
+            to="/admin"
+            className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
+          >
+            <Settings size={16} /> {t("admin.title")}
+          </Link>
+        )}
+      </div>
       <ProfileSection user={user} />
       <EmailSection user={user} />
       <PasswordSection />
       <LanguageSection user={user} />
       <ThemeSection />
+      <EmailPrefsSection />
       <ImportSection />
+      <DemoSection />
       {!!services.data?.length && (
         <Section title={t("services.title")} id="services">
           <ConnectedServices accounts={services.data} />
@@ -179,9 +192,23 @@ function EmailSection({ user }: { user: PublicUser }) {
   return (
     <Section title={t("auth.email")}>
       <form onSubmit={save} className="space-y-3">
-        <Field label={t("account.emailAddress")} type="email" value={email} onChange={(e) => (setEmail(e.target.value), setSaved(false))} required autoComplete="email" />
+        <Field
+          label={t("account.emailAddress")}
+          type="email"
+          value={email}
+          onChange={(e) => (setEmail(e.target.value), setSaved(false))}
+          required
+          autoComplete="email"
+        />
         {email.trim().toLowerCase() !== user.email && (
-          <Field label={t("account.currentPassword")} type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required autoComplete="current-password" />
+          <Field
+            label={t("account.currentPassword")}
+            type="password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            required
+            autoComplete="current-password"
+          />
         )}
         <ErrorText error={error} />
         <div className="flex items-center gap-3">
@@ -221,9 +248,32 @@ function PasswordSection() {
   return (
     <Section title={t("auth.password")}>
       <form onSubmit={save} className="space-y-3">
-        <Field label={t("account.currentPassword")} type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required autoComplete="current-password" />
-        <Field label={t("account.newPassword")} type="password" value={newPassword} onChange={(e) => (setNewPassword(e.target.value), setSaved(false))} required minLength={8} autoComplete="new-password" />
-        <Field label={t("account.confirmPassword")} type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required minLength={8} autoComplete="new-password" />
+        <Field
+          label={t("account.currentPassword")}
+          type="password"
+          value={currentPassword}
+          onChange={(e) => setCurrentPassword(e.target.value)}
+          required
+          autoComplete="current-password"
+        />
+        <Field
+          label={t("account.newPassword")}
+          type="password"
+          value={newPassword}
+          onChange={(e) => (setNewPassword(e.target.value), setSaved(false))}
+          required
+          minLength={8}
+          autoComplete="new-password"
+        />
+        <Field
+          label={t("account.confirmPassword")}
+          type="password"
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          required
+          minLength={8}
+          autoComplete="new-password"
+        />
         <p className="text-xs text-neutral-500">{t("account.otherDevices")}</p>
         <ErrorText error={error} />
         <div className="flex items-center gap-3">
@@ -286,6 +336,66 @@ function ThemeSection() {
         ))}
       </div>
       <p className="mt-2 text-xs text-neutral-500">{t("account.themeHelp")}</p>
+    </Section>
+  );
+}
+
+/** Which e-mails the user gets (once administrators set up e-mail). */
+function EmailPrefsSection() {
+  const qc = useQueryClient();
+  const prefs = useQuery({ queryKey: ["email-prefs"], queryFn: () => api<{ enabled: boolean; prefs: EmailPrefs }>("/account/email") });
+  const toggle = async (kind: EmailKind, on: boolean) => {
+    const data = await api<{ enabled: boolean; prefs: EmailPrefs }>("/account/email", { method: "PUT", body: { [kind]: on } });
+    qc.setQueryData(["email-prefs"], data);
+  };
+  if (!prefs.data) return null;
+  return (
+    <Section title={t("account.emails")} id="email">
+      {!prefs.data.enabled ? (
+        <p className="text-sm text-neutral-500">{t("account.emailsOff")}</p>
+      ) : (
+        <div className="space-y-2">
+          <p className="mb-3 text-sm text-neutral-600 dark:text-neutral-400">{t("account.emailsHelp")}</p>
+          {EMAIL_KINDS.map((kind) => (
+            <label key={kind} className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="h-4 w-4 accent-blue-600"
+                checked={prefs.data.prefs[kind]}
+                onChange={(e) => void toggle(kind, e.target.checked)}
+              />
+              {t(`account.email_${kind}`)}
+            </label>
+          ))}
+        </div>
+      )}
+    </Section>
+  );
+}
+
+/** The demo page again, for those who deleted it (or never had it). */
+function DemoSection() {
+  const navigate = useNavigate();
+  const refresh = useRefreshPages();
+  const [busy, setBusy] = useState(false);
+  return (
+    <Section title={t("account.demo")} id="demo">
+      <p className="mb-3 text-sm text-neutral-600 dark:text-neutral-400">{t("account.demoHelp")}</p>
+      <Button
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          try {
+            const { pageId } = await api<{ pageId: string }>("/demo", { method: "POST" });
+            await refresh();
+            navigate(`/page/${pageId}`);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        ✨ {t("account.demoCreate")}
+      </Button>
     </Section>
   );
 }
@@ -402,7 +512,13 @@ function DeleteSection() {
         <form className="space-y-3" onSubmit={deleteAccount}>
           <h3 className="font-semibold">{t("account.deleteAccount")}</h3>
           <p className="text-sm text-neutral-600 dark:text-neutral-400">{t("account.deleteAccountHelp")}</p>
-          <Field label={t("account.currentPassword")} type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+          <Field
+            label={t("account.currentPassword")}
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
           <Button type="submit" variant="danger" disabled={busy || !password}>
             {t("account.deleteAccountButton")}
           </Button>

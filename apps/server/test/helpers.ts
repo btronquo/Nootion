@@ -9,11 +9,11 @@ import { openDb } from "../src/db/index.js";
 export async function makeApp(
   prepare?: (dataDir: string) => void,
   env: Record<string, string> = {},
-  extra: Pick<Parameters<typeof buildApp>[0], "pushSender"> = {},
+  extra: Pick<Parameters<typeof buildApp>[0], "pushSender" | "mailSender"> = {},
 ): Promise<FastifyInstance> {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "nootion-test-"));
   prepare?.(dataDir);
-  const config = loadConfig({ APP_SECRET: "test-secret-0123456789", APP_URL: "http://localhost:3000", DATA_DIR: dataDir, ...env });
+  const config = loadConfig({ APP_SECRET: "test-secret-0123456789", APP_URL: "http://localhost:3000", DATA_DIR: dataDir, DEMO_PAGE: "false", UPDATE_CHECK: "false", ...env });
   return buildApp({ db: openDb(":memory:"), config, ...extra });
 }
 

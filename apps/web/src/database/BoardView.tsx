@@ -20,6 +20,7 @@ import { orderedColumns } from "./DatabaseTable";
 import type { useDatabaseActions } from "./hooks";
 import { pageTitle } from "../lib/tree";
 import { t } from "@nootion/shared";
+import { pageIcon } from "../lib/icons";
 
 export const isEmpty = (v: CellValue | undefined) => v === null || v === undefined || v === "" || v === false || (Array.isArray(v) && !v.length);
 
@@ -116,7 +117,7 @@ export function BoardView({
               className={`cursor-pointer rounded-md border border-neutral-200 bg-white p-2 shadow-sm hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:hover:bg-neutral-700/70 ${dragging?.rowId === row.id ? "opacity-50" : ""}`}
             >
               <div className="font-medium">
-                {row.icon && <span className="mr-1">{row.icon}</span>}
+                {row.icon && <span className="mr-1">{pageIcon(row.icon)}</span>}
                 {row.title ? row.title : <span className="text-neutral-400">{pageTitle("")}</span>}
               </div>
               {cardProps

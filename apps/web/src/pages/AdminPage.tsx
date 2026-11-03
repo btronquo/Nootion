@@ -1,47 +1,76 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, Trash2 } from "lucide-react";
-import { intlLocale, t, type InvitationInfo, type PublicUser, type UserRole } from "@nootion/shared";
+import {
+  intlLocale,
+  t,
+  type InvitationInfo,
+  type PublicUser,
+  type UserRole,
+} from "@nootion/shared";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
 import { Button, ErrorText, Field, Rich } from "../components/ui";
 import { PluginsAdmin } from "./PluginsAdmin";
 import { BackupsAdmin } from "./BackupsAdmin";
+import { MailAdmin } from "./MailAdmin";
+import { SsoAdmin } from "./SsoAdmin";
 import { copyText } from "../lib/browser";
+import { UpdateBanner, VersionLine } from "../components/UpdateNotice";
 
-const dateFmt = () => new Intl.DateTimeFormat(intlLocale(), { dateStyle: "medium" });
+const dateFmt = () =>
+  new Intl.DateTimeFormat(intlLocale(), { dateStyle: "medium" });
 
 export function AdminPage() {
   const { user: me } = useSession();
   const qc = useQueryClient();
-  const users = useQuery({ queryKey: ["admin", "users"], queryFn: () => api<{ users: PublicUser[] }>("/admin/users") });
-  const invitations = useQuery({ queryKey: ["admin", "invitations"], queryFn: () => api<{ invitations: InvitationInfo[] }>("/admin/invitations") });
-  const health = useQuery({ queryKey: ["health"], queryFn: () => api<{ version: string }>("/health") });
+  const users = useQuery({
+    queryKey: ["admin", "users"],
+    queryFn: () => api<{ users: PublicUser[] }>("/admin/users"),
+  });
+  const invitations = useQuery({
+    queryKey: ["admin", "invitations"],
+    queryFn: () => api<{ invitations: InvitationInfo[] }>("/admin/invitations"),
+  });
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<UserRole>("member");
   const [lastLink, setLastLink] = useState<string | null>(null);
+  const [emailedTo, setEmailedTo] = useState<string | null>(null);
 
   const updateUser = useMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: { role?: UserRole; disabled?: boolean } }) =>
-      api(`/admin/users/${id}`, { method: "PATCH", body: patch }),
+    mutationFn: ({
+      id,
+      patch,
+    }: {
+      id: string;
+      patch: { role?: UserRole; disabled?: boolean };
+    }) => api(`/admin/users/${id}`, { method: "PATCH", body: patch }),
     onSettled: () => qc.invalidateQueries({ queryKey: ["admin", "users"] }),
   });
   const createInvite = useMutation({
-    mutationFn: () => api<{ url: string }>("/admin/invitations", { method: "POST", body: { email: inviteEmail || undefined, role: inviteRole } }),
+    mutationFn: () =>
+      api<{ url: string; emailed: boolean }>("/admin/invitations", {
+        method: "POST",
+        body: { email: inviteEmail || undefined, role: inviteRole },
+      }),
     onSuccess: (data) => {
       setLastLink(data.url);
+      setEmailedTo(data.emailed ? inviteEmail : null);
       setInviteEmail("");
       qc.invalidateQueries({ queryKey: ["admin", "invitations"] });
     },
   });
   const revokeInvite = useMutation({
-    mutationFn: (id: string) => api(`/admin/invitations/${id}`, { method: "DELETE" }),
-    onSettled: () => qc.invalidateQueries({ queryKey: ["admin", "invitations"] }),
+    mutationFn: (id: string) =>
+      api(`/admin/invitations/${id}`, { method: "DELETE" }),
+    onSettled: () =>
+      qc.invalidateQueries({ queryKey: ["admin", "invitations"] }),
   });
 
   return (
     <div className="mx-auto max-w-4xl space-y-10 px-5 py-8 sm:px-8 sm:py-12">
       <h1 className="text-2xl font-bold">{t("admin.title")}</h1>
+      <UpdateBanner />
 
       <section>
         <h2 className="mb-3 text-lg font-semibold">{t("admin.users")}</h2>
@@ -58,14 +87,22 @@ export function AdminPage() {
             </thead>
             <tbody>
               {users.data?.users.map((u) => (
-                <tr key={u.id} className="border-t border-neutral-200 dark:border-neutral-800">
+                <tr
+                  key={u.id}
+                  className="border-t border-neutral-200 dark:border-neutral-800"
+                >
                   <td className="px-3 py-2">{u.name}</td>
                   <td className="px-3 py-2 text-neutral-500">{u.email}</td>
                   <td className="px-3 py-2">
                     <select
                       className="rounded border border-neutral-300 bg-transparent px-2 py-1 dark:border-neutral-700"
                       value={u.role}
-                      onChange={(e) => updateUser.mutate({ id: u.id, patch: { role: e.target.value as UserRole } })}
+                      onChange={(e) =>
+                        updateUser.mutate({
+                          id: u.id,
+                          patch: { role: e.target.value as UserRole },
+                        })
+                      }
                     >
                       <option value="member">{t("admin.member")}</option>
                       <option value="admin">{t("admin.admin")}</option>
@@ -73,9 +110,19 @@ export function AdminPage() {
                   </td>
                   <td className="px-3 py-2">
                     {u.id === me?.id ? (
-                      <span className="text-neutral-400">{t("common.you")}</span>
+                      <span className="text-neutral-400">
+                        {t("common.you")}
+                      </span>
                     ) : (
-                      <Button variant={u.disabled ? "ghost" : "danger"} onClick={() => updateUser.mutate({ id: u.id, patch: { disabled: !u.disabled } })}>
+                      <Button
+                        variant={u.disabled ? "ghost" : "danger"}
+                        onClick={() =>
+                          updateUser.mutate({
+                            id: u.id,
+                            patch: { disabled: !u.disabled },
+                          })
+                        }
+                      >
                         {u.disabled ? t("admin.enable") : t("admin.disable")}
                       </Button>
                     )}
@@ -98,9 +145,18 @@ export function AdminPage() {
           }}
         >
           <div className="min-w-64 flex-1">
-            <Field label={t("admin.inviteEmail")} type="email" value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} />
+            <Field
+              label={t("admin.inviteEmail")}
+              type="email"
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+            />
           </div>
-          <select className="rounded-md border border-neutral-300 bg-transparent px-3 py-2 text-sm dark:border-neutral-700" value={inviteRole} onChange={(e) => setInviteRole(e.target.value as UserRole)}>
+          <select
+            className="rounded-md border border-neutral-300 bg-transparent px-3 py-2 text-sm dark:border-neutral-700"
+            value={inviteRole}
+            onChange={(e) => setInviteRole(e.target.value as UserRole)}
+          >
             <option value="member">{t("admin.member")}</option>
             <option value="admin">{t("admin.admin")}</option>
           </select>
@@ -109,10 +165,19 @@ export function AdminPage() {
           </Button>
         </form>
         <ErrorText error={createInvite.error} />
+        {lastLink && emailedTo && (
+          <p className="mt-3 text-sm text-green-700 dark:text-green-400">
+            ✓ {t("admin.inviteEmailed", { email: emailedTo })}
+          </p>
+        )}
         {lastLink && (
           <div className="mt-3 flex items-center gap-2 rounded-md bg-green-50 p-3 text-sm dark:bg-green-950">
             <code className="flex-1 break-all">{lastLink}</code>
-            <Button variant="ghost" onClick={() => void copyText(lastLink)} title={t("common.copy")}>
+            <Button
+              variant="ghost"
+              onClick={() => void copyText(lastLink)}
+              title={t("common.copy")}
+            >
               <Copy size={16} />
             </Button>
           </div>
@@ -120,11 +185,22 @@ export function AdminPage() {
         {!!invitations.data?.invitations.length && (
           <ul className="mt-4 divide-y divide-neutral-200 rounded-lg border border-neutral-200 text-sm dark:divide-neutral-800 dark:border-neutral-800">
             {invitations.data.invitations.map((i) => (
-              <li key={i.id} className="flex items-center justify-between px-3 py-2">
+              <li
+                key={i.id}
+                className="flex items-center justify-between px-3 py-2"
+              >
                 <span>
-                  {i.email ?? t("admin.openLink")} · {i.role === "admin" ? t("admin.admin") : t("admin.member")} · {t("admin.expiresOn", { date: dateFmt().format(new Date(i.expiresAt)) })}
+                  {i.email ?? t("admin.openLink")} ·{" "}
+                  {i.role === "admin" ? t("admin.admin") : t("admin.member")} ·{" "}
+                  {t("admin.expiresOn", {
+                    date: dateFmt().format(new Date(i.expiresAt)),
+                  })}
                 </span>
-                <Button variant="danger" onClick={() => revokeInvite.mutate(i.id)} title={t("admin.revoke")}>
+                <Button
+                  variant="danger"
+                  onClick={() => revokeInvite.mutate(i.id)}
+                  title={t("admin.revoke")}
+                >
                   <Trash2 size={16} />
                 </Button>
               </li>
@@ -149,9 +225,13 @@ export function AdminPage() {
 
       <BackupsAdmin />
 
+      <MailAdmin />
+
+      <SsoAdmin />
+
       <PluginsAdmin />
 
-      {health.data && <p className="text-xs text-neutral-500">{t("admin.version", { version: health.data.version })}</p>}
+      <VersionLine />
     </div>
   );
 }

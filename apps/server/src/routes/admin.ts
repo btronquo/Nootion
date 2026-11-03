@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { FastifyPluginAsync } from "fastify";
-import { createInvitationInput, updateUserInput, type InvitationInfo } from "@nootion/shared";
+import { createInvitationInput, tIn, updateUserInput, type InvitationInfo, type Locale } from "@nootion/shared";
 import { and, count, desc, eq, isNull, ne } from "drizzle-orm";
 import { deleteUserSessions } from "../auth/sessions.js";
 import { hashToken, newToken } from "../auth/tokens.js";
@@ -57,13 +57,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.get("/invitations", async () => ({
-    invitations: app.db
-      .select()
-      .from(invitations)
-      .where(isNull(invitations.usedAt))
-      .orderBy(desc(invitations.createdAt))
-      .all()
-      .map(toInvitationInfo),
+    invitations: app.db.select().from(invitations).where(isNull(invitations.usedAt)).orderBy(desc(invitations.createdAt)).all().map(toInvitationInfo),
   }));
 
   app.post("/invitations", async (req) => {
@@ -82,8 +76,26 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       })
       .returning()
       .get();
+    const url = `${app.config.appUrl}/invite/${token}`;
+    // Sent by e-mail when there is an address and a way to send it.
+    let emailed = false;
+    if (input.email && app.mailer.enabled()) {
+      const locale = admin.locale as Locale;
+      try {
+        await app.mailer.send({
+          to: input.email,
+          subject: tIn(locale, "mail.inviteSubject", { name: admin.name }),
+          text: tIn(locale, "mail.inviteBody", { name: admin.name }),
+          action: { label: tIn(locale, "mail.inviteAction"), url },
+          footer: tIn(locale, "mail.inviteFooter"),
+        });
+        emailed = true;
+      } catch (err) {
+        req.log.warn({ err }, "Couldn't send an invitation e-mail");
+      }
+    }
     // The token is only shown once: only its hash is stored.
-    return { invitation: toInvitationInfo(invitation), url: `${app.config.appUrl}/invite/${token}` };
+    return { invitation: toInvitationInfo(invitation), url, emailed };
   });
 
   app.delete<{ Params: { id: string } }>("/invitations/:id", async (req) => {

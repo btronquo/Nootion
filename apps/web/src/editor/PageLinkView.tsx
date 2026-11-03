@@ -2,6 +2,7 @@ import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import { Link } from "react-router-dom";
 import { usePage } from "../lib/queries";
 import { pageTitle } from "../lib/tree";
+import { pageIcon } from "../lib/icons";
 
 export function PageLinkView({ node }: NodeViewProps) {
   const pageId = node.attrs.pageId as string | null;
@@ -17,7 +18,7 @@ export function PageLinkView({ node }: NodeViewProps) {
   return (
     <NodeViewWrapper as="span" contentEditable={false}>
       <Link to={`/page/${pageId}`} className="page-link" data-page-link={pageId}>
-        {page.data?.icon ?? "📄"} {title}
+        {pageIcon(page.data?.icon) ?? "📄"} {title}
       </Link>
     </NodeViewWrapper>
   );

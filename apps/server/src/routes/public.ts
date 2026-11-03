@@ -30,7 +30,16 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
     if (rootIndex < 0 || isTrashed(chain)) return false;
     if (link.includeSubpages) return true;
     const below = chain.slice(0, rootIndex);
-    const rows = db.select({ id: pages.id, kind: pages.kind }).from(pages).where(inArray(pages.id, below.map((c) => c.id))).all();
+    const rows = db
+      .select({ id: pages.id, kind: pages.kind })
+      .from(pages)
+      .where(
+        inArray(
+          pages.id,
+          below.map((c) => c.id),
+        ),
+      )
+      .all();
     const kind = new Map(rows.map((r) => [r.id, r.kind]));
     return below.every((c) => kind.get(c.id) === "row" || (kind.get(c.id) === "database" && c.parentId !== null && embeds(c.parentId, c.id)));
   };
@@ -63,6 +72,12 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
     if (attrs && node.type === "buttonBlock") attrs.config = { label: (attrs.config as { label?: string } | undefined)?.label ?? "", steps: [], form: null };
     // Who set a reminder, and when, is nobody else's business.
     if (attrs && node.type === "dateMention") Object.assign(attrs, { reminder: null, remindAt: null, remindUser: null });
+    // A carousel's images are served through the link too; database widgets show nothing.
+    if (attrs && node.type === "imageCarousel" && Array.isArray(attrs.images))
+      attrs.images = attrs.images.map((src) =>
+        typeof src === "string" ? src.replace(/^\/api\/attachments\/([0-9a-f-]{36})/, `/api/public/${link.token}/attachments/$1`) : src,
+      );
+    if (attrs && "databaseId" in attrs) Object.assign(attrs, { databaseId: null, viewId: null });
     if (attrs) {
       for (const key of ["src", "url"]) {
         const value = attrs[key];
@@ -97,7 +112,6 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
       row,
     };
   };
-
 
   app.get<{ Params: { token: string } }>("/:token", async (req) => {
     const link = resolve(req.params.token);

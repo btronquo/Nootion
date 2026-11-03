@@ -5,6 +5,7 @@ import { Database, FileText, Paperclip, Search } from "lucide-react";
 import { t, type SearchResult } from "@nootion/shared";
 import { api } from "../lib/api";
 import { useClosing } from "./ui";
+import { pageIcon } from "../lib/icons";
 
 /** Opens the search dialog with Ctrl+K (Cmd+K on a Mac). */
 export function useSearchShortcut(open: () => void) {
@@ -117,7 +118,7 @@ export function SearchDialog({ onClose }: { onClose: () => void }) {
                 className={`flex cursor-pointer gap-3 rounded-lg px-3 py-2 ${i === active ? "bg-neutral-100 dark:bg-neutral-800" : ""}`}
               >
                 <span className="mt-0.5 w-5 shrink-0 text-center">
-                  {r.icon ??
+                  {pageIcon(r.icon) ??
                     (r.kind === "database" ? (
                       <Database size={16} className="inline text-neutral-400" />
                     ) : (

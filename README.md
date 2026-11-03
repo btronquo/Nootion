@@ -3,7 +3,7 @@
 **An open-source, self-hosted alternative to Notion, Capacities and Docmost**: pages, wikis and real databases,
 on your own server, in a single Docker container.
 
-> Version 3.0.0. See [CHANGELOG.md](CHANGELOG.md) for what changed and [PLAN.md](PLAN.md) for what comes next.
+> Version 3.2.0. See [CHANGELOG.md](CHANGELOG.md) for what changed and [PLAN.md](PLAN.md) for what comes next.
 
 ![A Nootion page with its sidebar, a callout, a table of contents and formatted text](docs/screenshots/editor.png)
 
@@ -90,6 +90,9 @@ offline use and the Notion import.
   with a private iCal link to follow them in a phone or desktop calendar (Google, Apple, Outlook, Thunderbird).
 - A personal home page with widgets: recently visited pages, favorites, upcoming events, the first rows of a
   database view (e.g. the open to-dos), arranged by each user.
+- Widgets for any page, from the "/" menu: charts of a database (bars, columns, line, donut), progress bars (of the
+  year, of a goal, of the rows checked), countdown, Pomodoro timer, habit tracker, clock, weather, quote of the day and
+  image carousel.
 - Templates: row templates (content and default values, one used for every new row if chosen) and page templates
   offered on any empty page, copied with their subpages, databases and files. A template can repeat: a new page or
   row every N days, on some days of the week or on a day of the month.
@@ -99,7 +102,11 @@ offline use and the Notion import.
 - Backlinks: each page lists the pages that mention it.
 - Search inside attached files: PDFs, images and scans (OCR), text files.
 - Dates written in plain words (`@tomorrow 9am`, `@vendredi`, `@in 3 days`) with reminders, sent as notifications
-  to the phone or computer.
+  to the phone or computer, and by e-mail.
+- E-mail through any SMTP server or Resend, set in Administration: reminders, mentions, replies, invitations and
+  "Forgot password"; each user picks the e-mails they get.
+- Single sign-on with Microsoft Entra ID, Google, Okta, Keycloak or any OpenID Connect provider, and SCIM so that
+  people who leave the company are disabled automatically. See [docs/SSO.md](docs/SSO.md).
 - REST API with personal tokens (per space, read-only or read and write): pages as Markdown, database queries,
   rows, files, search. See [docs/API.md](docs/API.md).
 - Buttons with automations and forms: add a row, change the current row, create a page from a template, open a
