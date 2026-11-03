@@ -23,6 +23,7 @@ import {
   UserMention,
 } from "./nodes";
 import { pluginNodes } from "../plugins/nodes";
+import { BlockAttributes } from "./blockAttrs";
 import { t } from "@nootion/shared";
 
 /** Extensions shared by the collaborative editor and the read-only public view. Keep both schemas identical. */
@@ -63,6 +64,7 @@ export function baseExtensions(opts: {
     ...WIDGETS.map((w) => w.configure({ publicToken: opts.publicToken ?? null, pageId: opts.publicToken ? null : (opts.pageId ?? null) })),
     WidgetCommands,
     ...pluginNodes(opts.plugins),
+    BlockAttributes,
     Placeholder.configure({
       placeholder: ({ node }) => (node.type.name === "heading" ? t("editor.headingPlaceholder") : t("editor.placeholder")),
       // Only top-level blocks: with includeChildren, placeholders stay on lines the cursor has left.
