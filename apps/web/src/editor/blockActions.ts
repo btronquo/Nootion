@@ -1,6 +1,7 @@
 import { Extension, type ChainedCommands, type Editor } from "@tiptap/core";
 import type { Node } from "@tiptap/pm/model";
 import { NodeSelection, TextSelection } from "@tiptap/pm/state";
+import { hasAttr } from "./blockAttrs";
 
 /** A block of the page, where it starts. */
 export interface Block {
@@ -70,9 +71,31 @@ export function turnInto(editor: Editor, b: Block, kind: TurnInto) {
   return made
     .command(({ tr }) => {
       tr.setSelection(TextSelection.create(tr.doc, tr.selection.to));
+      // The block keeps its color, and links to it keep working.
+      const { color, blockId } = node.attrs;
+      if (color || blockId) {
+        let at = tr.mapping.map(pos, -1);
+        let target = tr.doc.nodeAt(at);
+        // A list: its first item.
+        if (target && ["bulletList", "orderedList", "taskList"].includes(target.type.name) && target.firstChild) {
+          at += 1;
+          target = target.firstChild;
+        }
+        if (target && hasAttr(target, "blockId"))
+          tr.setNodeMarkup(at, undefined, { ...target.attrs, ...(blockId ? { blockId } : {}), ...(color && hasAttr(target, "color") ? { color } : {}) });
+      }
       return true;
     })
     .run();
+}
+
+/** A copy of the block that links don't point at, and that nobody has edited yet. */
+function withoutIds(node: Node): Node {
+  const attrs = { ...node.attrs };
+  for (const k of ["blockId", "editedBy", "editedByName", "editedAt"]) if (k in attrs) attrs[k] = null;
+  const content: Node[] = [];
+  node.content.forEach((c) => content.push(c.isText ? c : withoutIds(c)));
+  return node.type.create(attrs, content, node.marks);
 }
 
 export function duplicateBlock(editor: Editor, b: Block) {
@@ -81,7 +104,7 @@ export function duplicateBlock(editor: Editor, b: Block) {
     .chain()
     .focus()
     .command(({ tr }) => {
-      tr.insert(after, b.node.copy(b.node.content));
+      tr.insert(after, withoutIds(b.node));
       tr.setSelection(NodeSelection.create(tr.doc, after));
       return true;
     })

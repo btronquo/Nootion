@@ -12,6 +12,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - A click on the dots left of a block opens its menu, as in Notion: turn it into another kind (text, headings,
   lists, to-do, quote, callout, code), duplicate, move up or down, comment or delete it, with a search box.
   Ctrl+D duplicates the block the cursor is in, and Ctrl+Shift+Up/Down moves it.
+- Blocks can be colored from their menu: the text, or the background, in Notion's colors (dark mode included).
+- "Copy link to block" in the block menu: the link opens the page scrolled to the block, which is shown for a moment.
+- The block menu says who last edited the block, and when.
 
 ## [3.2.1] - 2026-11-03
 
