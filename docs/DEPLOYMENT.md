@@ -38,6 +38,7 @@ They go to:
 | `PORT` | no | Port the server listens on inside the container (default `3000`). To change the port on the host, change `ports:` instead. |
 | `MAX_UPLOAD_MB` | no | Maximum size of an attached file, in MB (default `50`). |
 | `DEMO_PAGE` | no | `false` to stop giving new users a demo page on their first visit (default: given). |
+| `UPDATE_CHECK` | no | `false` to stop looking for new releases (default: the server asks GitHub twice a day, sending nothing about your server, and tells administrators). |
 | `OCR_LANGS` | no | Languages read in images and scanned PDFs, joined by `+` (default `fra+eng`). The image ships French and English; other languages need their `tesseract-ocr-<lang>` package. |
 | `API_RATE_LIMIT` | no | Requests a personal API token can make per minute (default `300`). See [API.md](API.md). |
 
@@ -93,6 +94,10 @@ docker compose pull && docker compose up -d
 Database migrations are applied automatically at startup. Back up the data folder before a major update, and
 read the [CHANGELOG](../CHANGELOG.md). To stay on a version, use its tag (`ghcr.io/btronquo/nootion:2.0.1`)
 instead of `latest`.
+
+The version running shows at the bottom of the sidebar and of the Administration page. When a newer release is
+out, administrators see a ⚠ next to "Administration" and a notice at the top of that page, which they can hide
+until the next release.
 
 ### Building the image from the source code
 
