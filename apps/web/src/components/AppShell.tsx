@@ -1,21 +1,64 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, NavLink, Outlet, useMatch, useNavigate, useSearchParams } from "react-router-dom";
+import {
+  Link,
+  NavLink,
+  Outlet,
+  useMatch,
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { LogOut, Plus, Settings, Share2, Trash2, Users, User, Download, Search, Star, X, Database, FileText, Home, Bell, Inbox, Library, Waypoints } from "lucide-react";
-import { disablePush, useReminderNotifications, useReminders } from "../lib/reminders";
+import {
+  AlertTriangle,
+  LogOut,
+  Plus,
+  Settings,
+  Share2,
+  Trash2,
+  Users,
+  User,
+  Download,
+  Search,
+  Star,
+  X,
+  Database,
+  FileText,
+  Home,
+  Bell,
+  Inbox,
+  Library,
+  Waypoints,
+} from "lucide-react";
+import {
+  disablePush,
+  useReminderNotifications,
+  useReminders,
+} from "../lib/reminders";
 import { useCommentNotifications } from "../comments/queries";
 import { t, type PageSummary, type WorkspaceSummary } from "@nootion/shared";
 import { workspaceName } from "../lib/labels";
 import { api, isOfflineError } from "../lib/api";
-import { keys, useFavorites, useRefreshPages, useSharedPages, useWorkspacePages, useWorkspaces } from "../lib/queries";
+import {
+  keys,
+  useFavorites,
+  useRefreshPages,
+  useSharedPages,
+  useWorkspacePages,
+  useWorkspaces,
+} from "../lib/queries";
 import { useSession } from "../lib/session";
+import { useUpdateStatus, useVersion } from "./UpdateNotice";
 import { buildTree, pageTitle } from "../lib/tree";
 import { DRAG_TYPE, PageTree } from "./PageTree";
 import { Avatar } from "./Avatar";
 import { Button, CancelButton, ErrorText, Field, Modal } from "./ui";
 import { usePlugins } from "../plugins/registry";
 import { SearchDialog, useSearchShortcut } from "./SearchDialog";
-import { captureShortcutLabel, QuickCaptureDialog, useCaptureShortcut } from "./QuickCapture";
+import {
+  captureShortcutLabel,
+  QuickCaptureDialog,
+  useCaptureShortcut,
+} from "./QuickCapture";
 import { MobileBar, SidebarLayout } from "./SidebarLayout";
 import { useIsTouch } from "../lib/mobile";
 import { clearOfflineData } from "../lib/offline";
@@ -25,6 +68,9 @@ import { pageIcon } from "../lib/icons";
 
 export function AppShell() {
   const { user, refresh } = useSession();
+  const version = useVersion();
+  const update = useUpdateStatus(user?.role === "admin").data;
+  const updateWarning = !!update?.available && !update.dismissed;
   const navigate = useNavigate();
   const workspaces = useWorkspaces();
   // Loaded ahead: page editors wait for the plugins' blocks before opening.
@@ -50,7 +96,9 @@ export function AppShell() {
   }, [params, setParams]);
   useReminderNotifications();
   // Reminders due and unread mentions or replies.
-  const due = (useReminders().data?.filter((r) => r.due).length ?? 0) + (useCommentNotifications().data?.filter((n) => !n.read).length ?? 0);
+  const due =
+    (useReminders().data?.filter((r) => r.due).length ?? 0) +
+    (useCommentNotifications().data?.filter((n) => !n.read).length ?? 0);
 
   async function logout() {
     // This device stops receiving the account's reminders.
@@ -99,7 +147,9 @@ export function AppShell() {
       >
         <Inbox size={16} /> {t("inbox.capture")}
         {!touch && (
-          <kbd className="ml-auto rounded border border-neutral-300 px-1 font-sans text-[10px] text-neutral-400 dark:border-neutral-700">{captureShortcutLabel()}</kbd>
+          <kbd className="ml-auto rounded border border-neutral-300 px-1 font-sans text-[10px] text-neutral-400 dark:border-neutral-700">
+            {captureShortcutLabel()}
+          </kbd>
         )}
       </button>
       <NavLink
@@ -119,7 +169,10 @@ export function AppShell() {
       >
         <Bell size={16} /> {t("reminders.title")}
         {due > 0 && (
-          <span className="ml-auto rounded-full bg-red-600 px-1.5 text-[11px] font-semibold leading-[18px] text-white" data-reminders-due>
+          <span
+            className="ml-auto rounded-full bg-red-600 px-1.5 text-[11px] font-semibold leading-[18px] text-white"
+            data-reminders-due
+          >
             {due}
           </span>
         )}
@@ -163,10 +216,38 @@ export function AppShell() {
         {user?.role === "admin" && (
           <NavLink to="/admin" className={linkClass}>
             <Settings size={16} /> {t("admin.title")}
+            {updateWarning && (
+              <span
+                className="ml-auto text-amber-500"
+                title={t("update.available", {
+                  version: update!.latest!.version,
+                })}
+                data-update-warning
+              >
+                <AlertTriangle
+                  size={14}
+                  aria-label={t("update.available", {
+                    version: update!.latest!.version,
+                  })}
+                />
+              </span>
+            )}
           </NavLink>
         )}
-        <button onClick={logout} className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-neutral-200/50 dark:hover:bg-neutral-800/60">
+        <button
+          onClick={logout}
+          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-neutral-200/50 dark:hover:bg-neutral-800/60"
+        >
           <LogOut size={16} /> {t("auth.logout")}
+          {version && (
+            <span
+              className="ml-auto text-xs text-neutral-400"
+              title={t("admin.version", { version })}
+              data-version
+            >
+              v{version}
+            </span>
+          )}
         </button>
       </div>
     </>
@@ -187,14 +268,24 @@ export function AppShell() {
         </MobileBar>
       )}
       <Outlet />
-      {creatingWorkspace && <CreateWorkspaceDialog onClose={() => setCreatingWorkspace(false)} />}
+      {creatingWorkspace && (
+        <CreateWorkspaceDialog onClose={() => setCreatingWorkspace(false)} />
+      )}
       {searching && <SearchDialog onClose={() => setSearching(false)} />}
       {capturing && <QuickCaptureDialog onClose={() => setCapturing(false)} />}
     </SidebarLayout>
   );
 }
 
-function SectionHeader({ icon, label, children }: { icon: React.ReactNode; label: string; children?: React.ReactNode }) {
+function SectionHeader({
+  icon,
+  label,
+  children,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  children?: React.ReactNode;
+}) {
   return (
     <div className="group flex items-center justify-between px-2 pb-1">
       <span className="flex min-w-0 items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-neutral-500">
@@ -213,21 +304,43 @@ function WorkspaceSection({ workspace }: { workspace: WorkspaceSummary }) {
   const canEdit = workspace.role === "owner" || workspace.role === "editor";
 
   async function addPage() {
-    const res = await api<{ page: PageSummary }>("/pages", { method: "POST", body: { workspaceId: workspace.id, parentId: null, title: "" } });
+    const res = await api<{ page: PageSummary }>("/pages", {
+      method: "POST",
+      body: { workspaceId: workspace.id, parentId: null, title: "" },
+    });
     await refresh();
     navigate(`/page/${res.page.id}`);
   }
 
-  const iconBtn = "rounded p-0.5 text-neutral-400 hover:bg-neutral-200 hover:text-neutral-700 dark:hover:bg-neutral-800";
+  const iconBtn =
+    "rounded p-0.5 text-neutral-400 hover:bg-neutral-200 hover:text-neutral-700 dark:hover:bg-neutral-800";
   return (
     <div>
-      <SectionHeader icon={workspace.kind === "personal" ? <User size={12} /> : <Users size={12} />} label={workspaceName(workspace)}>
+      <SectionHeader
+        icon={
+          workspace.kind === "personal" ? (
+            <User size={12} />
+          ) : (
+            <Users size={12} />
+          )
+        }
+        label={workspaceName(workspace)}
+      >
         {workspace.kind === "shared" && (
-          <Link to={`/workspace/${workspace.id}`} className={iconBtn} title={t("workspace.settings")}>
+          <Link
+            to={`/workspace/${workspace.id}`}
+            className={iconBtn}
+            title={t("workspace.settings")}
+          >
             <Settings size={13} />
           </Link>
         )}
-        <a href={`/api/workspaces/${workspace.id}/export`} download className={iconBtn} title={t("workspace.export")}>
+        <a
+          href={`/api/workspaces/${workspace.id}/export`}
+          download
+          className={iconBtn}
+          title={t("workspace.export")}
+        >
           <Download size={13} />
         </a>
         {canEdit && (
@@ -236,7 +349,14 @@ function WorkspaceSection({ workspace }: { workspace: WorkspaceSummary }) {
           </button>
         )}
       </SectionHeader>
-      {pages.data && <PageTree nodes={buildTree(pages.data)} all={pages.data} workspaceId={workspace.id} editable={canEdit} />}
+      {pages.data && (
+        <PageTree
+          nodes={buildTree(pages.data)}
+          all={pages.data}
+          workspaceId={workspace.id}
+          editable={canEdit}
+        />
+      )}
     </div>
   );
 }
@@ -252,7 +372,9 @@ function FavoritesSection() {
   if (!pages.length) return null;
 
   async function unstar(id: string) {
-    qc.setQueryData<PageSummary[]>(keys.favorites, (old) => old?.filter((p) => p.id !== id));
+    qc.setQueryData<PageSummary[]>(keys.favorites, (old) =>
+      old?.filter((p) => p.id !== id),
+    );
     await api(`/favorites/${id}`, { method: "DELETE" }).catch(() => {});
     await qc.invalidateQueries({ queryKey: keys.favorites });
   }
@@ -262,14 +384,19 @@ function FavoritesSection() {
     const box = e.currentTarget.getBoundingClientRect();
     const after = e.clientY > box.top + box.height / 2;
     setDrop(null);
-    const moved = e.dataTransfer.getData(FAVORITE_TYPE) || e.dataTransfer.getData(DRAG_TYPE);
+    const moved =
+      e.dataTransfer.getData(FAVORITE_TYPE) ||
+      e.dataTransfer.getData(DRAG_TYPE);
     if (!moved || moved === target) return;
     try {
-      if (!pages.some((p) => p.id === moved)) await api(`/favorites/${moved}`, { method: "PUT" });
+      if (!pages.some((p) => p.id === moved))
+        await api(`/favorites/${moved}`, { method: "PUT" });
       const ids = pages.map((p) => p.id).filter((id) => id !== moved);
       ids.splice(ids.indexOf(target) + (after ? 1 : 0), 0, moved);
       const byId = new Map(pages.map((p) => [p.id, p]));
-      qc.setQueryData<PageSummary[]>(keys.favorites, (old) => (old ? ids.flatMap((id) => byId.get(id) ?? []) : old));
+      qc.setQueryData<PageSummary[]>(keys.favorites, (old) =>
+        old ? ids.flatMap((id) => byId.get(id) ?? []) : old,
+      );
       await api("/favorites/order", { method: "POST", body: { pageIds: ids } });
     } catch {
       // Offline or no longer readable: the server's order comes back below.
@@ -281,7 +408,12 @@ function FavoritesSection() {
     <div>
       <SectionHeader icon={<Star size={12} />} label={t("favorites.title")} />
       {pages.map((page) => {
-        const line = drop?.id === page.id ? (drop.after ? "shadow-[inset_0_-2px_0_0] shadow-blue-500" : "shadow-[inset_0_2px_0_0] shadow-blue-500") : "";
+        const line =
+          drop?.id === page.id
+            ? drop.after
+              ? "shadow-[inset_0_-2px_0_0] shadow-blue-500"
+              : "shadow-[inset_0_2px_0_0] shadow-blue-500"
+            : "";
         return (
           <div
             key={page.id}
@@ -291,10 +423,17 @@ function FavoritesSection() {
               e.dataTransfer.effectAllowed = "move";
             }}
             onDragOver={(e) => {
-              if (!e.dataTransfer.types.includes(FAVORITE_TYPE) && !e.dataTransfer.types.includes(DRAG_TYPE)) return;
+              if (
+                !e.dataTransfer.types.includes(FAVORITE_TYPE) &&
+                !e.dataTransfer.types.includes(DRAG_TYPE)
+              )
+                return;
               e.preventDefault();
               const box = e.currentTarget.getBoundingClientRect();
-              setDrop({ id: page.id, after: e.clientY > box.top + box.height / 2 });
+              setDrop({
+                id: page.id,
+                after: e.clientY > box.top + box.height / 2,
+              });
             }}
             onDragLeave={() => setDrop(null)}
             onDrop={(e) => onDrop(e, page.id)}
@@ -308,7 +447,12 @@ function FavoritesSection() {
               }
             >
               <span className="w-4 shrink-0 text-center">
-                {pageIcon(page.icon) ?? (page.kind === "database" ? <Database size={14} className="inline text-neutral-400" /> : <FileText size={14} className="inline text-neutral-400" />)}
+                {pageIcon(page.icon) ??
+                  (page.kind === "database" ? (
+                    <Database size={14} className="inline text-neutral-400" />
+                  ) : (
+                    <FileText size={14} className="inline text-neutral-400" />
+                  ))}
               </span>
               <span className="truncate">{pageTitle(page.title)}</span>
             </NavLink>
@@ -333,7 +477,12 @@ function SharedSection() {
   return (
     <div>
       <SectionHeader icon={<Share2 size={12} />} label={t("sidebar.shared")} />
-      <PageTree nodes={buildTree(shared.data)} all={shared.data} workspaceId="" editable={false} />
+      <PageTree
+        nodes={buildTree(shared.data)}
+        all={shared.data}
+        workspaceId=""
+        editable={false}
+      />
     </div>
   );
 }
@@ -350,7 +499,10 @@ function CreateWorkspaceDialog({ onClose }: { onClose: () => void }) {
         onSubmit={async (e) => {
           e.preventDefault();
           try {
-            const res = await api<{ workspace: WorkspaceSummary }>("/workspaces", { method: "POST", body: { name } });
+            const res = await api<{ workspace: WorkspaceSummary }>(
+              "/workspaces",
+              { method: "POST", body: { name } },
+            );
             await qc.invalidateQueries({ queryKey: keys.workspaces });
             onClose();
             navigate(`/workspace/${res.workspace.id}`);

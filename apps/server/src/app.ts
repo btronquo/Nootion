@@ -40,6 +40,8 @@ import { createMailer, type Mailer, type MailSender } from "./mail.js";
 import { createSso, SCIM_PATH, type Sso } from "./sso.js";
 import { ssoAdminRoutes, ssoLoginRoutes } from "./routes/sso.js";
 import { scimRoutes } from "./routes/scim.js";
+import { createUpdates, currentVersion, type Updates } from "./updates.js";
+import { updateRoutes } from "./routes/updates.js";
 import { createLiveEvents, liveEventRoutes, type LiveEvents } from "./events.js";
 import { iconRoutes } from "./routes/icons.js";
 import { libraryRoutes } from "./routes/library.js";
@@ -75,6 +77,7 @@ declare module "fastify" {
     backups: Backups;
     mailer: Mailer;
     sso: Sso;
+    updates: Updates;
     liveEvents: LiveEvents;
   }
   interface FastifyRequest {
@@ -134,6 +137,11 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
   app.decorate("mailer", mailer);
   // Single sign-on, once administrators set a provider.
   app.decorate("sso", createSso({ db: opts.db, appSecret: opts.config.appSecret, appUrl: opts.config.appUrl }));
+  // Tells administrators when a newer Nootion is out.
+  const updates = createUpdates({ enabled: opts.config.updateCheck ?? false, url: opts.config.updateCheckUrl ?? "", log: app.log });
+  app.decorate("updates", updates);
+  app.addHook("onReady", async () => updates.start());
+  app.addHook("onClose", async () => updates.stop());
   app.addHook("onClose", async () => mailer.idle());
   const notifier = createNotifier(opts.db, {
     dataDir: opts.config.dataDir,
@@ -257,7 +265,7 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
     if (req.method === "DELETE") cleanOrphanFiles(opts.db, opts.config.dataDir);
   });
 
-  app.get("/api/health", async () => ({ ok: true, version: process.env.NOOTION_VERSION ?? "dev" }));
+  app.get("/api/health", async () => ({ ok: true, version: currentVersion() }));
   await app.register(setupRoutes, { prefix: "/api" });
   await app.register(authRoutes, { prefix: "/api/auth" });
   await app.register(adminRoutes, { prefix: "/api/admin" });
@@ -274,6 +282,7 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
   await app.register(ssoAdminRoutes, { prefix: "/api/admin/sso" });
   await app.register(ssoLoginRoutes, { prefix: "/api/auth/sso" });
   await app.register(scimRoutes, { prefix: SCIM_PATH });
+  await app.register(updateRoutes, { prefix: "/api/admin/update" });
   await app.register(favoriteRoutes, { prefix: "/api/favorites" });
   await app.register(calendarFeedRoutes, { prefix: "/api/calendar-feeds" });
   await app.register(icalRoutes, { prefix: "/api/ical" });
