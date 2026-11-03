@@ -13,6 +13,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   to 12 hours by default, and passwords that can be turned off (except for administrators).
   SCIM lets the provider create accounts, keep them up to date and disable people who leave. See
   [docs/SSO.md](docs/SSO.md).
+- The version running shows at the bottom of the sidebar. When a newer release is out, administrators see a ⚠ next
+  to "Administration" and a notice in Administration with a link to what's new, which they can hide until the next
+  release; "Check now" looks right away. `UPDATE_CHECK=false` turns the check off.
 - E-mail, set by administrators in Administration > E-mail, through an SMTP server or Resend, with a test e-mail:
   - reminders, mentions and comment replies are also sent by e-mail; each user picks which in My account;
   - an invitation made for an address is sent to it;
