@@ -335,6 +335,15 @@ body {
   @apply absolute -top-5 -left-px rounded rounded-bl-none px-1.5 py-0.5 text-xs font-semibold whitespace-nowrap text-white select-none;
 }
 
+/* ---------- Native drop-down lists ----------
+   Windows draws the list of a <select> with a white background whatever the theme, while its options take the
+   select's light text: give them the theme's colours. */
+.dark select option,
+.dark select optgroup {
+  background-color: #262626;
+  color: #e5e5e5;
+}
+
 /* ---------- Discreet scrollbars (wide database tables) ---------- */
 .thin-scroll {
   scrollbar-width: thin;

@@ -93,7 +93,8 @@ export function SidebarLayout({ sidebar, children }: { sidebar: ReactNode; child
     : "md:static md:z-auto md:translate-x-0 md:transition-none";
   return (
     <SidebarContext.Provider value={state}>
-      <div className="flex h-full">
+      {/* overflow-hidden: the fade-in nudges the page down 4px, which must not make the window scroll. */}
+      <div className="flex h-full overflow-hidden">
         {open && <div className="nt-backdrop fixed inset-0 z-40 bg-black/30 md:hidden" onClick={() => setOpen(false)} aria-hidden />}
         {/* Put away: hovering the left edge brings it out. */}
         {collapsed && (
