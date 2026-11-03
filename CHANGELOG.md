@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-11-03
+
 ### Added
 
 - The sidebar can be resized by dragging its right edge, as in Notion (from 200 to 480 pixels, remembered per
@@ -312,6 +314,7 @@ First public version.
 - Markdown (.zip), CSV and JSON export, CSV import, full backup download.
 - Single Docker image (amd64 and arm64), data in `/data`, migrations applied at startup.
 
+[3.3.0]: ../../releases/tag/v3.3.0
 [3.2.1]: ../../releases/tag/v3.2.1
 [3.2.0]: ../../releases/tag/v3.2.0
 [3.1.0]: ../../releases/tag/v3.1.0
