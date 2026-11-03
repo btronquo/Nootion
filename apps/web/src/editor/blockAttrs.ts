@@ -109,7 +109,12 @@ export function lastEdit(node: Node): { by: string | null; name: string; at: num
 /** Changes to a block by the same person within a minute aren't written again. */
 const QUIET = 60_000;
 
-/** Notes, on the blocks of text a local change touches, who made it and when. Changes from others and the server have theirs. */
+const trackKey = new PluginKey<number[]>("editTracking");
+
+/**
+ * Notes, on the blocks of text a local change touches, who made it and when. Changes from others and the server have theirs.
+ * Written by a transaction of its own once the change is in Yjs: appended to it, it can't be synced when the block was empty.
+ */
 export const EditTracking = Extension.create<{ user: { id: string; name: string } | null }>({
   name: "editTracking",
   addOptions() {
@@ -118,34 +123,51 @@ export const EditTracking = Extension.create<{ user: { id: string; name: string 
   addProseMirrorPlugins() {
     const user = this.options.user;
     if (!user) return [];
+    const local = (tr: Transaction) => tr.docChanged && !tr.getMeta(NOT_AN_EDIT) && !tr.getMeta(ySyncPluginKey)?.isChangeOrigin;
     return [
-      new Plugin({
-        key: new PluginKey("editTracking"),
-        appendTransaction: (trs: readonly Transaction[], _old, state) => {
-          const local = (tr: Transaction) => tr.docChanged && !tr.getMeta(NOT_AN_EDIT) && !tr.getMeta(ySyncPluginKey)?.isChangeOrigin;
-          if (!trs.some(local)) return null;
-          const now = Date.now();
-          const tr = state.tr;
-          const seen = new Set<number>();
-          const size = state.doc.content.size;
-          trs.forEach((t, i) => {
-            if (!local(t)) return;
-            for (const { newRange } of getChangedRanges(t)) {
-              // Ranges are in that transaction's document: brought to the final one.
-              let { from, to } = newRange;
-              for (const later of trs.slice(i + 1)) {
-                from = later.mapping.map(from, -1);
-                to = later.mapping.map(to, 1);
+      new Plugin<number[]>({
+        key: trackKey,
+        state: {
+          init: () => [],
+          // Where the blocks changed since the last write are.
+          apply: (tr, pending, _old, state) => {
+            if (tr.getMeta(trackKey) === "written") return [];
+            const next = new Set(tr.docChanged ? pending.map((pos) => tr.mapping.map(pos, -1)) : pending);
+            if (local(tr)) {
+              const size = state.doc.content.size;
+              for (const { newRange } of getChangedRanges(tr)) {
+                state.doc.nodesBetween(Math.max(0, Math.min(newRange.from, size)), Math.max(0, Math.min(newRange.to, size)), (n, pos) => {
+                  if (TRACKED.includes(n.type.name)) next.add(pos);
+                });
               }
-              state.doc.nodesBetween(Math.max(0, Math.min(from, size)), Math.max(0, Math.min(to, size)), (n, pos) => {
-                if (!TRACKED.includes(n.type.name) || seen.has(pos)) return;
-                seen.add(pos);
-                if (n.attrs.editedBy === user.id && now - (Number(n.attrs.editedAt) || 0) < QUIET) return;
-                tr.setNodeMarkup(pos, undefined, { ...n.attrs, editedBy: user.id, editedByName: user.name, editedAt: now });
-              });
             }
-          });
-          return tr.docChanged ? tr.setMeta(NOT_AN_EDIT, true).setMeta("addToHistory", false) : null;
+            return next.size === pending.length && pending.every((p) => next.has(p)) ? pending : [...next];
+          },
+        },
+        view: (view) => {
+          let timer = 0;
+          const write = () => {
+            timer = 0;
+            if (view.isDestroyed) return;
+            // Not while a word is being composed (accents, phone keyboards): it would be interrupted.
+            if (view.composing) return void (timer = window.setTimeout(write, 300));
+            const { state } = view;
+            const now = Date.now();
+            const tr = state.tr;
+            for (const pos of trackKey.getState(state) ?? []) {
+              const n = state.doc.nodeAt(pos);
+              if (!n || !TRACKED.includes(n.type.name)) continue;
+              if (n.attrs.editedBy === user.id && now - (Number(n.attrs.editedAt) || 0) < QUIET) continue;
+              tr.setNodeMarkup(pos, undefined, { ...n.attrs, editedBy: user.id, editedByName: user.name, editedAt: now });
+            }
+            view.dispatch(tr.setMeta(trackKey, "written").setMeta(NOT_AN_EDIT, true).setMeta("addToHistory", false));
+          };
+          return {
+            update: () => {
+              if (!timer && trackKey.getState(view.state)?.length) timer = window.setTimeout(write, 0);
+            },
+            destroy: () => window.clearTimeout(timer),
+          };
         },
       }),
     ];
