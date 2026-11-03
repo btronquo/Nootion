@@ -3,7 +3,17 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and version numbers follow
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [3.2.1] - 2026-11-03
+
+### Fixed
+
+- Drop-down lists (roles, view settings…) are readable in dark mode on Windows: their options were light text on a
+  white background.
+- Opening a page no longer shows a scrollbar for a split second, shifting the content sideways.
+
+## [3.2.0] - 2026-11-03
+
+3.1.0 was tagged on the code of 3.0.0 by mistake: its changes come with this version, listed below.
 
 ### Added
 
@@ -55,11 +65,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Fixed
 
-- Hovering a page in the graph fades the highlight in and out instead of switching it at once.
 - "Saving…" above the editor only shows when a save takes more than a second and a half (a slow connection),
   instead of flashing at each change.
 - The sidebar shows the pages others add, rename, move or delete in a shared space (or share with you) right away,
   without reloading the page.
+- On phones, the bottom of the sidebar (My account, Administration) no longer hides under the browser's toolbar;
+  My account also links to the administration for administrators.
+
+## [3.1.0] - 2026-10-31
+
+Tagged on the code of 3.0.0 by mistake; its changes are in 3.2.0.
 
 ## [3.0.0] - 2026-10-31
 
@@ -284,6 +299,9 @@ First public version.
 - Markdown (.zip), CSV and JSON export, CSV import, full backup download.
 - Single Docker image (amd64 and arm64), data in `/data`, migrations applied at startup.
 
+[3.2.1]: ../../releases/tag/v3.2.1
+[3.2.0]: ../../releases/tag/v3.2.0
+[3.1.0]: ../../releases/tag/v3.1.0
 [3.0.0]: ../../releases/tag/v3.0.0
 [2.0.1]: ../../releases/tag/v2.0.1
 [2.0.0]: ../../releases/tag/v2.0.0
