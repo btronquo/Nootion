@@ -3,6 +3,14 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and version numbers follow
 [Semantic Versioning](https://semver.org/).
 
+## [3.2.1] - 2026-11-03
+
+### Fixed
+
+- Drop-down lists (roles, view settings…) are readable in dark mode on Windows: their options were light text on a
+  white background.
+- Opening a page no longer shows a scrollbar for a split second, shifting the content sideways.
+
 ## [3.2.0] - 2026-11-03
 
 3.1.0 was tagged on the code of 3.0.0 by mistake: its changes come with this version, listed below.
@@ -291,6 +299,7 @@ First public version.
 - Markdown (.zip), CSV and JSON export, CSV import, full backup download.
 - Single Docker image (amd64 and arm64), data in `/data`, migrations applied at startup.
 
+[3.2.1]: ../../releases/tag/v3.2.1
 [3.2.0]: ../../releases/tag/v3.2.0
 [3.1.0]: ../../releases/tag/v3.1.0
 [3.0.0]: ../../releases/tag/v3.0.0
