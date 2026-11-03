@@ -6,7 +6,8 @@ import { useLastSaved } from "../lib/saved";
 const time = (d: Date) => new Intl.DateTimeFormat(intlLocale(), { hour: "2-digit", minute: "2-digit" }).format(d);
 const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
 
-function label(d: Date) {
+/** "Edited at 14:32", "Edited yesterday at…", "Edited on 3 Nov at…". */
+export function editedLabel(d: Date) {
   const now = new Date();
   if (sameDay(d, now)) return t("page.editedToday", { time: time(d) });
   const yesterday = new Date(now);
@@ -50,7 +51,7 @@ export function EditedAt({ pageId, updatedAt }: { pageId: string; updatedAt: str
           <Check size={12} /> {t("page.saved")}
         </span>
       ) : (
-        <span className="animate-[nt-fade-in_200ms_ease-out]">{label(at)}</span>
+        <span className="animate-[nt-fade-in_200ms_ease-out]">{editedLabel(at)}</span>
       )}
     </span>
   );
