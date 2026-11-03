@@ -10,6 +10,7 @@ import { PAGE_DB_PREFIX } from "../lib/offline";
 import { useOnline } from "../lib/api";
 import { NodeSelection } from "@tiptap/pm/state";
 import { useQueryClient } from "@tanstack/react-query";
+import { useLocation } from "react-router-dom";
 import { Bold, Code, Italic, Link as LinkIcon, MessageSquarePlus, Strikethrough, Underline } from "lucide-react";
 import type { PageDetail, PageSummary, UserDirectoryEntry } from "@nootion/shared";
 import { markSaved } from "../lib/saved";
@@ -24,6 +25,8 @@ import type { ClientPluginInfo } from "@nootion/shared";
 import { t } from "@nootion/shared";
 import { MobileToolbar } from "./MobileToolbar";
 import { BlockHandle } from "./BlockHandle";
+import { BlockShortcuts } from "./blockActions";
+import { BlockFlash, EditTracking, findBlockById, flashBlock } from "./blockAttrs";
 import { useIsTouch } from "../lib/mobile";
 import type { CommentThread } from "@nootion/shared";
 import { CommentHighlights, selectionAnchor, setCommentHighlights } from "../comments/highlights";
@@ -207,6 +210,9 @@ function CollabEditor({
         createSuggestionExtension("slashCommands", "/", slashItems(ctx), t("editor.noCommand")),
         createSuggestionExtension("pageMentions", "@", mentionItems(ctx), t("editor.noPage")),
         CommentHighlights.configure({ onOpen: (id) => commentsRef.current?.onOpen(id) }),
+        BlockShortcuts,
+        BlockFlash,
+        EditTracking.configure({ user: user ? { id: user.id, name: user.name } : null }),
       ],
       editorProps: {
         attributes: { class: "nootion-content", "aria-label": t("editor.content") },
@@ -248,6 +254,15 @@ function CollabEditor({
     if (active) document.querySelector(`.nootion-content [data-comment-thread="${active}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [active]);
 
+  // A link to a block ("#block-…"): the page scrolls to it once the server's copy is in, and shows it for a moment.
+  const { hash } = useLocation();
+  useEffect(() => {
+    const id = /^#block-([\w-]+)$/.exec(hash)?.[1];
+    if (!editor || !synced || !id) return;
+    const pos = findBlockById(editor.state.doc, id);
+    if (pos !== null) return flashBlock(editor, pos);
+  }, [editor, synced, hash]);
+
   useEffect(() => {
     if (!editor || !onEmpty) return;
     // Only once the server's copy is in: a page still loading looks empty.
@@ -288,7 +303,14 @@ function CollabEditor({
       {editor && comments?.canComment && (touch || !canEdit) && <CommentMenu editor={editor} onComment={() => startComment(editor, comments)} />}
       {editor && canEdit && touch && <MobileToolbar editor={editor} />}
       {editor && canEdit && <TableMenu editor={editor} />}
-      {editor && editable && !touch && <BlockHandle editor={editor} />}
+      {editor && editable && !touch && (
+        <BlockHandle
+          editor={editor}
+          pageId={page.id}
+          onComment={comments?.canComment ? () => startComment(editor, comments) : undefined}
+          personName={(id) => qc.getQueryData<UserDirectoryEntry[]>(keys.users)?.find((u) => u.id === id)?.name}
+        />
+      )}
       <EditorContent editor={editor} />
     </div>
   );

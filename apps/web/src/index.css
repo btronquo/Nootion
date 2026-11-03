@@ -193,6 +193,12 @@ body {
 .nootion-content img {
   @apply my-2 max-w-full rounded-md;
 }
+.nootion-content > .ProseMirror-selectednode:not(img, [data-node-view-wrapper]),
+.nootion-content li.ProseMirror-selectednode {
+  /* The block whose menu is open (or picked with its handle), as in Notion. */
+  background-color: rgb(35 131 226 / 0.14);
+  border-radius: 3px;
+}
 .nootion-content img.ProseMirror-selectednode {
   @apply outline-2 outline-blue-500;
 }
@@ -335,6 +341,15 @@ body {
   @apply absolute -top-5 -left-px rounded rounded-bl-none px-1.5 py-0.5 text-xs font-semibold whitespace-nowrap text-white select-none;
 }
 
+/* ---------- Native drop-down lists ----------
+   Windows draws the list of a <select> with a white background whatever the theme, while its options take the
+   select's light text: give them the theme's colours. */
+.dark select option,
+.dark select optgroup {
+  background-color: #262626;
+  color: #e5e5e5;
+}
+
 /* ---------- Discreet scrollbars (wide database tables) ---------- */
 .thin-scroll {
   scrollbar-width: thin;
@@ -353,4 +368,134 @@ body {
 .plugin-block:hover .nootion-hover-only,
 .plugin-block:focus-within .nootion-hover-only {
   opacity: 1;
+}
+
+/* Block colors (the block menu's "Color"), Notion's. Text, or background with "-bg". */
+:root {
+  --nt-gray: #787774;
+  --nt-gray-bg: #f1f1ef;
+  --nt-brown: #9f6b53;
+  --nt-brown-bg: #f4eeee;
+  --nt-orange: #d9730d;
+  --nt-orange-bg: #fbecdd;
+  --nt-yellow: #cb912f;
+  --nt-yellow-bg: #fbf3db;
+  --nt-green: #448361;
+  --nt-green-bg: #edf3ec;
+  --nt-blue: #337ea9;
+  --nt-blue-bg: #e7f3f8;
+  --nt-purple: #9065b0;
+  --nt-purple-bg: #f6f3f9;
+  --nt-pink: #c14c8a;
+  --nt-pink-bg: #faf1f5;
+  --nt-red: #d44c47;
+  --nt-red-bg: #fdebec;
+}
+.dark {
+  --nt-gray: #9b9b9b;
+  --nt-gray-bg: #2f2f2f;
+  --nt-brown: #ba856f;
+  --nt-brown-bg: #4a3228;
+  --nt-orange: #c77d48;
+  --nt-orange-bg: #5c3b23;
+  --nt-yellow: #ca9849;
+  --nt-yellow-bg: #564328;
+  --nt-green: #529e72;
+  --nt-green-bg: #243d30;
+  --nt-blue: #5e87c9;
+  --nt-blue-bg: #143a4e;
+  --nt-purple: #9d68d3;
+  --nt-purple-bg: #3c2d49;
+  --nt-pink: #d15796;
+  --nt-pink-bg: #4e2c3c;
+  --nt-red: #df5452;
+  --nt-red-bg: #522e2a;
+}
+.nootion-content [data-color="gray"],
+.nt-swatch[data-color="gray"] {
+  color: var(--nt-gray);
+}
+.nootion-content [data-color="brown"],
+.nt-swatch[data-color="brown"] {
+  color: var(--nt-brown);
+}
+.nootion-content [data-color="orange"],
+.nt-swatch[data-color="orange"] {
+  color: var(--nt-orange);
+}
+.nootion-content [data-color="yellow"],
+.nt-swatch[data-color="yellow"] {
+  color: var(--nt-yellow);
+}
+.nootion-content [data-color="green"],
+.nt-swatch[data-color="green"] {
+  color: var(--nt-green);
+}
+.nootion-content [data-color="blue"],
+.nt-swatch[data-color="blue"] {
+  color: var(--nt-blue);
+}
+.nootion-content [data-color="purple"],
+.nt-swatch[data-color="purple"] {
+  color: var(--nt-purple);
+}
+.nootion-content [data-color="pink"],
+.nt-swatch[data-color="pink"] {
+  color: var(--nt-pink);
+}
+.nootion-content [data-color="red"],
+.nt-swatch[data-color="red"] {
+  color: var(--nt-red);
+}
+.nootion-content [data-color="gray-bg"],
+.nt-swatch[data-color="gray-bg"] {
+  background-color: var(--nt-gray-bg);
+}
+.nootion-content [data-color="brown-bg"],
+.nt-swatch[data-color="brown-bg"] {
+  background-color: var(--nt-brown-bg);
+}
+.nootion-content [data-color="orange-bg"],
+.nt-swatch[data-color="orange-bg"] {
+  background-color: var(--nt-orange-bg);
+}
+.nootion-content [data-color="yellow-bg"],
+.nt-swatch[data-color="yellow-bg"] {
+  background-color: var(--nt-yellow-bg);
+}
+.nootion-content [data-color="green-bg"],
+.nt-swatch[data-color="green-bg"] {
+  background-color: var(--nt-green-bg);
+}
+.nootion-content [data-color="blue-bg"],
+.nt-swatch[data-color="blue-bg"] {
+  background-color: var(--nt-blue-bg);
+}
+.nootion-content [data-color="purple-bg"],
+.nt-swatch[data-color="purple-bg"] {
+  background-color: var(--nt-purple-bg);
+}
+.nootion-content [data-color="pink-bg"],
+.nt-swatch[data-color="pink-bg"] {
+  background-color: var(--nt-pink-bg);
+}
+.nootion-content [data-color="red-bg"],
+.nt-swatch[data-color="red-bg"] {
+  background-color: var(--nt-red-bg);
+}
+.nootion-content [data-color$="-bg"] {
+  border-radius: 3px;
+}
+/* A block reached by its link: shown for a moment. */
+@keyframes nt-block-flash {
+  from {
+    background-color: rgb(35 131 226 / 0.28);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+.nootion-content .nt-block-flash {
+  border-radius: 3px;
+  animation: nt-block-flash 2.5s ease-out;
 }

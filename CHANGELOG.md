@@ -3,6 +3,29 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and version numbers follow
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+## [3.3.0] - 2026-11-03
+
+### Added
+
+- The sidebar can be resized by dragging its right edge, as in Notion (from 200 to 480 pixels, remembered per
+  browser); clicking the edge puts it away. With the keyboard: focus the edge, then the arrows.
+- A click on the dots left of a block opens its menu, as in Notion: turn it into another kind (text, headings,
+  lists, to-do, quote, callout, code), duplicate, move up or down, comment or delete it, with a search box.
+  Ctrl+D duplicates the block the cursor is in, and Ctrl+Shift+Up/Down moves it.
+- Blocks can be colored from their menu: the text, or the background, in Notion's colors (dark mode included).
+- "Copy link to block" in the block menu: the link opens the page scrolled to the block, which is shown for a moment.
+- The block menu says who last edited the block, and when.
+
+## [3.2.1] - 2026-11-03
+
+### Fixed
+
+- Drop-down lists (roles, view settings…) are readable in dark mode on Windows: their options were light text on a
+  white background.
+- Opening a page no longer shows a scrollbar for a split second, shifting the content sideways.
+
 ## [3.2.0] - 2026-11-03
 
 3.1.0 was tagged on the code of 3.0.0 by mistake: its changes come with this version, listed below.
@@ -291,6 +314,8 @@ First public version.
 - Markdown (.zip), CSV and JSON export, CSV import, full backup download.
 - Single Docker image (amd64 and arm64), data in `/data`, migrations applied at startup.
 
+[3.3.0]: ../../releases/tag/v3.3.0
+[3.2.1]: ../../releases/tag/v3.2.1
 [3.2.0]: ../../releases/tag/v3.2.0
 [3.1.0]: ../../releases/tag/v3.1.0
 [3.0.0]: ../../releases/tag/v3.0.0
