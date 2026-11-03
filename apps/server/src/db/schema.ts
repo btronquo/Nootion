@@ -31,6 +31,8 @@ export const users = sqliteTable(
     ssoSubject: text("sso_subject").unique(),
     // The provider's id for the account, given over SCIM.
     scimExternalId: text("scim_external_id"),
+    // The newest release this administrator said not to be told about again.
+    dismissedUpdate: text("dismissed_update"),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("users_email_unique").on(t.email)],
