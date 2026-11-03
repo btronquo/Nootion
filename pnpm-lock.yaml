@@ -49,6 +49,9 @@ importers:
       fastify:
         specifier: ^5.6.1
         version: 5.12.7
+      jose:
+        specifier: 6.2.14
+        version: 6.2.14
       nodemailer:
         specifier: ^6.10.1
         version: 6.10.1

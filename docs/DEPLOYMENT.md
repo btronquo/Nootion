@@ -109,6 +109,12 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 
 To update: `git pull`, then the same command. To try the `develop` branch, `git checkout develop` first.
 
+## Single sign-on (SSO)
+
+People can sign in with their company account (Microsoft Entra ID, Google Workspace, Okta, Keycloak… any OpenID
+Connect provider), set in **Administration > Single sign-on (SSO)**, and SCIM lets the provider disable those who
+leave. The server must reach the provider over HTTPS. See [SSO.md](SSO.md) for the steps in Entra ID.
+
 ## Sending e-mail
 
 Nootion sends nothing by e-mail until an administrator sets it up in **Administration > E-mail**:

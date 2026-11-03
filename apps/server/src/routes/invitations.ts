@@ -7,6 +7,7 @@ import { HttpError, parseBody } from "../http.js";
 import { requestLocale } from "../i18n.js";
 import { createUser, toPublicUser } from "../users.js";
 import { startSession } from "./session-cookie.js";
+import { passwordAllowed, ssoOnlyMessage } from "./sso.js";
 
 export const invitationRoutes: FastifyPluginAsync = async (app) => {
   const findValid = (token: string) =>
@@ -21,7 +22,7 @@ export const invitationRoutes: FastifyPluginAsync = async (app) => {
   app.get<{ Params: { token: string } }>("/:token", async (req) => {
     const inv = findValid(req.params.token);
     if (!inv) throw invalid();
-    return { email: inv.email };
+    return { email: inv.email, sso: app.sso.info() };
   });
 
   app.post<{ Params: { token: string } }>(
@@ -31,6 +32,7 @@ export const invitationRoutes: FastifyPluginAsync = async (app) => {
       const input = parseBody(acceptInvitationInput, req.body);
       const inv = findValid(req.params.token);
       if (!inv) throw invalid();
+      if (!passwordAllowed(app, inv.role)) throw new HttpError(403, "sso_only", ssoOnlyMessage());
       if (inv.email && inv.email !== input.email) {
         throw new HttpError(400, "email_mismatch", t("error.invitationEmail"));
       }

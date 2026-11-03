@@ -7,6 +7,7 @@ import { deleteUserSessions } from "../auth/sessions.js";
 import { hashToken, newToken } from "../auth/tokens.js";
 import { passwordResets, users } from "../db/schema.js";
 import { HttpError, parseBody, requireAdmin, requireUser } from "../http.js";
+import { passwordAllowed } from "./sso.js";
 
 const RESET_TTL_MS = 60 * 60 * 1000;
 
@@ -70,7 +71,8 @@ export const passwordResetRoutes: FastifyPluginAsync = async (app) => {
     const { email } = parseBody(forgotPasswordInput, req.body);
     if (!mailer.enabled()) throw new HttpError(400, "mail_off", t("mail.notConfigured"));
     const user = db.select().from(users).where(eq(users.email, email.toLowerCase())).get() ?? db.select().from(users).where(eq(users.email, email)).get();
-    if (user && !user.disabled) {
+    // Accounts that sign in through SSO get nothing: their password isn't used.
+    if (user && !user.disabled && passwordAllowed(app, user.role)) {
       const token = newToken();
       db.insert(passwordResets)
         .values({ tokenHash: hashToken(token), userId: user.id, expiresAt: new Date(Date.now() + RESET_TTL_MS) })

@@ -6,9 +6,9 @@ import { hashToken, newToken } from "./tokens.js";
 export const SESSION_COOKIE = "nootion_session";
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
-export function createSession(db: Db, userId: string): { token: string; expiresAt: Date } {
+export function createSession(db: Db, userId: string, ttlMs = SESSION_TTL_MS): { token: string; expiresAt: Date } {
   const token = newToken();
-  const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+  const expiresAt = new Date(Date.now() + ttlMs);
   db.insert(sessions).values({ tokenHash: hashToken(token), userId, expiresAt }).run();
   return { token, expiresAt };
 }

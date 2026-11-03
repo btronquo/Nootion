@@ -37,6 +37,9 @@ import { createBackups, type Backups } from "./backups.js";
 import { backupRoutes } from "./routes/backups.js";
 import { mailRoutes, passwordResetRoutes } from "./routes/mail.js";
 import { createMailer, type Mailer, type MailSender } from "./mail.js";
+import { createSso, SCIM_PATH, type Sso } from "./sso.js";
+import { ssoAdminRoutes, ssoLoginRoutes } from "./routes/sso.js";
+import { scimRoutes } from "./routes/scim.js";
 import { createLiveEvents, liveEventRoutes, type LiveEvents } from "./events.js";
 import { iconRoutes } from "./routes/icons.js";
 import { libraryRoutes } from "./routes/library.js";
@@ -71,6 +74,7 @@ declare module "fastify" {
     recurrences: Recurrences;
     backups: Backups;
     mailer: Mailer;
+    sso: Sso;
     liveEvents: LiveEvents;
   }
   interface FastifyRequest {
@@ -128,6 +132,8 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
   // E-mail, once administrators set a provider.
   const mailer = createMailer({ db: opts.db, appSecret: opts.config.appSecret, appUrl: opts.config.appUrl, log: app.log, sender: opts.mailSender });
   app.decorate("mailer", mailer);
+  // Single sign-on, once administrators set a provider.
+  app.decorate("sso", createSso({ db: opts.db, appSecret: opts.config.appSecret, appUrl: opts.config.appUrl }));
   app.addHook("onClose", async () => mailer.idle());
   const notifier = createNotifier(opts.db, {
     dataDir: opts.config.dataDir,
@@ -172,7 +178,8 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
       }
     }
     // Personal API tokens ("Authorization: Bearer nt_…"), for scripts and other apps.
-    const bearer = req.url.startsWith("/api/") ? /^Bearer\s+(\S+)$/i.exec(req.headers.authorization ?? "")?.[1] : undefined;
+    // (SCIM has its own token, checked by its routes.)
+    const bearer = req.url.startsWith("/api/") && !req.url.startsWith(SCIM_PATH) ? /^Bearer\s+(\S+)$/i.exec(req.headers.authorization ?? "")?.[1] : undefined;
     if (bearer) {
       const say = (key: "error.badToken" | "error.tokenNotAllowed" | "error.tokenReadOnly" | "error.tooManyRequests") =>
         withLocale(requestLocale(req), () => t(key));
@@ -264,6 +271,9 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
   await app.register(backupRoutes, { prefix: "/api/admin/backups" });
   await app.register(mailRoutes, { prefix: "/api" });
   await app.register(passwordResetRoutes, { prefix: "/api/auth" });
+  await app.register(ssoAdminRoutes, { prefix: "/api/admin/sso" });
+  await app.register(ssoLoginRoutes, { prefix: "/api/auth/sso" });
+  await app.register(scimRoutes, { prefix: SCIM_PATH });
   await app.register(favoriteRoutes, { prefix: "/api/favorites" });
   await app.register(calendarFeedRoutes, { prefix: "/api/calendar-feeds" });
   await app.register(icalRoutes, { prefix: "/api/ical" });
