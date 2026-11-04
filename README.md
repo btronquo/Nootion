@@ -118,7 +118,8 @@ offline use and the Notion import.
   link previews) and the "Nextcloud" plugin (each person connects their account, then copies files into pages and
   "File" columns, or links to them: see [docs/NEXTCLOUD.md](docs/NEXTCLOUD.md)) and the "Google Calendar" plugin
   (syncs a database with a Google calendar, both ways, with the administrator's OAuth client or each person's own:
-  see [docs/GOOGLE_CALENDAR.md](docs/GOOGLE_CALENDAR.md)) and the "Ratings" plugin (a column of one to five stars). See [docs/PLUGINS.md](docs/PLUGINS.md)
+  see [docs/GOOGLE_CALENDAR.md](docs/GOOGLE_CALENDAR.md)) the "Ratings" plugin (a column of one to five stars) and the "Test management (QA)" plugin (test cases, runs and
+  results as in TestRail, over several products at once: see [docs/QA.md](docs/QA.md)). See [docs/PLUGINS.md](docs/PLUGINS.md)
   to write your own.
 - Export a page or a space as Markdown (.zip: subpages, attached files, databases as CSV and JSON),
   export a database as CSV (or CSV for Excel) and JSON with computed formulas, import a CSV into a database

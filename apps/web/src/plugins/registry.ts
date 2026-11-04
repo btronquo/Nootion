@@ -14,6 +14,8 @@ export interface PluginBlockProps {
   setData: (data: Record<string, unknown>) => void;
   /** False for readers and on public pages. */
   editable: boolean;
+  /** The page the block is in; null on public pages (whose readers may not be signed in). */
+  pageId: string | null;
 }
 
 /** What the cell of a plugin's column type receives. */

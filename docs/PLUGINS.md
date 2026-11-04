@@ -146,6 +146,7 @@ export function activate(nootion) {
   Keep there what readers need to see, so public pages render without calling the server.
 - `setData(object)`: replaces the block's data.
 - `editable`: false for viewers and on public pages.
+- `pageId`: the page the block is in (to create or find things next to it); null on public pages.
 - `nootion.api(path, { method, body })`: calls one of the plugin's routes (`/api/plugins/<id><path>`).
 - `nootion.locale`: the interface language. The page reloads when the user changes it.
 

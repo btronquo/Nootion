@@ -73,6 +73,7 @@ describe("plugins", () => {
       ["embed", true, true],
       ["google_calendar", false, true],
       ["nextcloud", false, true],
+      ["qa", false, true],
       ["rating", false, true],
       ["demo", false, false],
     ]);

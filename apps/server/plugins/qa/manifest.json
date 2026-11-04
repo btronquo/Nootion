@@ -1,0 +1,21 @@
+{
+  "id": "qa",
+  "name": { "en": "Test management (QA)", "fr": "Gestion des tests (QA)" },
+  "version": "1.0.0",
+  "description": {
+    "en": "Test cases, test runs and results, as in TestRail or Qase, kept in ordinary Nootion databases. A run can cover several products at once (PC, Xbox, PlayStation…). Command \"/test run\".",
+    "fr": "Cas de test, campagnes (test runs) et résultats, comme dans TestRail ou Qase, rangés dans des bases Nootion ordinaires. Un run peut couvrir plusieurs produits à la fois (PC, Xbox, PlayStation…). Commande « /test run »."
+  },
+  "author": "Nootion",
+  "server": "server.js",
+  "client": "client.js",
+  "blocks": [
+    {
+      "id": "run",
+      "title": { "en": "Test run", "fr": "Test run" },
+      "description": { "en": "Run test cases and record the results, per product", "fr": "Dérouler des cas de test et noter les résultats, par produit" },
+      "icon": "🧪",
+      "keywords": { "en": "qa test run case testrail qase campaign", "fr": "qa test run cas recette campagne testrail qase" }
+    }
+  ]
+}
