@@ -37,6 +37,11 @@ const TEXTS = {
     testedAt: "Tested on",
     comment: "Comment",
     bug: "Bug",
+    ticket: "Ticket",
+    adoOff: "Azure DevOps isn't set up (Administration › Plugins › Test management).",
+    adoError: "Azure DevOps answered: {error}",
+    adoUnreachable: "Azure DevOps can't be reached: {error}",
+    badTicket: "A ticket is a work item number.",
     s_untested: "Untested",
     s_passed: "Passed",
     s_failed: "Failed",
@@ -75,6 +80,11 @@ const TEXTS = {
     testedAt: "Testé le",
     comment: "Commentaire",
     bug: "Bug",
+    ticket: "Ticket",
+    adoOff: "Azure DevOps n'est pas configuré (Administration › Plugins › Gestion des tests).",
+    adoError: "Azure DevOps a répondu : {error}",
+    adoUnreachable: "Impossible de joindre Azure DevOps : {error}",
+    badTicket: "Un ticket est un numéro de work item.",
     s_untested: "Non testé",
     s_passed: "Réussi",
     s_failed: "Échoué",
@@ -193,11 +203,73 @@ export function activate(nootion) {
     set.results.tester = (await prop(results.id, text("tester"), "person")).id;
     set.results.testedAt = (await prop(results.id, text("testedAt"), "date", { includeTime: true })).id;
     set.results.comment = (await prop(results.id, text("comment"), "text")).id;
+    set.results.ticket = (await prop(results.id, text("ticket"), "number", { decimals: 0 })).id;
     set.results.bug = (await prop(results.id, text("bug"), "url")).id;
 
     sets[set.id] = set;
     save();
     return set;
+  }
+
+  /** Sets made before tickets existed get their column the first time one is written. */
+  async function ticketColumn(user, set) {
+    if (set.results.ticket) return set.results.ticket;
+    const { property } = await api(user, "POST", `/databases/${set.results.id}/properties`, { name: text("ticket"), type: "number", config: { decimals: 0 } });
+    set.results.ticket = property.id;
+    save();
+    return property.id;
+  }
+
+  // --- Azure DevOps -------------------------------------------------------------------------------
+
+  const ado = {
+    url: String(nootion.settings.adoUrl ?? "").trim().replace(/\/+$/, ""),
+    project: String(nootion.settings.adoProject ?? "").trim(),
+    token: String(nootion.settings.adoToken ?? "").trim(),
+  };
+  const adoBase = () => (ado.project ? `${ado.url}/${encodeURIComponent(ado.project)}` : ado.url);
+  const ticketUrl = (id) => (ado.url && id ? `${adoBase()}/_workitems/edit/${id}` : null);
+  /** Titles and states read from Azure DevOps, kept a few minutes. */
+  const ticketCache = new Map();
+  const TICKET_TTL_MS = 5 * 60 * 1000;
+
+  async function readTickets(ids) {
+    if (!ado.url || !ado.token) throw fail(409, "qa_ado_off", "adoOff");
+    const now = Date.now();
+    const missing = ids.filter((id) => !(ticketCache.get(id)?.at > now - TICKET_TTL_MS));
+    for (let i = 0; i < missing.length; i += 200) {
+      const chunk = missing.slice(i, i + 200);
+      const url = `${adoBase()}/_apis/wit/workitems?ids=${chunk.join(",")}&fields=System.Title,System.State,System.WorkItemType&errorPolicy=omit&api-version=7.1`;
+      let res;
+      try {
+        res = await fetch(url, {
+          headers: { authorization: `Basic ${Buffer.from(`:${ado.token}`).toString("base64")}`, accept: "application/json" },
+          signal: AbortSignal.timeout(15000),
+        });
+      } catch (e) {
+        throw fail(502, "qa_ado_unreachable", "adoUnreachable", { error: e?.cause?.code ?? e?.message ?? String(e) });
+      }
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw fail(502, "qa_ado_error", "adoError", { error: data?.message ?? `HTTP ${res.status}` });
+      const found = new Map((data?.value ?? []).filter(Boolean).map((w) => [w.id, w]));
+      for (const id of chunk) {
+        const w = found.get(id);
+        ticketCache.set(id, {
+          at: now,
+          ticket: w ? { title: w.fields?.["System.Title"] ?? "", state: w.fields?.["System.State"] ?? "", type: w.fields?.["System.WorkItemType"] ?? "" } : null,
+        });
+      }
+    }
+    return Object.fromEntries(ids.map((id) => [id, ticketCache.get(id)?.ticket ?? null]));
+  }
+
+  /** "1234", "#1234", 1234 or a work item address: its number. */
+  function parseTicket(v) {
+    if (v === null || v === "") return null;
+    const m = typeof v === "number" ? [null, String(v)] : /^\s*#?\s*(\d{1,10})\s*$/.exec(String(v)) ?? /_workitems\/edit\/(\d{1,10})/.exec(String(v));
+    const n = m ? Number(m[1]) : NaN;
+    if (!Number.isSafeInteger(n) || n <= 0) throw fail(400, "qa_bad_ticket", "badTicket");
+    return n;
   }
 
   // --- Reading --------------------------------------------------------------------------------
@@ -259,6 +331,7 @@ export function activate(nootion) {
     const role = nootion.pages.role(user.id, set.results.id);
     return {
       set: set.id,
+      ado: { enabled: !!ado.url, details: !!(ado.url && ado.token) },
       databases: { cases: set.cases.id, products: set.products.id, runs: set.runs.id, results: set.results.id },
       canEdit: role === "editor" || role === "full",
       run: {
@@ -289,6 +362,8 @@ export function activate(nootion) {
       testedAt: r.values[set.results.testedAt]?.start ?? null,
       comment: r.values[set.results.comment] ?? "",
       bug: r.values[set.results.bug] ?? "",
+      ticket: set.results.ticket ? (r.values[set.results.ticket] ?? null) : null,
+      ticketUrl: set.results.ticket ? ticketUrl(r.values[set.results.ticket]) : null,
     };
   }
 
@@ -401,6 +476,12 @@ export function activate(nootion) {
     return { run: await loadRun(user, set, params.runId) };
   });
 
+  // Title, state and type of Azure DevOps work items: /tickets?ids=12,345
+  nootion.route("GET", "/tickets", async ({ query }) => {
+    const ids = [...new Set(String(query.ids ?? "").split(",").map((x) => Number(x)).filter((n) => Number.isSafeInteger(n) && n > 0))].slice(0, 500);
+    return { tickets: ids.length ? await readTickets(ids) : {} };
+  });
+
   // Records a result: its status (with who and when), a comment, a link to a bug.
   nootion.route("PATCH", "/sets/:setId/results/:resultId", async ({ user, params, body }) => {
     const set = setFor(user, params.setId);
@@ -413,6 +494,10 @@ export function activate(nootion) {
     }
     if (typeof body?.comment === "string") values[set.results.comment] = body.comment.slice(0, 20000) || null;
     if (typeof body?.bug === "string") values[set.results.bug] = body.bug.trim().slice(0, 2000) || null;
+    if (body?.ticket !== undefined) {
+      const ticket = parseTicket(body.ticket);
+      if (ticket !== null || set.results.ticket) values[await ticketColumn(user, set)] = ticket;
+    }
     const res = await api(user, "PATCH", `/databases/${set.results.id}/rows/${params.resultId}`, { values });
     const { people } = await api(user, "GET", `/databases/${set.results.id}/rows/${params.resultId}`);
     return { result: resultOut(set, res.row, people) };

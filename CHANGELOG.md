@@ -11,7 +11,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   four ordinary databases (test cases, products, test runs, results) that the "/test run" block creates in one
   click. A run takes some suites and priorities, and can cover several products at once (PC, Xbox, PlayStation…):
   the block shows a grid of cases and products where each result is set with a click or the keys 1 to 5, with a
-  comment, a link to a bug, who tested it and when. See [docs/QA.md](docs/QA.md).
+  comment, a ticket, who tested it and when. Tickets can be Azure DevOps work items, given by their number:
+  the block links to them and shows their title and state. See [docs/QA.md](docs/QA.md).
 - Plugin blocks receive `pageId`, the page they are in (null on public pages).
 
 ## [3.3.0] - 2026-11-03

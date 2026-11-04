@@ -1,7 +1,10 @@
 {
   "id": "qa",
-  "name": { "en": "Test management (QA)", "fr": "Gestion des tests (QA)" },
-  "version": "1.0.0",
+  "name": {
+    "en": "Test management (QA)",
+    "fr": "Gestion des tests (QA)"
+  },
+  "version": "1.1.0",
   "description": {
     "en": "Test cases, test runs and results, as in TestRail or Qase, kept in ordinary Nootion databases. A run can cover several products at once (PC, Xbox, PlayStation…). Command \"/test run\".",
     "fr": "Cas de test, campagnes (test runs) et résultats, comme dans TestRail ou Qase, rangés dans des bases Nootion ordinaires. Un run peut couvrir plusieurs produits à la fois (PC, Xbox, PlayStation…). Commande « /test run »."
@@ -12,10 +15,57 @@
   "blocks": [
     {
       "id": "run",
-      "title": { "en": "Test run", "fr": "Test run" },
-      "description": { "en": "Run test cases and record the results, per product", "fr": "Dérouler des cas de test et noter les résultats, par produit" },
+      "title": {
+        "en": "Test run",
+        "fr": "Test run"
+      },
+      "description": {
+        "en": "Run test cases and record the results, per product",
+        "fr": "Dérouler des cas de test et noter les résultats, par produit"
+      },
       "icon": "🧪",
-      "keywords": { "en": "qa test run case testrail qase campaign", "fr": "qa test run cas recette campagne testrail qase" }
+      "keywords": {
+        "en": "qa test run case testrail qase campaign",
+        "fr": "qa test run cas recette campagne testrail qase"
+      }
+    }
+  ],
+  "settings": [
+    {
+      "key": "adoUrl",
+      "label": {
+        "en": "Azure DevOps organization",
+        "fr": "Organisation Azure DevOps"
+      },
+      "type": "text",
+      "help": {
+        "en": "Its address, e.g. https://dev.azure.com/my-org. Results can then point to an Azure DevOps work item by its number.",
+        "fr": "Son adresse, par ex. https://dev.azure.com/mon-org. Les résultats peuvent alors renvoyer à un ticket Azure DevOps par son numéro."
+      }
+    },
+    {
+      "key": "adoProject",
+      "label": {
+        "en": "Azure DevOps project",
+        "fr": "Projet Azure DevOps"
+      },
+      "type": "text",
+      "help": {
+        "en": "Optional: the project of the work items, for the links.",
+        "fr": "Facultatif : le projet des tickets, pour les liens."
+      }
+    },
+    {
+      "key": "adoToken",
+      "label": {
+        "en": "Azure DevOps personal access token",
+        "fr": "Jeton d'accès personnel Azure DevOps"
+      },
+      "type": "password",
+      "help": {
+        "en": "Optional, with the \"Work Items (Read)\" scope: shows each ticket's title and state. Anyone who records results can then see the title and state of the work items they type.",
+        "fr": "Facultatif, avec la portée « Work Items (Read) » : affiche le titre et l'état de chaque ticket. Toute personne qui note des résultats voit alors le titre et l'état des tickets qu'elle saisit."
+      }
     }
   ]
 }

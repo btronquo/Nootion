@@ -1,3 +1,5 @@
+import http from "node:http";
+import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { Client, inviteUser, makeApp, setupAdmin } from "./helpers.js";
@@ -155,5 +157,47 @@ describe("qa plugin", () => {
   it("needs to be signed in", async () => {
     const anon = new Client(app);
     expect((await anon.get(`${Q}/sets`)).statusCode).toBe(401);
+  });
+
+  it("links results to Azure DevOps tickets by their number", async () => {
+    const seen: { url: string; auth: string | undefined }[] = [];
+    const fake = http.createServer((req, res) => {
+      seen.push({ url: req.url!, auth: req.headers.authorization });
+      const ids = new URL(req.url!, "http://x").searchParams.get("ids")!.split(",").map(Number);
+      const known: Record<number, { title: string; state: string }> = { 1203: { title: "Crash au roulage", state: "Active" } };
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ count: ids.length, value: ids.map((id) => (known[id] ? { id, fields: { "System.Title": known[id].title, "System.State": known[id].state, "System.WorkItemType": "Bug" } } : null)) }));
+    });
+    await new Promise<void>((ok) => fake.listen(0, "127.0.0.1", ok));
+    const ado = `http://127.0.0.1:${(fake.address() as AddressInfo).port}/studio`;
+    try {
+      const { set, products } = await makeSet();
+      const run = (await boris.post(`${Q}/sets/${set.id}/runs`, { title: "R", products: [products.pc] })).json().run;
+      expect(run.ado).toEqual({ enabled: false, details: false });
+      const id = run.results[0].id;
+
+      await boris.patch("/api/admin/plugins/qa", { enabled: true, values: { adoUrl: `${ado}/`, adoProject: "MSFS 2024", adoToken: "pat-secret" } });
+      expect((await boris.get(`${Q}/sets/${set.id}/runs/${run.run.id}`)).json().run.ado).toEqual({ enabled: true, details: true });
+      for (const ticket of ["#1203", "1203", 1203, `${ado}/MSFS%202024/_workitems/edit/1203`]) {
+        const res = (await boris.patch(`${Q}/sets/${set.id}/results/${id}`, { status: "failed", ticket })).json().result;
+        expect(res).toMatchObject({ ticket: 1203, ticketUrl: `${ado}/MSFS%202024/_workitems/edit/1203` });
+      }
+      expect((await boris.patch(`${Q}/sets/${set.id}/results/${id}`, { ticket: "abc" })).statusCode).toBe(400);
+      // A number column of the results database, like any other.
+      const props = (await boris.get(`/api/databases/${set.databases.results}`)).json().database.properties as { name: string; type: string }[];
+      expect(props.find((p) => p.name === "Ticket")?.type).toBe("number");
+
+      const tickets = (await boris.get(`${Q}/tickets?ids=1203,99`)).json().tickets;
+      expect(tickets).toEqual({ 1203: { title: "Crash au roulage", state: "Active", type: "Bug" }, 99: null });
+      expect(seen[0]!.url).toContain("/studio/MSFS%202024/_apis/wit/workitems?ids=1203,99");
+      expect(seen[0]!.auth).toBe(`Basic ${Buffer.from(":pat-secret").toString("base64")}`);
+      // Kept a few minutes.
+      await boris.get(`${Q}/tickets?ids=1203`);
+      expect(seen).toHaveLength(1);
+
+      expect((await boris.patch(`${Q}/sets/${set.id}/results/${id}`, { ticket: null })).json().result).toMatchObject({ ticket: null, ticketUrl: null });
+    } finally {
+      fake.close();
+    }
   });
 });

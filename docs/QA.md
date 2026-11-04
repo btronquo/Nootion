@@ -9,7 +9,26 @@ other database, and share them like any other page.
 
 ## Turning it on
 
-An administrator turns on **Test management (QA)** in **Administration › Plugins**. There is nothing to set up.
+An administrator turns on **Test management (QA)** in **Administration › Plugins**. There is nothing else to set up,
+unless you link it to Azure DevOps (below).
+
+## Azure DevOps
+
+In the plugin's settings:
+
+- **Azure DevOps organization**: its address, e.g. `https://dev.azure.com/my-org` (or your Azure DevOps Server's
+  collection address);
+- **Azure DevOps project** (optional): the project of the work items, for the links;
+- **Personal access token** (optional): a token with the **Work Items (Read)** scope, made in Azure DevOps under
+  User settings › Personal access tokens. With it, the block shows each ticket's title and state.
+
+A result then takes an **Azure DevOps ticket**: just its number (`1234` or `#1234`; a pasted work item address works
+too). The grid shows 🐞1234 under the result, which opens the work item, with its title and state when hovered.
+A link to a ticket elsewhere can still be given instead. The ticket numbers are kept in the **Ticket** column of the
+**Results** database.
+
+The token is the administrator's: anyone who can record results sees the title and state of the work items whose
+numbers they type. Make it with an account that only sees the projects being tested.
 
 ## The databases
 
@@ -20,7 +39,7 @@ In a page, type `/test run`, then **Create the test databases here**. Four datab
 | 🧪 **Test cases** | One row per case. Write the steps in the case's page. | Suite, Priority, Preconditions, Expected result, Tags |
 | 🎮 **Products** | What the cases run on: PC, Xbox, PS5, a browser… Optional. | |
 | 🏃 **Test runs** | One row per run. | Version, Status (In progress / Done), Started, Finished |
-| ✅ **Results** | One row per case and product of a run. | Run, Case, Product, Status, Tester, Tested on, Comment, Bug |
+| ✅ **Results** | One row per case and product of a run. | Run, Case, Product, Status, Tester, Tested on, Comment, Ticket, Bug |
 
 Cases, products and runs each list their results (two-way relations), so a case's page shows its whole history.
 

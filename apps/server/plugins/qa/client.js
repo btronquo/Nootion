@@ -53,6 +53,9 @@ const TEXTS = {
     passRate: "{rate} % passed",
     comment: "Comment",
     bug: "Bug link",
+    ticket: "Azure DevOps ticket",
+    ticketLink: "Or a link to the ticket (optional)",
+    openTicket: "Open ticket #{id}",
     testedBy: "{name}, {when}",
     deleted: "deleted case",
     gone: "This run no longer exists.",
@@ -115,6 +118,9 @@ const TEXTS = {
     passRate: "{rate} % réussis",
     comment: "Commentaire",
     bug: "Lien vers le bug",
+    ticket: "Ticket Azure DevOps",
+    ticketLink: "Ou un lien vers le ticket (facultatif)",
+    openTicket: "Ouvrir le ticket n° {id}",
     testedBy: "{name}, {when}",
     deleted: "cas supprimé",
     gone: "Ce run n'existe plus.",
@@ -192,7 +198,8 @@ const CSS = `
 .qa-products .qa-bar { margin: 0; height: 6px; }
 .qa-cell { display: inline-flex; white-space: nowrap; align-items: center; justify-content: center; gap: 4px; min-width: 84px; border: 0; border-radius: 5px; padding: 3px 6px; font-size: 12px; cursor: pointer; font-family: inherit; }
 .qa-cell:disabled { cursor: default; }
-.qa-cell .qa-dot { font-size: 10px; opacity: .8; }
+.qa-dot { font-size: 11px; opacity: .85; }
+.qa-box a.qa-ticket { font-size: 11px; color: #b91c1c !important; margin-left: 2px; white-space: nowrap; }
 .qa-pop { position: fixed; z-index: 60; width: 280px; background: var(--qa-pop-bg, #fff); color: #111; border: 1px solid rgba(128,128,128,.35); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.18); padding: 10px; font-size: 13px; }
 .dark .qa-pop { --qa-pop-bg: #262626; color: #eee; }
 .qa-pop .qa-cell { width: 100%; justify-content: flex-start; margin-bottom: 4px; font-size: 13px; padding: 5px 8px; }
@@ -457,11 +464,15 @@ export function activate(nootion) {
   }
 
   /** The result of a cell, to change its status, comment and bug link. */
-  function ResultPopover({ result, anchor, statuses, onSave, onClose, caseTitle, productTitle }) {
+  /** "#1234 · Crash at take-off (Active)", from what Azure DevOps says about the ticket. */
+  const ticketLabel = (id, info) => `#${id}${info ? ` · ${info.title}${info.state ? ` (${info.state})` : ""}` : ""}`;
+
+  function ResultPopover({ result, anchor, statuses, onSave, onClose, caseTitle, productTitle, ado, ticketInfo }) {
     const ref = useRef(null);
     const opened = useRef(Date.now());
     const [comment, setComment] = useState(result.comment);
     const [bug, setBug] = useState(result.bug);
+    const [ticket, setTicket] = useState(result.ticket ? String(result.ticket) : "");
     const name = (k) => statuses.find((s) => s.id === k)?.name ?? T[`s_${k}`] ?? k;
     const rect = anchor.getBoundingClientRect();
     // Below the cell, or above it when there isn't room.
@@ -472,6 +483,7 @@ export function activate(nootion) {
       const patch = {};
       if (comment !== result.comment) patch.comment = comment;
       if (bug !== result.bug) patch.bug = bug;
+      if (ado.enabled && ticket.trim().replace(/^#/, "") !== (result.ticket ? String(result.ticket) : "")) patch.ticket = ticket.trim();
       if (Object.keys(patch).length) onSave(patch);
     };
     const close = () => {
@@ -512,7 +524,20 @@ export function activate(nootion) {
       productTitle && h("div", { className: "qa-sub", style: { marginBottom: 8 } }, productTitle),
       STATUS_KEYS.map((k, i) => h(StatusPill, { key: k, status: k, name: name(k), pressed: result.status === k, kbd: String(i + 1), onClick: () => onSave({ status: k }) })),
       h("label", { className: "qa-field", style: { marginTop: 6 } }, T.comment, h("textarea", { className: "qa-input", rows: 2, value: comment, onChange: (e) => setComment(e.target.value), onBlur: flush })),
-      h("label", { className: "qa-field", style: { marginTop: 6 } }, T.bug, h("input", { className: "qa-input", type: "url", value: bug, placeholder: "https://", onChange: (e) => setBug(e.target.value), onBlur: flush })),
+      ado.enabled &&
+        h(
+          "label",
+          { className: "qa-field", style: { marginTop: 6 } },
+          T.ticket,
+          h("input", { className: "qa-input", inputMode: "numeric", value: ticket, placeholder: "#1234", onChange: (e) => setTicket(e.target.value), onBlur: flush }),
+        ),
+      ado.enabled && result.ticketUrl && h("a", { className: "qa-link", href: result.ticketUrl, target: "_blank", rel: "noopener noreferrer", style: { display: "block", marginTop: 4 } }, ticketLabel(result.ticket, ticketInfo)),
+      h(
+        "label",
+        { className: "qa-field", style: { marginTop: 6 } },
+        ado.enabled ? T.ticketLink : T.bug,
+        h("input", { className: "qa-input", type: "url", value: bug, placeholder: "https://", onChange: (e) => setBug(e.target.value), onBlur: flush }),
+      ),
       result.tester && h("div", { className: "qa-sub", style: { marginTop: 8 } }, fmt(T.testedBy, { name: result.tester, when: result.testedAt ? when(result.testedAt) : "" })),
       h("div", { className: "qa-sub", style: { marginTop: 4 } }, T.keys),
     );
@@ -527,6 +552,7 @@ export function activate(nootion) {
     const [busy, setBusy] = useState(false);
     const openRef = useRef(open);
     openRef.current = open;
+    const [tickets, setTickets] = useState({});
 
     const load = useCallback(
       () =>
@@ -552,6 +578,13 @@ export function activate(nootion) {
     useEffect(() => {
       if (data && editable) onSummary({ title: data.run.title, version: data.run.version, status: data.run.status, counts: counts(data.results), total: data.results.length });
     }, [data && data.run.status, data && data.run.title, data && data.results.length]);
+
+    // Titles and states of the tickets, when Azure DevOps is set up with a token.
+    const ticketIds = data?.ado?.details ? [...new Set(data.results.map((r) => r.ticket).filter(Boolean))].sort((a, b) => a - b).join(",") : "";
+    useEffect(() => {
+      if (!ticketIds) return;
+      nootion.api(`/tickets?ids=${ticketIds}`).then((r) => setTickets((t) => ({ ...t, ...r.tickets })), () => {});
+    }, [ticketIds]);
 
     const byCell = useMemo(() => {
       const m = new Map();
@@ -633,7 +666,7 @@ export function activate(nootion) {
               { key: `${c.id}-${p.id ?? "-"}`, className: "qa-p" },
               h(
                 "span",
-                { style: { position: "relative", display: "inline-flex", alignItems: "center", gap: 2 } },
+                { style: { display: "inline-flex", flexDirection: "column", alignItems: "center", gap: 1 } },
                 h(StatusPill, {
                   status: r.status,
                   name: statusName(r.status),
@@ -641,8 +674,19 @@ export function activate(nootion) {
                   title: tip || undefined,
                   onClick: (e) => setOpen(open?.resultId === r.id ? null : { resultId: r.id, anchor: e.currentTarget, caseTitle: c.title, productTitle: p.title }),
                 }),
+                (r.comment || r.ticketUrl || r.bug) &&
+                  h(
+                    "span",
+                    { style: { display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, lineHeight: 1.2 } },
                 r.comment && h("span", { className: "qa-dot", title: r.comment }, "💬"),
-                r.bug && h("a", { className: "qa-dot", href: r.bug, target: "_blank", rel: "noopener noreferrer", title: r.bug, style: { textDecoration: "none" } }, "🐞"),
+                r.ticketUrl &&
+                  h(
+                    "a",
+                    { className: "qa-dot qa-ticket", href: r.ticketUrl, target: "_blank", rel: "noopener noreferrer", title: ticketLabel(r.ticket, tickets[r.ticket]), "aria-label": fmt(T.openTicket, { id: r.ticket }) },
+                    `🐞${r.ticket}`,
+                  ),
+                !r.ticketUrl && r.bug && h("a", { className: "qa-dot", href: r.bug, target: "_blank", rel: "noopener noreferrer", title: r.bug, style: { textDecoration: "none" } }, "🐞"),
+                  ),
               ),
             );
           }),
@@ -710,6 +754,8 @@ export function activate(nootion) {
           statuses: data.statuses,
           caseTitle: open.caseTitle,
           productTitle: open.productTitle,
+          ado: data.ado ?? { enabled: false },
+          ticketInfo: openResult.ticket ? tickets[openResult.ticket] : null,
           onSave: (patch) => save(openResult.id, patch),
           onClose: () => setOpen(null),
         }),
