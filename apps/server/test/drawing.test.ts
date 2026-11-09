@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { distanceToStroke, drawingStrokes, drawingToSvg, drawingViewBox, simplifyPoints, strokePath, type DrawingStroke } from "@nootion/shared";
+import { distanceToStroke, drawingStrokes, drawingText, drawingToSvg, drawingViewBox, simplifyPoints, strokePath, type DrawingStroke } from "@nootion/shared";
 import { Client, makeApp, setupAdmin } from "./helpers.js";
 
 const pen = (points: number[], extra: Partial<DrawingStroke> = {}): DrawingStroke => ({ id: "a", tool: "pen", color: "blue", size: 4, points, ...extra });
@@ -39,6 +39,21 @@ describe("drawing strokes", () => {
     expect(simplifyPoints([0, 0, 5, 5, 10, 0])).toEqual([0, 0, 5, 5, 10, 0]);
   });
 
+  it("keep text boxes with their text, escaped in the SVG", () => {
+    const strokes = drawingStrokes([
+      { id: "t", tool: "text", color: "red", size: 4, points: [10, 20, 30, 40], text: "Bonjour <b>&\nmonde" },
+      { id: "e", tool: "text", color: "red", size: 4, points: [0, 0], text: "   " },
+      { id: "n", tool: "text", color: "red", size: 4, points: [0, 0] },
+    ]);
+    expect(strokes).toEqual([{ id: "t", tool: "text", color: "red", size: 4, points: [10, 20], text: "Bonjour <b>&\nmonde" }]);
+    expect(distanceToStroke(strokes[0]!, 15, 30)).toBe(0);
+    expect(drawingText(strokes)).toBe("Bonjour <b>&\nmonde");
+    const svg = drawingToSvg(strokes, 300);
+    expect(svg).toContain("Bonjour &#60;b&#62;&#38;</tspan>");
+    expect(svg).toContain(">monde</tspan>");
+    expect(svg).not.toContain("<b>");
+  });
+
   it("widen the page's frame so that nothing is cut", () => {
     expect(drawingViewBox([], 400)).toEqual({ x: 0, y: 0, w: 1000, h: 400 });
     const box = drawingViewBox([pen([-100, 10, 1200, 900], { size: 2 })], 400);
@@ -74,5 +89,13 @@ describe("drawing block", () => {
     const [, b64] = /^!\[(?:Drawing|Dessin)\]\(data:image\/svg\+xml;base64,([A-Za-z0-9+/=]+)\)$/.exec(md.trim()) ?? [];
     expect(b64).toBeTruthy();
     expect(Buffer.from(b64!, "base64").toString()).toContain("<path");
+  });
+
+  it("makes its text boxes searchable", async () => {
+    const workspace = await boris.personalWorkspace();
+    const id = await boris.createPage(workspace, "Schéma");
+    const text = { id: "t", tool: "text", color: "default", size: 4, points: [10, 10], text: "Serveur principal" };
+    expect((await boris.put(`/api/pages/${id}/content`, { content: { type: "doc", content: [{ type: "drawing", attrs: { strokes: [text] } }] } })).statusCode).toBe(200);
+    expect((await boris.get("/api/search?q=principal")).json().results.map((r: { id: string }) => r.id)).toEqual([id]);
   });
 });

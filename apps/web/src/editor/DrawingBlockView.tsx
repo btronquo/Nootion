@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
 import {
   Circle,
+  Type,
   Download,
   Eraser,
   Hand,
@@ -34,6 +35,9 @@ import {
   drawingViewBox,
   simplifyPoints,
   strokeOpacity,
+  textFontSize,
+  textLines,
+  TEXT_LINE_HEIGHT,
   strokePath,
   strokeWidth,
   t,
@@ -64,25 +68,35 @@ function applyOp(strokes: DrawingStroke[], op: Op): DrawingStroke[] {
 }
 
 /** The strokes, drawn once: only the stroke being drawn changes while the pointer moves. */
-const Strokes = memo(function Strokes({ strokes, hidden }: { strokes: DrawingStroke[]; hidden?: Set<string> }) {
+/** One stroke: a line or shape, or a text box. */
+function StrokeShape({ s }: { s: DrawingStroke }) {
+  if (s.tool === "text") {
+    const size = textFontSize(s);
+    return (
+      <text x={s.points[0]} y={s.points[1]} fontSize={size} fill={colorOf(s.color)} style={{ whiteSpace: "pre", fontFamily: "inherit" }}>
+        {textLines(s).map((line, i) => (
+          <tspan key={i} x={s.points[0]} dy={i ? size * TEXT_LINE_HEIGHT : size}>
+            {line || " "}
+          </tspan>
+        ))}
+      </text>
+    );
+  }
   return (
-    <>
-      {strokes.map((s) =>
-        hidden?.has(s.id) ? null : (
-          <path
-            key={s.id}
-            d={strokePath(s)}
-            fill="none"
-            stroke={colorOf(s.color)}
-            strokeWidth={strokeWidth(s)}
-            strokeOpacity={strokeOpacity(s)}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        ),
-      )}
-    </>
+    <path
+      d={strokePath(s)}
+      fill="none"
+      stroke={colorOf(s.color)}
+      strokeWidth={strokeWidth(s)}
+      strokeOpacity={strokeOpacity(s)}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
   );
+}
+
+const Strokes = memo(function Strokes({ strokes, hidden }: { strokes: DrawingStroke[]; hidden?: Set<string> }) {
+  return <>{strokes.map((s) => (hidden?.has(s.id) ? null : <StrokeShape key={s.id} s={s} />))}</>;
 });
 
 interface Board {
@@ -243,11 +257,12 @@ function Toolbar({
     ["arrow", t("drawing.arrow"), <MoveUpRight size={16} />],
     ["rect", t("drawing.rect"), <Square size={16} />],
     ["ellipse", t("drawing.ellipse"), <Circle size={16} />],
+    ["text", t("drawing.text"), <Type size={16} />],
     ["eraser", t("drawing.eraser"), <Eraser size={16} />],
     ["select", t("drawing.select"), <MousePointer2 size={16} />],
   ];
   if (full) tools.push(["hand", t("drawing.hand"), <Hand size={16} />]);
-  const showStyle = b.editable && (b.tool === "pen" || b.tool === "highlighter" || SHAPES.includes(b.tool as DrawingTool) || !!b.selected);
+  const showStyle = b.editable && (b.tool === "pen" || b.tool === "highlighter" || SHAPES.includes(b.tool as DrawingTool) || b.tool === "text" || !!b.selected);
 
   return (
     <div
@@ -400,6 +415,26 @@ function Canvas({
   const [screen, setScreen] = useState({ w: 0, h: 0 });
   const [view, setView] = useState<View | null>(null);
   const [resizing, setResizing] = useState<number | null>(null);
+  /** The text box being written in. */
+  const [editing, setEditing] = useState<{ stroke: DrawingStroke; isNew: boolean } | null>(null);
+  const editingRef = useRef(editing);
+  editingRef.current = editing;
+  /** Saves the text box being written in (an emptied one is deleted). */
+  const finishText = useCallback(
+    (text: string) => {
+      const ed = editingRef.current;
+      if (!ed) return;
+      editingRef.current = null;
+      setEditing(null);
+      const trimmed = text.replace(/\s+$/, "");
+      if (!trimmed.trim()) {
+        if (!ed.isNew) b.apply({ added: [], removed: [ed.stroke] });
+      } else if (ed.isNew || trimmed !== ed.stroke.text) {
+        b.apply({ added: [{ ...ed.stroke, text: trimmed }], removed: ed.isNew ? [] : [ed.stroke] });
+      }
+    },
+    [b],
+  );
   const coarse = useMemo(() => window.matchMedia?.("(pointer: coarse)").matches ?? false, []);
 
   const set = (g: Gesture | null) => {
@@ -546,6 +581,13 @@ function Canvas({
       const s = hit(x, y, 6 * unit());
       return set({ kind: "erase", ids: new Set(s ? [s.id] : []) });
     }
+    if (b.tool === "text") {
+      // On a text: edit it. Elsewhere: a new text box, its first line centred on the pointer.
+      const s = hit(x, y, 4 * unit());
+      if (s?.tool === "text") return setEditing({ stroke: s, isNew: false });
+      const size = textFontSize({ size: b.size });
+      return setEditing({ stroke: { id: randomId(), tool: "text", color: b.color, size: b.size, points: [x, y - size * 0.6], text: "" }, isNew: true });
+    }
     if (b.tool === "select") {
       const s = hit(x, y, 8 * unit());
       b.setSelected(s?.id ?? null);
@@ -663,14 +705,15 @@ function Canvas({
   const hidden = useMemo(() => {
     if (gesture?.kind === "erase") return gesture.ids;
     if (gesture?.kind === "move") return new Set([gesture.stroke.id]);
+    if (editing && !editing.isNew) return new Set([editing.stroke.id]);
     return undefined;
-  }, [gesture]);
+  }, [gesture, editing]);
   const draft = gesture?.kind === "draw" ? gesture.stroke : gesture?.kind === "move" ? { ...gesture.stroke, points: gesture.stroke.points.map((n, i) => n + (i % 2 ? gesture.dy : gesture.dx)) } : null;
   const selectedStroke = b.selected ? (draft?.id === b.selected ? draft : b.strokes.find((s) => s.id === b.selected)) : null;
   const selBox = selectedStroke ? drawingBounds([selectedStroke]) : null;
   const panning = gesture?.kind === "pan" || gesture?.kind === "pinch";
   const cursor = !b.editable || b.tool === "hand" || space ? (panning ? "grabbing" : full ? "grab" : "default") : b.tool === "select" ? "default" : b.tool === "eraser" ? "cell" : "crosshair";
-  const empty = !b.strokes.length && !draft;
+  const empty = !b.strokes.length && !draft && !editing;
 
   return (
     <div
@@ -692,7 +735,13 @@ function Canvas({
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
-        onDoubleClick={() => !full && coarse && onOpenFull?.()}
+        onDoubleClick={(e) => {
+          // A double click on a text edits it.
+          const [x, y] = toWorld(e);
+          const s = b.editable ? hit(x, y, 4 * unit()) : null;
+          if (s?.tool === "text") setEditing({ stroke: s, isNew: false });
+          else if (!full && coarse) onOpenFull?.();
+        }}
       >
         {full && (
           // The part of the whiteboard that the page shows.
@@ -709,17 +758,7 @@ function Canvas({
           />
         )}
         <Strokes strokes={b.strokes} hidden={hidden} />
-        {draft && (
-          <path
-            d={strokePath(draft)}
-            fill="none"
-            stroke={colorOf(draft.color)}
-            strokeWidth={strokeWidth(draft)}
-            strokeOpacity={strokeOpacity(draft)}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        )}
+        {draft && <StrokeShape s={draft} />}
         {selBox && (
           <rect
             x={selBox.x - 4}
@@ -734,6 +773,7 @@ function Canvas({
           />
         )}
       </svg>
+      {editing && <TextEditor key={editing.stroke.id} stroke={editing.stroke} svg={svg.current} wrap={wrap.current} onDone={finishText} />}
       {empty && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-4 text-center text-sm text-neutral-400">
           {b.editable ? t("drawing.empty") : t("drawing.emptyReadOnly")}
@@ -772,5 +812,61 @@ function Canvas({
         </div>
       )}
     </div>
+  );
+}
+
+/** Where a text box is written: a text field laid over the drawing, at the text's place and size. */
+function TextEditor({ stroke, svg, wrap, onDone }: { stroke: DrawingStroke; svg: SVGSVGElement | null; wrap: HTMLDivElement | null; onDone: (text: string) => void }) {
+  const [text, setText] = useState(stroke.text ?? "");
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const done = useRef(false);
+  const finish = () => {
+    if (done.current) return;
+    done.current = true;
+    onDone(ref.current?.value ?? text);
+  };
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.focus({ preventScroll: true });
+    el.setSelectionRange(el.value.length, el.value.length);
+  }, []);
+  const m = svg?.getScreenCTM();
+  const r = wrap?.getBoundingClientRect();
+  if (!m || !r) return null;
+  const scale = m.a;
+  const size = textFontSize(stroke) * scale;
+  const lines = text.split("\n");
+  return (
+    <textarea
+      ref={ref}
+      value={text}
+      aria-label={t("drawing.text")}
+      placeholder={t("drawing.textPlaceholder")}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={finish}
+      onPointerDown={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Escape" || (e.key === "Enter" && (e.ctrlKey || e.metaKey))) {
+          e.preventDefault();
+          finish();
+        }
+      }}
+      rows={lines.length}
+      spellCheck
+      className="absolute z-10 resize-none overflow-hidden rounded-sm border-0 bg-transparent p-0 outline outline-1 outline-blue-400 placeholder:text-neutral-400"
+      style={{
+        left: m.a * stroke.points[0]! + m.e - r.left,
+        top: m.d * stroke.points[1]! + m.f - r.top,
+        fontSize: size,
+        lineHeight: TEXT_LINE_HEIGHT,
+        color: colorOf(stroke.color),
+        width: `${Math.max(4, ...lines.map((l) => [...l].length + 1))}ch`,
+        minWidth: size * 4,
+        fontFamily: "inherit",
+        whiteSpace: "pre",
+      }}
+    />
   );
 }

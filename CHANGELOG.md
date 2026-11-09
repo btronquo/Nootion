@@ -21,6 +21,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   no edges: move around with two fingers, the middle button, Space + drag or the hand tool, zoom with Ctrl + wheel or
   a pinch. On a phone, a finger scrolls the page and draws on the whiteboard; a pen draws everywhere. A drawing can be
   downloaded as SVG, and the Markdown export includes it as an image.
+- Text boxes in drawings: with the T tool, click where the text goes and type (Enter for a new line, Escape or a
+  click elsewhere to finish). The color and thickness set its color and size; click a text with the T tool, or
+  double-click it, to change it, and move it with the selection tool. The text of drawings is found by the search.
 
 ## [3.3.0] - 2026-11-03
 

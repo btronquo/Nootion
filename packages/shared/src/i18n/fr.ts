@@ -501,6 +501,8 @@ export const fr: Messages = {
   "drawing.resize": "Glisser pour changer la hauteur",
   "drawing.select": "Sélectionner et déplacer",
   "drawing.size": "Épaisseur",
+  "drawing.text": "Texte",
+  "drawing.textPlaceholder": "Écrivez ici",
   "drawing.title": "Dessin",
   "drawing.undo": "Annuler",
   "drawing.zoomIn": "Zoom avant",
