@@ -10,6 +10,9 @@ import type { EditorView } from "@tiptap/pm/view";
  * When the pointer is over such a block, or in the margin on its left, the handle is told the pointer is near the
  * block's top-left corner, where it finds the block.
  *
+ * The same goes for text in a column: near its top or left edge, and in the gap between the columns where its
+ * handle sits, the handle used to jump to the whole columns block.
+ *
  * It also places the handle again when the page scrolls.
  */
 export const HandleTargets = Extension.create({
@@ -59,11 +62,14 @@ export const HandleTargets = Extension.create({
             mousemove(view, event) {
               if (event.isTrusted) pointer = { x: event.clientX, y: event.clientY };
               const block = atomBlockBeside(view, event.clientX, event.clientY);
-              if (block) {
-                const r = block.getBoundingClientRect();
+              const r = block?.getBoundingClientRect() ?? columnTextBeside(view, event.clientX, event.clientY);
+              if (r) {
                 // Far enough from the edges for the handle not to prefer the block around it.
                 Object.defineProperty(event, "clientX", { value: Math.max(event.clientX, r.left + 16), configurable: true });
-                Object.defineProperty(event, "clientY", { value: r.top + Math.min(16, r.height / 2), configurable: true });
+                Object.defineProperty(event, "clientY", {
+                  value: block ? r.top + Math.min(16, r.height / 2) : Math.max(event.clientY, r.top + Math.min(14, r.height / 2)),
+                  configurable: true,
+                });
               }
               return false;
             },
@@ -93,4 +99,28 @@ function atomBlockBeside(view: EditorView, x: number, y: number): HTMLElement | 
     bestWidth = r.width;
   }
   return best;
+}
+
+/**
+ * The text block in a column that the pointer is on: over it, or up to the width of the handle on its left (the gap
+ * between columns). Near its top or its left edge, the handle would otherwise pick the whole columns block.
+ */
+function columnTextBeside(view: EditorView, x: number, y: number): DOMRect | null {
+  for (let d = 0; d <= 64; d += 8) {
+    const found = view.posAtCoords({ left: x + d, top: y });
+    if (!found) continue;
+    const $pos = view.state.doc.resolve(found.pos);
+    if (!$pos.parent.isTextblock || $pos.depth < 2) continue;
+    let inColumn = false;
+    for (let depth = $pos.depth - 1; depth > 0; depth--) if ($pos.node(depth).type.name === "column") inColumn = true;
+    if (!inColumn) return null;
+    const dom = view.nodeDOM($pos.before());
+    if (!(dom instanceof HTMLElement)) return null;
+    const r = dom.getBoundingClientRect();
+    if (y < r.top || y > r.bottom || x + d < r.left) return null;
+    // A line further left (in the column before): look further right.
+    if (x > r.right) continue;
+    return r;
+  }
+  return null;
 }

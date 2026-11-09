@@ -31,6 +31,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   pointer moves towards it, instead of jumping to the to-do around it.
 - The block handle follows the page when it scrolls, instead of staying beside another block (in an empty column,
   for instance).
+- In columns, the handle of a line of text stays on it when the pointer is on its first line or moves towards the
+  handle, instead of jumping to the whole columns block.
 
 ## [3.3.0] - 2026-11-03
 
