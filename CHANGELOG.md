@@ -5,6 +5,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+
+- Drawing block (`/drawing`, `/dessin`), like a sketch in Google Keep or a small Miro board: pen, highlighter,
+  line, arrow, rectangle, ellipse, eraser, select and move, 10 colors (dark mode included) and 4 thicknesses, undo
+  and redo (Ctrl+Z / Ctrl+Shift+Z). The drawing is saved with the page, scales to the width of the screen and its
+  height can be changed by dragging its bottom edge. The whiteboard button opens it in full screen, on a canvas with
+  no edges: move around with two fingers, the middle button, Space + drag or the hand tool, zoom with Ctrl + wheel or
+  a pinch. On a phone, a finger scrolls the page and draws on the whiteboard; a pen draws everywhere. A drawing can be
+  downloaded as SVG, and the Markdown export includes it as an image.
+
 ## [3.3.0] - 2026-11-03
 
 ### Added
