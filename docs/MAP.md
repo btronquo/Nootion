@@ -21,6 +21,8 @@ In a page, type `/map` (or `/carte`), then:
   places by kind (museum, nature, restaurant…);
 - or **show a database that already has coordinates**: a column of the **Place** type, two number columns named
   **Latitude** and **Longitude**, or a text column named like *Coordinates* or *GPS* holding `48.85837, 2.29448`.
+  Several of them can live side by side: a row is placed from the first one filled, and places added from the map
+  go in the Place column (or the first of the others).
 
 The block then shows:
 

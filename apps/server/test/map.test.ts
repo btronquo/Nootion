@@ -87,9 +87,14 @@ describe("map plugin", () => {
     await boris.post(`/api/databases/${db}/rows`, { title: "Quelque part au Japon", values: {}, templateId: null });
     await boris.post(`/api/databases/${db}/rows`, { title: "Kyoto", values: { Lieu: "https://www.google.com/maps/@35.0116,135.7681,12z" }, templateId: null });
 
+    // A text "Coordinates" column added by hand is read too, when the Place cell is empty.
+    await boris.post(`/api/databases/${db}/properties`, { name: "Coordinates", type: "text", config: {} });
+    await boris.post(`/api/databases/${db}/rows`, { title: "Chartreuse", values: { Coordinates: "45.58687359514508, 5.914070979254314" }, templateId: null });
+
     const list = (await boris.get(`${M}/places?db=${db}`)).json();
     expect(list.unplaced).toBe(1);
-    expect(list.places.map((p: Place) => p.title).sort()).toEqual(["Kyoto", "Mont Saint-Michel"]);
+    expect(list.places.map((p: Place) => p.title).sort()).toEqual(["Chartreuse", "Kyoto", "Mont Saint-Michel"]);
+    expect(list.places.find((p: Place) => p.title === "Chartreuse")).toMatchObject({ lat: 45.58687359514508, lng: 5.914070979254314 });
 
     expect((await boris.patch(`${M}/places/${place.id}`, { db, lat: 48.6361, lng: -1.5115 })).json().place).toMatchObject({ lat: 48.6361, lng: -1.5115 });
     expect((await boris.post(`${M}/places`, { db, title: "Nulle part", lat: 95, lng: 0 })).statusCode).toBe(400);

@@ -462,9 +462,17 @@ export function activate(nootion) {
 
     useEffect(() => {
       load();
+      // Rows change elsewhere (the database's table, another person): read them again when coming back to the page,
+      // and every minute while it is shown.
       const again = () => document.visibilityState === "visible" && load();
       document.addEventListener("visibilitychange", again);
-      return () => document.removeEventListener("visibilitychange", again);
+      window.addEventListener("focus", again);
+      const timer = setInterval(again, 60 * 1000);
+      return () => {
+        document.removeEventListener("visibilitychange", again);
+        window.removeEventListener("focus", again);
+        clearInterval(timer);
+      };
     }, [load]);
 
     // The map itself, made once.

@@ -94,12 +94,23 @@ export function detectColumns(properties, pluginId = "map") {
     (p) => p.type === "plugin" && p.config?.plugin?.id === pluginId && p.config.plugin.type === "place",
     (p) => isText(p) && named(p, /coord|gps|position|location|lieu|place|lat.*lon/),
   );
-  const lat = place ? null : pick((p) => p.type === "number" && named(p, /^lat/));
-  const lng = place ? null : pick((p) => p.type === "number" && named(p, /^(lng|lon)/));
+  const latCol = pick((p) => p.type === "number" && named(p, /^lat/));
+  const lngCol = pick((p) => p.type === "number" && named(p, /^(lng|lon)/));
+  const lat = place ? null : latCol;
+  const lng = place ? null : lngCol;
+  // Every column a row's coordinates may be read from, the one written first: a database can have a Place column and
+  // also a text "Coordinates" column, or latitude and longitude, filled by hand or by an import.
+  const sources = [
+    ...properties
+      .filter((p) => (p.type === "plugin" && p.config?.plugin?.id === pluginId && p.config.plugin.type === "place") || (isText(p) && named(p, /coord|gps|position|location|lieu|place|lat.*lon/)))
+      .sort((a, b) => (a.id === place ? -1 : b.id === place ? 1 : 0))
+      .map((p) => ({ place: p.id })),
+    ...(latCol && lngCol ? [{ lat: latCol, lng: lngCol }] : []),
+  ];
   const address = pick((p) => isText(p) && p.id !== place && named(p, /adres|address|addr/));
   const country = pick((p) => (isText(p) || p.type === "select") && named(p, /^(pays|country)/));
   const status = pick((p) => p.type === "select" && named(p, /statu|etat|state/), (p) => p.type === "select" && p.id !== country);
-  return { title, place, lat: lat && lng ? lat : null, lng: lat && lng ? lng : null, address, country, status };
+  return { title, place, lat: lat && lng ? lat : null, lng: lat && lng ? lng : null, address, country, status, sources };
 }
 
 export function activate(nootion) {
@@ -136,7 +147,11 @@ export function activate(nootion) {
   /** A row as a place on the map, or null when it has no coordinates. */
   function toPlace(row, columns, properties) {
     const v = row.values ?? {};
-    const coords = columns.place ? parseCoords(v[columns.place]) : validCoords(v[columns.lat], v[columns.lng]) ? { lat: v[columns.lat], lng: v[columns.lng] } : null;
+    let coords = null;
+    for (const src of columns.sources ?? []) {
+      coords = src.place ? parseCoords(v[src.place]) : validCoords(v[src.lat], v[src.lng]) ? { lat: v[src.lat], lng: v[src.lng] } : null;
+      if (coords) break;
+    }
     if (!coords) return null;
     const country = columns.country ? v[columns.country] : null;
     const countryName = typeof country === "string" ? (properties.find((p) => p.id === columns.country)?.config?.options?.find((o) => o.id === country)?.name ?? country) : null;
