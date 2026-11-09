@@ -21,6 +21,17 @@ export const pluginRoutes: FastifyPluginAsync = async (app) => {
     return reply.header("content-type", "text/javascript; charset=utf-8").header("cache-control", "no-cache").send(fs.createReadStream(file));
   });
 
+  // Static files a plugin ships in its assets/ folder (public too: shared pages may need them).
+  app.get<{ Params: { id: string; "*": string } }>("/:id/assets/*", async (req, reply) => {
+    const asset = app.plugins.assetFile(req.params.id, req.params["*"]);
+    if (!asset) throw notFound();
+    return reply
+      .header("content-type", asset.contentType)
+      .header("x-content-type-options", "nosniff")
+      .header("cache-control", "public, max-age=86400")
+      .send(fs.createReadStream(asset.file));
+  });
+
   app.all<{ Params: { id: string; "*": string } }>("/:id/*", async (req, reply) => app.plugins.handle(req.params.id, req.params["*"], req, reply));
 };
 

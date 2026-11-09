@@ -72,6 +72,7 @@ describe("plugins", () => {
     expect(admin.plugins.map((p: { id: string; enabled: boolean; builtin: boolean }) => [p.id, p.enabled, p.builtin])).toEqual([
       ["embed", true, true],
       ["google_calendar", false, true],
+      ["map", false, true],
       ["nextcloud", false, true],
       ["qa", false, true],
       ["rating", false, true],

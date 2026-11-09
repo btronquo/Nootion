@@ -13,6 +13,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   the block shows a grid of cases and products where each result is set with a click or the keys 1 to 5, with a
   comment, a ticket, who tested it and when. Tickets can be Azure DevOps work items, given by their number:
   the block links to them and shows their title and state. See [docs/QA.md](docs/QA.md).
+- "Map" plugin, off by default: the "/map" block (`/carte`) shows the rows of a database as pins on an OpenStreetMap
+  map, from a "Place" column (a new column type holding coordinates) or from latitude and longitude columns. It
+  creates a "Places to visit" database in one click, searches addresses, towns and monuments (Nominatim), adds a
+  place where one clicks or from a search, moves a pin by dragging it, shows only some statuses, goes to the user's
+  position, lists the nearest places within a chosen distance, and opens in full screen. Each pin links to its row
+  and to directions. See [docs/MAP.md](docs/MAP.md).
+- Plugins can ship files (a library, styles, images) in an `assets/` folder, served at
+  `/api/plugins/<id>/assets/…`.
 - Plugin blocks receive `pageId`, the page they are in (null on public pages).
 - Drawing block (`/drawing`, `/dessin`), like a sketch in Google Keep or a small Miro board: pen, highlighter,
   line, arrow, rectangle, ellipse, eraser, select and move, 10 colors (dark mode included) and 4 thicknesses, undo
