@@ -29,6 +29,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 - The handle left of a drawing, a widget or a database placed inside a to-do or a list stays on that block when the
   pointer moves towards it, instead of jumping to the to-do around it.
+- The block handle follows the page when it scrolls, instead of staying beside another block (in an empty column,
+  for instance).
 
 ## [3.3.0] - 2026-11-03
 
