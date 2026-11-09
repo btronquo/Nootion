@@ -63,7 +63,7 @@ export function baseExtensions(opts: {
     ButtonBlock.configure({ pageId: opts.publicToken ? null : (opts.pageId ?? null) }),
     ...WIDGETS.map((w) => w.configure({ publicToken: opts.publicToken ?? null, pageId: opts.publicToken ? null : (opts.pageId ?? null) })),
     WidgetCommands,
-    ...pluginNodes(opts.plugins),
+    ...pluginNodes(opts.plugins, opts.publicToken ? null : (opts.pageId ?? null)),
     BlockAttributes,
     Placeholder.configure({
       placeholder: ({ node }) => (node.type.name === "heading" ? t("editor.headingPlaceholder") : t("editor.placeholder")),

@@ -8,6 +8,8 @@ export interface PluginNodeOptions {
   pluginId: string;
   pluginName: string;
   block: PluginBlock;
+  /** The page being edited; null on public pages. */
+  pageId: string | null;
 }
 
 class Boundary extends Component<{ children: ReactNode; label: string }, { error: string | null }> {
@@ -43,13 +45,13 @@ function parse(data: unknown): Record<string, unknown> {
 
 /** A block of a plugin in a page: drawn by the plugin's component, or a placeholder when the plugin is off. */
 export function PluginBlockView({ node, extension, editor, updateAttributes }: NodeViewProps) {
-  const { pluginId, pluginName, block } = extension.options as PluginNodeOptions;
+  const { pluginId, pluginName, block, pageId } = extension.options as PluginNodeOptions;
   const Renderer = blockRenderer(pluginId, block.id);
   return (
     <NodeViewWrapper className="plugin-block my-2" contentEditable={false} data-drag-handle="">
       {Renderer ? (
         <Boundary label={block.title}>
-          <Renderer data={parse(node.attrs.data)} setData={(d) => updateAttributes({ data: JSON.stringify(d) })} editable={editor.isEditable} />
+          <Renderer data={parse(node.attrs.data)} setData={(d) => updateAttributes({ data: JSON.stringify(d) })} editable={editor.isEditable} pageId={pageId} />
         </Boundary>
       ) : (
         <Placeholder>
