@@ -1,5 +1,5 @@
 import type { ProseMirrorNode } from "./collab.js";
-import { calendarSources, t as translate } from "@nootion/shared";
+import { calendarSources, drawingStrokes, drawingToSvg, t as translate } from "@nootion/shared";
 
 /** How links of an exported page point to the other files of the export. */
 export interface MarkdownLinks {
@@ -142,6 +142,11 @@ function block(n: ProseMirrorNode, links: MarkdownLinks): string {
     }
     case "tableOfContents":
       return "";
+    case "drawing":
+      // The drawing goes along as an image, inside the file.
+      return drawingStrokes(n.attrs?.strokes).length
+        ? `![${translate("drawing.title")}](data:image/svg+xml;base64,${Buffer.from(drawingToSvg(n.attrs?.strokes, n.attrs?.height)).toString("base64")})`
+        : "";
     case "calendarBlock":
       return calendarSources(n.attrs?.sources)
         .map((s) => links.page(s.databaseId))
