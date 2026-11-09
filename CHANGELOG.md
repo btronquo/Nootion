@@ -25,6 +25,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   click elsewhere to finish). The color and thickness set its color and size; click a text with the T tool, or
   double-click it, to change it, and move it with the selection tool. The text of drawings is found by the search.
 
+### Fixed
+
+- The handle left of a drawing, a widget or a database placed inside a to-do or a list stays on that block when the
+  pointer moves towards it, instead of jumping to the to-do around it.
+
 ## [3.3.0] - 2026-11-03
 
 ### Added
