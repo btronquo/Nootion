@@ -499,6 +499,8 @@ export const en = {
   "drawing.resize": "Drag to change the height",
   "drawing.select": "Select and move",
   "drawing.size": "Thickness",
+  "drawing.text": "Text",
+  "drawing.textPlaceholder": "Type here",
   "drawing.title": "Drawing",
   "drawing.undo": "Undo",
   "drawing.zoomIn": "Zoom in",

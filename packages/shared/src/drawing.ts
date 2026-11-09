@@ -12,7 +12,7 @@ export const DRAWING_DEFAULT_HEIGHT = 400;
 export const DRAWING_MIN_HEIGHT = 120;
 export const DRAWING_MAX_HEIGHT = 3000;
 
-export const DRAWING_TOOLS = ["pen", "highlighter", "line", "arrow", "rect", "ellipse"] as const;
+export const DRAWING_TOOLS = ["pen", "highlighter", "line", "arrow", "rect", "ellipse", "text"] as const;
 export type DrawingTool = (typeof DRAWING_TOOLS)[number];
 
 /** "default" is the text colour: black in light mode, white in dark mode. */
@@ -40,12 +40,15 @@ export interface DrawingStroke {
   tool: DrawingTool;
   color: DrawingColor;
   size: number;
-  /** Flat list x0, y0, x1, y1… A shape has two points: where it was started and where it ended. */
+  /** Flat list x0, y0, x1, y1… A shape has two points: where it was started and where it ended; a text one, its top-left corner. */
   points: number[];
+  /** What a text box says (lines separated by "\n"). */
+  text?: string;
 }
 
 const MAX_STROKES = 5000;
 const MAX_POINTS = 20_000;
+const MAX_TEXT = 5000;
 const round = (n: number) => Math.round(n * 10) / 10;
 
 /** Strokes of a drawing block, as stored in its node: anything that doesn't parse is left out. */
@@ -59,12 +62,15 @@ export function drawingStrokes(raw: unknown): DrawingStroke[] {
     if (!tool || !Array.isArray(v.points)) continue;
     const points = v.points.slice(0, MAX_POINTS * 2).map(Number);
     if (points.length < 2 || points.length % 2 || points.some((n) => !Number.isFinite(n))) continue;
+    const text = tool === "text" ? (typeof v.text === "string" ? v.text.slice(0, MAX_TEXT) : "") : undefined;
+    if (tool === "text" && !text?.trim()) continue;
     out.push({
       id: typeof v.id === "string" && v.id ? v.id.slice(0, 64) : `s${out.length}`,
       tool,
       color: DRAWING_COLORS.find((x) => x === v.color) ?? "default",
       size: Math.min(64, Math.max(1, Number(v.size) || 4)),
-      points: points.map(round),
+      points: (tool === "text" ? points.slice(0, 2) : points).map(round),
+      ...(text !== undefined ? { text } : {}),
     });
   }
   return out;
@@ -73,6 +79,19 @@ export function drawingStrokes(raw: unknown): DrawingStroke[] {
 export function drawingHeight(raw: unknown): number {
   const n = Number(raw);
   return Number.isFinite(n) && n > 0 ? Math.min(DRAWING_MAX_HEIGHT, Math.max(DRAWING_MIN_HEIGHT, Math.round(n))) : DRAWING_DEFAULT_HEIGHT;
+}
+
+/** Font size of a text box: the thickness picks small, normal, large or huge. */
+export const textFontSize = (s: Pick<DrawingStroke, "size">) => 12 + s.size * 3;
+export const TEXT_LINE_HEIGHT = 1.25;
+export const textLines = (s: Pick<DrawingStroke, "text">) => (s.text ?? "").split("\n");
+
+/** Approximate box of a text (the browser measures it exactly; this is for exports and hit tests). */
+export function textBox(s: DrawingStroke): Box {
+  const size = textFontSize(s);
+  const lines = textLines(s);
+  const w = Math.max(...lines.map((l) => [...l].length), 1) * size * 0.56;
+  return { x: s.points[0]!, y: s.points[1]!, w, h: lines.length * size * TEXT_LINE_HEIGHT };
 }
 
 /** Width of the line actually drawn: a highlighter is wider, and see-through. */
@@ -130,6 +149,11 @@ export interface Box {
 export function drawingBounds(strokes: DrawingStroke[]): Box | null {
   let [x0, y0, x1, y1] = [Infinity, Infinity, -Infinity, -Infinity];
   for (const s of strokes) {
+    if (s.tool === "text") {
+      const b = textBox(s);
+      [x0, y0, x1, y1] = [Math.min(x0, b.x), Math.min(y0, b.y), Math.max(x1, b.x + b.w), Math.max(y1, b.y + b.h)];
+      continue;
+    }
     const pad = strokeWidth(s) / 2 + (s.tool === "arrow" ? Math.max(12, s.size * 4) : 0);
     for (let i = 0; i < s.points.length; i += 2) {
       x0 = Math.min(x0, s.points[i]! - pad);
@@ -160,6 +184,11 @@ export function distanceToStroke(s: DrawingStroke, px: number, py: number): numb
     const t = len ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len)) : 0;
     return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
   };
+  if (s.tool === "text") {
+    // Anywhere inside the text counts.
+    const b = textBox(s);
+    return Math.hypot(Math.max(b.x - px, 0, px - b.x - b.w), Math.max(b.y - py, 0, py - b.y - b.h));
+  }
   const [x0, y0, x1, y1] = [p[0]!, p[1]!, p[p.length - 2]!, p[p.length - 1]!];
   if (s.tool === "rect") {
     const [l, t, r, b] = [Math.min(x0, x1), Math.min(y0, y1), Math.max(x0, x1), Math.max(y0, y1)];
@@ -208,14 +237,29 @@ export function simplifyPoints(points: number[], tolerance = 0.6): number[] {
   return out;
 }
 
+const escapeXml = (s: string) => s.replace(/[<>&"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+/** Text of a drawing's text boxes, for search. */
+export function drawingText(raw: unknown): string {
+  return drawingStrokes(raw)
+    .filter((s) => s.tool === "text")
+    .map((s) => s.text)
+    .join("\n");
+}
+
 /** A standalone SVG of the drawing (light colours, white background), for downloads and the Markdown export. */
 export function drawingToSvg(rawStrokes: unknown, rawHeight: unknown): string {
   const strokes = drawingStrokes(rawStrokes);
   const box = drawingViewBox(strokes, drawingHeight(rawHeight));
   const paths = strokes
-    .map(
-      (s) =>
-        `<path d="${strokePath(s)}" fill="none" stroke="${DRAWING_LIGHT_COLORS[s.color]}" stroke-width="${strokeWidth(s)}"` +
+    .map((s) =>
+      s.tool === "text"
+        ? `<text x="${f(s.points[0]!)}" y="${f(s.points[1]!)}" font-family="Inter, system-ui, sans-serif" font-size="${textFontSize(s)}" fill="${DRAWING_LIGHT_COLORS[s.color]}">` +
+          textLines(s)
+            .map((l, i) => `<tspan x="${f(s.points[0]!)}" dy="${i ? textFontSize(s) * TEXT_LINE_HEIGHT : textFontSize(s)}">${escapeXml(l) || " "}</tspan>`)
+            .join("") +
+          "</text>"
+        : `<path d="${strokePath(s)}" fill="none" stroke="${DRAWING_LIGHT_COLORS[s.color]}" stroke-width="${strokeWidth(s)}"` +
         ` stroke-linecap="round" stroke-linejoin="round"${strokeOpacity(s) < 1 ? ` stroke-opacity="${strokeOpacity(s)}"` : ""}/>`,
     )
     .join("");

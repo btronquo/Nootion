@@ -3,7 +3,7 @@ import { Hocuspocus, type WebSocketLike } from "@hocuspocus/server";
 import type {} from "@fastify/websocket";
 import { eq } from "drizzle-orm";
 import * as Y from "yjs";
-import { atLeast } from "@nootion/shared";
+import { atLeast, drawingText } from "@nootion/shared";
 import type { Db } from "./db/index.js";
 import { pages } from "./db/schema.js";
 import { findSessionUser, SESSION_COOKIE } from "./auth/sessions.js";
@@ -112,6 +112,7 @@ export function prosemirrorToText(node: ProseMirrorNode): string {
   if (node.type === "pageLink" || node.type === "pageMention") return String(node.attrs?.title ?? "");
   if (node.type === "dateMention") return String(node.attrs?.date ?? "").replace("T", " ");
   if (node.type === "userMention") return `@${String(node.attrs?.name ?? "")}`;
+  if (node.type === "drawing") return drawingText(node.attrs?.strokes);
   if (node.type === "buttonBlock") return String((node.attrs?.config as { label?: string } | undefined)?.label ?? "");
   const inner = (node.content ?? []).map(prosemirrorToText).join(BLOCK_TYPES.has(node.type) ? "" : "\n");
   return inner.replace(/\n{2,}/g, "\n");
