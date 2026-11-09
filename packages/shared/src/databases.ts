@@ -278,6 +278,13 @@ export const rowInput = z.object({
   values: z.record(z.string(), z.unknown()).default({}),
   /** New rows: the template to start from. Absent: the database's default template; null: a blank row. */
   templateId: z.string().min(1).max(64).nullable().optional(),
+  /** New rows: placed right after this row (null: first). Absent: last. */
+  after: z.string().min(1).max(64).nullable().optional(),
+});
+
+/** Puts a row right after another one (null: first), in the database's manual order. */
+export const moveRowInput = z.object({
+  after: z.string().min(1).max(64).nullable(),
 });
 
 export const updateViewInput = z.object({

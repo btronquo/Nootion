@@ -7,6 +7,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Database rows work as in Notion: a right click on a row (or a click on its ⋮⋮ handle) opens a menu to add it to
+  the favorites, change its icon, open it (here or in a new tab), copy its link, duplicate it (Ctrl+D) and move it
+  to the trash (Del), with a search field and when it was last edited. With several rows selected, the menu
+  duplicates or trashes all of them. On hover, a "+" on the left of a row adds a new row right below it, and the ⋮⋮
+  handle drags the row to reorder it (in a view without a sort; in a grouped table, dropping it in another group
+  changes its group). The table shows each row's icon before its title.
 - "Test management (QA)" plugin, off by default: test cases, test runs and results as in TestRail or Qase, kept in
   four ordinary databases (test cases, products, test runs, results) that the "/test run" block creates in one
   click. A run takes some suites and priorities, and can cover several products at once (PC, Xbox, PlayStation…):

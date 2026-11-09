@@ -15,7 +15,7 @@ import { pageIcon } from "../lib/icons";
 /** Where a menu opens: under a button, or where the mouse was right-clicked. */
 export type MenuAnchor = HTMLElement | { x: number; y: number };
 
-const toElement = (a: MenuAnchor): HTMLElement =>
+export const toElement = (a: MenuAnchor): HTMLElement =>
   a instanceof HTMLElement
     ? a
     : ({ getBoundingClientRect: () => new DOMRect(a.x, a.y, 0, 0), contains: () => false } as unknown as HTMLElement);

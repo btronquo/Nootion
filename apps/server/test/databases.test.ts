@@ -474,3 +474,66 @@ describe("formula columns", () => {
     expect((await boris.patch(`/api/databases/${d.id}/views/${id}`, { config: { calendarMode: "year" } })).statusCode).toBe(400);
   });
 });
+
+describe("row actions", () => {
+  async function seed() {
+    const d = await createDb(boris);
+    const titleId = d.properties[0].id;
+    const ids: string[] = [];
+    for (const name of ["A", "B", "C"]) ids.push((await boris.post(`/api/databases/${d.id}/rows`, { values: { [titleId]: name } })).json().row.id);
+    return { d, titleId, ids };
+  }
+  const titles = async (id: string) => (await getDb(boris, id)).rows.map((r) => r.title);
+
+  it("adds a row right after another one, or first", async () => {
+    const { d, titleId, ids } = await seed();
+    expect((await boris.post(`/api/databases/${d.id}/rows`, { values: { [titleId]: "A2" }, after: ids[0] })).statusCode).toBe(200);
+    expect((await boris.post(`/api/databases/${d.id}/rows`, { values: { [titleId]: "Z" }, after: null })).statusCode).toBe(200);
+    expect(await titles(d.id)).toEqual(["Z", "A", "A2", "B", "C"]);
+  });
+
+  it("reorders rows by hand", async () => {
+    const { d, ids } = await seed();
+    expect((await boris.post(`/api/databases/${d.id}/rows/${ids[2]}/move`, { after: null })).statusCode).toBe(200);
+    expect(await titles(d.id)).toEqual(["C", "A", "B"]);
+    expect((await boris.post(`/api/databases/${d.id}/rows/${ids[2]}/move`, { after: ids[0] })).statusCode).toBe(200);
+    expect(await titles(d.id)).toEqual(["A", "C", "B"]);
+    // Only after a row of the same database.
+    const other = await createDb(boris, "Autre");
+    const foreign = (await boris.post(`/api/databases/${other.id}/rows`, { values: {} })).json().row.id;
+    expect((await boris.post(`/api/databases/${d.id}/rows/${ids[0]}/move`, { after: foreign })).statusCode).toBe(400);
+    expect((await boris.post(`/api/databases/${d.id}/rows/${foreign}/move`, { after: null })).statusCode).toBe(404);
+  });
+
+  it("duplicates a row with its cells and content, right after it", async () => {
+    const { d, ids } = await seed();
+    const n = await addProp(boris, d.id, "Montant", "number");
+    await boris.patch(`/api/databases/${d.id}/rows/${ids[0]}`, { values: { [n.id]: 42 } });
+    const res = await boris.post(`/api/databases/${d.id}/rows/${ids[0]}/duplicate`, {});
+    expect(res.statusCode, res.body).toBe(200);
+    const copy = res.json().row;
+    expect(copy.id).not.toBe(ids[0]);
+    expect(copy.values[n.id]).toBe(42);
+    expect(await titles(d.id)).toEqual(["A", "A", "B", "C"]);
+    expect((await getDb(boris, d.id)).rows[1].id).toBe(copy.id);
+  });
+
+  it("keeps two-way relations on a duplicated row", async () => {
+    const projets = await createDb(boris, "Projets");
+    const taches = await createDb(boris, "Tâches");
+    const p = (await boris.post(`/api/databases/${projets.id}/rows`, { values: {} })).json().row.id;
+    const res0 = await boris.post(`/api/databases/${taches.id}/properties`, { name: "Projet", type: "relation", config: { databaseId: projets.id }, twoWay: true });
+    expect(res0.statusCode, res0.body).toBe(200);
+    const twoWay = res0.json().property;
+    const task = (await boris.post(`/api/databases/${taches.id}/rows`, { values: { [twoWay.id]: [p] } })).json().row.id;
+    const copy = (await boris.post(`/api/databases/${taches.id}/rows/${task}/duplicate`, {})).json().row.id;
+    const twin = (await getDb(boris, projets.id)).properties.find((x) => x.type === "relation")!;
+    expect((await getDb(boris, projets.id)).rows[0].values[twin.id]).toEqual(expect.arrayContaining([task, copy]));
+  });
+
+  it("needs edit rights to duplicate or reorder", async () => {
+    const { d, ids } = await seed();
+    expect((await alice.post(`/api/databases/${d.id}/rows/${ids[0]}/duplicate`, {})).statusCode).toBe(404);
+    expect((await alice.post(`/api/databases/${d.id}/rows/${ids[0]}/move`, { after: null })).statusCode).toBe(404);
+  });
+});
