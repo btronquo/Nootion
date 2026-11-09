@@ -70,6 +70,13 @@ export const HandleTargets = Extension.create({
                   value: block ? r.top + Math.min(16, r.height / 2) : Math.max(event.clientY, r.top + Math.min(14, r.height / 2)),
                   configurable: true,
                 });
+                // Only for the handle, which reads them in this same dispatch: once ProseMirror is done, the event
+                // gets its real position back for the listeners further up (a map being dragged in a widget follows
+                // document mousemoves, and froze or jumped when it got the corner of its block instead).
+                queueMicrotask(() => {
+                  delete (event as { clientX?: number }).clientX;
+                  delete (event as { clientY?: number }).clientY;
+                });
               }
               return false;
             },
