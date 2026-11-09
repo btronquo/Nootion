@@ -31,6 +31,20 @@ import { HttpError, notFound, unauthorized } from "./http.js";
 import { getPageRole, requirePageRole } from "./permissions.js";
 import { t } from "@nootion/shared";
 
+/** Files a plugin may ship in its assets/ folder, by extension. */
+const ASSET_TYPES: Record<string, string> = {
+  ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".woff2": "font/woff2",
+};
+
 /** Built-in plugins ship next to the server code (src/ in dev, dist/ in the image). */
 export function builtinPluginsDir(): string {
   if (process.env.BUILTIN_PLUGINS_DIR) return path.resolve(process.env.BUILTIN_PLUGINS_DIR);
@@ -509,6 +523,26 @@ export class PluginManager {
     const p = this.installed.get(id);
     if (!p?.runtime || !p.manifest.client) return null;
     return this.resolveFile(p.dir, p.manifest.client);
+  }
+
+  /**
+   * A static file of an enabled plugin's `assets/` folder (a library, a stylesheet, images…), with its content type;
+   * null when there is none or the type isn't one served.
+   */
+  assetFile(id: string, rest: string): { file: string; contentType: string } | null {
+    const p = this.installed.get(id);
+    if (!p?.runtime) return null;
+    const contentType = ASSET_TYPES[path.extname(rest).toLowerCase()];
+    if (!contentType) return null;
+    const root = path.join(p.dir, "assets");
+    const file = path.resolve(root, rest);
+    if (!file.startsWith(root + path.sep)) return null;
+    try {
+      if (!fs.statSync(file).isFile()) return null;
+    } catch {
+      return null;
+    }
+    return { file, contentType };
   }
 
   /** Serves /api/plugins/<id>/<path> from the plugin's routes. */

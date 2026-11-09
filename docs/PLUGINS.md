@@ -20,7 +20,8 @@ The **Embeds** plugin that ships with Nootion is a complete example: [`apps/serv
 my_plugin/
 ├── manifest.json   required
 ├── server.js       server code (ES module), optional
-└── client.js       browser code (ES module), optional
+├── client.js       browser code (ES module), optional
+└── assets/         files served as they are (libraries, styles, images), optional
 ```
 
 ### manifest.json
@@ -153,6 +154,20 @@ export function activate(nootion) {
 The application's Tailwind classes aren't available to plugins: use inline styles.
 An element with the `nootion-hover-only` class only shows when the block is hovered (handy for edit buttons).
 If the component crashes, only the block shows an error; the rest of the page keeps working.
+
+### Libraries, styles and images
+
+Files in an `assets/` folder of the plugin are served at `/api/plugins/<id>/assets/<path>` while the plugin is on, to
+everyone (public pages included): JavaScript, CSS, JSON, images (PNG, JPEG, GIF, WebP) and WOFF2 fonts. Ship a
+library there instead of loading it from a CDN:
+
+```js
+const script = document.createElement("script");
+script.src = `/api/plugins/${nootion.id}/assets/leaflet/leaflet.js`;
+document.head.appendChild(script);
+```
+
+The **Map** plugin loads Leaflet this way: [`apps/server/plugins/map`](../apps/server/plugins/map).
 
 ### Database column types
 
