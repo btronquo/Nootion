@@ -1,12 +1,13 @@
 import { Fragment, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ChevronDown, ChevronRight, Maximize2, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, GripVertical, Maximize2, Plus, Trash2 } from "lucide-react";
 import {
   applyView,
   canGroupBy,
   canMoveBetweenGroups,
   groupRows,
   initialValues,
+  moveToGroup,
   type DatabaseViewInfo,
   type ViewContext,
   calcLabel,
@@ -45,6 +46,8 @@ import { pageTitle } from "../lib/tree";
 import { CREATABLE_TYPES } from "@nootion/shared";
 import { usePluginPropertyTypes } from "../plugins/registry";
 import { pageIcon } from "../lib/icons";
+import { RowMenu } from "./RowMenu";
+import type { MenuAnchor } from "../components/PageMenu";
 
 const DEFAULT_WIDTH = 180;
 const TITLE_WIDTH = 260;
@@ -157,6 +160,51 @@ export function TableView({
   const [widths, setWidths] = useState<Record<string, number>>({});
   const drag = useRef<string | null>(null);
   const mobile = useIsMobile();
+  const [rowMenu, setRowMenu] = useState<{ rowId: string; anchor: MenuAnchor } | null>(null);
+  const rowDrag = useRef<string | null>(null);
+  const [dropAt, setDropAt] = useState<{ rowId: string; before: boolean } | null>(null);
+  // Rows keep a manual order; a sorted view shows its own.
+  const sorted = (view?.config.sorts ?? []).length > 0;
+  const groupOf = useMemo(() => new Map((groups ?? []).flatMap((g) => g.rows.map((r) => [r.id, g.key] as const))), [groups]);
+
+  /** The rows a menu acts on: the selection when the row is part of it, else the row alone. */
+  const menuRows = (rowId: string) => (selected.has(rowId) && selected.size > 1 ? data.rows.filter((r) => selected.has(r.id)) : data.rows.filter((r) => r.id === rowId));
+
+  function openRowMenu(e: React.MouseEvent, rowId: string) {
+    if (!actions) return;
+    // Text being edited keeps the browser's menu (copy, paste, spelling).
+    // (Rows of a database inside a page sit in the page's editor, which is itself editable: only the nearest counts.)
+    const field = (e.target as HTMLElement).closest<HTMLElement>("input, textarea, [contenteditable]");
+    const editing = !!field && (field instanceof HTMLTextAreaElement || (field instanceof HTMLInputElement && field.type !== "checkbox") || field.isContentEditable);
+    if (e.type === "contextmenu" && editing) return;
+    e.preventDefault();
+    setRowMenu({ rowId, anchor: e.type === "contextmenu" ? { x: e.clientX, y: e.clientY } : (e.currentTarget as HTMLElement) });
+  }
+
+  /** Adds a row right below another one, in the same group. */
+  function addRowBelow(row: DatabaseRow) {
+    const key = groupOf.get(row.id);
+    const values = initialValues(ctx, view?.config ?? {}, groupProp && key !== undefined && canMoveBetweenGroups(groupProp.type) ? { prop: groupProp, key } : undefined);
+    actions!.insertRow.mutate({ values, after: row.id });
+  }
+
+  function dropRow(target: DatabaseRow, before: boolean) {
+    const rowId = rowDrag.current;
+    rowDrag.current = null;
+    setDropAt(null);
+    if (!rowId || rowId === target.id || !actions) return;
+    const order = data.rows.map((r) => r.id).filter((id) => id !== rowId);
+    const i = order.indexOf(target.id);
+    const after = before ? (i > 0 ? order[i - 1] : null) : target.id;
+    actions.moveRow.mutate({ rowId, after });
+    // Dropped in another group: it takes that group's value, as on a board.
+    const from = groupOf.get(rowId);
+    const to = groupOf.get(target.id);
+    const moved = data.rows.find((r) => r.id === rowId);
+    if (groupProp && moved && from !== undefined && to !== undefined && from !== to && canMoveBetweenGroups(groupProp.type)) {
+      actions.updateCell.mutate({ rowId, propId: groupProp.id, value: moveToGroup(groupProp, moved.values[groupProp.id] ?? null, from, to) });
+    }
+  }
 
   const widthOf = (c: { prop: DatabaseProperty; col: ViewColumn }) => widths[c.prop.id] ?? c.col.width ?? (c.prop.type === "title" ? TITLE_WIDTH : DEFAULT_WIDTH);
 
@@ -205,7 +253,64 @@ export function TableView({
   const gutter = editable ? "w-8 shrink-0" : "w-0 shrink-0";
 
   const renderRow = (row: DatabaseRow) => (
-            <div key={row.id} role="row" className="group flex border-b border-neutral-200 dark:border-neutral-800">
+            <div
+              key={row.id}
+              role="row"
+              data-row-id={row.id}
+              onContextMenu={(e) => openRowMenu(e, row.id)}
+              onDragOver={(e) => {
+                if (!rowDrag.current) return;
+                e.preventDefault();
+                const r = e.currentTarget.getBoundingClientRect();
+                const before = e.clientY < r.top + r.height / 2;
+                if (dropAt?.rowId !== row.id || dropAt.before !== before) setDropAt({ rowId: row.id, before });
+              }}
+              onDrop={(e) => {
+                if (!rowDrag.current) return;
+                e.preventDefault();
+                const r = e.currentTarget.getBoundingClientRect();
+                dropRow(row, e.clientY < r.top + r.height / 2);
+              }}
+              className={`group relative flex border-b border-neutral-200 dark:border-neutral-800 ${rowMenu && menuRows(rowMenu.rowId).some((r) => r.id === row.id) ? "bg-blue-50/60 dark:bg-blue-950/30" : ""}`}
+            >
+              {dropAt?.rowId === row.id && <div className={`pointer-events-none absolute inset-x-0 z-10 h-0.5 bg-blue-500 ${dropAt.before ? "-top-px" : "-bottom-px"}`} />}
+              {actions && (
+                <div className="absolute right-full top-0 flex h-full items-start pr-0.5 pt-1.5 opacity-0 group-hover:opacity-100 has-[:focus-visible]:opacity-100" data-row-handle>
+                  {editable && (
+                    <button
+                      type="button"
+                      title={t("table.addRowBelow")}
+                      aria-label={t("table.addRowBelow")}
+                      onClick={() => addRowBelow(row)}
+                      className="flex h-6 w-5 items-center justify-center rounded text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800 dark:hover:text-neutral-300"
+                    >
+                      <Plus size={15} />
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    title={editable && sorted ? t("table.rowHandleSorted") : editable ? t("table.rowHandle") : t("rowMenu.label")}
+                    aria-label={t("rowMenu.label")}
+                    aria-haspopup="menu"
+                    draggable={editable && !sorted}
+                    onDragStart={(e) => {
+                      rowDrag.current = row.id;
+                      e.dataTransfer.effectAllowed = "move";
+                      e.dataTransfer.setData("text/plain", row.title);
+                      const el = e.currentTarget.closest("[role=row]");
+                      if (el) e.dataTransfer.setDragImage(el, 40, 16);
+                    }}
+                    onDragEnd={() => {
+                      rowDrag.current = null;
+                      setDropAt(null);
+                    }}
+                    onClick={(e) => openRowMenu(e, row.id)}
+                    className={`flex h-6 w-4 items-center justify-center rounded text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800 dark:hover:text-neutral-300 ${editable && !sorted ? "cursor-grab active:cursor-grabbing" : ""}`}
+                  >
+                    <GripVertical size={15} />
+                  </button>
+                </div>
+              )}
               <div className={`${gutter} flex items-center justify-center`}>
                 {editable && (
                   <input
@@ -226,20 +331,45 @@ export function TableView({
               </div>
               {visible.map((c) => (
                 <div key={c.prop.id} style={{ width: widthOf(c) }} className="relative shrink-0 border-r border-neutral-200 dark:border-neutral-800">
-                  <Cell
-                    prop={c.prop}
-                    value={c.prop.type === "title" ? row.title : (row.values[c.prop.id] ?? null)}
-                    rowId={row.id}
-                    databaseId={data.id}
-                    people={data.people}
-                    editable={editable}
-                    fileUrl={fileUrl}
-                    related={data.related}
-                    rollupTarget={data.rollupTargets[c.prop.id]}
-                    rowHref={(id) => rowHref({ id } as DatabaseRow)}
-                    onChange={(value: CellValue) => actions?.updateCell.mutate({ rowId: row.id, propId: c.prop.id, value })}
-                    onCreateOption={createOption(c.prop)}
-                  />
+                  {c.prop.type === "title" && row.icon ? (
+                    // The row's page icon, before its title, as in Notion.
+                    <div className="flex items-start">
+                      <span className="flex h-[34px] shrink-0 items-center pl-2 leading-none [&_img]:h-4 [&_img]:w-4" data-row-icon>
+                        {pageIcon(row.icon)}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                      <Cell
+                        prop={c.prop}
+                        value={c.prop.type === "title" ? row.title : (row.values[c.prop.id] ?? null)}
+                        rowId={row.id}
+                        databaseId={data.id}
+                        people={data.people}
+                        editable={editable}
+                        fileUrl={fileUrl}
+                        related={data.related}
+                        rollupTarget={data.rollupTargets[c.prop.id]}
+                        rowHref={(id) => rowHref({ id } as DatabaseRow)}
+                        onChange={(value: CellValue) => actions?.updateCell.mutate({ rowId: row.id, propId: c.prop.id, value })}
+                        onCreateOption={createOption(c.prop)}
+                      />
+                      </div>
+                    </div>
+                  ) : (
+                    <Cell
+                      prop={c.prop}
+                      value={c.prop.type === "title" ? row.title : (row.values[c.prop.id] ?? null)}
+                      rowId={row.id}
+                      databaseId={data.id}
+                      people={data.people}
+                      editable={editable}
+                      fileUrl={fileUrl}
+                      related={data.related}
+                      rollupTarget={data.rollupTargets[c.prop.id]}
+                      rowHref={(id) => rowHref({ id } as DatabaseRow)}
+                      onChange={(value: CellValue) => actions?.updateCell.mutate({ rowId: row.id, propId: c.prop.id, value })}
+                      onCreateOption={createOption(c.prop)}
+                    />
+                  )}
                   {c.prop.type === "title" && (
                     <Link
                       to={rowHref(row)}
@@ -320,7 +450,8 @@ export function TableView({
           </button>
         </div>
       )}
-      <div className={`thin-scroll overflow-x-auto ${compact ? "" : "pb-2"}`}>
+      {/* The rows' + and ⋮⋮ buttons sit in the margin on the left, as in Notion. */}
+      <div className={`thin-scroll overflow-x-auto ${actions ? "-ml-12 pl-12" : ""} ${compact ? "" : "pb-2"}`}>
         <div role="grid" aria-label={data.title || t("common.database")} className="inline-block min-w-full align-top">
           {/* Header */}
           <div role="row" className="flex border-b border-neutral-200 text-neutral-500 dark:border-neutral-800">
@@ -427,6 +558,19 @@ export function TableView({
       <div className="px-2 pt-1 text-xs text-neutral-400">
         {rows.length !== data.rows.length ? t("table.countOf", { count: rows.length, total: data.rows.length }) : t("table.count", { count: rows.length })}
       </div>
+
+      {rowMenu && actions && menuRows(rowMenu.rowId).length > 0 && (
+        <RowMenu
+          data={data}
+          rows={menuRows(rowMenu.rowId)}
+          anchor={rowMenu.anchor}
+          actions={actions}
+          editable={editable}
+          rowHref={rowHref}
+          onClose={() => setRowMenu(null)}
+          onDone={() => setSelected(new Set())}
+        />
+      )}
 
       {menu && menuProp && actions && (
         <Popover anchor={menu.anchor} onClose={() => setMenu(null)} width={menuProp.type === "formula" ? 420 : 260}>

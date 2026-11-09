@@ -5,6 +5,7 @@ import {
   createDatabaseInput,
   createPropertyInput,
   rowInput,
+  moveRowInput,
   updatePropertyInput,
   updateViewInput,
   createViewInput,
@@ -48,7 +49,7 @@ import {
   canReadAs,
 } from "../databases.js";
 import type { PageRole } from "@nootion/shared";
-import type { Db } from "../db/index.js";
+import type { Db, DbLike } from "../db/index.js";
 import { databaseCsv, databaseJson, safeName } from "../export.js";
 import { IMPORT_MAX_ROWS, parseCsv, planImport } from "../import.js";
 import { t } from "@nootion/shared";
@@ -384,6 +385,25 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
 
   // --- Rows ---
 
+  /** Renumbers the rows of a database so that `rowId` comes right after `after` (null: first). */
+  function placeRow(tx: DbLike, databaseId: string, rowId: string, after: string | null) {
+    const rows = tx
+      .select({ id: pages.id, position: pages.position, createdAt: pages.createdAt })
+      .from(pages)
+      .where(and(eq(pages.parentId, databaseId), eq(pages.kind, "row"), eq(pages.template, false), isNull(pages.deletedAt)))
+      .all()
+      .sort((a, b) => a.position - b.position || a.createdAt.getTime() - b.createdAt.getTime());
+    const moved = rows.find((r) => r.id === rowId);
+    if (!moved) throw notFound();
+    const others = rows.filter((r) => r.id !== rowId);
+    const at = after === null ? 0 : others.findIndex((r) => r.id === after) + 1;
+    if (after !== null && at === 0) throw new HttpError(400, "unknown_row", t("error.rowNotInDatabase"));
+    others.splice(at, 0, moved);
+    others.forEach((r, i) => {
+      if (r.position !== i) tx.update(pages).set({ position: i }).where(eq(pages.id, r.id)).run();
+    });
+  }
+
   app.post<{ Params: { id: string } }>("/:id/rows", async (req) => {
     const user = requireUser(req);
     const input = parseBody(rowInput, req.body);
@@ -430,6 +450,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
         .run();
       for (const p of properties) if (p.type === "relation" && values[p.id]) syncTwin(tx, p, id, [], values[p.id] as string[]);
     });
+    if (input.after !== undefined) db.transaction((tx) => placeRow(tx, database.id, id, input.after ?? null));
     // The row's page content, given at once through the API.
     const markdown = (req.body as { markdown?: unknown } | null)?.markdown;
     if (typeof markdown === "string" && markdown.trim()) {
@@ -517,6 +538,43 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     const after = rowSnapshot(db, req.params.id, req.params.rowId);
     if (snapshot && after && !fromAutomation(req)) await app.automations.rowChanged({ databaseId: req.params.id, rowId: req.params.rowId, before: snapshot, after });
     return rowResponse(user.id, req.params.id, req.params.rowId);
+  });
+
+  // Copies a row (cells, content, subpages, files) right after it, as Notion does.
+  app.post<{ Params: { id: string; rowId: string } }>("/:id/rows/:rowId/duplicate", async (req) => {
+    const user = requireUser(req);
+    const { page: database } = requireDatabase(db, user.id, req.params.id, "editor");
+    requireRow(db, user.id, database.id, req.params.rowId, "viewer");
+    const source = db.select({ template: pages.template }).from(pages).where(eq(pages.id, req.params.rowId)).get();
+    if (!source || source.template) throw notFound();
+    const properties = listProperties(db, database.id);
+    const id = await copyTree(db, app.collab, app.config.dataDir, req.params.rowId, {
+      workspaceId: database.workspaceId,
+      parentId: database.id,
+      position: nextPosition(db, database.workspaceId, database.id),
+      userId: user.id,
+    });
+    db.transaction((tx) => {
+      const props = (tx.select({ props: pages.props }).from(pages).where(eq(pages.id, id)).get()?.props ?? {}) as Record<string, CellValue>;
+      // Two-way relations: the linked rows point to the copy too.
+      for (const p of properties) if (p.type === "relation" && Array.isArray(props[p.id]) && (props[p.id] as string[]).length) syncTwin(tx, p, id, [], props[p.id] as string[]);
+      placeRow(tx, database.id, id, req.params.rowId);
+    });
+    if (!fromAutomation(req)) {
+      const after = rowSnapshot(db, database.id, id);
+      if (after) await app.automations.rowChanged({ databaseId: database.id, rowId: id, before: null, after });
+    }
+    return rowResponse(user.id, database.id, id);
+  });
+
+  // Changes the manual order of the rows (used by views without a sort).
+  app.post<{ Params: { id: string; rowId: string } }>("/:id/rows/:rowId/move", async (req) => {
+    const user = requireUser(req);
+    const { after } = parseBody(moveRowInput, req.body);
+    requireDatabase(db, user.id, req.params.id, "editor");
+    requireRow(db, user.id, req.params.id, req.params.rowId, "editor");
+    db.transaction((tx) => placeRow(tx, req.params.id, req.params.rowId, after));
+    return { ok: true };
   });
 
   // Moves rows to the trash (they can be restored from there like any page).

@@ -109,8 +109,10 @@ A database is a page of kind `database`; its rows are pages of kind `row`, with 
 | `GET /api/databases/:id` | Its columns (`properties`: `id`, `name`, `type`, `config` with select options), views, and all rows. |
 | `POST /api/databases/:id/query` | Rows filtered and sorted, a page at a time (below). |
 | `POST /api/databases` | Creates one: `{ "workspaceId", "parentId": null, "title" }`. |
-| `POST /api/databases/:id/rows` | Adds a row: `{ "values": { … }, "markdown"? }`. |
+| `POST /api/databases/:id/rows` | Adds a row: `{ "values": { … }, "markdown"?, "after"? }`. With `after` (a row id, or `null` for first), the row is placed right after that row instead of last. |
 | `PATCH /api/databases/:id/rows/:rowId` | Changes cells: `{ "values": { … } }` (cells not named stay as they are; `null` empties one). |
+| `POST /api/databases/:id/rows/:rowId/duplicate` | Copies a row (cells, content, subpages, files) right after it. |
+| `POST /api/databases/:id/rows/:rowId/move` | Changes the manual order of the rows: `{ "after": rowId \| null }` (`null`: first). Views without a sort show this order. |
 | `POST /api/databases/:id/rows/delete` | Moves rows to the trash: `{ "ids": [ … ] }`. |
 | `POST /api/databases/:id/properties` | Adds a column: `{ "name", "type", "config" }`. `PATCH`/`DELETE …/properties/:propId` change or remove one. |
 

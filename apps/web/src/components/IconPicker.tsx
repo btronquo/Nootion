@@ -44,7 +44,7 @@ function readRecent(): string[] {
   }
 }
 
-function remember(icon: string) {
+export function remember(icon: string) {
   try {
     localStorage.setItem(RECENT_KEY, JSON.stringify([icon, ...readRecent().filter((i) => i !== icon)].slice(0, 16)));
   } catch {
@@ -90,7 +90,7 @@ export function IconPicker({ icon, editable, onChange }: { icon: string | null; 
   );
 }
 
-function IconPanel({
+export function IconPanel({
   anchor,
   hasIcon,
   onClose,
