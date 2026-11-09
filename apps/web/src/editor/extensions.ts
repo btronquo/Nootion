@@ -25,6 +25,7 @@ import {
 } from "./nodes";
 import { pluginNodes } from "../plugins/nodes";
 import { BlockAttributes } from "./blockAttrs";
+import { HandleTargets } from "./handleTargets";
 import { t } from "@nootion/shared";
 
 /** Extensions shared by the collaborative editor and the read-only public view. Keep both schemas identical. */
@@ -67,6 +68,7 @@ export function baseExtensions(opts: {
     WidgetCommands,
     ...pluginNodes(opts.plugins, opts.publicToken ? null : (opts.pageId ?? null)),
     BlockAttributes,
+    HandleTargets,
     Placeholder.configure({
       placeholder: ({ node }) => (node.type.name === "heading" ? t("editor.headingPlaceholder") : t("editor.placeholder")),
       // Only top-level blocks: with includeChildren, placeholders stay on lines the cursor has left.
