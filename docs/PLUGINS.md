@@ -4,7 +4,7 @@ A plugin adds editor **blocks** (`/` command), **database column types**, **API 
 **formula functions** to Nootion. The administrator turns it on and off and fills in its settings in **Administration › Plugins**.
 
 > Plugins are installed on trust, as on any personal server: their server code runs with the same rights
-> as Nootion. Only install plugins whose source you know.
+> as Nootion. Only install plugins whose source you know. See [Trust](#trust).
 
 The **Embeds** plugin that ships with Nootion is a complete example: [`apps/server/plugins/embed`](../apps/server/plugins/embed).
 
@@ -117,9 +117,28 @@ What `activate` receives:
 | `connectedAccount({ describe, disconnect })` | lists the user's account on another service in **My account › Connected services**: `describe(userId)` returns what to show ("ada@gmail.com") or null when not connected, `disconnect(userId)` forgets and revokes it. |
 | `redirect(url)` | return it from a route to send the browser elsewhere (a sign-in page of another service…) |
 | `appUrl` | Nootion's address (`APP_URL`), e.g. to build an OAuth redirect address |
+| `net.request(url, options)` | an http(s) request to an address **a user typed** (a link to preview, a webhook): it refuses the server's own network and throws, unless `allowPrivate: true`. Options: `method` (`GET`, `POST`), `headers`, `body`, `timeoutMs`, `maxRedirects` (0 by default, each hop is checked), `maxBytes` (how much of the answer is read, 0 by default). Resolves with `{ status, ok, url, headers, body }` (`body` is a Buffer). Use it instead of `fetch` for such addresses. |
+| `net.isPrivateAddress(ip)` | whether an IP address is local (loopback, private ranges, link-local, IPv4 inside IPv6…) |
 | `binary(data, contentType)` | return it from a route to send a file instead of JSON. PNG, JPEG, GIF, WebP and AVIF images are shown in the browser; anything else is downloaded. |
 
 A plugin must never send a user data they couldn't see themselves.
+
+### Trust
+
+What Nootion does and doesn't do for you:
+
+- **Server code is not sandboxed.** `server.js` is ordinary Node.js code in Nootion's process: it can read the
+  whole database and every file of `/data`, and reach the network. Installing a plugin is giving it the keys.
+- **Browser code runs as the person looking at the page**, in Nootion's own origin: it can do whatever they can do.
+  The Content-Security-Policy only lets scripts served by Nootion run, so ship the libraries you need in `assets/`
+  rather than loading them from another site (or the administrator has to set `CONTENT_SECURITY_POLICY=off`).
+- **Routes are for signed-in users** unless you pass `{ public: true }`. They are not open to API tokens. Nootion
+  doesn't check what a route returns: call `pages.role(user.id, pageId)` before showing anything of a page, and use
+  `request(userId, …)` to read or write as the user, which applies their rights for you.
+- **Addresses typed by users** go through `net.request`, not `fetch`: otherwise anyone who can use the plugin can
+  make the server read the local network (the router's admin page, a cloud's metadata address…).
+- **Settings of type password** and `userSecrets` are encrypted with `APP_SECRET` in the database, and never sent
+  to the browser.
 
 ## Browser side (`client.js`)
 

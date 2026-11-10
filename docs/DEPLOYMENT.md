@@ -8,6 +8,8 @@ All data lives in the folder mounted on `/data`:
 | `nootion.db` (+ `-wal`, `-shm` while the app runs) | The SQLite database: accounts, pages, databases, shares |
 | `uploads/` | Files attached to pages and database rows (images, PDFs…). One file per attachment, named by its id. |
 | `avatars/` | Profile pictures |
+| `icons/` | Page icons uploaded by people |
+| `vapid.json` | The keys that sign notifications sent to phones and computers (made at the first start) |
 | `plugins/` | Plugins installed by hand (see [PLUGINS.md](PLUGINS.md)) |
 | `plugin-data/` | Files kept by plugins |
 
@@ -33,16 +35,19 @@ They go to:
 | Variable | Required | Description |
 |---|---|---|
 | `APP_URL` | yes | Address typed in the browser, without a trailing `/` (e.g. `http://<yourLocalIp>:3000` or `https://mynootion.example.com`). Used for invitation links, iCal links and CSRF protection: always open Nootion at this address. |
-| `APP_SECRET` | yes | Random string of at least 16 characters (`openssl rand -hex 32`). Generate it once and never change it: it encrypts the passwords stored in plugin settings. |
+| `APP_SECRET` | yes | Random string of at least 16 characters (`openssl rand -hex 32`). Generate it once and never change it: it encrypts the secrets kept in the database (plugin settings and accounts, the SSO client secret, the e-mail and backup passwords) and signs cookies. Changing it means typing those secrets again. The server refuses to start with the example value of `docker-compose.yml`. |
 | `TZ` | no | Time zone (e.g. `Europe/Paris`). |
 | `PORT` | no | Port the server listens on inside the container (default `3000`). To change the port on the host, change `ports:` instead. |
 | `MAX_UPLOAD_MB` | no | Maximum size of an attached file, in MB (default `50`). |
 | `DEMO_PAGE` | no | `false` to stop giving new users a demo page on their first visit (default: given). |
 | `UPDATE_CHECK` | no | `false` to stop looking for new releases (default: the server asks GitHub twice a day, sending nothing about your server, and tells administrators). |
 | `OCR_LANGS` | no | Languages read in images and scanned PDFs, joined by `+` (default `fra+eng`). The image ships French and English; other languages need their `tesseract-ocr-<lang>` package. |
+| `TRUST_PROXY` | no | Which reverse proxies are believed about the visitor's address (`X-Forwarded-For`, `X-Forwarded-Proto`). Default: proxies on the server itself or its private network (10.x, 172.16–31.x, 192.168.x, fc00::/7). `true` trusts any, `false` none, or give a list of addresses and ranges (`203.0.113.4, 198.51.100.0/24`). See [Securing your instance](#securing-your-instance). |
+| `CONTENT_SECURITY_POLICY` | no | `off` to stop sending the Content-Security-Policy with the interface (only needed for a hand-installed plugin that loads scripts from another site). |
 | `API_RATE_LIMIT` | no | Requests a personal API token can make per minute (default `300`). See [API.md](API.md). |
 
-If Nootion sits behind an HTTPS reverse proxy, put the `https://…` URL in `APP_URL`: the session cookie then becomes `Secure`.
+If Nootion sits behind an HTTPS reverse proxy, put the `https://…` URL in `APP_URL`: the session cookie then becomes `Secure`
+(examples for Caddy and Nginx in [Securing your instance](#securing-your-instance)).
 To connect Claude's connectors to Nootion, that address must be reachable from the internet (see [MCP.md](MCP.md)).
 The proxy must let **WebSockets** through on `/collab` (real-time collaborative editing): in Nginx Proxy Manager, tick *Websockets Support*.
 `/api/events` is a long-lived stream (server-sent events) that keeps the sidebar up to date when others add pages: Nootion asks Nginx not to buffer it; other proxies may need buffering turned off for it.
@@ -113,6 +118,75 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
 ```
 
 To update: `git pull`, then the same command. To try the `develop` branch, `git checkout develop` first.
+
+## Securing your instance
+
+Nootion is made to be reached from the internet, but a few choices are yours.
+
+**Use HTTPS.** Put Nootion behind a reverse proxy that holds the certificate, and set `APP_URL` to the `https://…`
+address: the session cookie then becomes `Secure` and browsers are told to stay on HTTPS (HSTS). With Caddy, the
+whole configuration is:
+
+```
+notes.example.com {
+    reverse_proxy nootion:3000
+}
+```
+
+With Nginx (Nginx Proxy Manager does the same with *Websockets Support* ticked):
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name notes.example.com;
+    # ssl_certificate and ssl_certificate_key here
+    client_max_body_size 50m;                  # MAX_UPLOAD_MB
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;   # /collab (live editing)
+        proxy_set_header Connection "upgrade";
+        proxy_buffering off;                      # /api/events
+    }
+}
+```
+
+**The visitor's address.** Sign-in attempts are limited per address (10 a minute) and per account (20 wrong
+passwords in 15 minutes). Behind a proxy, the address comes from the `X-Forwarded-For` header, which Nootion only
+believes from a proxy on the same machine or private network. If your proxy has a public address (another
+server, a CDN), give it in `TRUST_PROXY`; if Nootion is reached directly, with no proxy, set `TRUST_PROXY=false`.
+Have the proxy *replace* `X-Forwarded-For` (as above) rather than add to what the visitor sent.
+
+**What is off by default**, and administrators can turn on:
+
+| Setting | Where | Turn it on when |
+|---|---|---|
+| Webhooks to the local network | Administration › Security | Buttons must call a service at home or in the company (Home Assistant, n8n…). Anyone who can edit a page can then make the server call local addresses. |
+| Previews of local network links | Administration › Plugins › Embeds | People paste links to local services and want their preview. |
+
+And what is on by default and may be turned off: **Link existing accounts by their e-mail address** in the SSO
+settings (see [SSO.md](SSO.md#linking-existing-accounts)).
+
+**Who can do what.** Keep these in mind when you invite people:
+
+- An **administrator** can read every backup, install plugins and change every setting: it is full control of the data.
+- A **plugin** installed in `/data/plugins` runs with the server's rights (see [PLUGINS.md](PLUGINS.md#trust)).
+- A **member** sees the pages of their spaces and those shared with them, and, in the people lists, only those they
+  work with. They can create shared spaces, API tokens for their own spaces, and public links to pages they can edit.
+- A **public link** shows a page (and its subpages if chosen) read-only to anyone who has the address; a **public
+  form** lets them add rows. Both are revoked from where they were made.
+- The step of a **button** runs with the rights of the person who clicks it, not of who wrote it: look at what a
+  button does before clicking one in a page someone else edits.
+
+Browsers get a Content-Security-Policy with the interface: only scripts served by Nootion run, and Nootion can't be
+shown inside another site (public pages and forms can). Attached files that a browser could run (HTML, SVG) are
+always downloaded, never displayed.
+
+To report a vulnerability, see [SECURITY.md](../SECURITY.md).
 
 ## Single sign-on (SSO)
 
@@ -201,18 +275,3 @@ since the last import are updated (their content is replaced, edits made in Noot
 as they are, and nothing is duplicated. *Forget the secret* removes it from the server; what was imported stays.
 
 Notion allows about three requests per second, so a large workspace takes a few minutes.
-
-## Publishing a new version of the image
-
-Branches follow git flow (see [CONTRIBUTING.md](../CONTRIBUTING.md#branches-and-releases)).
-[`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs the tests on every pull request and on pushes to
-`main` and `develop`, and publishes the image to GitHub's registry as `ghcr.io/btronquo/nootion` (no setup needed:
-it uses the token provided by GitHub Actions):
-
-- on every push to `develop`: tags `develop` and `develop-<commit>`;
-- on every git tag `vX.Y.Z` (put on `main` when a release is merged): tags `X.Y.Z`, `X.Y` and `latest`.
-
-On GitHub, the first published image is private: *Packages > nootion > Package settings > Change visibility > Public*.
-For each version, also create the release (*Releases > Draft a new release*) with the version's CHANGELOG section.
-
-To try the image locally before publishing: `docker build -f docker/Dockerfile -t nootion:local .`
