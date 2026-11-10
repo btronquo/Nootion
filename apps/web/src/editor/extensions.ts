@@ -27,6 +27,7 @@ import { pluginNodes } from "../plugins/nodes";
 import { BlockAttributes } from "./blockAttrs";
 import { HandleTargets } from "./handleTargets";
 import { LinkClicks } from "./linkClicks";
+import { ImageViewer } from "./imageViewer";
 import { t } from "@nootion/shared";
 
 /** Extensions shared by the collaborative editor and the read-only public view. Keep both schemas identical. */
@@ -51,6 +52,7 @@ export function baseExtensions(opts: {
     TaskItem.configure({ nested: true }),
     TableKit.configure({ table: { resizable: true } }),
     Image,
+    ImageViewer,
     Callout,
     Toggle,
     // Its placeholder is shown by CSS (the Placeholder extension only handles top-level blocks).
