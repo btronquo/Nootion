@@ -7,6 +7,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- "What's new" window: after an update, each person sees the release notes of the versions they haven't seen yet,
+  once, taken from this changelog (shipped in the image, so it works without internet access). New accounts don't
+  get it, nor development builds.
 - Database rows work as in Notion: a right click on a row (or a click on its ⋮⋮ handle) opens a menu to add it to
   the favorites, change its icon, open it (here or in a new tab), copy its link, duplicate it (Ctrl+D) and move it
   to the trash (Del), with a search field and when it was last edited. With several rows selected, the menu

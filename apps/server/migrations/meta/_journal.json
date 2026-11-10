@@ -218,6 +218,13 @@
       "when": 1793693242029,
       "tag": "0030_update_check",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "6",
+      "when": 1794296484065,
+      "tag": "0031_whats_new",
+      "breakpoints": true
     }
   ]
 }
