@@ -4,6 +4,7 @@ import type { LibraryPage, PageGraph } from "@nootion/shared";
 import type { Db } from "../db/index.js";
 import { pagePermissions, pages, users, workspaceMembers, workspaces } from "../db/schema.js";
 import { requireUser } from "../http.js";
+import { scopeAllows } from "../api-tokens.js";
 import { getChain, isTrashed } from "../permissions.js";
 import { getPageMeta, listDescendants, listWorkspacePages, notRow, toSummary, type PageMeta } from "../pages.js";
 import { homePageOf } from "../home.js";
@@ -26,7 +27,8 @@ export function readablePages(db: Db, userId: string): PageMeta[] {
   }
   const home = homePageOf(db, userId);
   if (home) byId.delete(home);
-  return [...byId.values()];
+  // With a personal token: its spaces only.
+  return [...byId.values()].filter((p) => scopeAllows(p.workspaceId));
 }
 
 const PAGE_HREF = /\/page\/([0-9a-f-]{36})/g;

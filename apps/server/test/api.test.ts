@@ -63,6 +63,18 @@ describe("personal API tokens", () => {
     expect((await boris.post("/api/tokens", { name: "x", workspaceIds: [theirs], readOnly: true, expiresInDays: null })).statusCode).toBe(400);
   });
 
+  it("list and graph only the pages of their spaces", async () => {
+    const team = (await boris.post("/api/workspaces", { name: "Équipe" })).json().workspace.id;
+    await boris.createPage(personal, "Journal intime");
+    await boris.createPage(team, "Compte rendu");
+    const { client } = await makeToken([team], true);
+    const titles = (res: { json(): { pages?: { title: string }[]; nodes?: { title: string }[] } }) => (res.json().pages ?? res.json().nodes ?? []).map((p) => p.title);
+    expect(titles(await client.get("/api/pages/all"))).toEqual(["Compte rendu"]);
+    expect(titles(await client.get("/api/pages/graph"))).toEqual(["Compte rendu"]);
+    // Signed in, every space is there.
+    expect(titles(await boris.get("/api/pages/all")).sort()).toEqual(["Compte rendu", "Journal intime"]);
+  });
+
   it("refuse unknown, expired tokens and disabled users", async () => {
     expect((await new TokenClient(app, "nt_nope").get("/api/auth/me")).statusCode).toBe(401);
     const { client, apiToken } = await makeToken([personal], true);
