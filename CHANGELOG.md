@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [3.4.0] - 2026-11-10
+
 ### Added
 
 - Formulas speak Notion 2: lists `[1, 2, 3]`, method calls (`prop("Name").upper()`), variables with `let()` and
@@ -71,7 +73,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   to pages), not only its paragraphs, and stays without an emoji when it has none in Notion; its paragraphs are
   shown one under the other instead of side by side.
 - The export of the personal space was always named "Espace personnel", whatever the language.
-
 - Dragging inside a widget of a page (the map) up or down follows the pointer again: the block handle used to give
   the whole page a false pointer position while it was over a widget.
 - The handle left of a drawing, a widget or a database placed inside a to-do or a list stays on that block when the
@@ -420,6 +421,7 @@ First public version.
 - Markdown (.zip), CSV and JSON export, CSV import, full backup download.
 - Single Docker image (amd64 and arm64), data in `/data`, migrations applied at startup.
 
+[3.4.0]: ../../releases/tag/v3.4.0
 [3.3.0]: ../../releases/tag/v3.3.0
 [3.2.1]: ../../releases/tag/v3.2.1
 [3.2.0]: ../../releases/tag/v3.2.0
