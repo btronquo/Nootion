@@ -10,6 +10,9 @@ and fill databases, and search, as you, with a **personal token**. AI assistants
 - [Page content](#page-content)
 - [Databases](#databases)
 - [Files](#files)
+- [Automations](#automations)
+- [Recurring templates](#recurring-templates)
+- [Comments](#comments)
 - [Search](#search)
 - [Examples](#examples)
 
@@ -58,7 +61,7 @@ Ids are UUIDs. Dates are ISO 8601.
 | Request | What it does |
 | --- | --- |
 | `GET /api/auth/me` | The token's user. |
-| `GET /api/users` | Active users of the instance (`id`, `name`, `email`), for person columns. |
+| `GET /api/users` | The people you work with (`id`, `name`, `email`), for person columns and mentions: those who share a space or a page with you. Administrators get everyone. |
 | `GET /api/workspaces` | The token's spaces, with your role in each (`viewer` with a read-only token). |
 | `GET /api/workspaces/:id/pages` | Every page and database of a space (`id`, `parentId`, `kind`, `title`, `icon`, `position`…). Database rows are not listed: query their database. |
 | `GET /api/pages/:id` | A page's details: title, icon, cover, `kind` (`page`, `database` or `row`), your role, breadcrumb. |
@@ -72,7 +75,7 @@ Ids are UUIDs. Dates are ISO 8601.
 | `GET /api/pages/graph` | The same pages as `nodes`, and `links` between them: `child` (a subpage) or `link` (a link or mention in the content). |
 | `GET /api/pages/:id/history` | Its versions; `GET /api/pages/:id/history/:versionId` reads one. |
 | `GET /api/inbox` | Your inbox (`pageId`, made on first use in your personal space) and the notes still in it (`items`, newest first). |
-| `POST /api/inbox` | Drops a note in it: `{ "text", "title"?, "url"? }`. Without a title, the first line of the text is the title. Notes are subpages of the inbox: file one by moving it. |
+| `POST /api/inbox` | Needs a token that reaches your personal space, like the request above. Drops a note in it: `{ "text", "title"?, "url"? }`. Without a title, the first line of the text is the title. Notes are subpages of the inbox: file one by moving it. |
 | `GET /api/pages/templates` | Page templates; `POST /api/pages/:id/apply-template` with `{ "templateId" }` fills an empty page from one. |
 
 An `icon` is an emoji, or `icon:<id>` for an image uploaded in the icon picker: `GET /api/icons` lists them, and the image is at `/api/icons/<id>/image`.
@@ -181,6 +184,9 @@ Operators, by column type:
 `packages/shared/src/buttons.ts`), without "open". They run as the person who last saved the automation, and what
 they change doesn't set off other automations. Managing them needs the "editor" role on the database.
 
+An automation saved with a token still runs as you, with all your rights. Its steps may therefore only name
+databases, pages and templates in the token's spaces: anything else is answered with 404.
+
 | Request | What it does |
 | --- | --- |
 | `GET /api/databases/:id/automations` | The database's automations, each with its last `runs` (`error` is null when it went well). |
@@ -225,11 +231,10 @@ at least the "commenter" role.
 | `POST /api/comments/threads/:id/resolve` | `{ "resolved": true }` or `false`. |
 | `PATCH /api/comments/:id` | Changes your comment: `{ "body" }`. |
 | `DELETE /api/comments/:id` | Deletes your comment; the last one of a thread deletes the thread. |
-| `GET /api/comments/notifications` | Your latest mentions and replies, and mentions of you in pages (`kind: "page_mention"`, `threadId` null). |
-| `POST /api/comments/notifications/read` | Marks them as read: `{ "ids"? }` (all when left out). |
 
 People mentioned, and the others taking part in a thread when it gets a reply, receive a notification (in the
-app's Notifications, and on their devices when they turned notifications on).
+app's Notifications, and on their devices when they turned notifications on). Notifications themselves
+(`/api/comments/notifications`) are read in the app only: a token doesn't reach them, as they cover every space.
 
 ## Search
 

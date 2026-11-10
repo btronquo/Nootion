@@ -11,6 +11,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   could: `/api/pages/:id/comments`, `/api/comments/…` and `/api/pages/:id/recurrence`. So can they change, pause and
   delete automations, list the icons and read and fill the inbox (with a token that reaches the personal space).
   An automation saved with a token can only add rows or pages in the spaces the token reaches.
+- Documentation: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (how the code is laid out), a "Securing your
+  instance" chapter in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md), linking accounts in [docs/SSO.md](docs/SSO.md),
+  webhooks and the local network in [docs/BUTTONS.md](docs/BUTTONS.md), hotfixes and image publishing in
+  [CONTRIBUTING.md](CONTRIBUTING.md), features grouped by theme in the README.
 - Plugins get `nootion.net.request`, an http(s) request that refuses the server's own network unless allowed.
 - "What's new" window: after an update, each person sees the release notes of the versions they haven't seen yet,
   once, taken from this changelog (shipped in the image, so it works without internet access). New accounts don't

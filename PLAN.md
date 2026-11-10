@@ -1,6 +1,7 @@
 # Nootion: design and roadmap
 
-> Status: **V1.1 done** (version 1.1.0). This document records the original design and what comes next.
+> Status: **version 3.3 released**; everything in sections 6 to 10 is delivered, except where a line says otherwise.
+> This document records the original design, and [what comes next](#11-what-comes-next).
 
 ## 1. Vision
 
@@ -184,3 +185,21 @@ more interface languages.
 - **Plugin property types** (done): a plugin adds a column type to databases (stored value, cell display and editor).
 - **Google Calendar with a user's own OAuth client** (done): when the administrator hasn't set one, a user pastes their own
   client ID and secret in the block (the administrator's client stays the normal way).
+
+## 11. What comes next
+
+Not started, roughly in this order.
+
+- **First-run setup for the administrator**: after creating the administrator account, a few screens to choose the
+  instance's options before anyone else comes in, each with what it means for a server at home or in a company:
+  whether webhooks may reach the local network, how accounts are linked to single sign-on, e-mail (or none, on a
+  NAS without a mail server, and what then doesn't work: "Forgot password", reminders by e-mail), automatic
+  backups, plugins to turn on. The same choices stay in Administration afterwards.
+- **Two-step sign-in** (a code from an authenticator app, with recovery codes), per user, and required by the
+  administrator if wanted.
+- **OAuth sessions that end**: refresh tokens of connected agents (MCP) expire when unused, and are listed with
+  their last use.
+- **Tests of the interface**: unit tests of the web app's helpers, and a few journeys in a real browser (sign in,
+  write a page, fill a database, share), run in CI.
+- From the 1.x list above, still open: search in database values with filters and saved searches, a command
+  palette, one view of all to-dos, a Markdown mirror, scheduled Markdown export, more interface languages.
