@@ -116,6 +116,16 @@ describe("buttons", () => {
     await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
     const hook = `http://127.0.0.1:${(server.address() as AddressInfo).port}/hook`;
     try {
+      // The test server is on this machine: an administrator has to allow the local network first.
+      expect((await boris.get("/api/buttons/webhook-policy")).json()).toEqual({ privateNetworks: false });
+      const blocked = await pageWithButton({ steps: [{ type: "webhook", url: hook }] }, "Bloqué");
+      const refused = await run(boris, { source: { kind: "block", pageId: blocked, blockId: "btn-1" } });
+      expect(refused.statusCode).toBe(400);
+      expect(refused.json().message).toContain("réseau local");
+      expect(received).toHaveLength(0);
+      expect((await boris.put("/api/admin/settings", { webhookPrivateNetworks: true })).json().settings).toEqual({ webhookPrivateNetworks: true });
+      expect((await boris.get("/api/buttons/webhook-policy")).json()).toEqual({ privateNetworks: true });
+
       const notes = await boris.createPage(team, "Notes");
       const button = (
         await boris.post(`/api/databases/${db}/properties`, {
@@ -242,6 +252,20 @@ describe("buttons", () => {
     // The internal headers can't be used from outside.
     const spoof = await anon.request("GET", "/api/auth/me", undefined, { "x-nootion-act-as": await boris.id(), "x-nootion-internal": "guess" });
     expect(spoof.statusCode).toBe(401);
+
+    // Someone without an account can't choose the server a webhook calls, even with the local network allowed.
+    await boris.put("/api/admin/settings", { webhookPrivateNetworks: true });
+    const steer = await pageWithButton(
+      {
+        form: { title: "x", fields: [{ id: "f1", label: "Cible", type: "text", required: true }] },
+        steps: [{ type: "webhook", url: "http://{{form.Cible}}/hook" }],
+      },
+      "Cible",
+    );
+    const steerLink = (await boris.put("/api/buttons/public-link", { pageId: steer, blockId: "btn-1" })).json().link;
+    const steered = await anon.post(`/api/forms/${steerLink.token}`, { now: NOW, form: { f1: "127.0.0.1:1" } });
+    expect(steered.statusCode).toBe(400);
+    expect(steered.json().error).toBe("bad_url");
 
     await boris.request("DELETE", "/api/buttons/public-link", { pageId: form, blockId: "btn-1" });
     expect((await anon.get(`/api/forms/${link.token}`)).statusCode).toBe(404);

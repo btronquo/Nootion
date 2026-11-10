@@ -22,11 +22,17 @@ export interface Config {
   updateCheckUrl?: string;
 }
 
+const EXAMPLE_SECRETS = new Set(["replace-me-with-a-long-random-string", "dev-secret-do-not-use-in-production", "remplacez-moi-par-une-longue-chaine-aleatoire", "collez-ici-une-longue-chaine-aleatoire"]);
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const isProduction = env.NODE_ENV === "production";
   const appSecret = env.APP_SECRET ?? (isProduction ? "" : "dev-secret-do-not-use-in-production");
   if (appSecret.length < 16) {
     throw new Error("APP_SECRET must be set and be at least 16 characters long.");
+  }
+  // The values written in the examples are public: a server must never run with one.
+  if (isProduction && EXAMPLE_SECRETS.has(appSecret)) {
+    throw new Error("APP_SECRET still holds the example value. Replace it with a random string (openssl rand -hex 32).");
   }
   const port = Number(env.PORT ?? 3000);
   return {

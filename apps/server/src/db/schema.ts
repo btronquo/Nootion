@@ -687,3 +687,12 @@ export const ssoSettings = sqliteTable("sso_settings", {
     .notNull()
     .$defaultFn(() => new Date()),
 });
+
+/** Choices administrators make for the whole server (one row, "default"): see InstanceSettings. */
+export const instanceSettings = sqliteTable("instance_settings", {
+  id: text("id").primaryKey(),
+  config: text("config", { mode: "json" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});

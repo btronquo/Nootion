@@ -20,6 +20,7 @@ export * from "./inbox.js";
 export * from "./backups.js";
 export * from "./mail.js";
 export * from "./sso.js";
+export * from "./settings.js";
 export * from "./updates.js";
 export * from "./i18n/index.js";
 import "./i18n/zod.js";
