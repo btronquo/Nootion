@@ -30,6 +30,8 @@ interface Discovery {
 export interface SsoIdentity {
   subject: string;
   email: string | null;
+  /** False when the provider says the address was never checked (anyone could have typed it). */
+  emailVerified: boolean;
   name: string | null;
 }
 
@@ -262,9 +264,12 @@ function identity(p: JWTPayload): SsoIdentity {
     [p.email, p.preferred_username, p.upn]
       .map(str)
       .find((v) => v && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) ?? null;
+  // Only an explicit "not verified" counts: Entra ID and others don't send the claim at all.
+  const verified = p.email_verified ?? p.xms_edov;
   return {
     subject: String(p.sub),
     email: email?.toLowerCase() ?? null,
+    emailVerified: !(verified === false || verified === "false"),
     name: str(p.name),
   };
 }

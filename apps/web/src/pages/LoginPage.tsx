@@ -123,6 +123,10 @@ function ssoErrorText(code: string): string {
       return t("error.accountDisabled");
     case "no_email":
       return t("sso.errorNoEmail");
+    case "unverified_email":
+      return t("sso.errorUnverifiedEmail");
+    case "not_linked":
+      return t("sso.errorNotLinked");
     case "denied":
       return t("sso.errorDenied");
     case "expired":

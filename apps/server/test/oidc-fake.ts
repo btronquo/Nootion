@@ -15,6 +15,7 @@ export interface FakeOidc {
       sub: string;
       email?: string;
       preferred_username?: string;
+      email_verified?: boolean;
       name?: string;
     },
   ) => string;
