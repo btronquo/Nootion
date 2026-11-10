@@ -1,7 +1,15 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink } from "lucide-react";
-import { intlLocale, t, type NotionImportJob, type NotionImportStatus, type MessageKey } from "@nootion/shared";
+import { Download, ExternalLink } from "lucide-react";
+import {
+  intlLocale,
+  t,
+  type NotionImportDetail,
+  type NotionImportJob,
+  type NotionImportReport,
+  type NotionImportStatus,
+  type MessageKey,
+} from "@nootion/shared";
 import { api } from "../lib/api";
 import { useRefreshPages, useWorkspaces } from "../lib/queries";
 import { workspaceName } from "../lib/labels";
@@ -183,6 +191,8 @@ function JobView({ job }: { job: NotionImportJob }) {
   const r = job.report;
   const counts = COUNTS.filter((k) => r[k] > 0 || k === "pages");
   const notes = Object.entries(r.notes);
+  // Reports of an older server have counts only.
+  const hasDetails = Object.values(r.details ?? {}).some((d) => d.length > 0);
   return (
     <section className="space-y-4 rounded-lg border border-neutral-200 p-4 dark:border-neutral-800" aria-live="polite">
       {job.status === "running" ? (
@@ -202,15 +212,36 @@ function JobView({ job }: { job: NotionImportJob }) {
         <p className="text-sm font-medium">{r.pages + r.databases + r.unchanged === 0 ? t("notion.nothing") : t("notion.done")}</p>
       )}
       <p className="text-sm text-neutral-600 dark:text-neutral-400">{counts.map((k) => t(`notion.count.${k}`, { count: r[k] })).join(" · ")}</p>
+      {(notes.length > 0 || r.formulas.length > 0) && job.status !== "running" && (
+        <button
+          type="button"
+          onClick={() => downloadReport(r)}
+          className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline dark:text-blue-400"
+        >
+          <Download size={14} /> {t("notion.details.download")}
+        </button>
+      )}
       {notes.length > 0 && (
         <div>
           <h3 className="mb-1 text-sm font-semibold">{t("notion.notesTitle")}</h3>
-          <ul className="list-disc space-y-0.5 pl-5 text-sm text-neutral-600 dark:text-neutral-400">
-            {notes.map(([kind, n]) => (
-              <li key={kind}>
-                {t(`notion.note.${kind}` as MessageKey)} ({n})
-              </li>
-            ))}
+          {hasDetails && <p className="mb-1 text-xs text-neutral-500">{t("notion.details.help")}</p>}
+          <ul className="space-y-0.5 text-sm text-neutral-600 dark:text-neutral-400">
+            {notes.map(([kind, n]) => {
+              const details = r.details?.[kind] ?? [];
+              const label = `${t(`notion.note.${kind}` as MessageKey)} (${n})`;
+              return (
+                <li key={kind}>
+                  {details.length ? (
+                    <details>
+                      <summary className="cursor-pointer hover:text-neutral-900 dark:hover:text-neutral-100">{label}</summary>
+                      <DetailList details={details} more={n - details.length} />
+                    </details>
+                  ) : (
+                    <span className="block pl-4">{label}</span>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}
@@ -222,6 +253,12 @@ function JobView({ job }: { job: NotionImportJob }) {
             {r.formulas.map((f) => (
               <li key={`${f.database}/${f.name}`}>
                 {f.database} › {f.name}
+                {f.url && (
+                  <>
+                    {" "}
+                    <NotionLink url={f.url} />
+                  </>
+                )}
               </li>
             ))}
           </ul>
@@ -229,4 +266,64 @@ function JobView({ job }: { job: NotionImportJob }) {
       )}
     </section>
   );
+}
+
+function NotionLink({ url }: { url: string }) {
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-0.5 whitespace-nowrap text-xs text-blue-600 hover:underline dark:text-blue-400"
+    >
+      {t("notion.details.open")} <ExternalLink size={11} />
+    </a>
+  );
+}
+
+/** What one kind of note concerns: the page or database, the column or block, and a link to it in Notion. */
+function DetailList({ details, more }: { details: NotionImportDetail[]; more: number }) {
+  return (
+    <ul className="mb-2 ml-1.5 mt-1 max-h-72 space-y-1 overflow-y-auto border-l border-neutral-200 pl-3 dark:border-neutral-800">
+      {details.map((d, i) => (
+        <li key={i} className="flex flex-wrap items-baseline gap-x-2 break-words">
+          <span className="text-neutral-800 dark:text-neutral-200">
+            {d.where}
+            {d.item && (
+              <>
+                {" › "}
+                <span className="font-medium">{d.item}</span>
+              </>
+            )}
+          </span>
+          {d.info && <span className="min-w-0 break-all text-xs text-neutral-500">{d.info}</span>}
+          {d.url && <NotionLink url={d.url} />}
+        </li>
+      ))}
+      {more > 0 && <li className="text-xs text-neutral-500">{t("notion.details.more", { count: more })}</li>}
+    </ul>
+  );
+}
+
+/** The report as a CSV file, to go through what to check in Notion (in a spreadsheet, it can be ticked off line by line). */
+function downloadReport(r: NotionImportReport) {
+  const header = [t("notion.csv.kind"), t("notion.csv.where"), t("notion.csv.item"), t("notion.csv.info"), t("notion.csv.link")];
+  const rows: string[][] = [];
+  for (const [kind, n] of Object.entries(r.notes)) {
+    const label = t(`notion.note.${kind}` as MessageKey);
+    const details = r.details?.[kind] ?? [];
+    for (const d of details) rows.push([label, d.where, d.item ?? "", d.info ?? "", d.url ?? ""]);
+    if (n > details.length) rows.push([label, details.length ? t("notion.details.more", { count: n - details.length }) : String(n), "", "", ""]);
+  }
+  for (const f of r.formulas) rows.push([t("notion.formulasTitle"), f.database, f.name, f.reason, f.url ?? ""]);
+  // Spreadsheets in French split on semicolons.
+  const sep = intlLocale().startsWith("fr") ? ";" : ",";
+  // Quoted, and never read as a formula by the spreadsheet (titles come from Notion).
+  const cell = (v: string) => `"${(/^[=+\-@\t\r]/.test(v) ? `'${v}` : v).replace(/"/g, '""')}"`;
+  const csv = "\uFEFF" + [header, ...rows].map((row) => row.map(cell).join(sep)).join("\r\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  a.download = "notion-import.csv";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }

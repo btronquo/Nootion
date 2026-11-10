@@ -45,3 +45,24 @@ describe("Notion dates", () => {
     expect(out.map((n) => n.type)).toEqual(["dateMention", "dateMention", "text"]);
   });
 });
+
+describe("Notion blocks imported differently", () => {
+  it("are noted with their block and what they are", async () => {
+    const { blocksToDoc } = await import("../src/notion/blocks.js");
+    const notes: [string, unknown][] = [];
+    const block = (id: string, type: string, data: Record<string, unknown>) => ({ object: "block", id, type, has_children: false, [type]: data }) as never;
+    await blocksToDoc(
+      [
+        block("b1", "ai_block", {}),
+        block("b2", "image", { type: "file", file: { url: "https://files.example/abc/photo%201.png?X-Amz=1" }, caption: [] }),
+        block("b3", "equation", { expression: "e=mc^2" }),
+      ],
+      { pageFor: () => null, saveFile: async () => null, note: (what, detail) => notes.push([what, detail]) },
+    );
+    expect(notes).toEqual([
+      ["unsupported", { blockId: "b1", info: "ai_block" }],
+      ["fileMissing", { blockId: "b2", info: "photo 1.png" }],
+      ["equation", { blockId: "b3", info: "e=mc^2" }],
+    ]);
+  });
+});

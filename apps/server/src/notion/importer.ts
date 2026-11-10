@@ -5,8 +5,10 @@ import { eq } from "drizzle-orm";
 import {
   CUSTOM_ICON_PREFIX,
   ICON_MAX_BYTES,
+  NOTION_DETAILS_MAX,
   OPTION_COLORS,
   t,
+  type NotionImportDetail,
   type NotionImportJob,
   type CalcFunction,
   type CellValue,
@@ -137,7 +139,19 @@ const emojiOf = (icon: NotionIcon) => (icon?.type === "emoji" ? icon.emoji : nul
 export async function runNotionImport(o: ImportOptions): Promise<void> {
   const { db, client, job } = o;
   const report = job.report;
-  const note = (what: string) => (report.notes[what] = (report.notes[what] ?? 0) + 1);
+  report.details ??= {};
+  // What was imported differently: counted once per page, column, block or file, and listed for the report.
+  const noted = new Set<string>();
+  const note = (what: string, detail?: NotionImportDetail) => {
+    if (detail) {
+      const key = JSON.stringify([what, detail.where, detail.item ?? "", detail.info ?? "", detail.url ?? ""]);
+      if (noted.has(key)) return;
+      noted.add(key);
+      const list = (report.details[what] ??= []);
+      if (list.length < NOTION_DETAILS_MAX) list.push(detail);
+    }
+    report.notes[what] = (report.notes[what] ?? 0) + 1;
+  };
   const log = o.log ?? (() => {});
   const step = (phase: string, total: number) => {
     log(`Notion import: ${phase}`, { total });
@@ -290,6 +304,22 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
     const x = target.get(normId(notionId));
     return x ? { id: x.id, title: x.title } : null;
   };
+  // For the report: what a page is called ("Database › Row" for a row) and where it is in Notion.
+  const nameFor = (id: string): string => {
+    const item = items.get(id);
+    const title = target.get(id)?.title || t("common.untitled");
+    return item?.kind === "row" ? `${nameFor(item.databaseId)} › ${title}` : title;
+  };
+  const urlFor = (id: string): string => {
+    const item = items.get(id);
+    const url = item?.kind === "database" ? item.database.url : item?.page.url;
+    return url || `https://www.notion.so/${id}`;
+  };
+  const at = (id: string, more: Omit<NotionImportDetail, "where" | "url"> = {}, blockId?: string): NotionImportDetail => ({
+    where: nameFor(id),
+    ...Object.fromEntries(Object.entries(more).filter(([, v]) => v)),
+    url: blockId ? `${urlFor(id).split("#")[0]}#${normId(blockId)}` : urlFor(id),
+  });
 
   // --- 3. Columns -----------------------------------------------------------------------------
   // Notion column id → Nootion column, per database.
@@ -340,7 +370,7 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
     columns.set(normId(database.id), cols);
     snapshots.set(normId(database.id), new Map());
     for (const p of schemaOf(database)) {
-      const plain = plainColumn(p, note);
+      const plain = plainColumn(p, (what, info) => note(what, at(normId(database.id), { item: p.name, info })));
       if (!plain) continue;
       cols.set(p.id, saveColumn(dbId, p.id, p.name.slice(0, 100), plain.type, plain.config, nextColumn(dbId)));
     }
@@ -351,7 +381,7 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
       if (p.type !== "relation" || !p.relation) continue;
       const other = target.get(normId(p.relation.database_id));
       if (!other || items.get(normId(p.relation.database_id))?.kind !== "database") {
-        note("relationNotShared");
+        note("relationNotShared", at(normId(database.id), { item: p.name }));
         continue;
       }
       columns.get(normId(database.id))!.set(p.id, saveColumn(dbId, p.id, p.name.slice(0, 100), "relation", { databaseId: other.id }, nextColumn(dbId)));
@@ -395,11 +425,12 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
         const targetCols = relSchema?.relation ? columns.get(normId(relSchema.relation.database_id)) : undefined;
         const targetProp = targetCols?.get(p.rollup.rollup_property_id);
         const fn = ROLLUP_FUNCTIONS[p.rollup.function];
+        const source = `${p.rollup.relation_property_name} › ${p.rollup.rollup_property_name}`;
         if (!relation || !targetProp || targetProp.type === "rollup" || targetProp.type === "relation") {
-          note("rollup");
+          note("rollup", at(key, { item: p.name, info: source }));
           continue;
         }
-        if (!fn) note("rollupFunction");
+        if (!fn) note("rollupFunction", at(key, { item: p.name, info: `${source} (${p.rollup.function})` }));
         cols.set(
           p.id,
           saveColumn(
@@ -444,7 +475,7 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
         ?.map((r) => r.properties[p.name]?.formula)
         .find((f) => f && f[f.type] !== null && f[f.type] !== undefined);
       const type: PropertyType = sample?.type === "number" ? "number" : sample?.type === "boolean" ? "checkbox" : sample?.type === "date" ? "date" : "text";
-      report.formulas.push({ database: titleOf({ kind: "database", database }), name: p.name, reason: reasons.get(p.id) ?? "" });
+      report.formulas.push({ database: nameFor(key), name: p.name, reason: reasons.get(p.id) ?? "", url: urlFor(key) });
       snapshots.get(key)!.set(p.id, type);
       cols.set(p.id, saveColumn(dbId, p.id, p.name.slice(0, 100), type, {}, nextColumn(dbId)));
     }
@@ -479,7 +510,7 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
             prop.config = { ...prop.config, options: [...(prop.config.options ?? []), o] };
             db.update(databaseProperties).set({ config: prop.config }).where(eq(databaseProperties.id, prop.id)).run();
           },
-          note,
+          note: (what, info) => note(what, at(id, { item: name, info })),
         });
         if (v !== null && v !== undefined && !(Array.isArray(v) && !v.length)) values[prop.id] = v;
       }
@@ -564,7 +595,7 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
     if (notionIcon && notionIcon.type !== "emoji") {
       const icon = await saveIcon(notionIcon, page.title);
       if (icon) db.update(pages).set({ icon }).where(eq(pages.id, page.id)).run();
-      else note("icon");
+      else note("icon", at(id, { info: iconName(notionIcon) }));
     }
     let value: string | null = null;
     if (cover?.type === "file" && cover.file?.url) value = (await saveFile(page.id, cover.file.url, fileName(cover.file.url)))?.url ?? null;
@@ -572,7 +603,7 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
       const url = cover.external.url.startsWith("/") ? `https://www.notion.so${cover.external.url}` : cover.external.url;
       value = /^https?:\/\/\S+$/.test(url) && url.length <= 2048 ? url : null;
     }
-    if (cover && !value) note("cover");
+    if (cover && !value) note("cover", at(id, { info: fileName(cover.type === "file" ? (cover.file?.url ?? "") : (cover.external?.url ?? ""), "") }));
     db.update(pages).set({ cover: value }).where(eq(pages.id, page.id)).run();
   }
 
@@ -589,7 +620,7 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
         return x && it ? { ...x, inline: it.kind === "database" && it.database.is_inline !== false } : x;
       },
       saveFile: (url, name) => saveFile(pageId, url, name),
-      note,
+      note: (what, detail) => note(what, at(id, { info: detail?.info }, detail?.blockId)),
     });
     await writeContent(o.collab, db, pageId, doc);
     job.done++;
@@ -604,6 +635,14 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
   }
 }
 
+/** Name of an image icon, for the report: its file's name, or the custom emoji's. */
+function iconName(icon: NotionIcon): string {
+  if (icon?.type === "custom_emoji") return icon.custom_emoji?.name || fileName(icon.custom_emoji?.url ?? "", "");
+  const url = icon?.type === "file" ? icon.file?.url : icon?.type === "external" ? icon.external?.url : "";
+  // Notion's own icons have relative addresses.
+  return url ? fileName(url.startsWith("/") ? `https://www.notion.so${url}` : url, "") : "";
+}
+
 /** Title of a Notion page: its title property. */
 export function pageTitle(page: NotionPage): string {
   const title = Object.values(page.properties ?? {}).find((p) => p.type === "title");
@@ -611,7 +650,7 @@ export function pageTitle(page: NotionPage): string {
 }
 
 /** Column types that need nothing else than their own settings. */
-function plainColumn(p: NotionPropertySchema, note: (what: string) => void): { type: PropertyType; config: PropertyConfig } | null {
+function plainColumn(p: NotionPropertySchema, note: (what: string, info?: string) => void): { type: PropertyType; config: PropertyConfig } | null {
   switch (p.type) {
     case "title":
       return { type: "title", config: {} };
@@ -655,7 +694,7 @@ function plainColumn(p: NotionPropertySchema, note: (what: string) => void): { t
     case "formula":
       return null;
     default:
-      note("propertyType");
+      note("propertyType", p.type);
       return null;
   }
 }
@@ -667,7 +706,8 @@ interface CellContext {
   personId: (u: { id: string; person?: { email?: string } }) => string | null;
   saveFile: (url: string, name: string) => Promise<{ url: string; name: string } | null>;
   addOption: (o: SelectOption) => void;
-  note: (what: string) => void;
+  /** Notes what couldn't be imported as it was in this cell; info names the file, the people… */
+  note: (what: string, info?: string) => void;
 }
 
 /** A Notion cell as a Nootion value (null when empty or computed by Nootion). */
@@ -718,7 +758,8 @@ async function cellValue(schema: NotionPropertySchema, v: NotionPropertyValue, p
     case "people": {
       const people = v.people ?? [];
       const ids = people.map(c.personId).filter((x): x is string => !!x);
-      if (ids.length < people.length) c.note("person");
+      const missing = people.filter((u) => !c.personId(u));
+      if (missing.length) c.note("person", missing.map((u) => u.name || u.person?.email || u.id).join(", "));
       return ids;
     }
     case "files": {
@@ -727,7 +768,7 @@ async function cellValue(schema: NotionPropertySchema, v: NotionPropertyValue, p
         const url = f.type === "file" ? f.file?.url : undefined;
         const saved = url ? await c.saveFile(url, f.name || fileName(url)) : null;
         if (saved) out.push({ id: saved.url.split("/").pop()!, name: saved.name });
-        else c.note(f.type === "external" ? "externalFile" : "fileMissing");
+        else c.note(f.type === "external" ? "externalFile" : "fileMissing", f.name || fileName(url ?? f.external?.url ?? "", ""));
       }
       return out;
     }

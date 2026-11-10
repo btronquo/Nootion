@@ -55,6 +55,12 @@ describe("Notion import", () => {
     expect(Object.keys(report.notes)).toEqual(expect.arrayContaining(["table_of_contents"]));
     expect(Object.keys(report.notes)).not.toEqual(expect.arrayContaining(["toggle"]));
     expect(report.formulas).toEqual([expect.objectContaining({ database: "Tasks", name: "Weird" })]);
+    // Each note says where it is, with a link to Notion (to the block for page contents).
+    expect(report.details.status).toEqual([{ where: "Tasks", item: "Status", url: "https://www.notion.so/33333333333333333333333333333333" }]);
+    expect(report.details.propertyType).toEqual([expect.objectContaining({ where: "Tasks", item: "Button", info: "button" })]);
+    expect(report.details.icon).toEqual([expect.objectContaining({ where: "Notes", info: "i.png" })]);
+    expect(report.details.table_of_contents).toEqual([{ where: "Home", url: "https://www.notion.so/11111111111111111111111111111111#b14" }]);
+    expect(report.formulas[0].url).toBe("https://www.notion.so/33333333333333333333333333333333");
 
     const all = await tree();
     const byTitle = (t: string) => all.find((p) => p.title === t)!;

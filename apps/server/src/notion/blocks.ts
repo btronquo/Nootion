@@ -10,9 +10,11 @@ export interface ConvertContext {
   pageFor: (notionId: string) => { id: string; title: string; inline?: boolean } | null;
   /** Stores a file hosted by Notion as an attachment of the page being converted; null when it couldn't be downloaded. */
   saveFile: (url: string, name: string) => Promise<{ url: string; name: string; size: number; mimeType: string } | null>;
-  /** Notes what couldn't be imported as it was, for the import report. */
-  note: (what: string) => void;
+  /** Notes what couldn't be imported as it was, for the import report: in which block, and what (a file's name, a block's kind…). */
+  note: (what: string, detail?: { blockId?: string; info?: string }) => void;
 }
+
+const short = (s: string, max = 80) => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
 
 type Mark = { type: string; attrs?: Record<string, unknown> };
 
@@ -20,7 +22,7 @@ const text = (s: string, marks: Mark[] = []): ProseMirrorNode => (marks.length ?
 const paragraph = (content: ProseMirrorNode[] = []): ProseMirrorNode => (content.length ? { type: "paragraph", content } : { type: "paragraph" });
 
 /** Notion's rich text as inline nodes: marks, links, and mentions of pages turned into links to the imported pages. */
-export function richText(items: RichText[] | undefined, ctx: Pick<ConvertContext, "pageFor" | "note">): ProseMirrorNode[] {
+export function richText(items: RichText[] | undefined, ctx: Pick<ConvertContext, "pageFor" | "note">, blockId?: string): ProseMirrorNode[] {
   const out: ProseMirrorNode[] = [];
   for (const item of Array.isArray(items) ? items : []) {
     const a = item.annotations ?? { bold: false, italic: false, strikethrough: false, underline: false, code: false, color: "default" };
@@ -46,7 +48,7 @@ export function richText(items: RichText[] | undefined, ctx: Pick<ConvertContext
       out.push({ type: "dateMention", attrs: { id: randomUUID(), date: m[2] ? `${m[1]}T${m[2]}` : m[1], reminder: null, remindAt: null, remindUser: null } });
       continue;
     }
-    if (item.type === "equation") ctx.note("equation");
+    if (item.type === "equation") ctx.note("equation", { blockId, info: short(item.plain_text ?? "") });
     // Notion's own links to its pages point to the imported page.
     const internal = href && /^\/[0-9a-f]{32}(\?|#|$)/.test(href) ? ctx.pageFor(href.slice(1, 33)) : null;
     if (internal) {
@@ -119,7 +121,8 @@ function toggle(summary: ProseMirrorNode[], content: ProseMirrorNode[], level?: 
 
 async function convertBlock(block: BlockTree, ctx: ConvertContext): Promise<ProseMirrorNode[]> {
   const data = (block[block.type] ?? {}) as { rich_text?: RichText[]; color?: string; [key: string]: unknown };
-  const inline = () => richText(data.rich_text, ctx);
+  const inline = () => richText(data.rich_text, ctx, block.id);
+  const note = (what: string, info?: string) => ctx.note(what, { blockId: block.id, ...(info ? { info } : {}) });
   const children = () => convertBlocks(block.children ?? [], ctx);
 
   switch (block.type) {
@@ -166,7 +169,7 @@ async function convertBlock(block: BlockTree, ctx: ConvertContext): Promise<Pros
       return [{ type: "codeBlock", attrs: { language }, ...(code ? { content: [text(code)] } : {}) }];
     }
     case "equation": {
-      ctx.note("equation");
+      note("equation", short(String(data.expression ?? "")));
       return [{ type: "codeBlock", attrs: { language: "latex" }, content: [text(String(data.expression ?? ""))] }];
     }
     case "divider":
@@ -178,7 +181,7 @@ async function convertBlock(block: BlockTree, ctx: ConvertContext): Promise<Pros
       if (file.type === "file") {
         const saved = await ctx.saveFile(url, fileName(url, "image"));
         if (!saved) {
-          ctx.note("fileMissing");
+          note("fileMissing", fileName(url, "image"));
           return [];
         }
         return [{ type: "image", attrs: { src: saved.url, alt: caption || null } }];
@@ -194,7 +197,7 @@ async function convertBlock(block: BlockTree, ctx: ConvertContext): Promise<Pros
       if (file.type === "file") {
         const saved = await ctx.saveFile(url, file.name || fileName(url));
         if (!saved) {
-          ctx.note("fileMissing");
+          note("fileMissing", file.name || fileName(url));
           return [];
         }
         return [{ type: "fileAttachment", attrs: saved }];
@@ -222,7 +225,7 @@ async function convertBlock(block: BlockTree, ctx: ConvertContext): Promise<Pros
       const hasHeader = !!data.has_column_header;
       const rows = (block.children ?? []).filter((r) => r.type === "table_row");
       if (!rows.length) return [];
-      if (data.has_row_header) ctx.note("tableRowHeader");
+      if (data.has_row_header) note("tableRowHeader");
       return [
         {
           type: "table",
@@ -230,7 +233,7 @@ async function convertBlock(block: BlockTree, ctx: ConvertContext): Promise<Pros
             type: "tableRow",
             content: ((row.table_row as { cells: RichText[][] }).cells ?? []).map((cell) => ({
               type: hasHeader && i === 0 ? "tableHeader" : "tableCell",
-              content: [paragraph(richText(cell, ctx))],
+              content: [paragraph(richText(cell, ctx, block.id))],
             })),
           })),
         },
@@ -241,7 +244,7 @@ async function convertBlock(block: BlockTree, ctx: ConvertContext): Promise<Pros
       const id = block.type === "child_page" ? block.id : String((data.page_id ?? data.database_id) || "");
       const target = ctx.pageFor(id);
       if (!target) {
-        ctx.note("pageNotShared");
+        note("pageNotShared", String(data.title ?? "") || `https://www.notion.so/${id.replace(/-/g, "")}`);
         return block.type === "child_page" ? [paragraph([text(String(data.title ?? ""))])] : [];
       }
       return [paragraph([{ type: "pageLink", attrs: { pageId: target.id, title: target.title } }])];
@@ -249,7 +252,7 @@ async function convertBlock(block: BlockTree, ctx: ConvertContext): Promise<Pros
     case "child_database": {
       const target = ctx.pageFor(block.id);
       if (!target) {
-        ctx.note("pageNotShared");
+        note("pageNotShared", String(data.title ?? ""));
         return [];
       }
       // Inline databases show in the page; full-page ones are linked.
@@ -271,10 +274,10 @@ async function convertBlock(block: BlockTree, ctx: ConvertContext): Promise<Pros
       return children();
     case "table_of_contents":
     case "breadcrumb":
-      ctx.note(block.type);
+      note(block.type);
       return [];
     default:
-      ctx.note("unsupported");
+      note("unsupported", block.type);
       return [];
   }
 }
