@@ -225,6 +225,13 @@
       "when": 1794296484065,
       "tag": "0031_whats_new",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "6",
+      "when": 1794302846862,
+      "tag": "0032_two_factor",
+      "breakpoints": true
     }
   ]
 }

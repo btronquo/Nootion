@@ -7,7 +7,7 @@ import {
 } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { t, type SsoInfo } from "@nootion/shared";
-import { api } from "../lib/api";
+import { api, ApiError } from "../lib/api";
 import { useSession } from "../lib/session";
 import { AuthCard, Button, ErrorText, Field } from "../components/ui";
 
@@ -17,6 +17,9 @@ export function LoginPage() {
   // After signing in, go back to the page that was asked for (e.g. a shared page link).
   const from = (useLocation().state as { from?: string } | null)?.from;
   const [form, setForm] = useState({ email: "", password: "" });
+  // Password accepted, the authenticator code comes next.
+  const [codeStep, setCodeStep] = useState(false);
+  const [code, setCode] = useState("");
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   // "Forgot password" only when the server can send its e-mail.
@@ -31,19 +34,83 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(params.has("password"));
   const passwordForm = !sso || sso.passwordLogin || showPassword;
 
+  async function signedIn() {
+    await refresh();
+    navigate(from && from !== "/login" ? from : "/", { replace: true });
+  }
+
   async function submit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      await api("/auth/login", { method: "POST", body: form });
-      await refresh();
-      navigate(from && from !== "/login" ? from : "/", { replace: true });
+      const res = await api<{ twoFactorRequired?: boolean }>("/auth/login", { method: "POST", body: form });
+      if (res.twoFactorRequired) {
+        setCode("");
+        setCodeStep(true);
+      } else await signedIn();
     } catch (err) {
       setError(err);
     } finally {
       setBusy(false);
     }
+  }
+
+  async function submitCode(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await api("/auth/login/2fa", { method: "POST", body: { code } });
+      await signedIn();
+    } catch (err) {
+      // Too slow or too many wrong codes: back to the password.
+      if (err instanceof ApiError && err.code === "challenge_expired") {
+        setCodeStep(false);
+        setForm({ ...form, password: "" });
+      }
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (codeStep) {
+    return (
+      <AuthCard title={t("twoFactor.title")}>
+        <form onSubmit={submitCode} className="space-y-4" data-two-factor-login>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">{t("twoFactor.loginHelp")}</p>
+          <Field
+            label={t("twoFactor.code")}
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            required
+            autoFocus
+            autoComplete="one-time-code"
+            inputMode="text"
+            maxLength={32}
+            spellCheck={false}
+          />
+          <ErrorText error={error} />
+          <Button type="submit" disabled={busy || !code.trim()} className="w-full">
+            {t("login.submit")}
+          </Button>
+        </form>
+        <p className="mt-4 text-center text-sm">
+          <button
+            type="button"
+            className="text-neutral-500 hover:underline"
+            onClick={() => {
+              setCodeStep(false);
+              setError(null);
+              setForm({ email: "", password: "" });
+            }}
+          >
+            {t("twoFactor.loginOther")}
+          </button>
+        </p>
+      </AuthCard>
+    );
   }
 
   return (

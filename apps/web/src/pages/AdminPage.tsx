@@ -47,6 +47,10 @@ export function AdminPage() {
     }) => api(`/admin/users/${id}`, { method: "PATCH", body: patch }),
     onSettled: () => qc.invalidateQueries({ queryKey: ["admin", "users"] }),
   });
+  const resetTwoFactor = useMutation({
+    mutationFn: (id: string) => api(`/admin/users/${id}/2fa`, { method: "DELETE" }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["admin", "users"] }),
+  });
   const createInvite = useMutation({
     mutationFn: () =>
       api<{ url: string; emailed: boolean }>("/admin/invitations", {
@@ -91,7 +95,14 @@ export function AdminPage() {
                   key={u.id}
                   className="border-t border-neutral-200 dark:border-neutral-800"
                 >
-                  <td className="px-3 py-2">{u.name}</td>
+                  <td className="px-3 py-2">
+                    {u.name}
+                    {u.twoFactor && (
+                      <span className="ml-2 rounded bg-green-100 px-1.5 py-0.5 text-xs text-green-800 dark:bg-green-900/40 dark:text-green-300" title={t("twoFactor.title")}>
+                        {t("twoFactor.badge")}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-3 py-2 text-neutral-500">{u.email}</td>
                   <td className="px-3 py-2">
                     <select
@@ -124,6 +135,17 @@ export function AdminPage() {
                         }
                       >
                         {u.disabled ? t("admin.enable") : t("admin.disable")}
+                      </Button>
+                    )}
+                    {u.twoFactor && u.id !== me?.id && (
+                      <Button
+                        variant="ghost"
+                        className="ml-2"
+                        onClick={() => {
+                          if (confirm(t("twoFactor.adminResetConfirm", { name: u.name }))) resetTwoFactor.mutate(u.id);
+                        }}
+                      >
+                        {t("twoFactor.adminReset")}
                       </Button>
                     )}
                   </td>

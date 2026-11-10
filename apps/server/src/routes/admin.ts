@@ -7,6 +7,7 @@ import { hashToken, newToken } from "../auth/tokens.js";
 import { invitations, users } from "../db/schema.js";
 import { HttpError, notFound, parseBody, requireAdmin } from "../http.js";
 import { toPublicUser } from "../users.js";
+import { clearTwoFactor } from "./two-factor.js";
 import { t } from "@nootion/shared";
 
 export const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -54,6 +55,13 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     const updated = app.db.update(users).set(input).where(eq(users.id, target.id)).returning().get();
     if (input.disabled) deleteUserSessions(app.db, target.id);
     return { user: toPublicUser(updated) };
+  });
+
+  // For someone who lost both their phone and their recovery codes: their password alone signs them in again.
+  app.delete<{ Params: { id: string } }>("/users/:id/2fa", async (req) => {
+    const target = app.db.select({ id: users.id }).from(users).where(eq(users.id, req.params.id)).get();
+    if (!target) throw notFound();
+    return { user: toPublicUser(clearTwoFactor(app, target.id)) };
   });
 
   app.get("/invitations", async () => ({
