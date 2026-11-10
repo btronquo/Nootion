@@ -21,6 +21,8 @@ import { requirePageRole } from "./permissions.js";
 import { HttpError, notFound } from "./http.js";
 import type { UserRow } from "./users.js";
 import { ACT_AS_HEADER, INTERNAL_HEADER, INTERNAL_SECRET } from "./internal.js";
+import { outboundRequest, PrivateAddressError, type OutboundResponse } from "./net.js";
+import { getInstanceSettings } from "./settings.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const WEBHOOK_TIMEOUT_MS = 10_000;
@@ -270,6 +272,8 @@ export async function runButton(app: FastifyInstance, runner: Runner, ctx: Butto
       case "webhook": {
         const url = fill(step.url).trim();
         if (!/^https?:\/\/\S+$/i.test(url)) throw new HttpError(400, "bad_url", t("button.badUrl"));
+        // Someone without an account never chooses the server called: the host is the one the author wrote.
+        if (anonymous && hostOf(url) !== hostOf(fillTemplate(step.url, {}).trim())) throw new HttpError(400, "bad_url", t("button.badUrl"));
         const body = step.body?.trim()
           ? fillTemplate(step.body, vars, (v) => JSON.stringify(v).slice(1, -1))
           : JSON.stringify({
@@ -280,16 +284,21 @@ export async function runButton(app: FastifyInstance, runner: Runner, ctx: Butto
               form,
               created: result.created,
             });
-        let res: Response;
+        // The address may hold what a stranger typed in a public form: it only leads to the internet, unless administrators allow the local network.
+        let res: OutboundResponse;
         try {
-          res = await fetch(url, {
+          res = await outboundRequest(url, {
             method: "POST",
             headers: { "content-type": "application/json", "user-agent": "Nootion" },
             body,
-            signal: AbortSignal.timeout(WEBHOOK_TIMEOUT_MS),
+            timeoutMs: WEBHOOK_TIMEOUT_MS,
+            maxRedirects: 3,
+            allowPrivate: getInstanceSettings(db).webhookPrivateNetworks,
           });
         } catch (err) {
-          throw new HttpError(502, "webhook_failed", t("button.webhookFailed", { reason: (err as Error).message }));
+          if (err instanceof PrivateAddressError) throw new HttpError(400, "webhook_private", t("button.webhookPrivate"));
+          // People without an account aren't told why: the reason would describe the server's network.
+          throw new HttpError(502, "webhook_failed", t("button.webhookFailed", { reason: anonymous ? "…" : (err as Error).message }));
         }
         if (!res.ok) throw new HttpError(502, "webhook_failed", t("button.webhookFailed", { reason: `HTTP ${res.status}` }));
         return;
@@ -308,6 +317,15 @@ export async function runButton(app: FastifyInstance, runner: Runner, ctx: Butto
     }
   }
   return result;
+}
+
+/** The host of an address, or null when it has none. */
+function hostOf(url: string): string | null {
+  try {
+    return new URL(url).host;
+  } catch {
+    return null;
+  }
 }
 
 /** A user named by email or name, for person columns. */

@@ -15,6 +15,7 @@ import { PluginsAdmin } from "./PluginsAdmin";
 import { BackupsAdmin } from "./BackupsAdmin";
 import { MailAdmin } from "./MailAdmin";
 import { SsoAdmin } from "./SsoAdmin";
+import { SecurityAdmin } from "./SecurityAdmin";
 import { copyText } from "../lib/browser";
 import { UpdateBanner, VersionLine } from "../components/UpdateNotice";
 
@@ -228,6 +229,8 @@ export function AdminPage() {
       <MailAdmin />
 
       <SsoAdmin />
+
+      <SecurityAdmin />
 
       <PluginsAdmin />
 

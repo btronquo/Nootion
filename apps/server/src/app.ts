@@ -63,6 +63,7 @@ import { ACT_AS_HEADER, INTERNAL_HEADER, INTERNAL_SECRET } from "./internal.js";
 import { users } from "./db/schema.js";
 import { eq } from "drizzle-orm";
 import { buttonRoutes, publicFormRoutes } from "./routes/buttons.js";
+import { settingsRoutes } from "./routes/settings.js";
 import { agentAction, findTokenUser, recordActivity, tokenRefusal, withTokenScope, type TokenScope } from "./api-tokens.js";
 
 declare module "fastify" {
@@ -296,6 +297,7 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
   await app.register(apiTokenRoutes, { prefix: "/api/tokens" });
   await app.register(buttonRoutes, { prefix: "/api/buttons" });
   await app.register(publicFormRoutes, { prefix: "/api/forms" });
+  await app.register(settingsRoutes, { prefix: "/api" });
   await app.register(oauthRoutes, { prefix: "/api/oauth" });
   await app.register(oauthDiscoveryRoutes);
   await app.register(mcpRoutes);
