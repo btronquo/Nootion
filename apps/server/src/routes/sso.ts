@@ -58,11 +58,7 @@ export const ssoLoginRoutes: FastifyPluginAsync = async (app) => {
     { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } },
     async (req, reply) => {
       const { url, state, nonce, verifier } = await sso.begin();
-      // Only a path of this site, never another one.
-      const next =
-        typeof req.query.next === "string" && /^\/(?!\/)/.test(req.query.next)
-          ? req.query.next
-          : "/";
+      const next = safeNext(req.query.next);
       const invite =
         typeof req.query.invite === "string"
           ? req.query.invite.slice(0, 200)
@@ -125,14 +121,16 @@ export const ssoLoginRoutes: FastifyPluginAsync = async (app) => {
     who: SsoIdentity,
     inviteToken: string | undefined,
     locale: ReturnType<typeof requestLocale>,
-  ): Promise<UserRow | "no_account" | "disabled" | "no_email"> {
+  ): Promise<UserRow | "no_account" | "disabled" | "no_email" | "unverified_email" | "not_linked"> {
     const c = sso.config()!;
     let user = db
       .select()
       .from(users)
       .where(eq(users.ssoSubject, who.subject))
       .get();
-    if (!user && who.email) {
+    // An address the provider never checked proves nothing: it neither finds an account nor makes one.
+    if (!user && who.email && !who.emailVerified) return "unverified_email";
+    if (!user && who.email && c.linkByEmail) {
       user = db
         .select()
         .from(users)
@@ -158,7 +156,7 @@ export const ssoLoginRoutes: FastifyPluginAsync = async (app) => {
         .where(sql`lower(${users.email}) = ${who.email}`)
         .get()
     )
-      return "no_account";
+      return c.linkByEmail ? "no_account" : "not_linked";
 
     // An invitation: the link followed, or one sent to this address.
     const now = new Date();
@@ -227,3 +225,14 @@ export function passwordAllowed(
 }
 
 export const ssoOnlyMessage = () => t("sso.passwordOff");
+
+/** Where to go after signing in: a path of this site, never another one ("//host" and "/\\host" lead elsewhere). */
+export function safeNext(next: unknown): string {
+  if (typeof next !== "string" || !/^\/(?![/\\])/.test(next) || /[\\\r\n\t]/.test(next)) return "/";
+  try {
+    const url = new URL(next, "http://nootion.invalid");
+    return url.origin === "http://nootion.invalid" ? url.pathname + url.search + url.hash : "/";
+  } catch {
+    return "/";
+  }
+}

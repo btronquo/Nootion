@@ -11,7 +11,7 @@ import { syncMentions } from "./mentions.js";
 import { attachmentRoutes } from "./routes/attachments.js";
 import { databaseRoutes } from "./routes/databases.js";
 import { cleanOrphanFiles } from "./attachments.js";
-import type { Config } from "./config.js";
+import { DEFAULT_TRUST_PROXY, type Config } from "./config.js";
 import type { Db } from "./db/index.js";
 import { findSessionUser, SESSION_COOKIE } from "./auth/sessions.js";
 import { HttpError } from "./http.js";
@@ -92,6 +92,25 @@ const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 // Called by apps from anywhere, without cookies: no cross-site check.
 const APP_ENDPOINTS = /^\/api\/oauth\/(token|register|revoke)$/;
 
+/**
+ * What the interface may load. Scripts: this server only (the app and its plugins). Images, media, frames and
+ * requests: anywhere over http(s), since pages embed videos, maps and pictures from other sites.
+ */
+export const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https: http:",
+  "media-src 'self' data: blob: https: http:",
+  "font-src 'self' data:",
+  "connect-src 'self' https: wss: ws:",
+  "frame-src https: http:",
+  "worker-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+];
+
 /** Requests a personal token can make per minute. */
 const TOKEN_REQUESTS_PER_MINUTE = Number(process.env.API_RATE_LIMIT ?? 300);
 
@@ -106,6 +125,8 @@ function rateLimiter(perMinute: number) {
     }
     recent.push(now);
     hits.set(key, recent);
+    // Keys that went quiet are forgotten now and then.
+    if (hits.size > 1000) for (const [k, times] of hits) if (now - times[times.length - 1]! >= 60_000) hits.delete(k);
     return true;
   };
 }
@@ -113,7 +134,7 @@ function rateLimiter(perMinute: number) {
 export async function buildApp(opts: { db: Db; config: Config; logger?: boolean; pushSender?: PushSender; mailSender?: MailSender }): Promise<FastifyInstance> {
   const app = Fastify({
     logger: opts.logger ?? false,
-    trustProxy: true,
+    trustProxy: opts.config.trustProxy ?? DEFAULT_TRUST_PROXY,
     bodyLimit: 5 * 1024 * 1024,
   });
   app.decorate("db", opts.db);
@@ -173,9 +194,21 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
   await app.register(multipart, { limits: { fileSize: opts.config.maxUploadMb * 1024 * 1024, files: 1 } });
   await app.register(websocket, { options: { maxPayload: 10 * 1024 * 1024 } });
 
+  const https = opts.config.appUrl.startsWith("https://");
   app.addHook("onRequest", async (req, reply) => {
-    // The page where users allow apps can't be shown inside another site (clickjacking).
-    if (req.url.startsWith("/oauth/")) reply.header("x-frame-options", "DENY").header("content-security-policy", "frame-ancestors 'none'");
+    // Browsers: don't guess types, don't show Nootion inside another site (clickjacking), don't tell other sites
+    // which page a link was followed from (public links hold their secret in the address), stay on HTTPS.
+    reply.header("x-content-type-options", "nosniff").header("referrer-policy", "same-origin");
+    if (https) reply.header("strict-transport-security", "max-age=15552000");
+    // Public pages and forms may be shown inside another site; the rest of Nootion may not, and the page where
+    // users allow apps not even inside Nootion.
+    const frames = /^\/(p|f)\//.test(req.url) ? null : req.url.startsWith("/oauth/") ? "'none'" : "'self'";
+    if (frames) reply.header("x-frame-options", frames === "'none'" ? "DENY" : "SAMEORIGIN");
+    // The interface only runs its own code and the plugins' (served by this server). Files and API answers set their own.
+    if (!req.url.startsWith("/api/")) {
+      const policy = opts.config.contentSecurityPolicy === false ? [] : CONTENT_SECURITY_POLICY;
+      reply.header("content-security-policy", [...policy, ...(frames ? [`frame-ancestors ${frames}`] : [])].join("; "));
+    }
     // CSRF: browsers always send Origin on cross-site mutations; reject those not coming from the app itself.
     if (!SAFE_METHODS.has(req.method) && req.url.startsWith("/api/") && !APP_ENDPOINTS.test(req.url.split("?")[0]!)) {
       const origin = req.headers.origin;
@@ -222,9 +255,17 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
     if (!scope || !req.user || reply.statusCode >= 400) return payload;
     const action = agentAction(req.method, req.routeOptions.url);
     if (!action) return payload;
-    const params = req.params as { id?: string; rowId?: string };
+    const params = req.params as { id?: string; rowId?: string; pageId?: string };
     // The page changed, or the one made (named in the answer).
-    let pageId = params.rowId ?? params.id ?? null;
+    let pageId = params.rowId ?? params.pageId ?? params.id ?? null;
+    // A comment thread names its page in the answer.
+    if (action.startsWith("comment.") && !params.pageId && typeof payload === "string") {
+      try {
+        pageId = (JSON.parse(payload) as { thread?: { pageId?: string } }).thread?.pageId ?? null;
+      } catch {
+        pageId = null;
+      }
+    }
     if (action.endsWith(".create") && typeof payload === "string") {
       try {
         const body = JSON.parse(payload) as { page?: { id?: string }; database?: { id?: string }; row?: { id?: string } };

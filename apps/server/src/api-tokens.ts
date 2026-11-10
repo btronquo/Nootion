@@ -95,7 +95,7 @@ export function findTokenUser(db: Db, token: string, now = new Date()) {
   return { user: row.user, scope };
 }
 
-// What a token can do: work with pages, databases, files and search. Not: the account, sharing, public links,
+// What a token can do: work with pages, databases, files, comments, recurring templates and search. Not: the account, sharing, public links,
 // deleting for good, administration, other tokens.
 const ALLOWED: [methods: string, path: RegExp][] = [
   ["GET", /^\/api\/auth\/me$/],
@@ -110,6 +110,16 @@ const ALLOWED: [methods: string, path: RegExp][] = [
   ["GET PUT POST", /^\/api\/pages\/[^/]+\/content$/],
   ["POST", /^\/api\/pages\/[^/]+\/(move|restore|apply-template)$/],
   ["GET", /^\/api\/pages\/[^/]+\/(backlinks|history(\/[^/]+)?)$/],
+  ["GET POST", /^\/api\/pages\/[^/]+\/comments$/],
+  ["POST", /^\/api\/comments\/threads\/[^/]+\/(replies|resolve)$/],
+  // A comment by its id; "notifications" (the user's own, from every space) stays out of a token's reach.
+  ["PATCH DELETE", /^\/api\/comments\/(?!notifications$)[^/]+$/],
+  ["GET PUT DELETE", /^\/api\/pages\/[^/]+\/recurrence$/],
+  ["PUT DELETE", /^\/api\/automations\/[^/]+$/],
+  ["POST", /^\/api\/automations\/[^/]+\/enabled$/],
+  ["GET", /^\/api\/icons$/],
+  // The inbox is in the personal space: its routes check that the token reaches it.
+  ["GET POST", /^\/api\/inbox$/],
   ["POST", /^\/api\/pages\/[^/]+\/history\/[^/]+\/restore$/],
   ["GET POST", /^\/api\/databases$/],
   ["GET POST PUT PATCH DELETE", /^\/api\/databases\/[^/]+(\/.*)?$/],
@@ -138,6 +148,11 @@ const ACTIONS: Record<string, AgentAction> = {
   "PUT /api/pages/:id/content": "content.replace",
   "POST /api/pages/:id/content": "content.append",
   "POST /api/pages/:id/attachments": "file.upload",
+  "POST /api/pages/:pageId/comments": "comment.add",
+  "POST /api/comments/threads/:threadId/replies": "comment.add",
+  "POST /api/comments/threads/:threadId/resolve": "comment.resolve",
+  "PUT /api/pages/:id/recurrence": "recurrence.set",
+  "DELETE /api/pages/:id/recurrence": "recurrence.remove",
   "POST /api/databases": "database.create",
   "POST /api/databases/:id/rows": "row.create",
   "PATCH /api/databases/:id/rows/:rowId": "row.update",
