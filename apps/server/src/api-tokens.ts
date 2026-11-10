@@ -115,6 +115,11 @@ const ALLOWED: [methods: string, path: RegExp][] = [
   // A comment by its id; "notifications" (the user's own, from every space) stays out of a token's reach.
   ["PATCH DELETE", /^\/api\/comments\/(?!notifications$)[^/]+$/],
   ["GET PUT DELETE", /^\/api\/pages\/[^/]+\/recurrence$/],
+  ["PUT DELETE", /^\/api\/automations\/[^/]+$/],
+  ["POST", /^\/api\/automations\/[^/]+\/enabled$/],
+  ["GET", /^\/api\/icons$/],
+  // The inbox is in the personal space: its routes check that the token reaches it.
+  ["GET POST", /^\/api\/inbox$/],
   ["POST", /^\/api\/pages\/[^/]+\/history\/[^/]+\/restore$/],
   ["GET POST", /^\/api\/databases$/],
   ["GET POST PUT PATCH DELETE", /^\/api\/databases\/[^/]+(\/.*)?$/],

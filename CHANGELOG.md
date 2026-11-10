@@ -8,7 +8,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ### Added
 
 - API tokens can read and write comments and set recurring templates, as [docs/API.md](docs/API.md) said they
-  could: `/api/pages/:id/comments`, `/api/comments/…` and `/api/pages/:id/recurrence`.
+  could: `/api/pages/:id/comments`, `/api/comments/…` and `/api/pages/:id/recurrence`. So can they change, pause and
+  delete automations, list the icons and read and fill the inbox (with a token that reaches the personal space).
+  An automation saved with a token can only add rows or pages in the spaces the token reaches.
 - Plugins get `nootion.net.request`, an http(s) request that refuses the server's own network unless allowed.
 - "What's new" window: after an update, each person sees the release notes of the versions they haven't seen yet,
   once, taken from this changelog (shipped in the image, so it works without internet access). New accounts don't

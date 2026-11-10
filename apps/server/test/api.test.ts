@@ -116,6 +116,36 @@ describe("personal API tokens", () => {
     expect((await client.request("DELETE", `/api/pages/${page}/recurrence`)).statusCode).toBe(200);
   });
 
+  it("manage automations, the inbox and icons within their spaces", async () => {
+    const { client } = await makeToken([team], false);
+    const database = (await boris.post("/api/databases", { workspaceId: team, parentId: null, title: "Suivi" })).json().database.id;
+    const elsewhere = (await boris.post("/api/databases", { workspaceId: personal, parentId: null, title: "Privé" })).json().database.id;
+    const step = (databaseId: string) => ({ type: "add_row", databaseId, title: "Copie", values: {} });
+
+    const made = await client.post(`/api/databases/${database}/automations`, { name: "Copie", trigger: { type: "row_added" }, steps: [step(database)] });
+    expect(made.statusCode, made.body).toBe(200);
+    const id = made.json().automation.id;
+    expect((await client.post(`/api/automations/${id}/enabled`, { enabled: false })).json().automation.enabled).toBe(false);
+    // An automation runs with all the rights of whoever saved it: a token can't aim one outside its spaces.
+    const outside = { name: "Fuite", trigger: { type: "row_added" }, steps: [step(elsewhere)] };
+    expect((await client.post(`/api/databases/${database}/automations`, outside)).statusCode).toBe(404);
+    expect((await client.put(`/api/automations/${id}`, outside)).statusCode).toBe(404);
+    expect((await boris.put(`/api/automations/${id}`, outside)).statusCode).toBe(200);
+    expect((await client.request("DELETE", `/api/automations/${id}`)).statusCode).toBe(200);
+
+    expect((await client.get("/api/icons")).statusCode).toBe(200);
+
+    // The inbox lives in the personal space: only a token that reaches it reads or fills it.
+    expect((await client.get("/api/inbox")).statusCode).toBe(404);
+    expect((await client.post("/api/inbox", { text: "Idée" })).statusCode).toBe(404);
+    const home = (await makeToken([personal], false)).client;
+    expect((await home.post("/api/inbox", { text: "Idée" })).statusCode).toBe(200);
+    expect((await home.get("/api/inbox")).json().items).toHaveLength(1);
+    const reader = (await makeToken([personal], true)).client;
+    expect((await reader.get("/api/inbox")).statusCode).toBe(200);
+    expect((await reader.post("/api/inbox", { text: "x" })).json().error).toBe("token_read_only");
+  });
+
   it("refuse unknown, expired tokens and disabled users", async () => {
     expect((await new TokenClient(app, "nt_nope").get("/api/auth/me")).statusCode).toBe(401);
     const { client, apiToken } = await makeToken([personal], true);
