@@ -110,9 +110,9 @@ const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?
 /** Validation of a value written by a user, per property type. */
 export function valueSchema(type: PropertyType): z.ZodType<CellValue> {
   switch (type) {
+    // A plugin column keeps a text, which the plugin reads and writes as it likes (a number, JSON…).
     case "title":
     case "text":
-    // A plugin column keeps a text, which the plugin reads and writes as it likes (a number, JSON…).
     case "plugin":
       return z.string().max(20000).nullable() as z.ZodType<CellValue>;
     case "number":
@@ -131,7 +131,13 @@ export function valueSchema(type: PropertyType): z.ZodType<CellValue> {
     case "checkbox":
       return z.boolean().nullable() as z.ZodType<CellValue>;
     case "url":
-      return z.string().trim().max(2000).nullable() as z.ZodType<CellValue>;
+      // Addresses that run code when clicked are refused; the interface only links the kinds it knows (see linkHref).
+      return z
+        .string()
+        .trim()
+        .max(2000)
+        .refine((v) => !UNSAFE_URL.test(v.replace(/[\u0000-\u0020]/g, "")))
+        .nullable() as z.ZodType<CellValue>;
     case "email":
       return z.string().trim().max(254).nullable() as z.ZodType<CellValue>;
     case "file":
@@ -300,3 +306,18 @@ export const createViewInput = z.object({
   /** Copies the settings of another view of the same database. */
   duplicateOf: z.string().min(1).optional(),
 });
+
+const UNSAFE_URL = /^(javascript|data|vbscript|file|blob):/i;
+
+/**
+ * Where a "link" cell leads when clicked: the address itself for http(s), mailto and tel, "https://" in front of an
+ * address written without a scheme, and null (shown as plain text) for anything else.
+ */
+export function linkHref(value: string): string | null {
+  const v = value.trim();
+  if (!v) return null;
+  const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(v.replace(/[\u0000-\u0020]/g, ""))?.[1]?.toLowerCase();
+  // "example.com:8080/x" is a host and a port, not a scheme.
+  if (!scheme || /^[a-z0-9.-]+:\d+(\/|$)/i.test(v)) return `https://${v}`;
+  return ["http", "https", "mailto", "tel"].includes(scheme) ? v : null;
+}

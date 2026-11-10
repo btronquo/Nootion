@@ -14,19 +14,33 @@ import { clearSessionCookie, startSession } from "./session-cookie.js";
 import { passwordAllowed, ssoOnlyMessage } from "./sso.js";
 import { startTwoFactorChallenge } from "./two-factor.js";
 
+/** Wrong passwords allowed for one account before it has to wait. */
+const LOGIN_FAILURES_MAX = 20;
+const LOGIN_FAILURE_WINDOW_MS = 15 * 60_000;
+
 export const authRoutes: FastifyPluginAsync = async (app) => {
+  // Wrong passwords for one account, whatever address they come from (the limit per address is spread over many by a botnet).
+  const failures = new Map<string, number[]>();
+  const recentFailures = (email: string, now = Date.now()) => (failures.get(email) ?? []).filter((at) => now - at < LOGIN_FAILURE_WINDOW_MS);
+  const failed = (email: string) => {
+    const now = Date.now();
+    failures.set(email, [...recentFailures(email, now), now]);
+    if (failures.size > 5000) for (const [k] of failures) if (!recentFailures(k, now).length) failures.delete(k);
+    return new HttpError(401, "bad_credentials", t("error.badCredentials"));
+  };
+
   app.post("/login", { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (req, reply) => {
     const input = parseBody(loginInput, req.body);
+    if (recentFailures(input.email).length >= LOGIN_FAILURES_MAX) throw new HttpError(429, "too_many_requests", t("error.tooManyRequests"));
     const user = app.db.select().from(users).where(eq(users.email, input.email)).get();
     if (!user) {
       await burnPasswordCheck(input.password);
-      throw new HttpError(401, "bad_credentials", t("error.badCredentials"));
+      throw failed(input.email);
     }
-    if (!(await verifyPassword(user.passwordHash, input.password))) {
-      throw new HttpError(401, "bad_credentials", t("error.badCredentials"));
-    }
+    if (!(await verifyPassword(user.passwordHash, input.password))) throw failed(input.email);
     if (user.disabled) throw new HttpError(403, "disabled", t("error.accountDisabled"));
     if (!passwordAllowed(app, user.role)) throw new HttpError(403, "sso_only", ssoOnlyMessage());
+    failures.delete(input.email);
     // The password alone is not enough: the code from the authenticator app comes next (POST /login/2fa).
     if (user.totpSecret) {
       startTwoFactorChallenge(app, reply, user.id);

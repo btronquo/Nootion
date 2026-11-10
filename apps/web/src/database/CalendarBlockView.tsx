@@ -9,7 +9,6 @@ import {
   calendarSources,
   daysBetween,
   OPTION_COLORS,
-  rowDays,
   t,
   type CalendarFeed,
   type CalendarSource,

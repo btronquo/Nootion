@@ -180,7 +180,7 @@ describe("my account", () => {
     expect(img.statusCode).toBe(200);
     expect(img.headers["content-type"]).toBe("image/png");
     expect((await new Client(app).get(url)).statusCode).toBe(401);
-    expect((await alice.get("/api/users")).json().users.find((u: { name: string }) => u.name === "Boris").avatarUrl).toBe(url);
+    expect((await alice.get("/api/users/lookup?email=boris@example.com")).json().user.avatarUrl).toBe(url);
     expect((await avatarUpload(boris, Buffer.alloc(3 * 1024 * 1024, 1))).statusCode).toBe(413);
     expect((await boris.delete("/api/auth/me/avatar")).json().user.avatarUrl).toBeNull();
     expect((await alice.get(url)).statusCode).toBe(404);

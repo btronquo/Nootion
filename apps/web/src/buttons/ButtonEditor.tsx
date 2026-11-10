@@ -506,6 +506,7 @@ function StepEditor({
             t("button.webhookUrl"),
             <TemplateInput label={t("button.webhookUrl")} placeholder="https://" value={step.url} onChange={(url) => onChange({ ...step, url })} />,
           )}
+          <WebhookPolicy />
           {field(
             t("button.webhookBody"),
             <TemplateInput
@@ -689,4 +690,15 @@ function PublicLink({ source, saved }: { source: { pageId: string; blockId: stri
       </div>
     </TemplateFree>
   );
+}
+
+/** Tells whoever writes a webhook step whether the server's local network may be called (an administrator's choice). */
+function WebhookPolicy() {
+  const policy = useQuery({
+    queryKey: ["webhook-policy"],
+    queryFn: () => api<{ privateNetworks: boolean }>("/buttons/webhook-policy"),
+    staleTime: 60_000,
+  });
+  if (!policy.data) return null;
+  return <p className="text-xs text-neutral-500">{t(policy.data.privateNetworks ? "button.webhookPolicyAllowed" : "button.webhookPolicyBlocked")}</p>;
 }

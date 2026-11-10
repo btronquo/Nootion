@@ -11,6 +11,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   from an authenticator app (Microsoft Authenticator, Google Authenticator, 2FAS, Aegis…), set up by scanning a QR
   code. Ten single-use recovery codes sign in when the phone is lost, and can be renewed. Administrators see who
   has it on and can turn it off for someone who lost both. Signing in through SSO is not affected.
+- API tokens can read and write comments and set recurring templates, as [docs/API.md](docs/API.md) said they
+  could: `/api/pages/:id/comments`, `/api/comments/…` and `/api/pages/:id/recurrence`. So can they change, pause and
+  delete automations, list the icons and read and fill the inbox (with a token that reaches the personal space).
+  An automation saved with a token can only add rows or pages in the spaces the token reaches.
+- Documentation: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (how the code is laid out), a "Securing your
+  instance" chapter in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md), linking accounts in [docs/SSO.md](docs/SSO.md),
+  webhooks and the local network in [docs/BUTTONS.md](docs/BUTTONS.md), hotfixes and image publishing in
+  [CONTRIBUTING.md](CONTRIBUTING.md), features grouped by theme in the README.
+- Plugins get `nootion.net.request`, an http(s) request that refuses the server's own network unless allowed.
 - "What's new" window: after an update, each person sees the release notes of the versions they haven't seen yet,
   once, taken from this changelog (shipped in the image, so it works without internet access). New accounts don't
   get it, nor development builds.
@@ -48,6 +57,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Fixed
 
+- The export of the personal space was always named "Espace personnel", whatever the language.
+
 - Dragging inside a widget of a page (the map) up or down follows the pointer again: the block handle used to give
   the whole page a false pointer position while it was over a widget.
 - The handle left of a drawing, a widget or a database placed inside a to-do or a list stays on that block when the
@@ -56,6 +67,34 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   for instance).
 - In columns, the handle of a line of text stays on it when the pointer is on its first line or moves towards the
   handle, instead of jumping to the whole columns block.
+
+### Security
+
+- Link previews ("Embeds" plugin) could be pointed at the server's own network with an IPv6 form of a local address
+  (`http://[::ffff:7f00:1]/`). Local addresses are now recognised however they are written, and the address is
+  checked as the connection is made (so a name can't change between the check and the request).
+- Button webhooks no longer call addresses of the server's local network, unless an administrator allows it in
+  **Administration › Security** (the button editor says which applies). On a public form, the answers can't change
+  the server a webhook calls, and people without an account aren't told why a webhook failed.
+- A personal API token limited to some spaces could list the pages of the user's other spaces through
+  `GET /api/pages/all` and `GET /api/pages/graph`. Both now stay within the token's spaces.
+- The server refuses to start in production with the example `APP_SECRET` of `docker-compose.yml`.
+- Single sign-on: an e-mail address the provider marks as not verified no longer links an existing account or makes
+  a new one. Linking existing accounts by their address is now a setting of the SSO administration (on by default),
+  with a warning about when to turn it off. The page opened after signing in is checked more strictly.
+- Security headers on every answer (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, HSTS over
+  HTTPS) and a Content-Security-Policy for the interface: only scripts served by Nootion run. Public pages and forms
+  can still be shown inside another site. `CONTENT_SECURITY_POLICY=off` leaves the policy out.
+- `X-Forwarded-*` headers are only believed from a reverse proxy on the server itself or its private network, so a
+  visitor can't choose the address the sign-in limit counts. `TRUST_PROXY` changes this (see
+  [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)).
+- An account that got twenty wrong passwords in fifteen minutes has to wait, wherever the attempts come from.
+- The user directory no longer gives every account's name and e-mail address to everyone: people see those they
+  work with (members of their shared spaces, people of the pages shared with or by them). Someone else is added to
+  a page or a space by typing their exact e-mail address. Administrators still see everyone.
+- Updated nodemailer (6 to 10), drizzle-orm and @fastify/static, which had known vulnerabilities. CI now runs
+  `pnpm audit` on what ships in the image, and Dependabot proposes updates every week.
+- "Link" cells refuse addresses that run code (`javascript:`, `data:`…) and only link web, mail and phone addresses.
 
 ## [3.3.0] - 2026-11-03
 

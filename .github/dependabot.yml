@@ -1,0 +1,22 @@
+# Weekly pull requests for dependency updates, grouped so that they stay few. They target develop, like any change.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    target-branch: develop
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: develop
+    schedule:
+      interval: monthly
+  - package-ecosystem: docker
+    directory: /docker
+    target-branch: develop
+    schedule:
+      interval: monthly

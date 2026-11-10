@@ -134,6 +134,28 @@ describe("single sign-on", () => {
     expect(
       (await ssoLogin({ sub: "sub-alice" }, "?next=//evil.example")).location,
     ).toBe("/");
+    expect(
+      (await ssoLogin({ sub: "sub-alice" }, `?next=${encodeURIComponent("/\\evil.example")}`)).location,
+    ).toBe("/");
+  });
+
+  it("doesn't trust an address the provider never checked, and can stop linking by address", async () => {
+    await boris.put("/api/admin/sso", settings({ signup: "anyone" }));
+    // Someone typed the administrator's address at the provider, which says it isn't verified.
+    const thief = await ssoLogin({ sub: "sub-thief", email: "boris@example.com", email_verified: false });
+    expect(thief.location).toBe("/login?sso_error=unverified_email");
+    expect(thief.session).toBeUndefined();
+    // Nor does such an address make a new account.
+    expect((await ssoLogin({ sub: "sub-new", email: "new@example.com", email_verified: false })).location).toBe("/login?sso_error=unverified_email");
+    // Verified: linked.
+    expect((await ssoLogin({ sub: "sub-alice", email: "alice@example.com", email_verified: true })).location).toBe("/");
+
+    // Linking off: existing accounts keep their password, new people still get an account.
+    expect((await boris.put("/api/admin/sso", settings({ signup: "anyone", linkByEmail: false }))).json().settings.linkByEmail).toBe(false);
+    expect((await ssoLogin({ sub: "sub-boris", email: "boris@example.com" })).location).toBe("/login?sso_error=not_linked");
+    expect((await ssoLogin({ sub: "sub-carol", email: "carol@example.com" })).location).toBe("/");
+    // Accounts already linked still sign in.
+    expect((await ssoLogin({ sub: "sub-alice" })).location).toBe("/");
   });
 
   it("makes accounts only for invited people, or the domains allowed", async () => {

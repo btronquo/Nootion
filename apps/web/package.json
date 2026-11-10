@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "typecheck": "tsc -p ."
+    "typecheck": "tsc -p .",
+    "test": "vitest run"
   },
   "dependencies": {
     "@floating-ui/dom": "1.7.4",
@@ -49,6 +50,7 @@
     "@vitejs/plugin-react": "^5.1.0",
     "tailwindcss": "^4.1.16",
     "typescript": "^5.9.3",
-    "vite": "^7.1.12"
+    "vite": "^7.1.12",
+    "vitest": "^3.2.7"
   }
 }

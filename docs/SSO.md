@@ -50,7 +50,40 @@ Then:
   their password ("Administrator? Sign in with a password" on the sign-in page), so a broken setup or an expired
   secret doesn't lock everyone out.
 
+- **Link existing accounts by their e-mail address**: see [below](#linking-existing-accounts).
+
 Save, then click **Try signing in**.
+
+### Linking existing accounts
+
+The first time someone signs in with SSO, Nootion looks for an account with the same e-mail address and links it
+to them; from then on they are recognised by the provider's id. This is what lets the people who already had a
+password account, administrators included, move to SSO without doing anything.
+
+It is safe as long as **the provider decides which address a person has**: Entra ID with a single tenant (as set
+up above), Google Workspace, an Okta or Keycloak directory you run. It is not when people can pick their own
+address at the provider without proving it is theirs (a provider open to anyone, a Keycloak with free sign-up and
+no e-mail verification…): someone could type an administrator's address there and get their Nootion account. In
+that case, turn **Link existing accounts by their e-mail address** off: existing accounts keep signing in with
+their password, and SSO only makes new accounts.
+
+Whatever the setting, an address the provider marks as not verified (`email_verified: false`) is refused: it
+neither links an account nor makes one. Nootion itself doesn't need to send e-mail for any of this.
+
+### Other providers
+
+The fields are the same everywhere; only the issuer URL and where to find the client change.
+
+| Provider | Issuer URL | Where the client is made |
+| --- | --- | --- |
+| Google Workspace | `https://accounts.google.com` | Google Cloud console › APIs & Services › Credentials › OAuth client ID (Web application) |
+| Okta | `https://<your org>.okta.com` | Applications › Create App Integration › OIDC, Web Application |
+| Keycloak | `https://<host>/realms/<realm>` | Clients › Create client, with "Client authentication" on |
+| Authentik | `https://<host>/application/o/<app slug>/` | Applications › Providers › OAuth2/OpenID Provider |
+
+Give each the redirect URI shown in Nootion, and allow the `openid`, `profile` and `email` scopes. With Google,
+pick *Anyone with an address in these domains* with your Workspace domain rather than *Anyone who can sign in*,
+which would be every Google account.
 
 Notes:
 

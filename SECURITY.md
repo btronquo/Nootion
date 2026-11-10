@@ -5,8 +5,12 @@
 Please don't open a public issue. Use GitHub's private reporting
 ("Security" tab of the repository, "Report a vulnerability" button).
 
-Describe the vulnerability, the affected version and how to reproduce it. You'll get an answer as soon as possible,
-and the fix will be released in a new version before any public announcement.
+Describe the vulnerability, the affected version and how to reproduce it. Nootion is maintained by one person in
+their spare time: expect a first answer within a week. The fix is released in a new version before any public
+announcement, and the changelog credits you if you wish.
+
+How Nootion is meant to be secured, and who can do what on a server, is described in
+[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#securing-your-instance).
 
 ## Supported versions
 

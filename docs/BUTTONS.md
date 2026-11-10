@@ -21,6 +21,20 @@ fails, and the button stops there, saying which step failed.
 | Open a page or a link | A page of Nootion, or an address (`https://…`, or a variable such as `{{created.url}}`). |
 | Call a webhook | Sends a POST request with JSON: the body you write, or by default the button, user, page, row, form answers and what the steps created. Home Assistant, n8n, Zapier… |
 
+### Webhooks and the local network
+
+A webhook only calls addresses on the internet. An address of the server's own network (`http://192.168.1.20:8123`,
+`http://homeassistant.local`, `localhost`…) is refused, with a message saying so, unless an administrator ticks
+**Administration › Security › Let button webhooks call the local network**. The button editor tells, under the
+address, which applies on your server.
+
+The reason: steps run on the server, so a webhook can reach what the server can reach. With the option on, anyone
+who can edit a page can make the server send requests to devices of the local network. Turn it on for a family or
+a team you trust; leave it off if people you don't fully trust have an account.
+
+Redirections are followed (three at most) and checked the same way. The call must be answered within 10 seconds
+with a 2xx status, or the step fails.
+
 ### Values
 
 Each column takes a text, converted to its type: a number (`12,5`), `true`/`false` for a checkbox, a date
@@ -51,5 +65,9 @@ In a page's button with a form, **Create a public link** gives an address (`/f/�
 for instance to collect expenses or ideas from family members. Their answers run the button's **Add a row** and
 **Call a webhook** steps with the rights of the person who made the link (the other steps don't run, and `{{user}}` and
 `{{me}}` are empty). Answers are limited to 10 a minute from one address. Remove the link to close the form.
+
+On a public form, the answers can go in a webhook's body or in its path (`https://example.com/hook/{{form.Name}}`),
+but never choose the server called: a webhook whose host comes from an answer doesn't run. And when a webhook fails,
+people without an account aren't told why.
 
 Buttons show on public pages, without what they do, and do nothing there.

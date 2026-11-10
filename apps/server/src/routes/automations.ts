@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
-import type { FastifyPluginAsync } from "fastify";
+import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import { asc, eq } from "drizzle-orm";
 import { automationInput, t } from "@nootion/shared";
 import { automations } from "../db/schema.js";
 import { HttpError, notFound, parseBody, requireUser } from "../http.js";
-import { requirePageRole } from "../permissions.js";
+import { getPageRole, requirePageRole } from "../permissions.js";
 import { listProperties } from "../databases.js";
 import { toAutomation } from "../automations.js";
 
@@ -25,6 +25,18 @@ export const automationRoutes: FastifyPluginAsync = async (app) => {
     if (!prop || (input.trigger.type === "date_reached" && prop.type !== "date")) throw new HttpError(400, "bad_trigger", t("automation.badTrigger"));
   }
 
+  /**
+   * An automation runs later as whoever saved it, with all their rights. Saved with an API token, its steps may
+   * therefore only name databases, pages and templates the token reaches: a token never sets up work outside its spaces.
+   */
+  function checkTargets(req: FastifyRequest, userId: string, input: ReturnType<typeof automationInput.parse>) {
+    if (!req.tokenScope) return;
+    for (const step of input.steps) {
+      const targets = step.type === "add_row" ? [step.databaseId] : step.type === "create_page" ? [step.parentId, step.templateId] : [];
+      for (const id of targets) if (id && !getPageRole(db, userId, id)) throw notFound();
+    }
+  }
+
   app.get<{ Params: { id: string } }>("/databases/:id/automations", async (req) => {
     const user = requireUser(req);
     const database = requireDatabase(user.id, req.params.id);
@@ -37,6 +49,7 @@ export const automationRoutes: FastifyPluginAsync = async (app) => {
     const database = requireDatabase(user.id, req.params.id);
     const input = parseBody(automationInput, req.body);
     checkTrigger(database.id, input);
+    checkTargets(req, user.id, input);
     const row = db
       .insert(automations)
       .values({
@@ -66,6 +79,7 @@ export const automationRoutes: FastifyPluginAsync = async (app) => {
     const current = own(user.id, req.params.id);
     const input = parseBody(automationInput, req.body);
     checkTrigger(current.databaseId, input);
+    checkTargets(req, user.id, input);
     const row = db
       .update(automations)
       .set({ name: input.name, enabled: input.enabled, trigger: input.trigger, steps: input.steps, createdBy: user.id })

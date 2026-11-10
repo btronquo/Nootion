@@ -1,5 +1,5 @@
 import type { FastifyPluginAsync } from "fastify";
-import { WORKSPACE_ROLES } from "@nootion/shared";
+import { t, WORKSPACE_ROLES } from "@nootion/shared";
 import { workspaces } from "../db/schema.js";
 import { eq } from "drizzle-orm";
 import { exportPagesZip, safeName } from "../export.js";
@@ -36,7 +36,7 @@ export const exportRoutes: FastifyPluginAsync = async (app) => {
     await app.collab.flushPendingStores();
     const roots = listWorkspacePages(db, ws.id).filter((p) => !p.parentId);
     const zip = exportPagesZip(db, app.config.dataDir, user.id, roots);
-    const name = ws.kind === "personal" ? "Espace personnel" : safeName(ws.name);
+    const name = ws.kind === "personal" ? t("workspace.personal") : safeName(ws.name);
     return reply
       .header("content-type", "application/zip")
       .header("content-disposition", attachmentHeader(`${name} ${today()}.zip`))

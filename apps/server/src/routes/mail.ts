@@ -78,17 +78,16 @@ export const passwordResetRoutes: FastifyPluginAsync = async (app) => {
         .values({ tokenHash: hashToken(token), userId: user.id, expiresAt: new Date(Date.now() + RESET_TTL_MS) })
         .run();
       const locale = user.locale as Locale;
-      try {
-        await mailer.send({
+      // Not waited for: the answer takes as long whether or not the address has an account.
+      void mailer
+        .send({
           to: user.email,
           subject: tIn(locale, "mail.resetSubject"),
           text: tIn(locale, "mail.resetBody", { name: user.name }),
           action: { label: tIn(locale, "mail.resetAction"), url: `${app.config.appUrl}/reset/${token}` },
           footer: tIn(locale, "mail.resetFooter"),
-        });
-      } catch (err) {
-        req.log.warn({ err }, "Couldn't send a password reset e-mail");
-      }
+        })
+        .catch((err) => req.log.warn({ err }, "Couldn't send a password reset e-mail"));
     }
     return { ok: true };
   });

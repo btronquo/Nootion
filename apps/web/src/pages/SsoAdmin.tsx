@@ -18,6 +18,7 @@ interface Form {
   signup: SsoSignup;
   domains: string;
   passwordLogin: boolean;
+  linkByEmail: boolean;
   sessionHours: number;
 }
 
@@ -29,6 +30,7 @@ const toForm = (s: SsoSettings | null): Form => ({
   signup: s?.signup ?? "invited",
   domains: s?.domains.join(", ") ?? "",
   passwordLogin: s?.passwordLogin ?? true,
+  linkByEmail: s?.linkByEmail ?? true,
   sessionHours: s?.sessionHours ?? 12,
 });
 
@@ -274,6 +276,20 @@ export function SsoAdmin() {
             </span>
           </label>
         </div>
+        <label className="flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={form.linkByEmail}
+            onChange={(e) => set({ linkByEmail: e.target.checked })}
+          />
+          <span>
+            <span className="block font-medium">{t("sso.linkByEmail")}</span>
+            <span className="block text-xs text-neutral-500">
+              {t("sso.linkByEmailHelp")}
+            </span>
+          </span>
+        </label>
         {error && (
           <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
         )}

@@ -21,6 +21,8 @@ pnpm install
 pnpm dev          # server on :3000, interface on http://localhost:5173
 pnpm test         # automated tests
 pnpm typecheck
+pnpm lint         # mistakes the compiler doesn't see (ESLint)
+pnpm format       # formatting (Prettier, 160 columns)
 ```
 
 Code layout:
@@ -34,6 +36,8 @@ apps/server/plugins  Plugins that ship with the app (see docs/PLUGINS.md)
 
 After changing `apps/server/src/db/schema.ts`, create the migration with
 `pnpm --filter @nootion/server db:generate`. Migrations are applied at startup.
+
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) explains how the parts fit together.
 
 ## Branches and releases
 
@@ -68,6 +72,40 @@ git push origin --delete release/1.3.0 && git branch -d release/1.3.0
 ```
 
 The tag goes on `main`'s merge commit, so the published image is exactly what `main` holds.
+
+A hotfix, step by step (an urgent fix to the released version, without what `develop` holds):
+
+```bash
+git switch main && git pull
+git switch -c hotfix/1.3.1
+# fix, add a test, set "version" to 1.3.1 in the package.json files, add the version to CHANGELOG.md, commit
+git push origin hotfix/1.3.1
+```
+
+Open a pull request from `hotfix/1.3.1` into `main`, wait for `test`, merge it with **Create a merge commit**, then
+tag and bring the fix back into `develop` exactly as for a release:
+
+```bash
+git switch main && git pull
+git tag -a v1.3.1 -m "Nootion 1.3.1"
+git switch develop && git merge --no-ff main
+git push origin develop v1.3.1
+git push origin --delete hotfix/1.3.1 && git branch -d hotfix/1.3.1
+```
+
+### Publishing the image
+
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs the tests on every pull request and on pushes to
+`main` and `develop`, and publishes the image to GitHub's registry as `ghcr.io/btronquo/nootion` (no setup needed:
+it uses the token provided by GitHub Actions):
+
+- on every push to `develop`: tags `develop` and `develop-<commit>`;
+- on every git tag `vX.Y.Z` (put on `main` when a release is merged): tags `X.Y.Z`, `X.Y` and `latest`.
+
+On GitHub, the first published image is private: *Packages > nootion > Package settings > Change visibility > Public*.
+For each version, also create the release (*Releases > Draft a new release*) with the version's CHANGELOG section.
+
+To try the image locally before publishing: `docker build -f docker/Dockerfile -t nootion:local .`
 
 ## Translations
 
