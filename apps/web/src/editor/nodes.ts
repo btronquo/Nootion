@@ -80,9 +80,11 @@ export const FileAttachment = Node.create({
   },
   renderHTML({ node }) {
     const { url, name, size } = node.attrs;
+    // Files of this server or web addresses only: what other people wrote in the page never becomes a link that runs code.
+    const href = typeof url === "string" && /^(\/api\/(attachments|public)\/|https?:\/\/)/i.test(url) ? `${url}?download` : undefined;
     return [
       "a",
-      { "data-file": "", class: "file-attachment", href: url ? `${url}?download` : undefined, target: "_blank", rel: "noopener" },
+      { "data-file": "", class: "file-attachment", href, target: "_blank", rel: "noopener" },
       `📎 ${name} · ${formatSize(size)}`,
     ];
   },

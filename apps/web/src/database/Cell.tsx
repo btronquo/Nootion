@@ -25,7 +25,7 @@ import { OptionChip, OptionPicker } from "./OptionPicker";
 import { Popover } from "./Popover";
 import { ButtonAction } from "../buttons/ButtonAction";
 import { pluginCell } from "../plugins/PluginCell";
-import { t } from "@nootion/shared";
+import { linkHref, t } from "@nootion/shared";
 import { pageIcon } from "../lib/icons";
 
 export interface CellProps {
@@ -139,18 +139,15 @@ function Display(props: CellProps) {
     case "created_time":
     case "last_edited_time":
       return <span className="text-neutral-500">{formatDateString(value as string)}</span>;
-    case "url":
+    case "url": {
+      const href = linkHref(String(value));
+      if (!href) return <span className="truncate">{String(value)}</span>;
       return (
-        <a
-          href={/^[a-z]+:/i.test(String(value)) ? String(value) : `https://${value}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          className="truncate text-blue-600 underline dark:text-blue-400"
-        >
+        <a href={href} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="truncate text-blue-600 underline dark:text-blue-400">
           {String(value)}
         </a>
       );
+    }
     case "email":
       return (
         <a href={`mailto:${value}`} onClick={(e) => e.stopPropagation()} className="truncate text-blue-600 underline dark:text-blue-400">
