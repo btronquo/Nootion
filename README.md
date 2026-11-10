@@ -66,6 +66,8 @@ offline use and the Notion import.
 
 - First launch: creation of the administrator account.
 - Sign in / sign out, secure sessions (httpOnly cookie, argon2 password hashes).
+- Two-factor authentication with an authenticator app (6-digit codes), with recovery codes; administrators can
+  turn it off for someone who lost their phone.
 - Invitations by link (valid 7 days, optionally restricted to one email), admin / member roles, account disabling.
 - A private personal space for each user, and shared spaces with roles (owner, editor, commenter, viewer).
 - Single sign-on with Microsoft Entra ID, Google, Okta, Keycloak or any OpenID Connect provider, and SCIM so that
@@ -80,8 +82,8 @@ offline use and the Notion import.
   Every access check is done on the server (`apps/server/src/permissions.ts`) and covered by tests.
 - Notion-like page editor ("/" commands, to-do lists, tables, callouts, toggles, columns, images and attached files,
   links between pages with "@", people mentions, table of contents), with real-time collaborative editing.
-- Drawing block (`/drawing`): pen, highlighter, shapes and arrows, saved with the page, with a full-screen
-  whiteboard.
+- Drawing block (`/drawing`): pen, highlighter, shapes, arrows and text boxes, saved with the page, with a
+  full-screen whiteboard and an SVG download.
 - Comments on a passage or on the whole page: threads with replies, resolved and reopened, that follow their
   passage as the page is edited. "@" mentions someone, in a comment or in the page, and notifies them.
 - Quick capture (Ctrl+Alt+N or ⌘⌥N, or shared from another app to the installed app): a note dropped in your inbox,
@@ -95,7 +97,9 @@ offline use and the Notion import.
 
 - Databases: typed columns (text, number, currency amount, percent, date, select, multi-select, checkbox, link,
   email, person, files, created time, last edited time, created by), table view (column order, width and visibility),
-  each row opens as a page with its properties. A database can be a page of its own or embedded in a page
+  each row opens as a page with its properties. Rows have Notion's menu (right click or ⋮⋮: favorite, icon, open,
+  copy link, duplicate, trash), a "+" to add one just below, and can be dragged to reorder them. A database can be
+  a page of its own or embedded in a page
   (`/database` command), and shows read-only on public links.
 - Calculations under columns (sum, average, median, min, max, count, percent checked, dates…).
 - Relations between databases (one way or both ways, kept up to date automatically) and rollups

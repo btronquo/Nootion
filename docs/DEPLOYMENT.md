@@ -263,16 +263,18 @@ What is imported:
   tables, dividers, images and files (copied to Nootion), bookmarks, mentions and links between pages;
 - databases (inline or full page) with their columns, select and status options, number formats, rows and the content
   of rows, people (matched to Nootion accounts by email), two-way relations, rollups and formulas, translated to
-  Nootion's formula language.
+  Nootion's formula language (Notion 2's lists, `let`, `map`, `filter`… and `current.prop()` included);
+- image icons (uploaded, from Notion's gallery, custom emojis), copied as custom icons.
 
 What is not, or differently:
 
 - Notion's API doesn't give the views: each database gets a table view.
-- Formulas using what Nootion's formulas don't have (lists, `map`, `let`…) keep their values in a text column.
-- Comments, image icons and page history are left out. Toggles, columns and covers are kept.
+- Formulas using `link()` or `email()`, which Nootion's formulas don't have, keep their values in a text column.
+- Comments and page history are left out. Toggles, columns, callouts and covers are kept.
 
 The report at the end lists these cases. **Importing again** uses the saved secret: pages and rows changed in Notion
 since the last import are updated (their content is replaced, edits made in Nootion included), the others are left
-as they are, and nothing is duplicated. *Forget the secret* removes it from the server; what was imported stays.
+as they are, and nothing is duplicated. An option imports the unchanged pages again too, so that pages imported by
+an older version get what the import does better now. *Forget the secret* removes it from the server; what was imported stays.
 
 Notion allows about three requests per second, so a large workspace takes a few minutes.
