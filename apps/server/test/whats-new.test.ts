@@ -67,7 +67,7 @@ describe("what's new", () => {
 
     // Updated from 3.2.0 to 3.3.0.
     app.db.update(users).set({ seenVersion: "3.2.0" }).run();
-    let res = (await boris.get("/api/whats-new")).json();
+    const res = (await boris.get("/api/whats-new")).json();
     expect(res.releases.map((r: { version: string }) => r.version)).toEqual(["3.3.0", "3.2.1"]);
     expect(res.releases[0].markdown).toContain("###");
 

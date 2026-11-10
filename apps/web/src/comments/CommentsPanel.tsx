@@ -284,7 +284,7 @@ function Composer({
 }) {
   const users = useUserDirectory();
   const { user } = useSession();
-  const people = users.data ?? [];
+  const people = useMemo(() => users.data ?? [], [users.data]);
   const [mentioned, setMentioned] = useState<Map<string, string>>(() => new Map());
   const [text, setText] = useState(() => initial.replace(/<@([A-Za-z0-9-]+)>/g, (_, id: string) => `@${people.find((u) => u.id === id)?.name ?? "?"}`));
   const [busy, setBusy] = useState(false);

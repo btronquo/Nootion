@@ -387,8 +387,8 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
       setHeaders: (res, file) => {
         // Built files carry a hash in their name: browsers may keep them for good.
         // The rest (the page, the service worker, icons) is checked on every visit, so a new version reaches installed apps at once.
-        res.setHeader("cache-control", file.includes(`${path.sep}assets${path.sep}`) ? "public, max-age=31536000, immutable" : "no-cache");
-        if (file.endsWith(".webmanifest")) res.setHeader("content-type", "application/manifest+json");
+        res.header("cache-control", file.includes(`${path.sep}assets${path.sep}`) ? "public, max-age=31536000, immutable" : "no-cache");
+        if (file.endsWith(".webmanifest")) res.header("content-type", "application/manifest+json");
       },
     });
     // Single-page app: unknown non-API GET routes serve index.html.

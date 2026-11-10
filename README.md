@@ -187,6 +187,8 @@ pnpm install
 pnpm dev          # server on :3000, interface on http://localhost:5173
 pnpm test         # automated tests
 pnpm typecheck
+pnpm lint         # mistakes the compiler doesn't see (ESLint)
+pnpm format       # formatting (Prettier, 160 columns)
 pnpm build
 ```
 

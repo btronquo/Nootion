@@ -45,7 +45,6 @@ import {
   syncTwin,
   toRow,
   validateValues,
-  type CanRead,
   canReadAs,
 } from "../databases.js";
 import type { PageRole } from "@nootion/shared";

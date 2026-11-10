@@ -3,7 +3,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { FilePlus2, Pencil, Plus, Star, Trash2 } from "lucide-react";
 import { t, type DatabaseData, type DatabaseRow, type RowTemplate } from "@nootion/shared";
 import { api } from "../lib/api";
-import { pageTitle } from "../lib/tree";
 import { dbKey } from "./hooks";
 import { Popover } from "./Popover";
 import { pageIcon } from "../lib/icons";

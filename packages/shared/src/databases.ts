@@ -110,9 +110,9 @@ const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?
 /** Validation of a value written by a user, per property type. */
 export function valueSchema(type: PropertyType): z.ZodType<CellValue> {
   switch (type) {
+    // A plugin column keeps a text, which the plugin reads and writes as it likes (a number, JSON…).
     case "title":
     case "text":
-    // A plugin column keeps a text, which the plugin reads and writes as it likes (a number, JSON…).
     case "plugin":
       return z.string().max(20000).nullable() as z.ZodType<CellValue>;
     case "number":
