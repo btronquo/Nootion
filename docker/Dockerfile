@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # Single Nootion image: Fastify API + built web interface. Data in /data.
 
-FROM node:22-bookworm-slim AS build
+FROM node:26-bookworm-slim AS build
 WORKDIR /src
 RUN corepack enable
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.base.json ./
@@ -17,7 +17,7 @@ RUN pnpm build \
  && cp -r apps/web/dist /out/web \
  && sed 's/\r$//' docker/entrypoint.sh > /out/entrypoint.sh
 
-FROM node:22-bookworm-slim
+FROM node:26-bookworm-slim
 ARG VERSION=dev
 LABEL org.opencontainers.image.title="Nootion" \
       org.opencontainers.image.description="Open-source, self-hosted Notion-like notes app with databases" \
