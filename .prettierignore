@@ -1,0 +1,7 @@
+node_modules
+dist
+pnpm-lock.yaml
+apps/server/migrations
+apps/server/plugins/*/assets
+*.md
+docs

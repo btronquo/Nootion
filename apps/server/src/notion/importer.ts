@@ -1,7 +1,6 @@
 import fs from "node:fs";
 import { randomUUID } from "node:crypto";
-import { and, eq } from "drizzle-orm";
-import * as Y from "yjs";
+import { eq } from "drizzle-orm";
 import {
   OPTION_COLORS,
   t,
@@ -16,7 +15,7 @@ import {
 import type { Db } from "../db/index.js";
 import { attachments, databaseProperties, databaseViews, notionLinks, notionPropertyLinks, pages, users } from "../db/schema.js";
 import { attachmentPath, uploadsDir } from "../attachments.js";
-import { encodeContent, setProsemirrorJSON, writeContent, type Collab, type ProseMirrorNode } from "../collab.js";
+import { writeContent, type Collab } from "../collab.js";
 import { checkFormula, listProperties } from "../databases.js";
 import { nextPosition } from "../pages.js";
 import {

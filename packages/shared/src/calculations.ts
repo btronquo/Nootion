@@ -102,7 +102,7 @@ function numbers(values: CellValue[]) {
 }
 
 /** Computes a calculation over the values of a column (or of related rows, for rollups). */
-export function computeCalc(fn: CalcFunction, values: CellValue[], type: PropertyType): CalcResult | null {
+export function computeCalc(fn: CalcFunction, values: CellValue[], _type: PropertyType): CalcResult | null {
   const total = values.length;
   const filled = values.filter((v) => !isEmpty(v));
   const pct = (n: number): CalcResult => ({ kind: "percent", value: total ? (n / total) * 100 : 0 });

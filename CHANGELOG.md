@@ -53,6 +53,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Fixed
 
+- The export of the personal space was always named "Espace personnel", whatever the language.
+
 - Dragging inside a widget of a page (the map) up or down follows the pointer again: the block handle used to give
   the whole page a false pointer position while it was over a widget.
 - The handle left of a drawing, a widget or a database placed inside a to-do or a list stays on that block when the
@@ -86,6 +88,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - The user directory no longer gives every account's name and e-mail address to everyone: people see those they
   work with (members of their shared spaces, people of the pages shared with or by them). Someone else is added to
   a page or a space by typing their exact e-mail address. Administrators still see everyone.
+- Updated nodemailer (6 to 10), drizzle-orm and @fastify/static, which had known vulnerabilities. CI now runs
+  `pnpm audit` on what ships in the image, and Dependabot proposes updates every week.
 - "Link" cells refuse addresses that run code (`javascript:`, `data:`…) and only link web, mail and phone addresses.
 
 ## [3.3.0] - 2026-11-03
