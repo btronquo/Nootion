@@ -94,7 +94,8 @@ export function fakeNotion() {
       formula: { expression: "{{notion:block_property:pr:00000000-0000-0000-0000-000000000000:aaaa}} * 2" },
     },
     Label: { id: "lb", name: "Label", type: "formula", formula: { expression: 'prop("Name").upper()' } },
-    Weird: { id: "wd", name: "Weird", type: "formula", formula: { expression: 'prop("Tags").map(current.name).join(",")' } },
+    TagList: { id: "tl", name: "TagList", type: "formula", formula: { expression: 'prop("Tags").map(current.name).join(",")' } },
+    Weird: { id: "wd", name: "Weird", type: "formula", formula: { expression: 'link(prop("Name"), "https://example.org")' } },
     Link: { id: "ln", name: "Link", type: "url", url: {} },
     Created: { id: "cr", name: "Created", type: "created_time", created_time: {} },
     Button: { id: "bt", name: "Button", type: "button", button: {} },
@@ -112,6 +113,13 @@ export function fakeNotion() {
       name: "Total",
       type: "rollup",
       rollup: { relation_property_id: "tk", relation_property_name: "Tasks", rollup_property_id: "pr", rollup_property_name: "Price", function: "sum" },
+    },
+    // Notion 2: a column of the related pages, as Notion's API writes it.
+    Spent: {
+      id: "sp",
+      name: "Spent",
+      type: "formula",
+      formula: { expression: "{{notion:block_property:tk:00000000-0000-0000-0000-000000000000:aaaa}}.filter(current.{{notion:block_property:dn:00000000-0000-0000-0000-000000000000:aaaa}}).map(current.{{notion:block_property:pr:00000000-0000-0000-0000-000000000000:aaaa}}).sum()" },
     },
   };
   const database = (id: string, parent: unknown, title: string, properties: unknown, inline: boolean) => ({
@@ -158,7 +166,8 @@ export function fakeNotion() {
       Project: { id: "pj", type: "relation", relation: [{ id: IDS.house }], has_more: false },
       Double: { id: "db", type: "formula", formula: { type: "number", number: 240 } },
       Label: { id: "lb", type: "formula", formula: { type: "string", string: "BUY PAINT" } },
-      Weird: { id: "wd", type: "formula", formula: { type: "string", string: "paint,urgent" } },
+      TagList: { id: "tl", type: "formula", formula: { type: "string", string: "paint,urgent" } },
+      Weird: { id: "wd", type: "formula", formula: { type: "string", string: "Buy paint" } },
       Link: { id: "ln", type: "url", url: "https://example.org" },
       Created: { id: "cr", type: "created_time", created_time: "2024-01-03T09:00:00.000Z" },
     }),
