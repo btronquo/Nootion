@@ -12,6 +12,7 @@ import { avatarsDir, toPublicUser } from "../users.js";
 import { imageExtension } from "../images.js";
 import { clearSessionCookie, startSession } from "./session-cookie.js";
 import { passwordAllowed, ssoOnlyMessage } from "./sso.js";
+import { startTwoFactorChallenge } from "./two-factor.js";
 
 /** Wrong passwords allowed for one account before it has to wait. */
 const LOGIN_FAILURES_MAX = 20;
@@ -40,6 +41,11 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     if (user.disabled) throw new HttpError(403, "disabled", t("error.accountDisabled"));
     if (!passwordAllowed(app, user.role)) throw new HttpError(403, "sso_only", ssoOnlyMessage());
     failures.delete(input.email);
+    // The password alone is not enough: the code from the authenticator app comes next (POST /login/2fa).
+    if (user.totpSecret) {
+      startTwoFactorChallenge(app, reply, user.id);
+      return { twoFactorRequired: true };
+    }
     startSession(app, reply, user.id);
     return { user: toPublicUser(user) };
   });

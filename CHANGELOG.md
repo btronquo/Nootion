@@ -7,6 +7,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Two-factor authentication: in the account settings, signing in with a password can also ask for a 6-digit code
+  from an authenticator app (Microsoft Authenticator, Google Authenticator, 2FAS, Aegis…), set up by scanning a QR
+  code. Ten single-use recovery codes sign in when the phone is lost, and can be renewed. Administrators see who
+  has it on and can turn it off for someone who lost both. Signing in through SSO is not affected.
 - API tokens can read and write comments and set recurring templates, as [docs/API.md](docs/API.md) said they
   could: `/api/pages/:id/comments`, `/api/comments/…` and `/api/pages/:id/recurrence`. So can they change, pause and
   delete automations, list the icons and read and fill the inbox (with a token that reaches the personal space).

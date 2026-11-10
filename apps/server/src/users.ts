@@ -22,6 +22,7 @@ export function toPublicUser(u: UserRow): PublicUser {
     role: u.role,
     disabled: u.disabled,
     locale: isLocale(u.locale) ? u.locale : "en",
+    twoFactor: !!u.totpSecret,
     createdAt: u.createdAt.toISOString(),
   };
 }

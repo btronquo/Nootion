@@ -2,7 +2,17 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Monitor, Moon, Settings, Sun } from "lucide-react";
-import { AVATAR_MAX_BYTES, EMAIL_KINDS, t, type EmailKind, type EmailPrefs, type Locale, type PublicUser } from "@nootion/shared";
+import {
+  AVATAR_MAX_BYTES,
+  EMAIL_KINDS,
+  t,
+  type EmailKind,
+  type EmailPrefs,
+  type Locale,
+  type PublicUser,
+  type TwoFactorSetup,
+  type TwoFactorStatus,
+} from "@nootion/shared";
 import { api, ApiError } from "../lib/api";
 import { useSession } from "../lib/session";
 import { getTheme, setTheme, type ThemeChoice } from "../lib/theme";
@@ -43,6 +53,7 @@ export function AccountPage() {
       <ProfileSection user={user} />
       <EmailSection user={user} />
       <PasswordSection />
+      <TwoFactorSection />
       <LanguageSection user={user} />
       <ThemeSection />
       <EmailPrefsSection />
@@ -281,6 +292,185 @@ function PasswordSection() {
           <Saved show={saved} />
         </div>
       </form>
+    </Section>
+  );
+}
+
+/** Two-factor sign-in with an authenticator app, and the recovery codes for a lost phone. */
+function TwoFactorSection() {
+  const qc = useQueryClient();
+  const setMe = useSetMe();
+  const status = useQuery({ queryKey: ["2fa"], queryFn: () => api<TwoFactorStatus>("/auth/2fa") });
+  const [password, setPassword] = useState("");
+  const [setup, setSetup] = useState<TwoFactorSetup | null>(null);
+  const [code, setCode] = useState("");
+  const [codes, setCodes] = useState<string[] | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<unknown>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function run(fn: () => Promise<void>) {
+    setBusy(true);
+    setError(null);
+    try {
+      await fn();
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  }
+  const refreshStatus = () => qc.invalidateQueries({ queryKey: ["2fa"] });
+
+  const start = (e: FormEvent) => {
+    e.preventDefault();
+    void run(async () => {
+      setSetup(await api<TwoFactorSetup>("/auth/2fa/setup", { method: "POST", body: { password } }));
+      setPassword("");
+      setCode("");
+    });
+  };
+  const confirmCode = (e: FormEvent) => {
+    e.preventDefault();
+    void run(async () => {
+      const res = await api<{ user: PublicUser; recoveryCodes: string[] }>("/auth/2fa/enable", { method: "POST", body: { code } });
+      setMe(res.user);
+      setSetup(null);
+      setCodes(res.recoveryCodes);
+      await refreshStatus();
+    });
+  };
+  const newCodes = () =>
+    void run(async () => {
+      if (!confirm(t("twoFactor.newRecoveryHelp"))) return;
+      const res = await api<{ recoveryCodes: string[] }>("/auth/2fa/recovery-codes", { method: "POST", body: { password } });
+      setPassword("");
+      setCodes(res.recoveryCodes);
+      await refreshStatus();
+    });
+  const disable = () =>
+    void run(async () => {
+      const res = await api<{ user: PublicUser }>("/auth/2fa/disable", { method: "POST", body: { password } });
+      setPassword("");
+      setMe(res.user);
+      await refreshStatus();
+    });
+
+  if (!status.data) return null;
+  const passwordField = (
+    <Field
+      label={t("account.currentPassword")}
+      type="password"
+      value={password}
+      onChange={(e) => setPassword(e.target.value)}
+      required
+      autoComplete="current-password"
+    />
+  );
+
+  let body: ReactNode;
+  if (codes) {
+    body = (
+      <div className="space-y-3" data-recovery-codes>
+        <h3 className="font-semibold">{t("twoFactor.recoveryTitle")}</h3>
+        <p className="text-sm text-neutral-600 dark:text-neutral-400">{t("twoFactor.recoveryHelp")}</p>
+        <ul className="grid grid-cols-2 gap-x-6 gap-y-1 rounded-md border border-neutral-200 bg-neutral-50 p-3 font-mono text-sm sm:max-w-sm dark:border-neutral-800 dark:bg-neutral-900">
+          {codes.map((c) => (
+            <li key={c}>{c}</li>
+          ))}
+        </ul>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="ghost"
+            onClick={() => {
+              void navigator.clipboard?.writeText(codes.join("\n")).then(() => setCopied(true));
+            }}
+          >
+            {copied ? t("common.copied") : t("common.copy")}
+          </Button>
+          <Button
+            onClick={() => {
+              setCodes(null);
+              setCopied(false);
+            }}
+          >
+            {t("twoFactor.done")}
+          </Button>
+        </div>
+      </div>
+    );
+  } else if (setup) {
+    body = (
+      <form className="space-y-3" onSubmit={confirmCode}>
+        <p className="text-sm text-neutral-600 dark:text-neutral-400">{t("twoFactor.scan")}</p>
+        {/* White behind the code, so phones read it in dark mode too. */}
+        <img
+          src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(setup.qrSvg)}`}
+          alt={setup.otpauthUrl}
+          width={192}
+          height={192}
+          className="rounded-md bg-white p-2"
+        />
+        <p className="text-xs text-neutral-500">
+          {t("twoFactor.manualKey")}{" "}
+          <code className="break-all rounded bg-neutral-100 px-1 py-0.5 font-mono text-neutral-800 select-all dark:bg-neutral-800 dark:text-neutral-200">
+            {setup.secret.replace(/(.{4})/g, "$1 ").trim()}
+          </code>
+        </p>
+        <Field
+          label={t("twoFactor.code")}
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          required
+          autoFocus
+          autoComplete="one-time-code"
+          inputMode="numeric"
+          maxLength={8}
+        />
+        <ErrorText error={error} />
+        <div className="flex gap-2">
+          <Button type="submit" disabled={busy || !code.trim()}>
+            {t("twoFactor.confirm")}
+          </Button>
+          <Button type="button" variant="ghost" onClick={() => setSetup(null)}>
+            {t("common.cancel")}
+          </Button>
+        </div>
+      </form>
+    );
+  } else if (!status.data.enabled) {
+    body = (
+      <form className="space-y-3" onSubmit={start}>
+        <p className="text-sm text-neutral-600 dark:text-neutral-400">{t("twoFactor.intro")}</p>
+        <p className="text-sm">{t("twoFactor.off")}</p>
+        {passwordField}
+        <ErrorText error={error} />
+        <Button type="submit" disabled={busy || !password}>
+          {t("twoFactor.enable")}
+        </Button>
+      </form>
+    );
+  } else {
+    body = (
+      <form className="space-y-3" onSubmit={(e) => e.preventDefault()}>
+        <p className="text-sm text-green-700 dark:text-green-400">{t("twoFactor.on")}</p>
+        <p className="text-sm text-neutral-600 dark:text-neutral-400">{t("twoFactor.recoveryLeft", { count: status.data.recoveryCodesLeft })}</p>
+        {passwordField}
+        <ErrorText error={error} />
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" variant="ghost" disabled={busy || !password} onClick={newCodes}>
+            {t("twoFactor.newRecovery")}
+          </Button>
+          <Button type="button" variant="danger" disabled={busy || !password} onClick={disable} title={t("twoFactor.disableHelp")}>
+            {t("twoFactor.disable")}
+          </Button>
+        </div>
+      </form>
+    );
+  }
+  return (
+    <Section title={t("twoFactor.title")} id="two-factor">
+      {body}
     </Section>
   );
 }
