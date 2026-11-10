@@ -35,7 +35,7 @@ They go to:
 | Variable | Required | Description |
 |---|---|---|
 | `APP_URL` | yes | Address typed in the browser, without a trailing `/` (e.g. `http://<yourLocalIp>:3000` or `https://mynootion.example.com`). Used for invitation links, iCal links and CSRF protection: always open Nootion at this address. |
-| `APP_SECRET` | yes | Random string of at least 16 characters (`openssl rand -hex 32`). Generate it once and never change it: it encrypts the secrets kept in the database (plugin settings and accounts, the SSO client secret, the e-mail and backup passwords) and signs cookies. Changing it means typing those secrets again. The server refuses to start with the example value of `docker-compose.yml`. |
+| `APP_SECRET` | yes | Random string of at least 16 characters (`openssl rand -hex 32`). Generate it once and never change it: it encrypts the secrets kept in the database (plugin settings and accounts, the SSO client secret, the e-mail and backup passwords) and signs cookies. Changing it means typing those secrets again. With [`docker-compose.yml`](../docker-compose.yml), it is read from a `.env` file next to it (see [`.env.example`](../.env.example), which also gives the PowerShell command for Windows); Docker refuses to start without it, and the server refuses the examples of older versions of the file. |
 | `TZ` | no | Time zone (e.g. `Europe/Paris`). |
 | `PORT` | no | Port the server listens on inside the container (default `3000`). To change the port on the host, change `ports:` instead. |
 | `MAX_UPLOAD_MB` | no | Maximum size of an attached file, in MB (default `50`). |
@@ -64,7 +64,8 @@ not for data you care about).
 ```bash
 mkdir nootion && cd nootion
 curl -O https://raw.githubusercontent.com/btronquo/Nootion/main/docker-compose.yml
-# Edit APP_URL and APP_SECRET in docker-compose.yml (openssl rand -hex 32 gives a good secret), then:
+curl -o .env https://raw.githubusercontent.com/btronquo/Nootion/main/.env.example
+# Set APP_SECRET (openssl rand -hex 32) and APP_URL in .env, then:
 docker compose up -d
 ```
 
