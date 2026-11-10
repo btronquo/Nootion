@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { WORKSPACE_ROLES, type WorkspaceMember, type WorkspaceRole } from "@nootion/shared";
+import { PersonChooser } from "../components/PersonChooser";
 import { api } from "../lib/api";
 import { keys, useUserDirectory, useWorkspaces } from "../lib/queries";
 import { useSession } from "../lib/session";
@@ -101,14 +102,7 @@ export function WorkspacePage() {
               if (newUser) setMember.mutate({ userId: newUser, role: newRole });
             }}
           >
-            <Select className="min-w-0 flex-1" value={newUser} onChange={(e) => setNewUser(e.target.value)} aria-label={t("workspace.person")}>
-              <option value="">{t("workspace.addPerson")}</option>
-              {candidates.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.name} ({u.email})
-                </option>
-              ))}
-            </Select>
+            <PersonChooser candidates={candidates} value={newUser} onChange={setNewUser} placeholder={t("workspace.addPerson")} />
             <Select value={newRole} onChange={(e) => setNewRole(e.target.value as WorkspaceRole)} aria-label={t("admin.role")}>
               {WORKSPACE_ROLES.map((r) => (
                 <option key={r} value={r}>

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
-import { ADMIN, makeApp, setupAdmin } from "./helpers.js";
+import { ADMIN, Client, inviteUser, makeApp, setupAdmin } from "./helpers.js";
 
 let app: FastifyInstance;
 afterEach(async () => {
@@ -72,5 +72,41 @@ describe("sign-in", () => {
     // Other accounts aren't held up.
     const other = await app.inject({ method: "POST", url: "/api/auth/login", payload: { email: "x@example.com", password: "p" }, remoteAddress: "198.51.100.101" });
     expect(other.statusCode).toBe(401);
+  });
+});
+
+describe("user directory", () => {
+  it("lists the people one works with, not every account; others are found by their exact address", async () => {
+    app = await makeApp();
+    const boris = await setupAdmin(app);
+    const alice = await inviteUser(app, boris, { name: "Alice", email: "alice@example.com", password: "alice-password" });
+    const bob = await inviteUser(app, boris, { name: "Bob", email: "bob@example.com", password: "bob-password!" });
+    const carol = await inviteUser(app, boris, { name: "Carol", email: "carol@example.com", password: "carol-password" });
+    const names = async (c: Client) => (await c.get("/api/users")).json().users.map((u: { name: string }) => u.name);
+
+    // Administrators see everyone; a member alone sees only themselves.
+    expect(await names(boris)).toEqual(["Alice", "Bob", "Boris", "Carol"]);
+    expect(await names(alice)).toEqual(["Alice"]);
+    expect(JSON.stringify((await alice.get("/api/users")).json())).not.toContain("bob@example.com");
+
+    // Someone else is found by their exact address only.
+    expect((await alice.get("/api/users/lookup?email=bob")).statusCode).toBe(404);
+    expect((await alice.get("/api/users/lookup?email=nobody@example.com")).statusCode).toBe(404);
+    const found = (await alice.get("/api/users/lookup?email=Bob@Example.com")).json().user;
+    expect(found).toMatchObject({ name: "Bob", email: "bob@example.com" });
+    expect((await new Client(app).get("/api/users/lookup?email=bob@example.com")).statusCode).toBe(401);
+
+    // A shared space: its members see each other.
+    const team = (await alice.post("/api/workspaces", { name: "Équipe" })).json().workspace.id;
+    expect((await alice.put(`/api/workspaces/${team}/members`, { userId: found.id, role: "editor" })).statusCode).toBe(200);
+    expect(await names(alice)).toEqual(["Alice", "Bob"]);
+    expect(await names(bob)).toEqual(["Alice", "Bob"]);
+    expect(await names(carol)).toEqual(["Carol"]);
+
+    // A page shared with Carol: she sees the people of that page, and they see her.
+    const page = await alice.createPage(team, "Projet");
+    expect((await alice.put(`/api/pages/${page}/shares`, { userId: await carol.id(), role: "viewer" })).statusCode).toBe(200);
+    expect(await names(carol)).toEqual(["Alice", "Bob", "Carol"]);
+    expect(await names(bob)).toEqual(["Alice", "Bob", "Carol"]);
   });
 });

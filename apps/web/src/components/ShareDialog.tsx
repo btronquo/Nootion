@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, Globe, X } from "lucide-react";
 import { PAGE_ROLES, type PageDetail, type PageRole, type PageShare, type PublicLinkInfo } from "@nootion/shared";
+import { PersonChooser } from "./PersonChooser";
 import { api } from "../lib/api";
 import { useUserDirectory } from "../lib/queries";
 import { useSession } from "../lib/session";
@@ -54,14 +55,7 @@ export function ShareDialog({ page, onClose }: { page: PageDetail; onClose: () =
             if (newUser) setShare.mutate({ userId: newUser, role: newRole });
           }}
         >
-          <Select className="min-w-0 flex-1" value={newUser} onChange={(e) => setNewUser(e.target.value)} aria-label={t("workspace.person")}>
-            <option value="">{t("share.choosePerson")}</option>
-            {candidates.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name} ({u.email})
-              </option>
-            ))}
-          </Select>
+          <PersonChooser candidates={candidates} value={newUser} onChange={setNewUser} placeholder={t("share.choosePerson")} />
           <Select value={newRole} onChange={(e) => setNewRole(e.target.value as PageRole)} aria-label={t("share.access")}>
             {ROLES_DESC.map((r) => (
               <option key={r} value={r}>
