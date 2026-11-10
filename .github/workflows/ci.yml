@@ -27,6 +27,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
+      - run: pnpm lint
+      # Known vulnerabilities in what ships in the image. Development tools are left out.
+      - run: pnpm audit --prod --audit-level high
       # Text of attached PDFs and OCR of images, as in the Docker image.
       - run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends poppler-utils tesseract-ocr tesseract-ocr-fra tesseract-ocr-eng
       - run: pnpm test

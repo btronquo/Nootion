@@ -19,6 +19,11 @@ export const ssoSettingsInput = z.object({
     .array(z.string().trim().toLowerCase().min(3).max(200))
     .max(50)
     .default([]),
+  /**
+   * On: someone signing in for the first time gets the existing account that has their e-mail address. Safe when
+   * the provider only gives addresses it checked or handed out itself; off, such accounts keep their password.
+   */
+  linkByEmail: z.boolean().default(true),
   /** Off: only administrators can still sign in with a password. */
   passwordLogin: z.boolean().default(true),
   /** Sessions opened with SSO end after this, so that people removed at the provider lose access. */

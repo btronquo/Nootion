@@ -33,9 +33,34 @@ export const users = sqliteTable(
     scimExternalId: text("scim_external_id"),
     // The newest release this administrator said not to be told about again.
     dismissedUpdate: text("dismissed_update"),
+    // The release whose "What's new" this user last closed; "" for a new account, null for one from before 3.4.
+    seenVersion: text("seen_version").default(""),
+    // Two-factor sign-in: the authenticator app's secret (encrypted with APP_SECRET), null while it is off.
+    totpSecret: text("totp_secret"),
+    // A secret shown to the user but not confirmed with a code yet.
+    totpPending: text("totp_pending"),
+    // The last 30-second step a code was accepted for: a code works only once.
+    totpLastStep: integer("totp_last_step"),
+    // SHA-256 of the unused recovery codes.
+    recoveryCodes: text("recovery_codes", { mode: "json" }).$type<string[]>().notNull().default([]),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("users_email_unique").on(t.email)],
+);
+
+/** A password checked, waiting for the second factor: the cookie that finishes the sign-in. */
+export const loginChallenges = sqliteTable(
+  "login_challenges",
+  {
+    tokenHash: text("token_hash").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    // Wrong codes typed for it: past a few, the password has to be typed again.
+    attempts: integer("attempts").notNull().default(0),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    createdAt: createdAt(),
+  },
 );
 
 export const sessions = sqliteTable(
@@ -681,6 +706,15 @@ export const ssoSettings = sqliteTable("sso_settings", {
   secret: text("secret"),
   // SHA-256 of the SCIM token, or null when SCIM is off.
   scimTokenHash: text("scim_token_hash"),
+  updatedAt: integer("updated_at", { mode: "timestamp_ms" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+/** Choices administrators make for the whole server (one row, "default"): see InstanceSettings. */
+export const instanceSettings = sqliteTable("instance_settings", {
+  id: text("id").primaryKey(),
+  config: text("config", { mode: "json" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp_ms" })
     .notNull()
     .$defaultFn(() => new Date()),

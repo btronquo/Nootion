@@ -1,8 +1,10 @@
 import fs from "node:fs";
-import { randomUUID } from "node:crypto";
-import { and, eq } from "drizzle-orm";
-import * as Y from "yjs";
+import path from "node:path";
+import { createHash, randomUUID } from "node:crypto";
+import { eq } from "drizzle-orm";
 import {
+  CUSTOM_ICON_PREFIX,
+  ICON_MAX_BYTES,
   OPTION_COLORS,
   t,
   type NotionImportJob,
@@ -14,9 +16,11 @@ import {
   type SelectOption,
 } from "@nootion/shared";
 import type { Db } from "../db/index.js";
-import { attachments, databaseProperties, databaseViews, notionLinks, notionPropertyLinks, pages, users } from "../db/schema.js";
+import { attachments, customIcons, databaseProperties, databaseViews, notionLinks, notionPropertyLinks, pages, users } from "../db/schema.js";
+import { imageExtension } from "../images.js";
+import { iconsDir } from "../routes/icons.js";
 import { attachmentPath, uploadsDir } from "../attachments.js";
-import { encodeContent, setProsemirrorJSON, writeContent, type Collab, type ProseMirrorNode } from "../collab.js";
+import { writeContent, type Collab } from "../collab.js";
 import { checkFormula, listProperties } from "../databases.js";
 import { nextPosition } from "../pages.js";
 import {
@@ -46,6 +50,8 @@ export interface ImportOptions {
   parentId: string | null;
   userId: string;
   job: ImportJob;
+  /** Pages imported before are imported again even when they didn't change in Notion. */
+  refresh?: boolean;
   /** Progress lines for the server's log. */
   log?: (message: string, data?: Record<string, unknown>) => void;
 }
@@ -240,11 +246,11 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
   for (const id of ordered) {
     const item = items.get(id)!;
     const title = titleOf(item).slice(0, 500);
+    // Image icons are copied with the files, further down.
     const icon = emojiOf(item.kind === "database" ? item.database.icon : item.page.icon);
-    if ((item.kind === "database" ? item.database.icon : item.page.icon) && !icon) note("icon");
     const link = links.get(id);
     if (link) {
-      const changed = link.editedAt !== editedAt(item);
+      const changed = !!o.refresh || link.editedAt !== editedAt(item);
       if (changed) db.update(pages).set({ title, icon, updatedAt: new Date() }).where(eq(pages.id, link.pageId)).run();
       target.set(id, { id: link.pageId, title, isNew: false, changed });
       report[changed ? "updated" : "unchanged"]++;
@@ -364,10 +370,19 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
       mine.config = config;
     }
   }
-  const nameOf = (dbNotionId: string) => (notionPropId: string) => {
+  const propsOf = (dbNotionId: string) => {
     const d = items.get(dbNotionId);
-    if (d?.kind !== "database") return undefined;
-    return Object.values(d.database.properties).find((p) => p.id === notionPropId)?.name;
+    return d?.kind === "database" ? Object.values(d.database.properties) : [];
+  };
+  // A column of the database, or for current.prop(…) a column of a database it is related to.
+  const nameOf = (dbNotionId: string) => (notionPropId: string, related: boolean) => {
+    const own = propsOf(dbNotionId);
+    const sources = related ? [...own.flatMap((p) => (p.type === "relation" && p.relation ? [propsOf(normId(p.relation.database_id))] : [])), own] : [own];
+    for (const props of sources) {
+      const name = props.find((p) => p.id === notionPropId)?.name;
+      if (name !== undefined) return name;
+    }
+    return undefined;
   };
   for (const { database } of databases) {
     const key = normId(database.id);
@@ -502,11 +517,55 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
     return blocks;
   };
 
+  // Image icons become icons of the server, shared by everyone, as if uploaded; the same image is stored once.
+  const iconByHash = new Map<string, string>();
+  const hashOf = (data: Buffer) => createHash("sha256").update(data).digest("hex");
+  for (const known of db.select().from(customIcons).all()) {
+    try {
+      iconByHash.set(hashOf(fs.readFileSync(path.join(iconsDir(o.dataDir), path.basename(known.file)))), known.id);
+    } catch {
+      // A missing file: that icon can't be reused.
+    }
+  }
+  async function saveIcon(icon: NotionIcon, name: string): Promise<string | null> {
+    const raw =
+      icon?.type === "file" ? icon.file?.url : icon?.type === "external" ? icon.external?.url : icon?.type === "custom_emoji" ? icon.custom_emoji?.url : null;
+    if (!raw) return null;
+    let url: URL;
+    try {
+      url = new URL(raw, "https://www.notion.so");
+    } catch {
+      return null;
+    }
+    // Only from Notion's storage, like the other files.
+    if (!o.fileHosts(url)) return null;
+    const file = await client.download(url.href, ICON_MAX_BYTES);
+    const ext = file && imageExtension(file.data);
+    if (!file || !ext) return null;
+    const hash = hashOf(file.data);
+    const known = iconByHash.get(hash);
+    if (known) return CUSTOM_ICON_PREFIX + known;
+    const id = randomUUID();
+    fs.mkdirSync(iconsDir(o.dataDir), { recursive: true });
+    fs.writeFileSync(path.join(iconsDir(o.dataDir), id + ext), file.data);
+    db.insert(customIcons)
+      .values({ id, name: name.slice(0, 100) || t("icon.custom"), file: id + ext, createdBy: o.userId })
+      .run();
+    iconByHash.set(hash, id);
+    return CUSTOM_ICON_PREFIX + id;
+  }
+
   // Notion-hosted covers are copied (their links expire); image links and Notion's own gallery stay links.
   for (const [id, item] of items) {
     const page = target.get(id)!;
     const cover = item.kind === "database" ? item.database.cover : item.page.cover;
     if (!page.changed) continue;
+    const notionIcon = item.kind === "database" ? item.database.icon : item.page.icon;
+    if (notionIcon && notionIcon.type !== "emoji") {
+      const icon = await saveIcon(notionIcon, page.title);
+      if (icon) db.update(pages).set({ icon }).where(eq(pages.id, page.id)).run();
+      else note("icon");
+    }
     let value: string | null = null;
     if (cover?.type === "file" && cover.file?.url) value = (await saveFile(page.id, cover.file.url, fileName(cover.file.url)))?.url ?? null;
     else if (cover?.type === "external" && cover.external?.url) {

@@ -10,7 +10,7 @@ import { PAGE_DB_PREFIX } from "../lib/offline";
 import { useOnline } from "../lib/api";
 import { NodeSelection } from "@tiptap/pm/state";
 import { useQueryClient } from "@tanstack/react-query";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Bold, Code, Italic, Link as LinkIcon, MessageSquarePlus, Strikethrough, Underline } from "lucide-react";
 import type { PageDetail, PageSummary, UserDirectoryEntry } from "@nootion/shared";
 import { markSaved } from "../lib/saved";
@@ -127,6 +127,9 @@ function CollabEditor({
 }) {
   const { user } = useSession();
   const qc = useQueryClient();
+  const navigate = useNavigate();
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
   // Loaded ahead, for "@" mentions of people.
   useUserDirectory();
   const refreshPages = useRefreshPages();
@@ -204,7 +207,7 @@ function CollabEditor({
     {
       editable: canEdit,
       extensions: [
-        ...baseExtensions({ collaborative: true, plugins, pageId: page.id }),
+        ...baseExtensions({ collaborative: true, plugins, pageId: page.id, navigate: (path) => navigateRef.current(path) }),
         Collaboration.configure({ document: doc }),
         CollaborationCaret.configure({ provider, user: { name: user?.name ?? "?", color: colorFor(user?.id ?? "") } }),
         createSuggestionExtension("slashCommands", "/", slashItems(ctx), t("editor.noCommand")),

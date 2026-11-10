@@ -10,3 +10,18 @@ export interface UpdateStatus {
   /** The administrator asked not to be told about this version again. */
   dismissed: boolean;
 }
+
+/** One release of CHANGELOG.md. */
+export interface ReleaseNotes {
+  version: string;
+  /** "2026-11-03", or null when the changelog doesn't say. */
+  date: string | null;
+  /** The release's section of the changelog, in Markdown (### headings and lists). */
+  markdown: string;
+}
+
+/** The "What's new" window: the releases this user hasn't seen yet, newest first; empty when there is nothing new. */
+export interface WhatsNew {
+  version: string;
+  releases: ReleaseNotes[];
+}

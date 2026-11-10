@@ -27,6 +27,26 @@ export const loginInput = z.object({
 });
 export type LoginInput = z.infer<typeof loginInput>;
 
+/** The second step of signing in: a code from the authenticator app, or a recovery code. */
+export const twoFactorCodeInput = z.object({ code: z.string().trim().min(1).max(32) });
+
+/** Turning two-factor sign-in on or off, or new recovery codes, ask for the password again. */
+export const twoFactorPasswordInput = z.object({ password: z.string().min(1).max(256) });
+
+/** What the account page shows about two-factor sign-in. */
+export interface TwoFactorStatus {
+  enabled: boolean;
+  recoveryCodesLeft: number;
+}
+
+/** A secret to add to the authenticator app, before it is confirmed with a code. */
+export interface TwoFactorSetup {
+  secret: string;
+  otpauthUrl: string;
+  /** The same link as a QR code, in SVG. */
+  qrSvg: string;
+}
+
 export const createInvitationInput = z.object({
   email: emailSchema.optional(),
   role: z.enum(USER_ROLES).default("member"),
@@ -75,6 +95,8 @@ export interface PublicUser {
   disabled: boolean;
   /** Interface language. */
   locale: Locale;
+  /** Signing in with the password also asks for a code from an authenticator app. */
+  twoFactor: boolean;
   createdAt: string;
 }
 

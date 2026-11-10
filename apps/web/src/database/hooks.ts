@@ -73,6 +73,59 @@ export function useDatabaseActions(id: string) {
     onSettled: () => Promise.all([refresh(), qc.invalidateQueries({ queryKey: ["trash"] })]),
   });
 
+  /** A new row right after another one (null: first). */
+  const insertRow = useMutation({
+    mutationFn: ({ values = {}, after }: { values?: Record<string, CellValue>; after: string | null }) =>
+      api<RowResponse>(`/databases/${id}/rows`, { method: "POST", body: { values, after } }),
+    onSuccess: ({ row, related }, { after }) =>
+      patch((d) => {
+        const rows = d.rows.filter((r) => r.id !== row.id);
+        rows.splice(after === null ? 0 : rows.findIndex((r) => r.id === after) + 1, 0, row);
+        return { ...d, related: { ...d.related, ...related }, rows };
+      }),
+    onError: (err) => alert(err instanceof Error ? err.message : String(err)),
+  });
+
+  /** Copies a row right after it. */
+  const duplicateRow = useMutation({
+    mutationFn: (rowId: string) => api<RowResponse>(`/databases/${id}/rows/${rowId}/duplicate`, { method: "POST", body: {} }),
+    onSuccess: ({ row, related }, rowId) => {
+      patch((d) => {
+        const rows = [...d.rows];
+        rows.splice(rows.findIndex((r) => r.id === rowId) + 1, 0, row);
+        return { ...d, related: { ...d.related, ...related }, rows };
+      });
+      // Two-way relations show the copy in other databases.
+      return qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === "database" });
+    },
+    onError: (err) => alert(err instanceof Error ? err.message : String(err)),
+  });
+
+  /** Moves a row right after another one (null: first), in the manual order. */
+  const moveRow = useMutation({
+    mutationFn: ({ rowId, after }: { rowId: string; after: string | null }) => api(`/databases/${id}/rows/${rowId}/move`, { method: "POST", body: { after } }),
+    onMutate: ({ rowId, after }) =>
+      patch((d) => {
+        const row = d.rows.find((r) => r.id === rowId);
+        if (!row) return d;
+        const rows = d.rows.filter((r) => r.id !== rowId);
+        rows.splice(after === null ? 0 : rows.findIndex((r) => r.id === after) + 1, 0, row);
+        return { ...d, rows };
+      }),
+    onError: (err) => {
+      alert(err instanceof Error ? err.message : String(err));
+      return refresh();
+    },
+  });
+
+  /** A row's icon is its page's icon. */
+  const setRowIcon = useMutation({
+    mutationFn: ({ rowId, icon }: { rowId: string; icon: string | null }) => api(`/pages/${rowId}`, { method: "PATCH", body: { icon } }),
+    onMutate: ({ rowId, icon }) => patch((d) => ({ ...d, rows: d.rows.map((r) => (r.id === rowId ? { ...r, icon } : r)) })),
+    onSettled: refresh,
+    onError: (err) => alert(err instanceof Error ? err.message : String(err)),
+  });
+
   const addProperty = useMutation({
     mutationFn: (p: { name: string; type: PropertyType; config?: PropertyConfig; twoWay?: boolean }) =>
       api<{ property: DatabaseProperty }>(`/databases/${id}/properties`, { method: "POST", body: { config: {}, ...p } }),
@@ -122,7 +175,7 @@ export function useDatabaseActions(id: string) {
     onSettled: refresh,
   });
 
-  return { updateCell, addRow, deleteRows, addProperty, updateProperty, deleteProperty, updateView, createView, deleteView, refresh };
+  return { updateCell, addRow, insertRow, duplicateRow, moveRow, setRowIcon, deleteRows, addProperty, updateProperty, deleteProperty, updateView, createView, deleteView, refresh };
 }
 
 const VIEW_KEY = "nootion-view-";

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { isLocale, t, type Locale, type PublicUser, type UserRole } from "@nootion/shared";
+import { sql } from "drizzle-orm";
 import type { Db } from "./db/index.js";
 import { users, workspaceMembers, workspaces } from "./db/schema.js";
 import { hashPassword } from "./auth/password.js";
@@ -21,6 +22,7 @@ export function toPublicUser(u: UserRow): PublicUser {
     role: u.role,
     disabled: u.disabled,
     locale: isLocale(u.locale) ? u.locale : "en",
+    twoFactor: !!u.totpSecret,
     createdAt: u.createdAt.toISOString(),
   };
 }
@@ -42,4 +44,30 @@ export async function createUser(
     tx.insert(workspaceMembers).values({ workspaceId, userId: user.id, role: "owner" }).run();
     return user;
   });
+}
+
+/**
+ * Who a user sees in the directory: the people they work with, not every account of the server. That is the members
+ * of the shared spaces they belong to, the people their pages are shared with, and, for pages shared with them, the
+ * people of those pages (their space's members and the others they are shared with). Administrators see everyone (null).
+ */
+export function knownUserIds(db: Db, user: Pick<UserRow, "id" | "role">): Set<string> | null {
+  if (user.role === "admin") return null;
+  const ids = (rows: { id: string }[]) => rows.map((r) => r.id);
+  const known = new Set<string>([user.id]);
+  const add = (list: string[]) => list.forEach((id) => known.add(id));
+  // Spaces the user belongs to, and those of the pages shared with them.
+  const mine = ids(db.all<{ id: string }>(sql`SELECT workspace_id AS id FROM workspace_members WHERE user_id = ${user.id}`));
+  const guestOf = ids(
+    db.all<{ id: string }>(sql`SELECT DISTINCT p.workspace_id AS id FROM page_permissions pp JOIN pages p ON p.id = pp.page_id WHERE pp.user_id = ${user.id}`),
+  );
+  const spaces = [...new Set([...mine, ...guestOf])];
+  if (!spaces.length) return known;
+  const list = sql.join(
+    spaces.map((id) => sql`${id}`),
+    sql`, `,
+  );
+  add(ids(db.all<{ id: string }>(sql`SELECT DISTINCT user_id AS id FROM workspace_members WHERE workspace_id IN (${list})`)));
+  add(ids(db.all<{ id: string }>(sql`SELECT DISTINCT pp.user_id AS id FROM page_permissions pp JOIN pages p ON p.id = pp.page_id WHERE p.workspace_id IN (${list})`)));
+  return known;
 }

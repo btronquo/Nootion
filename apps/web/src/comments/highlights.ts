@@ -22,7 +22,6 @@ export function selectionAnchor(editor: Editor): { anchor: { start: string; end:
   const { from, to } = editor.state.selection;
   const b = binding(editor.state);
   if (from === to || !b) return null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rel = (pos: number) => absolutePositionToRelativePosition(pos, b.type, b.mapping as any);
   const encode = (rp: Y.RelativePosition) => toBase64(Y.encodeRelativePosition(rp));
   // Positions stick to the character before them: right for the end, so text typed after the passage stays out of it.
@@ -41,7 +40,6 @@ function resolve(state: EditorState, anchor: { start: string; end: string }) {
   const b = binding(state);
   if (!b) return null;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const abs = (text: string) => relativePositionToAbsolutePosition(b.doc, b.type, Y.decodeRelativePosition(fromBase64(text)), b.mapping as any);
     const from = abs(anchor.start);
     const to = abs(anchor.end);

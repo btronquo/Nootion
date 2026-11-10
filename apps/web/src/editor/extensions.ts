@@ -11,6 +11,7 @@ import {
   CalendarBlock,
   Callout,
   DateMention,
+  Drawing,
   Column,
   Columns,
   DatabaseBlock,
@@ -24,6 +25,8 @@ import {
 } from "./nodes";
 import { pluginNodes } from "../plugins/nodes";
 import { BlockAttributes } from "./blockAttrs";
+import { HandleTargets } from "./handleTargets";
+import { LinkClicks } from "./linkClicks";
 import { t } from "@nootion/shared";
 
 /** Extensions shared by the collaborative editor and the read-only public view. Keep both schemas identical. */
@@ -34,6 +37,8 @@ export function baseExtensions(opts: {
   publicToken?: string;
   /** The page being edited, for calendar feeds. */
   pageId?: string;
+  /** Opens a path of this site in the app, when a text link to it is clicked. */
+  navigate?: (path: string) => void;
 }): AnyExtension[] {
   return [
     StarterKit.configure({
@@ -60,11 +65,15 @@ export function baseExtensions(opts: {
     TableOfContents,
     DatabaseBlock.configure({ publicToken: opts.publicToken ?? null }),
     CalendarBlock.configure({ pageId: opts.pageId ?? null, publicToken: opts.publicToken ?? null }),
+    Drawing,
     ButtonBlock.configure({ pageId: opts.publicToken ? null : (opts.pageId ?? null) }),
     ...WIDGETS.map((w) => w.configure({ publicToken: opts.publicToken ?? null, pageId: opts.publicToken ? null : (opts.pageId ?? null) })),
     WidgetCommands,
-    ...pluginNodes(opts.plugins),
+    ...pluginNodes(opts.plugins, opts.publicToken ? null : (opts.pageId ?? null)),
     BlockAttributes,
+    HandleTargets,
+    // The read-only views keep the links' own behaviour (openOnClick above).
+    ...(opts.collaborative ? [LinkClicks.configure({ navigate: opts.navigate ?? null })] : []),
     Placeholder.configure({
       placeholder: ({ node }) => (node.type.name === "heading" ? t("editor.headingPlaceholder") : t("editor.placeholder")),
       // Only top-level blocks: with includeChildren, placeholders stay on lines the cursor has left.

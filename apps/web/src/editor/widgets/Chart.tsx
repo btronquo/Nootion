@@ -95,10 +95,10 @@ export function ChartView({ node, updateAttributes, editor, extension }: NodeVie
   const attrs = node.attrs as { databaseId: string | null; viewId: string | null; kind: Kind; groupBy: string | null; measure: string };
   const editable = editor.isEditable && !isPublic(extension);
   const settings = useSettings();
-  const { db, data, view, rows } = useViewRows(isPublic(extension) ? null : attrs.databaseId, attrs.viewId);
+  const { db, data, rows } = useViewRows(isPublic(extension) ? null : attrs.databaseId, attrs.viewId);
   const directory = useUserDirectory();
   const people = useMemo(() => Object.fromEntries((directory.data ?? []).map((u) => [u.id, u.name])), [directory.data]);
-  const props = data?.properties ?? [];
+  const props = useMemo(() => data?.properties ?? [], [data?.properties]);
   const groupProp = props.find((p) => p.id === attrs.groupBy) ?? props.find((p) => p.type === "select") ?? props.find((p) => GROUPABLE.includes(p.type));
   const numberProp = props.find((p) => p.id === attrs.measure);
   const list = useMemo(

@@ -1,0 +1,73 @@
+{
+  "id": "map",
+  "name": { "en": "Map", "fr": "Carte" },
+  "version": "1.0.0",
+  "description": {
+    "en": "Shows the rows of a database as pins on a map (OpenStreetMap), from their coordinates: places to visit, addresses, trips… Add a place by searching an address or by clicking on the map, and see what is near you or near a town. Command \"/map\", and a \"Place\" column type.",
+    "fr": "Affiche les lignes d'une base comme des épingles sur une carte (OpenStreetMap), d'après leurs coordonnées : lieux à visiter, adresses, voyages… Ajoutez un lieu en cherchant une adresse ou d'un clic sur la carte, et voyez ce qui est proche de vous ou d'une ville. Commande « /carte », et un type de colonne « Lieu »."
+  },
+  "author": "Nootion",
+  "server": "server.js",
+  "client": "client.js",
+  "blocks": [
+    {
+      "id": "map",
+      "title": { "en": "Map", "fr": "Carte" },
+      "description": { "en": "Places of a database, as pins on a map", "fr": "Les lieux d'une base, en épingles sur une carte" },
+      "icon": "🗺️",
+      "keywords": {
+        "en": "map pins places location gps travel openstreetmap",
+        "fr": "carte map épingles lieux endroits gps voyage plan openstreetmap"
+      },
+      "defaultData": {}
+    }
+  ],
+  "propertyTypes": [
+    {
+      "id": "place",
+      "name": { "en": "Place", "fr": "Lieu" },
+      "description": { "en": "Coordinates, found from an address", "fr": "Des coordonnées, trouvées d'après une adresse" },
+      "icon": "📍"
+    }
+  ],
+  "settings": [
+    {
+      "key": "tileUrl",
+      "label": { "en": "Map tiles", "fr": "Fond de carte" },
+      "type": "text",
+      "default": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+      "help": {
+        "en": "Address of the map's images, with {z}, {x} and {y}. By default OpenStreetMap's, free for light use.",
+        "fr": "Adresse des images de la carte, avec {z}, {x} et {y}. Par défaut celles d'OpenStreetMap, libres pour un usage léger."
+      }
+    },
+    {
+      "key": "tileAttribution",
+      "label": { "en": "Map credit", "fr": "Crédit de la carte" },
+      "type": "text",
+      "help": {
+        "en": "Shown in a corner of the map (required by most map providers). Empty: OpenStreetMap's.",
+        "fr": "Affiché dans un coin de la carte (exigé par la plupart des fournisseurs). Vide : celui d'OpenStreetMap."
+      }
+    },
+    {
+      "key": "geocoderUrl",
+      "label": { "en": "Address search (Nominatim)", "fr": "Recherche d'adresse (Nominatim)" },
+      "type": "text",
+      "default": "https://nominatim.openstreetmap.org",
+      "help": {
+        "en": "A Nominatim server. OpenStreetMap's is free, one search a second at most: Nootion keeps to it.",
+        "fr": "Un serveur Nominatim. Celui d'OpenStreetMap est gratuit, une recherche par seconde au plus : Nootion s'y tient."
+      }
+    },
+    {
+      "key": "contactEmail",
+      "label": { "en": "Contact email for the address search", "fr": "E-mail de contact pour la recherche d'adresse" },
+      "type": "text",
+      "help": {
+        "en": "Optional: sent to the Nominatim server, as its rules ask of heavy users, so they can reach you.",
+        "fr": "Facultatif : envoyé au serveur Nominatim, comme ses règles le demandent aux gros utilisateurs, pour vous joindre."
+      }
+    }
+  ]
+}

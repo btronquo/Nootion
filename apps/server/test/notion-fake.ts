@@ -94,7 +94,8 @@ export function fakeNotion() {
       formula: { expression: "{{notion:block_property:pr:00000000-0000-0000-0000-000000000000:aaaa}} * 2" },
     },
     Label: { id: "lb", name: "Label", type: "formula", formula: { expression: 'prop("Name").upper()' } },
-    Weird: { id: "wd", name: "Weird", type: "formula", formula: { expression: 'prop("Tags").map(current.name).join(",")' } },
+    TagList: { id: "tl", name: "TagList", type: "formula", formula: { expression: 'prop("Tags").map(current.name).join(",")' } },
+    Weird: { id: "wd", name: "Weird", type: "formula", formula: { expression: 'link(prop("Name"), "https://example.org")' } },
     Link: { id: "ln", name: "Link", type: "url", url: {} },
     Created: { id: "cr", name: "Created", type: "created_time", created_time: {} },
     Button: { id: "bt", name: "Button", type: "button", button: {} },
@@ -112,6 +113,13 @@ export function fakeNotion() {
       name: "Total",
       type: "rollup",
       rollup: { relation_property_id: "tk", relation_property_name: "Tasks", rollup_property_id: "pr", rollup_property_name: "Price", function: "sum" },
+    },
+    // Notion 2: a column of the related pages, as Notion's API writes it.
+    Spent: {
+      id: "sp",
+      name: "Spent",
+      type: "formula",
+      formula: { expression: "{{notion:block_property:tk:00000000-0000-0000-0000-000000000000:aaaa}}.filter(current.{{notion:block_property:dn:00000000-0000-0000-0000-000000000000:aaaa}}).map(current.{{notion:block_property:pr:00000000-0000-0000-0000-000000000000:aaaa}}).sum()" },
     },
   };
   const database = (id: string, parent: unknown, title: string, properties: unknown, inline: boolean) => ({
@@ -158,7 +166,8 @@ export function fakeNotion() {
       Project: { id: "pj", type: "relation", relation: [{ id: IDS.house }], has_more: false },
       Double: { id: "db", type: "formula", formula: { type: "number", number: 240 } },
       Label: { id: "lb", type: "formula", formula: { type: "string", string: "BUY PAINT" } },
-      Weird: { id: "wd", type: "formula", formula: { type: "string", string: "paint,urgent" } },
+      TagList: { id: "tl", type: "formula", formula: { type: "string", string: "paint,urgent" } },
+      Weird: { id: "wd", type: "formula", formula: { type: "string", string: "Buy paint" } },
       Link: { id: "ln", type: "url", url: "https://example.org" },
       Created: { id: "cr", type: "created_time", created_time: "2024-01-03T09:00:00.000Z" },
     }),
@@ -200,6 +209,11 @@ export function fakeNotion() {
     block("b6", "toggle", { rich_text: [rt("More")] }, [block("b6a", "paragraph", { rich_text: [rt("Hidden text")] })]),
     block("b6b", "heading_2", { rich_text: [rt("Folded")], is_toggleable: true }, [block("b6c", "paragraph", { rich_text: [rt("Under the heading")] })]),
     block("b7", "callout", { rich_text: [rt("Careful")], icon: { type: "emoji", emoji: "⚠️" } }),
+    // A callout used as a box: no text of its own, no icon, a heading and links inside.
+    block("b7b", "callout", { rich_text: [], icon: null }, [
+      block("b7c", "heading_2", { rich_text: [rt("Boxed")] }),
+      block("b7d", "bulleted_list_item", { rich_text: [rt("in the box")] }),
+    ]),
     block("b8", "code", { rich_text: [rt("let x = 1;")], language: "javascript" }),
     block("b9", "quote", { rich_text: [rt("Quoted")] }),
     block("b10", "divider", {}),
@@ -246,7 +260,7 @@ export function fakeNotion() {
     };
     if (url.pathname === "/files/pic.png") {
       res.writeHead(200, { "content-type": "image/png" });
-      return res.end(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+      return res.end(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]));
     }
     if (req.headers.authorization !== "Bearer secret_good_token") return send(401, { code: "unauthorized", message: "API token is invalid." });
     const p = url.pathname;
@@ -265,7 +279,7 @@ export function fakeNotion() {
               external: { url: "/images/page-cover/gradients_8.png" },
             }),
             database(IDS.tasks, { type: "page_id", page_id: IDS.home }, "Tasks", tasksSchema, true),
-            database(IDS.projects, { type: "workspace", workspace: true }, "Projects", projectsSchema, false),
+            { ...database(IDS.projects, { type: "workspace", workspace: true }, "Projects", projectsSchema, false), icon: { type: "file", file: { url: `${base}/files/pic.png?icon=1` } } },
             wiki(),
             ...tasksRows(),
           ],

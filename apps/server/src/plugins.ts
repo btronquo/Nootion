@@ -1,4 +1,5 @@
 import { decryptSecret, encryptSecret, secretKey } from "./secrets.js";
+import { isPrivateAddress, outboundRequest } from "./net.js";
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -30,6 +31,20 @@ import { attachmentPath, uploadsDir } from "./attachments.js";
 import { HttpError, notFound, unauthorized } from "./http.js";
 import { getPageRole, requirePageRole } from "./permissions.js";
 import { t } from "@nootion/shared";
+
+/** Files a plugin may ship in its assets/ folder, by extension. */
+const ASSET_TYPES: Record<string, string> = {
+  ".js": "text/javascript; charset=utf-8",
+  ".mjs": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".woff2": "font/woff2",
+};
 
 /** Built-in plugins ship next to the server code (src/ in dev, dist/ in the image). */
 export function builtinPluginsDir(): string {
@@ -107,6 +122,11 @@ export interface ServerPluginApi {
   redirect: (url: string) => PluginRedirect;
   /** Address of Nootion as people open it (APP_URL), without a trailing slash. */
   appUrl: string;
+  /**
+   * For addresses people type: `request(url, { maxRedirects, maxBytes, allowPrivate… })` is an http(s) request that
+   * refuses the server's own network (it throws) unless `allowPrivate` is set; `isPrivateAddress(ip)` tells such addresses.
+   */
+  net: { request: typeof outboundRequest; isPrivateAddress: typeof isPrivateAddress };
   /**
    * Calls Nootion's API as a user, with their rights (as if they had made the request): request(userId, "POST",
    * "/databases/<id>/query", { limit: 100 }). Resolves with the JSON answer; throws an HttpError on an error.
@@ -313,6 +333,7 @@ export class PluginManager {
       binary: (data, contentType) => new PluginBinary(data, contentType),
       redirect: (url) => new PluginRedirect(url),
       appUrl: this.opts.appUrl,
+      net: { request: outboundRequest, isPrivateAddress },
       request: async (userId, method, apiPath, body) => {
         if (!apiPath.startsWith("/")) throw new Error('An API path starts with "/".');
         const res = await this.opts.inject(userId, method, apiPath, body);
@@ -509,6 +530,26 @@ export class PluginManager {
     const p = this.installed.get(id);
     if (!p?.runtime || !p.manifest.client) return null;
     return this.resolveFile(p.dir, p.manifest.client);
+  }
+
+  /**
+   * A static file of an enabled plugin's `assets/` folder (a library, a stylesheet, images…), with its content type;
+   * null when there is none or the type isn't one served.
+   */
+  assetFile(id: string, rest: string): { file: string; contentType: string } | null {
+    const p = this.installed.get(id);
+    if (!p?.runtime) return null;
+    const contentType = ASSET_TYPES[path.extname(rest).toLowerCase()];
+    if (!contentType) return null;
+    const root = path.join(p.dir, "assets");
+    const file = path.resolve(root, rest);
+    if (!file.startsWith(root + path.sep)) return null;
+    try {
+      if (!fs.statSync(file).isFile()) return null;
+    } catch {
+      return null;
+    }
+    return { file, contentType };
   }
 
   /** Serves /api/plugins/<id>/<path> from the plugin's routes. */

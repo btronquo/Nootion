@@ -7,13 +7,14 @@ import { DatabaseBlockView } from "../database/DatabaseBlockView";
 import { CalendarBlockView } from "../database/CalendarBlockView";
 import { DateMentionView } from "./DateMentionView";
 import { ButtonBlockView } from "./ButtonBlockView";
+import { DrawingBlockView } from "./DrawingBlockView";
 import { TableOfContentsView } from "./TableOfContentsView";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { DatabaseRowsView, FavoritesListView, RecentPagesView, UpcomingEventsView } from "./HomeWidgets";
 import { ChartView } from "./widgets/Chart";
 import { ClockView, CountdownView, PomodoroView, ProgressView } from "./widgets/Time";
 import { CarouselView, HabitView, QuoteView, WeatherView } from "./widgets/Extra";
-import { intlLocale, reminderTime, t } from "@nootion/shared";
+import { DRAWING_DEFAULT_HEIGHT, drawingHeight, intlLocale, reminderTime, t } from "@nootion/shared";
 import { formatMentionDate } from "../lib/reminders";
 import { randomId } from "../lib/browser";
 
@@ -28,23 +29,24 @@ declare module "@tiptap/core" {
     toggle: { insertToggle: (level?: 1 | 2 | 3) => ReturnType };
     columns: { insertColumns: (count: number) => ReturnType };
     buttonBlock: { insertButton: () => ReturnType };
+    drawing: { insertDrawing: () => ReturnType };
     dateMention: { insertDate: (attrs: { date: string; reminder?: number | null; remindUser?: string | null }) => ReturnType };
     userMention: { insertUserMention: (attrs: { userId: string; name: string; by: string | null }) => ReturnType };
     tableOfContents: { insertTableOfContents: () => ReturnType };
   }
 }
 
-/** Highlighted block with an emoji, like Notion's callout. */
+/** Highlighted block with an emoji (or none), like Notion's callout. It can hold any blocks, as Notion's boxes do. */
 export const Callout = Node.create({
   name: "callout",
   group: "block",
-  content: "paragraph+",
+  content: "block+",
   defining: true,
   addAttributes() {
     return { emoji: { default: "💡" } };
   },
   parseHTML() {
-    return [{ tag: "div[data-callout]", getAttrs: (el) => ({ emoji: (el as HTMLElement).dataset.emoji || "💡" }) }];
+    return [{ tag: "div[data-callout]", getAttrs: (el) => ({ emoji: (el as HTMLElement).dataset.emoji ?? "💡" }) }];
   },
   renderHTML({ node, HTMLAttributes }) {
     return ["div", mergeAttributes(HTMLAttributes, { "data-callout": "", "data-emoji": node.attrs.emoji, class: "callout" }), 0];
@@ -78,9 +80,11 @@ export const FileAttachment = Node.create({
   },
   renderHTML({ node }) {
     const { url, name, size } = node.attrs;
+    // Files of this server or web addresses only: what other people wrote in the page never becomes a link that runs code.
+    const href = typeof url === "string" && /^(\/api\/(attachments|public)\/|https?:\/\/)/i.test(url) ? `${url}?download` : undefined;
     return [
       "a",
-      { "data-file": "", class: "file-attachment", href: url ? `${url}?download` : undefined, target: "_blank", rel: "noopener" },
+      { "data-file": "", class: "file-attachment", href, target: "_blank", rel: "noopener" },
       `📎 ${name} · ${formatSize(size)}`,
     ];
   },
@@ -672,6 +676,57 @@ export const TableOfContents = Node.create({
         () =>
         ({ commands }) =>
           commands.insertContent([{ type: this.name }, { type: "paragraph" }]),
+    };
+  },
+});
+
+/**
+ * A drawing: freehand strokes and shapes, kept in the block (see DrawingStroke). It opens as a full-screen
+ * whiteboard, where the canvas has no edges.
+ */
+export const Drawing = Node.create({
+  name: "drawing",
+  group: "block",
+  atom: true,
+  draggable: true,
+  selectable: true,
+  addAttributes() {
+    return {
+      strokes: {
+        default: [],
+        parseHTML: (el) => {
+          try {
+            const v = JSON.parse(el.dataset.strokes ?? "[]") as unknown;
+            return Array.isArray(v) ? v : [];
+          } catch {
+            return [];
+          }
+        },
+        renderHTML: (attrs) => ({ "data-strokes": JSON.stringify(attrs.strokes ?? []) }),
+      },
+      height: {
+        default: DRAWING_DEFAULT_HEIGHT,
+        parseHTML: (el) => drawingHeight(el.dataset.height),
+        renderHTML: (attrs) => ({ "data-height": String(attrs.height ?? DRAWING_DEFAULT_HEIGHT) }),
+      },
+    };
+  },
+  parseHTML() {
+    return [{ tag: "div[data-drawing]" }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ["div", mergeAttributes(HTMLAttributes, { "data-drawing": "" }), `🖌️ ${t("drawing.title")}`];
+  },
+  addNodeView() {
+    // The drawing handles its own pointer and keyboard events; only drags (of the whole block) go to the editor.
+    return ReactNodeViewRenderer(DrawingBlockView, { stopEvent: ({ event }) => !event.type.startsWith("drag") });
+  },
+  addCommands() {
+    return {
+      insertDrawing:
+        () =>
+        ({ commands }) =>
+          commands.insertContent([{ type: this.name, attrs: { strokes: [], height: DRAWING_DEFAULT_HEIGHT } }, { type: "paragraph" }]),
     };
   },
 });

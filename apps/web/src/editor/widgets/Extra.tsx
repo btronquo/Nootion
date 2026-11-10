@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { NodeViewProps } from "@tiptap/react";
-import { NodeViewWrapper } from "@tiptap/react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, CloudSun, Flame, Grid3x3, ImagePlus, Images, MessageSquareQuote, Shuffle, Trash2, Upload } from "lucide-react";
 import { currentLocale, intlLocale, localDay, t } from "@nootion/shared";
