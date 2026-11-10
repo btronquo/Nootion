@@ -7,6 +7,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- API tokens can read and write comments and set recurring templates, as [docs/API.md](docs/API.md) said they
+  could: `/api/pages/:id/comments`, `/api/comments/…` and `/api/pages/:id/recurrence`.
+- Plugins get `nootion.net.request`, an http(s) request that refuses the server's own network unless allowed.
 - "What's new" window: after an update, each person sees the release notes of the versions they haven't seen yet,
   once, taken from this changelog (shipped in the image, so it works without internet access). New accounts don't
   get it, nor development builds.
@@ -64,6 +67,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - A personal API token limited to some spaces could list the pages of the user's other spaces through
   `GET /api/pages/all` and `GET /api/pages/graph`. Both now stay within the token's spaces.
 - The server refuses to start in production with the example `APP_SECRET` of `docker-compose.yml`.
+- Single sign-on: an e-mail address the provider marks as not verified no longer links an existing account or makes
+  a new one. Linking existing accounts by their address is now a setting of the SSO administration (on by default),
+  with a warning about when to turn it off. The page opened after signing in is checked more strictly.
+- Security headers on every answer (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, HSTS over
+  HTTPS) and a Content-Security-Policy for the interface: only scripts served by Nootion run. Public pages and forms
+  can still be shown inside another site. `CONTENT_SECURITY_POLICY=off` leaves the policy out.
+- `X-Forwarded-*` headers are only believed from a reverse proxy on the server itself or its private network, so a
+  visitor can't choose the address the sign-in limit counts. `TRUST_PROXY` changes this (see
+  [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)).
+- An account that got twenty wrong passwords in fifteen minutes has to wait, wherever the attempts come from.
+- The user directory no longer gives every account's name and e-mail address to everyone: people see those they
+  work with (members of their shared spaces, people of the pages shared with or by them). Someone else is added to
+  a page or a space by typing their exact e-mail address. Administrators still see everyone.
+- "Link" cells refuse addresses that run code (`javascript:`, `data:`…) and only link web, mail and phone addresses.
 
 ## [3.3.0] - 2026-11-03
 
