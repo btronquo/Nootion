@@ -25,7 +25,12 @@ export type Parent =
   | { type: "database_id"; database_id: string }
   | { type: "block_id"; block_id: string };
 
-export type NotionIcon = { type: "emoji"; emoji: string } | { type: "external"; external: { url: string } } | { type: "file"; file: { url: string } } | null;
+export type NotionIcon =
+  | { type: "emoji"; emoji: string }
+  | { type: "external"; external: { url: string } }
+  | { type: "file"; file: { url: string } }
+  | { type: "custom_emoji"; custom_emoji: { url: string; name?: string } }
+  | null;
 
 export interface NotionPage {
   object: "page";

@@ -151,12 +151,14 @@ async function convertBlock(block: BlockTree, ctx: ConvertContext): Promise<Pros
       return [{ type: "blockquote", content: [paragraph(inline()), ...(await children())] }];
     }
     case "callout": {
-      const icon = data.icon as { type: string; emoji?: string } | null;
+      const icon = data.icon as { type: string; emoji?: string } | null | undefined;
+      // A callout without an icon stays without one; an image icon becomes the default emoji.
+      const emoji = !icon ? "" : icon.type === "emoji" && icon.emoji ? icon.emoji : "💡";
+      // Its first line is its own text, left out when empty and followed by other blocks (Notion's callouts used as boxes).
+      const own = inline();
       const nested = await children();
-      // A callout holds paragraphs only: other blocks follow it.
-      const paragraphs = nested.filter((n) => n.type === "paragraph");
-      const rest = nested.filter((n) => n.type !== "paragraph");
-      return [{ type: "callout", attrs: { emoji: icon?.type === "emoji" ? icon.emoji : "💡" }, content: [paragraph(inline()), ...paragraphs] }, ...rest];
+      const content = own.length || !nested.length ? [paragraph(own), ...nested] : nested;
+      return [{ type: "callout", attrs: { emoji }, content }];
     }
     case "code": {
       const code = plainText(data.rich_text);

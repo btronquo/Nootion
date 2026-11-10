@@ -202,15 +202,25 @@ body {
 .nootion-content img.ProseMirror-selectednode {
   @apply outline-2 outline-blue-500;
 }
+/* The emoji sits in the left margin; the blocks of the callout go one under the other. */
 .nootion-content .callout {
-  @apply flex gap-3 rounded-lg bg-neutral-100 p-4 dark:bg-neutral-800;
+  @apply relative rounded-lg bg-neutral-100 py-4 pr-4 pl-12 dark:bg-neutral-800;
+}
+.nootion-content .callout[data-emoji=""] {
+  @apply pl-4;
 }
 .nootion-content .callout::before {
   content: attr(data-emoji);
-  @apply text-xl leading-7;
+  @apply absolute top-4 left-4 text-xl leading-7;
 }
-.nootion-content .callout > * {
-  @apply flex-1;
+.nootion-content .callout > :first-child {
+  @apply mt-0;
+}
+.nootion-content .callout > :last-child {
+  @apply mb-0;
+}
+.nootion-content .callout > * + * {
+  @apply mt-2;
 }
 .nootion-content [data-type="details"] {
   @apply my-1 flex gap-1;

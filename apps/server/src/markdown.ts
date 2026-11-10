@@ -104,7 +104,7 @@ function block(n: ProseMirrorNode, links: MarkdownLinks): string {
         .map((l) => (l ? `> ${l}` : ">"))
         .join("\n");
     case "callout":
-      return `${n.attrs?.emoji ?? "💡"} ${children()}`
+      return `${n.attrs?.emoji === "" ? "" : `${n.attrs?.emoji ?? "💡"} `}${children()}`
         .split("\n")
         .map((l) => (l ? `> ${l}` : ">"))
         .join("\n");

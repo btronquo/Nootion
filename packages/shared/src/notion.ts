@@ -7,6 +7,8 @@ export const notionImportInput = z.object({
   token: z.string().trim().min(10).max(200).optional(),
   /** Page of the space under which Notion's top-level pages go; the root of the space when left out. */
   parentId: z.string().min(1).nullable().optional(),
+  /** Pages already imported are imported again even when unchanged in Notion (to get what a newer Nootion imports better). */
+  refresh: z.boolean().optional(),
 });
 export type NotionImportInput = z.infer<typeof notionImportInput>;
 
