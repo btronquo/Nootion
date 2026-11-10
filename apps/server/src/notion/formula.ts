@@ -1,7 +1,9 @@
 /**
  * Translates a Notion formula (versions 1 and 2) into Nootion's formula language.
  * Method calls such as prop("Name").length() become length(prop("Name")); function names that differ are renamed.
- * Throws when the formula uses something Nootion doesn't have (lists, let, map…): the importer then keeps its values.
+ * Lists, let() / lets(), map() / filter()… with current and index, and current.prop("…") are kept as they are:
+ * Nootion's formulas have them too.
+ * Throws when the formula uses something Nootion doesn't have (email(), link()…): the importer then keeps its values.
  */
 
 type Node =
@@ -9,6 +11,8 @@ type Node =
   | { k: "str"; v: string }
   | { k: "bool"; v: boolean }
   | { k: "prop"; name: string }
+  | { k: "var"; name: string }
+  | { k: "list"; items: Node[] }
   | { k: "call"; name: string; args: Node[] }
   | { k: "unary"; op: string; arg: Node }
   | { k: "binary"; op: string; left: Node; right: Node }
@@ -144,13 +148,21 @@ function parse(src: string): Node {
       expect(")");
       return inner;
     }
-    if (isOp("[")) throw new FormulaTranslationError("lists");
+    if (isOp("[")) {
+      pos++;
+      const items: Node[] = [];
+      if (!isOp("]")) {
+        do items.push(ternary());
+        while (isOp(",") && ++pos);
+      }
+      expect("]");
+      return { k: "list", items };
+    }
     if (tok.t === "id") {
       pos++;
       if (tok.v === "true" || tok.v === "false") return { k: "bool", v: tok.v === "true" };
-      if (tok.v === "e" && !isOp("(")) return { k: "num", v: String(Math.E) };
-      if (tok.v === "pi" && !isOp("(")) return { k: "num", v: String(Math.PI) };
-      if (!isOp("(")) throw new FormulaTranslationError(`unknown name "${tok.v}"`);
+      // current, index, a let() variable, or the constants e and pi: Nootion checks them.
+      if (!isOp("(")) return { k: "var", name: tok.v };
       const list = args();
       if (tok.v === "prop") {
         if (list.length !== 1 || list[0]!.k !== "str") throw new FormulaTranslationError("prop() needs a column name");
@@ -189,41 +201,11 @@ const OPERATOR_FUNCTIONS: Record<string, string> = {
   smaller: "<",
   smallerEq: "<=",
 };
-// Functions Nootion doesn't have.
-const UNSUPPORTED = new Set([
-  "let",
-  "lets",
-  "map",
-  "filter",
-  "find",
-  "findIndex",
-  "some",
-  "every",
-  "sort",
-  "reverse",
-  "unique",
-  "flat",
-  "at",
-  "first",
-  "last",
-  "split",
-  "match",
-  "test",
-  "id",
-  "link",
-  "week",
-  "fromTimestamp",
-  "includes",
-  "repeat",
-  "padStart",
-  "padEnd",
-  "sign",
-  "cbrt",
-  "exp",
-  "ln",
-  "log10",
-  "log2",
-]);
+// Functions Nootion doesn't have: people's emails, and links (formula results are plain values).
+const UNSUPPORTED = new Set(["email", "link"]);
+
+/** Notion's replace() and replaceAll() take regular expressions; Nootion's take plain text. */
+const REGEX_CHARS = /[\\^$.*+?()[\]{}|]/;
 
 function call(name: string, args: Node[]): Node {
   if (UNSUPPORTED.has(name)) throw new FormulaTranslationError(`${name}()`);
@@ -234,6 +216,9 @@ function call(name: string, args: Node[]): Node {
   if (name === "unaryMinus" && args.length === 1) return { k: "unary", op: "-", arg: args[0]! };
   if (name === "unaryPlus" && args.length === 1) return args[0]!;
   if (name === "not" && args.length === 1) return { k: "unary", op: "!", arg: args[0]! };
+  if ((name === "replace" || name === "replaceAll") && args.length === 3 && !(args[1]!.k === "str" && !REGEX_CHARS.test(args[1]!.v))) {
+    return { k: "call", name: `${name}Regex`, args };
+  }
   const op = OPERATOR_FUNCTIONS[name];
   if (op && args.length === 2) return { k: "binary", op, left: args[0]!, right: args[1]! };
   return { k: "call", name: RENAMED[name] ?? name, args };
@@ -251,7 +236,14 @@ function print(n: Node): string {
       return String(n.v);
     case "prop":
       return `prop(${quote(n.name)})`;
+    case "var":
+      return n.name;
+    case "list":
+      return `[${n.items.map(print).join(", ")}]`;
     case "call":
+      // A column of a related page reads better as current.prop("Price").
+      if (n.name === "prop" && n.args.length === 2)
+        return `${n.args[0]!.k === "var" || n.args[0]!.k === "call" ? print(n.args[0]!) : `(${print(n.args[0]!)})`}.prop(${print(n.args[1]!)})`;
       return `${n.name}(${n.args.map(print).join(", ")})`;
     case "unary":
       return `${n.op}${wrap(n.arg)}`;
@@ -265,13 +257,14 @@ const wrap = (n: Node) => (n.k === "binary" || n.k === "cond" ? `(${print(n)})` 
 
 /**
  * Nootion's version of a Notion formula. `propertyName` resolves the references of Notion's API
- * ({{notion:block_property:ID:…}}) to column names.
+ * ({{notion:block_property:ID:…}}) to column names; `related` is true for a column of a related page
+ * (current.prop("Price") inside map(), filter()…).
  */
-export function translateFormula(expression: string, propertyName: (notionPropertyId: string) => string | undefined): string {
-  const resolved = expression.replace(/\{\{notion:block_property:([^:}]+)(:[^}]*)?\}\}/g, (_, id: string) => {
-    const name = propertyName(decodeURIComponent(id));
+export function translateFormula(expression: string, propertyName: (notionPropertyId: string, related: boolean) => string | undefined): string {
+  const resolved = expression.replace(/(\.\s*)?\{\{notion:block_property:([^:}]+)(:[^}]*)?\}\}/g, (_, dot: string | undefined, id: string) => {
+    const name = propertyName(decodeURIComponent(id), !!dot);
     if (name === undefined) throw new FormulaTranslationError("unknown column");
-    return `prop(${quote(name)})`;
+    return `${dot ?? ""}prop(${quote(name)})`;
   });
   return print(parse(resolved));
 }

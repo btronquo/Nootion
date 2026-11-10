@@ -101,7 +101,10 @@ offline use and the Notion import.
 - Relations between databases (one way or both ways, kept up to date automatically) and rollups
   (e.g. the total of a supplier's invoices).
 - Notion-like formulas: `prop("Price") * 1.2`, `if(prop("Paid"), "OK", "To pay")`, `dateBetween(now(), prop("Due"), "days")`…
-  Editor with live checking and function help; formulas work with relations, rollups and calculations.
+  Editor with live checking and function help; formulas work with relations, rollups and calculations. Notion 2's
+  syntax works too: lists `[1, 2]`, methods `prop("Name").upper()`, `let`/`lets`, and `map`, `filter`, `find`,
+  `some`, `every`, `sort` with `current`, including the columns of related pages:
+  `prop("Invoices").filter(current.prop("Paid")).map(current.prop("Total")).sum()`.
 - Several views per database (table, board, list, gallery, calendar or timeline), each with its own filters
   (and / or, relative dates such as "the next week"), sorts, groups and visible columns. Drag and drop between board
   columns, between calendar days to change a date, and along the timeline to move or stretch a date range.

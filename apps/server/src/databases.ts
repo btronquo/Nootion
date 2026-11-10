@@ -14,6 +14,7 @@ import {
   parseFormula,
   toFormulaResult,
   type FValue,
+  type FPage,
   type FormulaNode,
   type FormulaResult,
   valueSchema,
@@ -186,6 +187,8 @@ function addImagePreviews(db: DbLike, rows: DatabaseRow[]) {
  */
 export function enrichRows(db: DbLike, properties: DatabaseProperty[], rows: DatabaseRow[], canRead: CanRead) {
   const related: Record<string, RelatedRow> = {};
+  // Related rows with their columns, so that formulas can read them: current.prop("Price").
+  const relatedRows = new Map<string, RelatedRowData>();
   const rollupTargets: Record<string, DatabaseProperty | null> = {};
   const targetCache = new Map<string, { properties: DatabaseProperty[]; rows: Map<string, DatabaseRow> } | null>();
   const target = (databaseId: string) => {
@@ -213,6 +216,7 @@ export function enrichRows(db: DbLike, properties: DatabaseProperty[], rows: Dat
       for (const id of live) {
         const r = t!.rows.get(id)!;
         related[id] = { title: r.title, icon: r.icon, databaseId: prop.config.databaseId! };
+        relatedRows.set(id, { row: r, properties: t!.properties });
       }
     }
   }
@@ -241,14 +245,39 @@ export function enrichRows(db: DbLike, properties: DatabaseProperty[], rows: Dat
       row.values[prop.id] = value;
     }
   }
-  computeFormulas(db, properties, rows, related, rollupTargets);
+  computeFormulas(db, properties, rows, related, rollupTargets, relatedRows);
   return { related, rollupTargets };
+}
+
+interface RelatedRowData {
+  row: DatabaseRow;
+  properties: DatabaseProperty[];
 }
 
 interface FormulaContext {
   related: Record<string, RelatedRow>;
   rollupTargets: Record<string, DatabaseProperty | null>;
+  relatedRows: Map<string, RelatedRowData>;
   userName: (id: string) => string;
+}
+
+/** A related row as formulas see it: its title, and its columns through prop(). */
+function relatedPage(id: string, ctx: FormulaContext): FPage {
+  const data = ctx.relatedRows.get(id);
+  const title = data?.row.title ?? ctx.related[id]?.title ?? "";
+  // The related row's own relations and rollups are not followed (one level only).
+  const inner: FormulaContext = { ...ctx, rollupTargets: {}, relatedRows: new Map() };
+  return {
+    page: id,
+    title,
+    prop: (name) => {
+      if (!data) return null;
+      const p = data.properties.find((x) => x.name === name);
+      if (!p) throw new FormulaError(t("formula.error.unknownColumn", { name }));
+      if (p.type === "title") return data.row.title || null;
+      return toFormulaValue(p, data.row.values[p.id] ?? null, inner);
+    },
+  };
 }
 
 /** Value of a cell as formulas see it: numbers, texts, booleans, dates, lists. */
@@ -278,7 +307,7 @@ function toFormulaValue(prop: DatabaseProperty, value: CellValue, ctx: FormulaCo
     case "file":
       return (value as { name: string }[]).map((f) => f.name);
     case "relation":
-      return (value as string[]).map((id) => ctx.related[id]?.title ?? "");
+      return (value as string[]).map((id) => relatedPage(id, ctx));
     case "rollup": {
       const r = value as RollupValue;
       if (r.kind === "list") {
@@ -324,6 +353,7 @@ export function computeFormulas(
   rows: DatabaseRow[],
   related: Record<string, RelatedRow>,
   rollupTargets: Record<string, DatabaseProperty | null>,
+  relatedRows: Map<string, RelatedRowData> = new Map(),
 ) {
   const formulas = properties.filter((p) => p.type === "formula");
   if (!formulas.length) return;
@@ -333,7 +363,7 @@ export function computeFormulas(
     names ??= new Map(db.select({ id: users.id, name: users.name }).from(users).all().map((u) => [u.id, u.name]));
     return names.get(id) ?? "";
   };
-  const ctx: FormulaContext = { related, rollupTargets, userName };
+  const ctx: FormulaContext = { related, rollupTargets, relatedRows, userName };
 
   for (const row of rows) {
     const done = new Map<string, FormulaResult | null>();
@@ -356,7 +386,7 @@ export function computeFormulas(
               return r ? toFormulaValue(p, r, ctx) : null;
             }
             return toFormulaValue(p, row.values[p.id] ?? null, ctx);
-          }),
+          }, { rowId: row.id }),
         );
       } catch (e) {
         if (e instanceof FormulaError) result = { kind: "error", value: e.message };

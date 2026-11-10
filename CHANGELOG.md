@@ -7,6 +7,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Formulas speak Notion 2: lists `[1, 2, 3]`, method calls (`prop("Name").upper()`), variables with `let()` and
+  `lets()`, and `map`, `filter`, `find`, `findIndex`, `some`, `every` and `sort` with `current` and `index`. A
+  relation's pages give their columns with `current.prop("…")`, for example
+  `prop("Invoices").filter(not current.prop("Paid")).map(current.prop("Total")).sum()`. New functions: `at`,
+  `first`, `last`, `reverse`, `unique`, `flat`, `includes`, `split`, `median`, `test`, `match`, `replaceRegex`,
+  `replaceAllRegex`, `repeat`, `padStart`, `padEnd`, `name`, `sign`, `cbrt`, `exp`, `ln`, `log10`, `log2`, `week`,
+  `fromTimestamp`, `dateRange` and `id`, plus the constants `pi` and `e`. The Notion import keeps these formulas
+  as formulas instead of freezing their values (only `link()` and `email()` still are).
 - Two-factor authentication: in the account settings, signing in with a password can also ask for a 6-digit code
   from an authenticator app (Microsoft Authenticator, Google Authenticator, 2FAS, Aegis…), set up by scanning a QR
   code. Ten single-use recovery codes sign in when the phone is lost, and can be renewed. Administrators see who

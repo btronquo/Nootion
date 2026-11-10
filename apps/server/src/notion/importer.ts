@@ -370,10 +370,19 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
       mine.config = config;
     }
   }
-  const nameOf = (dbNotionId: string) => (notionPropId: string) => {
+  const propsOf = (dbNotionId: string) => {
     const d = items.get(dbNotionId);
-    if (d?.kind !== "database") return undefined;
-    return Object.values(d.database.properties).find((p) => p.id === notionPropId)?.name;
+    return d?.kind === "database" ? Object.values(d.database.properties) : [];
+  };
+  // A column of the database, or for current.prop(…) a column of a database it is related to.
+  const nameOf = (dbNotionId: string) => (notionPropId: string, related: boolean) => {
+    const own = propsOf(dbNotionId);
+    const sources = related ? [...own.flatMap((p) => (p.type === "relation" && p.relation ? [propsOf(normId(p.relation.database_id))] : [])), own] : [own];
+    for (const props of sources) {
+      const name = props.find((p) => p.id === notionPropId)?.name;
+      if (name !== undefined) return name;
+    }
+    return undefined;
   };
   for (const { database } of databases) {
     const key = normId(database.id);

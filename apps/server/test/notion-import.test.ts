@@ -146,7 +146,9 @@ describe("Notion import", () => {
     expect((v("Tags") as string[]).map((id) => optionName("Tags", id))).toEqual(["paint", "urgent"]);
     expect(v("Due")).toMatchObject({ start: "2024-02-01" });
     expect(v("Assignee")).toEqual([await boris.id()]);
-    expect(v("Weird")).toBe("paint,urgent");
+    expect(v("Weird")).toBe("Buy paint");
+    expect(prop(tasks, "TagList")).toMatchObject({ type: "formula", config: { expression: 'join(map(prop("Tags"), name(current)), ",")' } });
+    expect(v("TagList")).toEqual({ kind: "text", value: "paint,urgent" });
     expect(v("Double")).toMatchObject({ value: 240 });
     expect(v("Label")).toMatchObject({ value: "BUY PAINT" });
 
@@ -158,6 +160,12 @@ describe("Notion import", () => {
     expect(prop(projects, "Tasks").type).toBe("relation");
     expect((house.values[prop(projects, "Tasks").id] as string[]).length).toBe(2);
     expect(house.values[prop(projects, "Total").id]).toMatchObject({ value: 200 });
+    // Only "Call plumber" is done.
+    expect(prop(projects, "Spent")).toMatchObject({
+      type: "formula",
+      config: { expression: 'sum(map(filter(prop("Tasks"), current.prop("Done")), current.prop("Price")))' },
+    });
+    expect(house.values[prop(projects, "Spent").id]).toEqual({ kind: "number", value: 80 });
     // "Call plumber" had too many relations to come with the row.
     const plumber = tasks.rows.find((r) => r.title === "Call plumber")!;
     expect(plumber.values[prop(tasks, "Project").id]).toEqual([house.id]);
