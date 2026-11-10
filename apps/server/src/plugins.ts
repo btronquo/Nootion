@@ -1,4 +1,5 @@
 import { decryptSecret, encryptSecret, secretKey } from "./secrets.js";
+import { isPrivateAddress, outboundRequest } from "./net.js";
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -121,6 +122,11 @@ export interface ServerPluginApi {
   redirect: (url: string) => PluginRedirect;
   /** Address of Nootion as people open it (APP_URL), without a trailing slash. */
   appUrl: string;
+  /**
+   * For addresses people type: `request(url, { maxRedirects, maxBytes, allowPrivate… })` is an http(s) request that
+   * refuses the server's own network (it throws) unless `allowPrivate` is set; `isPrivateAddress(ip)` tells such addresses.
+   */
+  net: { request: typeof outboundRequest; isPrivateAddress: typeof isPrivateAddress };
   /**
    * Calls Nootion's API as a user, with their rights (as if they had made the request): request(userId, "POST",
    * "/databases/<id>/query", { limit: 100 }). Resolves with the JSON answer; throws an HttpError on an error.
@@ -327,6 +333,7 @@ export class PluginManager {
       binary: (data, contentType) => new PluginBinary(data, contentType),
       redirect: (url) => new PluginRedirect(url),
       appUrl: this.opts.appUrl,
+      net: { request: outboundRequest, isPrivateAddress },
       request: async (userId, method, apiPath, body) => {
         if (!apiPath.startsWith("/")) throw new Error('An API path starts with "/".');
         const res = await this.opts.inject(userId, method, apiPath, body);
