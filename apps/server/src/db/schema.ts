@@ -33,6 +33,8 @@ export const users = sqliteTable(
     scimExternalId: text("scim_external_id"),
     // The newest release this administrator said not to be told about again.
     dismissedUpdate: text("dismissed_update"),
+    // The release whose "What's new" this user last closed; "" for a new account, null for one from before 3.4.
+    seenVersion: text("seen_version").default(""),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("users_email_unique").on(t.email)],

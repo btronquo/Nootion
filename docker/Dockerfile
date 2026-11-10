@@ -13,7 +13,7 @@ COPY . .
 RUN pnpm build \
  && pnpm --filter @nootion/server deploy --prod --legacy /out \
  && rm -rf /out/src /out/test /out/build.mjs /out/drizzle.config.ts /out/tsconfig.json /out/dist \
- && cp -r apps/server/dist apps/server/migrations /out/ \
+ && cp -r apps/server/dist apps/server/migrations CHANGELOG.md /out/ \
  && cp -r apps/web/dist /out/web \
  && sed 's/\r$//' docker/entrypoint.sh > /out/entrypoint.sh
 

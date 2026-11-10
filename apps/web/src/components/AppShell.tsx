@@ -48,6 +48,7 @@ import {
 } from "../lib/queries";
 import { useSession } from "../lib/session";
 import { useUpdateStatus, useVersion } from "./UpdateNotice";
+import { WhatsNewDialog } from "./WhatsNew";
 import { buildTree, pageTitle } from "../lib/tree";
 import { DRAG_TYPE, PageTree } from "./PageTree";
 import { Avatar } from "./Avatar";
@@ -272,6 +273,7 @@ export function AppShell() {
         <CreateWorkspaceDialog onClose={() => setCreatingWorkspace(false)} />
       )}
       {searching && <SearchDialog onClose={() => setSearching(false)} />}
+      <WhatsNewDialog />
       {capturing && <QuickCaptureDialog onClose={() => setCapturing(false)} />}
     </SidebarLayout>
   );
