@@ -71,6 +71,11 @@ describe("Notion import", () => {
     expect((await detail(home.id)).cover).toMatch(/^\/api\/attachments\/[0-9a-f-]{36}$/);
     expect((await detail(byTitle("Notes").id)).cover).toBe("https://www.notion.so/images/page-cover/gradients_8.png");
     expect((await detail(byTitle("Tasks").id)).cover).toBeNull();
+    // Icons: emojis as they are, Notion's images as icons of the server; images elsewhere are left out.
+    expect((await detail(home.id)).icon).toBe("🏠");
+    expect((await detail(byTitle("Projects").id)).icon).toMatch(/^icon:[0-9a-f-]{36}$/);
+    expect((await detail(byTitle("Notes").id)).icon).toBeNull();
+    expect(report.notes.icon).toBe(1);
 
     // Home's content, with its links pointing to the imported pages.
     const doc = content(home.id);
@@ -108,6 +113,10 @@ describe("Notion import", () => {
     const columns = doc.content!.find((n) => n.type === "columns")!;
     expect(columns.content!.map((c) => c.content![0]!.content![0]!.text)).toEqual(["Left", "Right"]);
     expect(json).toContain("https://example.org/doc.pdf");
+    // Callouts keep every block inside; one without an icon stays without one.
+    const callouts = doc.content!.filter((n) => n.type === "callout");
+    expect(callouts.map((c) => c.attrs?.emoji)).toEqual(["⚠️", ""]);
+    expect(callouts[1]!.content!.map((n) => n.type)).toEqual(["heading", "bulletList"]);
     // The nested list item stays nested.
     const list = doc.content!.find((n) => n.type === "bulletList")!;
     expect(list.content).toHaveLength(2);
@@ -171,6 +180,26 @@ describe("Notion import", () => {
     const tasks = await getDb(after.find((p) => p.title === "Tasks")!.id);
     expect(tasks.rows).toHaveLength(2);
     expect(tasks.properties.filter((p) => p.name === "Price")).toHaveLength(1);
+  });
+
+  it("imports unchanged pages again when asked, reusing their icons", async () => {
+    await runImport();
+    const home = (await tree()).find((p) => p.title === "Home")!;
+    // Content flattened by an older version of the import.
+    app.db
+      .update(pages)
+      .set({ contentJson: { type: "doc", content: [{ type: "paragraph" }] } })
+      .where(eq(pages.id, home.id))
+      .run();
+    const again = await runImport({});
+    expect(again.job.report).toMatchObject({ updated: 0 });
+    const refreshed = await runImport({ refresh: true });
+    expect(refreshed.job.report.unchanged).toBe(0);
+    expect(refreshed.job.report.updated).toBeGreaterThan(0);
+    expect(types(content(home.id))).toContain("columns");
+    // The same image isn't stored twice.
+    const icons = (await boris.get("/api/icons")).json().icons;
+    expect(icons).toHaveLength(1);
   });
 
   it("finishes an import that stopped halfway, without duplicates", async () => {

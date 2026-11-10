@@ -36,17 +36,17 @@ declare module "@tiptap/core" {
   }
 }
 
-/** Highlighted block with an emoji, like Notion's callout. */
+/** Highlighted block with an emoji (or none), like Notion's callout. It can hold any blocks, as Notion's boxes do. */
 export const Callout = Node.create({
   name: "callout",
   group: "block",
-  content: "paragraph+",
+  content: "block+",
   defining: true,
   addAttributes() {
     return { emoji: { default: "💡" } };
   },
   parseHTML() {
-    return [{ tag: "div[data-callout]", getAttrs: (el) => ({ emoji: (el as HTMLElement).dataset.emoji || "💡" }) }];
+    return [{ tag: "div[data-callout]", getAttrs: (el) => ({ emoji: (el as HTMLElement).dataset.emoji ?? "💡" }) }];
   },
   renderHTML({ node, HTMLAttributes }) {
     return ["div", mergeAttributes(HTMLAttributes, { "data-callout": "", "data-emoji": node.attrs.emoji, class: "callout" }), 0];

@@ -200,6 +200,11 @@ export function fakeNotion() {
     block("b6", "toggle", { rich_text: [rt("More")] }, [block("b6a", "paragraph", { rich_text: [rt("Hidden text")] })]),
     block("b6b", "heading_2", { rich_text: [rt("Folded")], is_toggleable: true }, [block("b6c", "paragraph", { rich_text: [rt("Under the heading")] })]),
     block("b7", "callout", { rich_text: [rt("Careful")], icon: { type: "emoji", emoji: "⚠️" } }),
+    // A callout used as a box: no text of its own, no icon, a heading and links inside.
+    block("b7b", "callout", { rich_text: [], icon: null }, [
+      block("b7c", "heading_2", { rich_text: [rt("Boxed")] }),
+      block("b7d", "bulleted_list_item", { rich_text: [rt("in the box")] }),
+    ]),
     block("b8", "code", { rich_text: [rt("let x = 1;")], language: "javascript" }),
     block("b9", "quote", { rich_text: [rt("Quoted")] }),
     block("b10", "divider", {}),
@@ -246,7 +251,7 @@ export function fakeNotion() {
     };
     if (url.pathname === "/files/pic.png") {
       res.writeHead(200, { "content-type": "image/png" });
-      return res.end(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+      return res.end(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]));
     }
     if (req.headers.authorization !== "Bearer secret_good_token") return send(401, { code: "unauthorized", message: "API token is invalid." });
     const p = url.pathname;
@@ -265,7 +270,7 @@ export function fakeNotion() {
               external: { url: "/images/page-cover/gradients_8.png" },
             }),
             database(IDS.tasks, { type: "page_id", page_id: IDS.home }, "Tasks", tasksSchema, true),
-            database(IDS.projects, { type: "workspace", workspace: true }, "Projects", projectsSchema, false),
+            { ...database(IDS.projects, { type: "workspace", workspace: true }, "Projects", projectsSchema, false), icon: { type: "file", file: { url: `${base}/files/pic.png?icon=1` } } },
             wiki(),
             ...tasksRows(),
           ],

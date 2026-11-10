@@ -57,6 +57,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Fixed
 
+- Notion import: "Import again" can also import the pages that didn't change in Notion, so that pages imported
+  by an older version get what the import does better now (columns side by side, covers…). Image icons are
+  copied as custom icons instead of being left out. A callout keeps every block inside it (headings, lists, links
+  to pages), not only its paragraphs, and stays without an emoji when it has none in Notion; its paragraphs are
+  shown one under the other instead of side by side.
 - The export of the personal space was always named "Espace personnel", whatever the language.
 
 - Dragging inside a widget of a page (the map) up or down follows the pointer again: the block handle used to give

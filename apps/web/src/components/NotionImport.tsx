@@ -17,6 +17,7 @@ export function NotionImport() {
   const workspaceId = chosen || editable[0]?.id || "";
   const [token, setToken] = useState("");
   const [newToken, setNewToken] = useState(false);
+  const [refresh, setRefresh] = useState(false);
   const qc = useQueryClient();
   const refreshPages = useRefreshPages();
 
@@ -37,10 +38,14 @@ export function NotionImport() {
 
   const start = useMutation({
     mutationFn: (withToken: boolean) =>
-      api<{ job: NotionImportJob }>(`/import/notion`, { method: "POST", body: { workspaceId, ...(withToken ? { token: token.trim() } : {}) } }),
+      api<{ job: NotionImportJob }>(`/import/notion`, {
+        method: "POST",
+        body: { workspaceId, ...(withToken ? { token: token.trim() } : {}), ...(refresh && !withToken ? { refresh: true } : {}) },
+      }),
     onSuccess: ({ job }) => {
       setToken("");
       setNewToken(false);
+      setRefresh(false);
       // The new job shows at once, in place of the last one.
       qc.setQueryData<NotionImportStatus>(["notion-import", workspaceId], (old) => ({ connected: true, lastImportAt: old?.lastImportAt ?? null, job }));
       return qc.invalidateQueries({ queryKey: ["notion-import", workspaceId] });
@@ -136,6 +141,19 @@ export function NotionImport() {
                     })}
                 </p>
                 <p className="text-sm text-neutral-500">{t("notion.againHelp")}</p>
+                <label className="flex items-start gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-blue-600"
+                    checked={refresh}
+                    disabled={running}
+                    onChange={(e) => setRefresh(e.target.checked)}
+                  />
+                  <span>
+                    {t("notion.refresh")}
+                    <span className="block text-xs text-neutral-500">{t("notion.refreshHelp")}</span>
+                  </span>
+                </label>
                 <div className="flex flex-wrap gap-2">
                   <Button onClick={() => start.mutate(false)} disabled={running || start.isPending}>
                     {t("notion.again")}

@@ -91,6 +91,7 @@ export const notionRoutes: FastifyPluginAsync = async (app) => {
         fileHosts: (url) => (url.protocol === "https:" && NOTION_FILE_HOSTS.test(url.hostname)) || url.origin === apiOrigin,
         workspaceId: input.workspaceId,
         parentId: input.parentId ?? null,
+        refresh: input.refresh ?? false,
         userId: user.id,
         job,
         log: (message, data) => req.log.info({ workspaceId: input.workspaceId, ...data }, message),
