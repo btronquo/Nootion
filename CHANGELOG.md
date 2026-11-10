@@ -74,7 +74,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   the server a webhook calls, and people without an account aren't told why a webhook failed.
 - A personal API token limited to some spaces could list the pages of the user's other spaces through
   `GET /api/pages/all` and `GET /api/pages/graph`. Both now stay within the token's spaces.
-- The server refuses to start in production with the example `APP_SECRET` of `docker-compose.yml`.
+- The server refuses to start in production with the example `APP_SECRET` of `docker-compose.yml`, which now reads
+  `APP_SECRET`, `APP_URL` and `TZ` from a `.env` file next to it (copy [`.env.example`](.env.example)). An existing
+  `docker-compose.yml` keeps working as it is.
 - Single sign-on: an e-mail address the provider marks as not verified no longer links an existing account or makes
   a new one. Linking existing accounts by their address is now a setting of the SSO administration (on by default),
   with a warning about when to turn it off. The page opened after signing in is checked more strictly.

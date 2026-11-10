@@ -12,12 +12,13 @@ services:
     # user: "1001:1001"
     ports:
       - "3000:3000"
+    # Values come from a .env file next to this one (copy .env.example to .env), so this file stays as published.
     environment:
       # Address where you open Nootion in the browser (without a trailing /).
-      APP_URL: "http://localhost:3000"
-      # Random string of at least 16 characters, generated once and kept (e.g. openssl rand -hex 32).
-      APP_SECRET: "replace-me-with-a-long-random-string"
-      TZ: "Europe/Paris"
+      APP_URL: "${APP_URL:-http://localhost:3000}"
+      # Random string of at least 16 characters, generated once and kept. Required: Docker refuses to start without it.
+      APP_SECRET: "${APP_SECRET:?Set APP_SECRET in a .env file next to docker-compose.yml (see .env.example)}"
+      TZ: "${TZ:-Europe/Paris}"
     volumes:
       # All data (nootion.db database, attached files) in a named Docker volume.
       # For a host folder instead: - /path/to/nootion:/data (the folder must belong to UID 1000).

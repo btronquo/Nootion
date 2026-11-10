@@ -51,7 +51,8 @@ These come from "Discover Nootion", the demo page every new user gets.
 ```bash
 mkdir nootion && cd nootion
 curl -O https://raw.githubusercontent.com/btronquo/Nootion/main/docker-compose.yml
-# Set APP_URL and APP_SECRET in docker-compose.yml, then:
+curl -o .env https://raw.githubusercontent.com/btronquo/Nootion/main/.env.example
+# Set APP_SECRET (openssl rand -hex 32) and APP_URL in .env, then:
 docker compose up -d
 ```
 
