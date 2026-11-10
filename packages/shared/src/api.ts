@@ -57,6 +57,10 @@ export const AGENT_ACTIONS = [
   "row.create",
   "row.update",
   "row.trash",
+  "comment.add",
+  "comment.resolve",
+  "recurrence.set",
+  "recurrence.remove",
 ] as const;
 export type AgentAction = (typeof AGENT_ACTIONS)[number];
 

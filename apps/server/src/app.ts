@@ -255,9 +255,17 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
     if (!scope || !req.user || reply.statusCode >= 400) return payload;
     const action = agentAction(req.method, req.routeOptions.url);
     if (!action) return payload;
-    const params = req.params as { id?: string; rowId?: string };
+    const params = req.params as { id?: string; rowId?: string; pageId?: string };
     // The page changed, or the one made (named in the answer).
-    let pageId = params.rowId ?? params.id ?? null;
+    let pageId = params.rowId ?? params.pageId ?? params.id ?? null;
+    // A comment thread names its page in the answer.
+    if (action.startsWith("comment.") && !params.pageId && typeof payload === "string") {
+      try {
+        pageId = (JSON.parse(payload) as { thread?: { pageId?: string } }).thread?.pageId ?? null;
+      } catch {
+        pageId = null;
+      }
+    }
     if (action.endsWith(".create") && typeof payload === "string") {
       try {
         const body = JSON.parse(payload) as { page?: { id?: string }; database?: { id?: string }; row?: { id?: string } };

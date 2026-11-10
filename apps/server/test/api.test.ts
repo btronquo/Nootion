@@ -75,6 +75,47 @@ describe("personal API tokens", () => {
     expect(titles(await boris.get("/api/pages/all")).sort()).toEqual(["Compte rendu", "Journal intime"]);
   });
 
+  it("comment and set recurring templates within their spaces", async () => {
+    const team = (await boris.post("/api/workspaces", { name: "Équipe" })).json().workspace.id;
+    const page = await boris.createPage(team, "Compte rendu");
+    const secret = await boris.createPage(personal, "Journal intime");
+    const { client } = await makeToken([team], false);
+
+    const thread = (await client.post(`/api/pages/${page}/comments`, { body: "Relu, rien à dire." })).json().thread;
+    expect(thread.comments[0].body).toBe("Relu, rien à dire.");
+    expect((await client.get(`/api/pages/${page}/comments`)).json().threads).toHaveLength(1);
+    expect((await client.post(`/api/comments/threads/${thread.id}/replies`, { body: "Merci" })).statusCode).toBe(200);
+    expect((await client.post(`/api/comments/threads/${thread.id}/resolve`, { resolved: true })).statusCode).toBe(200);
+    expect((await client.patch(`/api/comments/${thread.comments[0].id}`, { body: "Relu." })).statusCode).toBe(200);
+    // What it did is logged with its page.
+    const activity = (await boris.get("/api/tokens/activity")).json().activity;
+    expect(activity.filter((a: { action: string }) => a.action === "comment.add").map((a: { pageId: string }) => a.pageId)).toEqual([page, page]);
+
+    // Out of its spaces: nothing, and the user's notifications (from every space) stay out of reach.
+    expect((await client.get(`/api/pages/${secret}/comments`)).statusCode).toBe(404);
+    expect((await client.post(`/api/pages/${secret}/comments`, { body: "x" })).statusCode).toBe(404);
+    const mine = (await boris.post(`/api/pages/${secret}/comments`, { body: "Privé" })).json().thread;
+    expect((await client.post(`/api/comments/threads/${mine.id}/replies`, { body: "x" })).statusCode).toBe(404);
+    expect((await client.get("/api/comments/notifications")).statusCode).toBe(403);
+    expect((await client.post("/api/comments/notifications/read", {})).statusCode).toBe(403);
+
+    // A read-only token reads comments and schedules, and changes neither.
+    const reader = (await makeToken([team], true)).client;
+    expect((await reader.get(`/api/pages/${page}/comments`)).statusCode).toBe(200);
+    expect((await reader.post(`/api/pages/${page}/comments`, { body: "x" })).json().error).toBe("token_read_only");
+
+    await boris.patch(`/api/pages/${page}`, { template: true });
+    const rule = { frequency: "daily", interval: 1, time: "08:00", timeZone: "Europe/Paris", startDate: "2026-11-02", parentId: page, enabled: true };
+    const set = await client.put(`/api/pages/${page}/recurrence`, rule);
+    expect(set.statusCode, set.body).toBe(200);
+    expect((await client.get(`/api/pages/${page}/recurrence`)).json().recurrence.nextRunAt).toBeTruthy();
+    expect((await reader.get(`/api/pages/${page}/recurrence`)).statusCode).toBe(200);
+    expect((await reader.request("DELETE", `/api/pages/${page}/recurrence`)).json().error).toBe("token_read_only");
+    // The pages can't be made outside the token's spaces.
+    expect((await client.put(`/api/pages/${page}/recurrence`, { ...rule, parentId: secret })).statusCode).toBe(400);
+    expect((await client.request("DELETE", `/api/pages/${page}/recurrence`)).statusCode).toBe(200);
+  });
+
   it("refuse unknown, expired tokens and disabled users", async () => {
     expect((await new TokenClient(app, "nt_nope").get("/api/auth/me")).statusCode).toBe(401);
     const { client, apiToken } = await makeToken([personal], true);
