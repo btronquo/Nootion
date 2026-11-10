@@ -13,6 +13,9 @@ import type { EditorView } from "@tiptap/pm/view";
  * The same goes for text in a column: near its top or left edge, and in the gap between the columns where its
  * handle sits, the handle used to jump to the whole columns block.
  *
+ * And for a block in a callout: left of its text, over the callout's emoji and in the margin where its handle sits,
+ * the handle went to the whole callout.
+ *
  * It also places the handle again when the page scrolls.
  */
 export const HandleTargets = Extension.create({
@@ -62,7 +65,10 @@ export const HandleTargets = Extension.create({
             mousemove(view, event) {
               if (event.isTrusted) pointer = { x: event.clientX, y: event.clientY };
               const block = atomBlockBeside(view, event.clientX, event.clientY);
-              const r = block?.getBoundingClientRect() ?? columnTextBeside(view, event.clientX, event.clientY);
+              const r =
+                block?.getBoundingClientRect() ??
+                columnTextBeside(view, event.clientX, event.clientY) ??
+                calloutBlockBeside(view, event.clientX, event.clientY);
               if (r) {
                 // Far enough from the edges for the handle not to prefer the block around it.
                 Object.defineProperty(event, "clientX", { value: Math.max(event.clientX, r.left + 16), configurable: true });
@@ -130,4 +136,31 @@ function columnTextBeside(view: EditorView, x: number, y: number): DOMRect | nul
     return r;
   }
   return null;
+}
+
+/** How far left of a block its handle reaches (the "+" and the dots). */
+const HANDLE_WIDTH = 56;
+
+/**
+ * The block of a callout whose row the pointer is on, at the left of its text: over the emoji, in the margin where the
+ * block's handle sits, or at the very start of the text.
+ */
+function calloutBlockBeside(view: EditorView, x: number, y: number): DOMRect | null {
+  let best: DOMRect | null = null;
+  let bestWidth = Infinity;
+  for (const callout of view.dom.querySelectorAll<HTMLElement>(".callout")) {
+    const box = callout.getBoundingClientRect();
+    if (y < box.top || y > box.bottom || box.width >= bestWidth) continue;
+    const textLeft = box.left + parseFloat(getComputedStyle(callout).paddingLeft);
+    // A little into the text too: at its very edge, the handle also picked the callout.
+    if (x < box.left - HANDLE_WIDTH || x >= textLeft + 16) continue;
+    for (const child of callout.children) {
+      const r = child.getBoundingClientRect();
+      if (y < r.top || y > r.bottom) continue;
+      best = r;
+      bestWidth = box.width;
+      break;
+    }
+  }
+  return best;
 }

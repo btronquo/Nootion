@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Editor } from "@tiptap/react";
 import { DragHandle } from "@tiptap/extension-drag-handle-react";
+import type { Middleware } from "@floating-ui/dom";
 import { TextSelection } from "@tiptap/pm/state";
 import {
   ArrowDown,
@@ -97,10 +98,16 @@ export function BlockHandle({
     setMenu({ block, anchor });
   }
 
+  // Beside the first line of a callout, the handle sat over its emoji: it goes left of the emoji then.
+  const position = useMemo(
+    () => ({ placement: "left-start" as const, strategy: "absolute" as const, middleware: [clearCalloutEmoji(editor, current)] }),
+    [editor],
+  );
+
   const button = "flex h-6 w-6 items-center justify-center rounded text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800";
   return (
     <>
-      <DragHandle editor={editor} nested onNodeChange={({ node, pos }) => (current.current = node ? { node, pos } : null)}>
+      <DragHandle editor={editor} nested computePositionConfig={position} onNodeChange={({ node, pos }) => (current.current = node ? { node, pos } : null)}>
         <div className="nt-block-handle flex items-center pr-1" data-block-handle>
           <button type="button" className={button} onClick={addBelow} title={t("editor.addBelow")} aria-label={t("editor.addBelow")}>
             <Plus size={16} />
@@ -133,6 +140,32 @@ export function BlockHandle({
       )}
     </>
   );
+}
+
+/** Where a callout draws its emoji (index.css: `top-4 left-4`, `text-xl leading-7`). */
+const CALLOUT_EMOJI = { left: 16, top: 16, size: 28 };
+
+/**
+ * Moves the handle left of a callout's emoji when it would cover it: the blocks of a callout start right of the emoji,
+ * so the handle of the one beside it (its first line, often empty) was drawn over it.
+ */
+function clearCalloutEmoji(editor: Editor, current: { current: Block | null }): Middleware {
+  return {
+    name: "clearCalloutEmoji",
+    fn({ x, elements }) {
+      const block = current.current;
+      if (!block || editor.isDestroyed) return {};
+      const dom = editor.view.nodeDOM(block.pos);
+      const callout = dom instanceof HTMLElement ? dom.parentElement?.closest<HTMLElement>(".callout") : null;
+      if (!callout?.dataset.emoji) return {};
+      const box = callout.getBoundingClientRect();
+      const ref = elements.reference.getBoundingClientRect();
+      const width = elements.floating.getBoundingClientRect().width;
+      const emojiLeft = box.left + CALLOUT_EMOJI.left;
+      const overlaps = ref.top < box.top + CALLOUT_EMOJI.top + CALLOUT_EMOJI.size && ref.left - width < emojiLeft + CALLOUT_EMOJI.size && ref.left > emojiLeft;
+      return overlaps ? { x: x - (ref.left - emojiLeft) } : {};
+    },
+  };
 }
 
 interface Action {
