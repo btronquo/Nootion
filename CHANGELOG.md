@@ -53,6 +53,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - In columns, the handle of a line of text stays on it when the pointer is on its first line or moves towards the
   handle, instead of jumping to the whole columns block.
 
+### Security
+
+- Link previews ("Embeds" plugin) could be pointed at the server's own network with an IPv6 form of a local address
+  (`http://[::ffff:7f00:1]/`). Local addresses are now recognised however they are written, and the address is
+  checked as the connection is made (so a name can't change between the check and the request).
+- Button webhooks no longer call addresses of the server's local network, unless an administrator allows it in
+  **Administration › Security** (the button editor says which applies). On a public form, the answers can't change
+  the server a webhook calls, and people without an account aren't told why a webhook failed.
+- A personal API token limited to some spaces could list the pages of the user's other spaces through
+  `GET /api/pages/all` and `GET /api/pages/graph`. Both now stay within the token's spaces.
+- The server refuses to start in production with the example `APP_SECRET` of `docker-compose.yml`.
+
 ## [3.3.0] - 2026-11-03
 
 ### Added
