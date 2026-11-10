@@ -5,6 +5,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Changed
+
+- The Notion import's report lists what was imported differently, line by line: the page or database, the column or
+  block, the file's name, and a link to it in Notion, to check everything before deleting the Notion workspace. The
+  list can be downloaded as a CSV file.
+
+### Fixed
+
+- Files linked from another site in a Notion file column showed a missing message in the import report.
+
 ## [3.4.0] - 2026-11-10
 
 ### Added

@@ -61,6 +61,7 @@ export interface NotionDatabase {
   title: RichText[];
   description?: RichText[];
   properties: Record<string, NotionPropertySchema>;
+  url?: string;
 }
 
 export type NotionCover = { type: "external"; external: { url: string } } | { type: "file"; file: { url: string } } | null;
