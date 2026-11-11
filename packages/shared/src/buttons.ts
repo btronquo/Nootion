@@ -98,6 +98,9 @@ export interface RunButtonResult {
 /** The variables offered in steps, for the editor's suggestions. `row.` and `form.` are followed by a name. */
 export const BUTTON_VARIABLES = ["today", "now", "user", "user.email", "me", "page.title", "page.url", "row.title", "created.url", "created.title"] as const;
 
+/** {{= formula}} in a step's text: computed on the row the step runs for (its columns read with prop("…")). */
+export const FORMULA_TEMPLATE = /\{\{\s*=([^{}]*?)\}\}/g;
+
 /** Replaces {{variables}} in a text; unknown ones become empty. `escape` adapts values (e.g. to sit inside JSON). */
 export function fillTemplate(text: string, vars: Record<string, string>, escape: (v: string) => string = (v) => v): string {
   return text.replace(/\{\{\s*([^{}]+?)\s*\}\}/g, (_, name: string) => {

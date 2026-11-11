@@ -632,3 +632,29 @@ export const canReadAs =
   (db: Db, userId: string): CanRead =>
   (databaseId) =>
     atLeast(getPageRole(db, userId, databaseId), "viewer");
+
+/**
+ * Computes an expression as a formula column of a row would (its columns, relations and rollups included), or with no
+ * columns at all when there is no row. Throws FormulaError when the expression is wrong or fails.
+ */
+export function evaluateExpression(db: Db, expression: string, row: { databaseId: string; id: string } | null, canRead: CanRead): FormulaResult | null {
+  const node = parseCached(expression);
+  if (!row) {
+    return toFormulaResult(
+      evaluateFormula(node, (name) => {
+        throw new FormulaError(t("formula.error.unknownColumn", { name }));
+      }),
+    );
+  }
+  const properties = listProperties(db, row.databaseId);
+  const page = listRowPages(db, row.databaseId).find((r) => r.id === row.id);
+  if (!page) throw new FormulaError(t("button.noRow"));
+  // A formula column for the time of the computation, filled like the others.
+  const id = `expression-${randomUUID()}`;
+  const temporary: DatabaseProperty = { id, name: id, type: "formula", config: { expression }, position: properties.length };
+  const rows = [toRow(page, properties)];
+  enrichRows(db, [...properties, temporary], rows, canRead);
+  const result = (rows[0]!.values[id] as FormulaResult | null) ?? null;
+  if (result?.kind === "error") throw new FormulaError(result.value);
+  return result;
+}

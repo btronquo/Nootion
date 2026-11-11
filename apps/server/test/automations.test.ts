@@ -77,6 +77,50 @@ describe("automations", () => {
     expect((await values(other))[payeLe]).toBeNull();
   });
 
+  it("computes formulas in step values: a task that repeats once done", async () => {
+    // As in Notion: when the status becomes "Payé", the due date moves on a month and the status goes back.
+    await automation({
+      name: "Mensuelle",
+      trigger: { type: "property_changed", propertyId: statut, to: "Payé" },
+      steps: [
+        {
+          type: "update_row",
+          values: {
+            [echeance]: '{{= dateAdd(prop("Échéance"), 1, "mois")}}',
+            [statut]: "À payer",
+            [note]: '{{=prop("Note") + "+"}}{{row.title}}',
+          },
+        },
+      ],
+    });
+    const row = await addRow("Loyer", { [echeance]: { start: "2027-01-31", end: null }, [statut]: "a" });
+    await boris.patch(`/api/databases/${db}/rows/${row}`, { values: { [statut]: "b" } });
+    await settle();
+    expect(await values(row)).toMatchObject({ [echeance]: { start: "2027-02-28", end: null }, [statut]: "a", [note]: "+Loyer" });
+    await boris.patch(`/api/databases/${db}/rows/${row}`, { values: { [statut]: "b" } });
+    await settle();
+    expect(await values(row)).toMatchObject({ [echeance]: { start: "2027-03-28", end: null }, [note]: "+Loyer+Loyer" });
+
+    // A time stays the same local time.
+    await boris.patch(`/api/databases/${db}/rows/${row}`, { values: { [echeance]: { start: "2027-03-28T09:30", end: null } } });
+    await boris.patch(`/api/databases/${db}/rows/${row}`, { values: { [statut]: "b" } });
+    await settle();
+    expect((await values(row))[echeance]).toEqual({ start: "2027-04-28T09:30", end: null });
+
+    // A formula that fails is logged as the run's error, and changes nothing.
+    const broken = (
+      await automation({
+        trigger: { type: "property_changed", propertyId: note, to: "boom" },
+        steps: [{ type: "update_row", values: { [payeLe]: '{{= prop("Nope")}}' } }],
+      })
+    ).json().automation;
+    await boris.patch(`/api/databases/${db}/rows/${row}`, { values: { [note]: "boom" } });
+    await settle();
+    const runs = (await boris.get(`/api/databases/${db}/automations`)).json().automations.find((a: { id: string }) => a.id === broken.id).runs;
+    expect(runs[0].error).toMatch(/Nope/);
+    expect((await values(row))[payeLe]).toBeNull();
+  });
+
   it("goes off once when a date arrives", async () => {
     await automation({
       name: "Relance",

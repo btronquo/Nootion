@@ -4,18 +4,21 @@ import {
   buttonConfigSchema,
   cellFromText,
   fillTemplate,
+  FormulaError,
+  FORMULA_TEMPLATE,
   t,
   type ButtonConfig,
   type ButtonStep,
   type DatabaseProperty,
   type FormField,
+  type FormulaResult,
   type RunButtonInput,
   type RunButtonResult,
 } from "@nootion/shared";
 import type { Db } from "./db/index.js";
 import { pages, users } from "./db/schema.js";
 import { readContent, type Collab, type ProseMirrorNode } from "./collab.js";
-import { listProperties, listRowPages, toRow } from "./databases.js";
+import { canReadAs, evaluateExpression, listProperties, listRowPages, toRow } from "./databases.js";
 import { getPageMeta } from "./pages.js";
 import { requirePageRole } from "./permissions.js";
 import { HttpError, notFound } from "./http.js";
@@ -209,7 +212,21 @@ export async function runButton(app: FastifyInstance, runner: Runner, ctx: Butto
   loadRow();
 
   const result: RunButtonResult = { open: null, created: [] };
-  const fill = (text: string) => fillTemplate(text, vars);
+  /**
+   * {{= formula}}: computed as a formula column of the current row would be, e.g. {{= dateAdd(prop("Due"), 1, "weeks")}}.
+   * Someone without an account gets none: a formula reads the row's columns.
+   */
+  const formulas = (text: string, escape: (v: string) => string = (v) => v) =>
+    text.replace(FORMULA_TEMPLATE, (_, expression: string) => {
+      if (anonymous) return "";
+      try {
+        return escape(formulaText(evaluateExpression(db, expression, ctx.row ?? null, canReadAs(db, user.id))));
+      } catch (err) {
+        if (err instanceof FormulaError) throw new HttpError(400, "bad_formula", t("button.formulaFailed", { expression: expression.trim(), message: err.message }));
+        throw err;
+      }
+    });
+  const fill = (text: string) => fillTemplate(formulas(text), vars);
   const created = (id: string, title: string) => {
     result.created.push({ id, title });
     Object.assign(vars, { "created.id": id, "created.title": title, "created.url": `${base}/page/${id}` });
@@ -275,7 +292,11 @@ export async function runButton(app: FastifyInstance, runner: Runner, ctx: Butto
         // Someone without an account never chooses the server called: the host is the one the author wrote.
         if (anonymous && hostOf(url) !== hostOf(fillTemplate(step.url, {}).trim())) throw new HttpError(400, "bad_url", t("button.badUrl"));
         const body = step.body?.trim()
-          ? fillTemplate(step.body, vars, (v) => JSON.stringify(v).slice(1, -1))
+          ? fillTemplate(
+              formulas(step.body, (v) => JSON.stringify(v).slice(1, -1)),
+              vars,
+              (v) => JSON.stringify(v).slice(1, -1),
+            )
           : JSON.stringify({
               button: config.label,
               user: anonymous ? null : { id: user.id, name: user.name, email: user.email },
@@ -317,6 +338,26 @@ export async function runButton(app: FastifyInstance, runner: Runner, ctx: Butto
     }
   }
   return result;
+}
+
+const pad = (n: number) => String(n).padStart(2, "0");
+
+/** A formula's result as a step writes it: a date as "2026-11-18" or "2026-11-18T09:00" (local time), a list with commas. */
+export function formulaText(result: FormulaResult | null): string {
+  if (!result) return "";
+  switch (result.kind) {
+    case "date": {
+      if (result.value.length <= 10) return result.value;
+      const d = new Date(result.value);
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+    case "list":
+      return result.value.join(", ");
+    case "error":
+      return "";
+    default:
+      return String(result.value);
+  }
 }
 
 /** The host of an address, or null when it has none. */

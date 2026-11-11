@@ -301,7 +301,21 @@ export function ButtonEditor({
                   {v}
                 </button>
               ))}
+              <button
+                type="button"
+                title={t("button.formulaVariable")}
+                aria-label={t("button.formulaVariable")}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  insertCtx.insert(rowDatabaseId ? '{{= dateAdd(prop(""), 1, "weeks")}}' : '{{= dateAdd(today(), 1, "weeks")}}');
+                }}
+                className="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-xs text-neutral-700 hover:bg-blue-100 dark:bg-neutral-800 dark:text-neutral-300 dark:hover:bg-blue-950"
+                data-formula-variable
+              >
+                ∑ =
+              </button>
             </div>
+            <p className="mb-3 -mt-2 text-xs text-neutral-500">{t("button.formulaVariable")}</p>
             <div className="flex justify-end gap-2">
               <Button type="button" variant="ghost" onClick={close}>
                 {t("common.cancel")}
