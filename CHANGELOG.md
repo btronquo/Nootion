@@ -10,6 +10,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - A desktop app for Windows, macOS and Linux (`apps/desktop`, built with Tauri): type the address of a Nootion
   server, keep several servers and switch between them from the menu. It reopens the last server at start, keeps you
   signed in, and opens links in the default browser. Installers are built by GitHub Actions on a `desktop-v*` tag.
+- The desktop app can also keep a Nootion space on the computer, with no server: "On this computer" starts Nootion in
+  the background and signs in at once, without an account to create.
 
 ### Changed
 

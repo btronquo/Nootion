@@ -17,6 +17,9 @@ installer weighs a few megabytes.
   `http://192.168.1.20:3000`). The app checks that a Nootion server answers there (`/api/health`) before saving it.
   Without `https://` or `http://`, it tries HTTPS first, then HTTP; a server without HTTPS outside this computer gets
   a warning before connecting.
+- **On this computer.** *Open* under "On this computer" starts Nootion on the computer itself, with no server and no
+  connection needed, and signs in at once (no account to create, no password). It is the same Nootion as on a server,
+  run in the background by the app; quitting the app stops it.
 - **Several servers.** Each one is kept with a name; *Nootion > Switch server…* (Ctrl/Cmd+Shift+O) goes back to the
   list. The last server opens by itself at start.
 - **Like the browser, in its own window.** The interface is the server's own web app: sign-in (password, SSO, 2FA),
@@ -39,7 +42,27 @@ apps/desktop/
     tauri.conf.json   Name, identifier, icons, installers. The version is read from apps/desktop/package.json.
 ```
 
-The window first shows `launcher/`, then loads the chosen server's address. **Pages from a server get no access to the
+The window first shows `launcher/`, then loads the chosen server's address.
+
+**On this computer**, the app runs Nootion's own server (`apps/server`) with a Node binary it ships, in the
+background (`src/local.rs`):
+
+- It listens on `127.0.0.1` only, on a port chosen at the first launch and kept: the web app's session and offline
+  data belong to that address.
+- Its data (database and files) lives in `local/data` in the app's data folder (`%APPDATA%\app.nootion.desktop`,
+  `~/Library/Application Support/app.nootion.desktop`, `~/.local/share/app.nootion.desktop`), next to its log
+  (`local/server.log`) and its settings (`local/settings.json`: the port, and the `APP_SECRET` drawn at the first
+  launch).
+- Signing in needs no password: at each launch the app gives the server a random token (`NOOTION_DESKTOP_TOKEN`),
+  asks it for a one-time ticket with that token, then opens `/api/desktop/session?ticket=…`, which signs in to the
+  computer's account (created at the first launch). See `apps/server/src/routes/desktop.ts`. The token never reaches
+  the web view; a server started without it has none of these routes.
+- Quitting asks the server to close its database (`/api/desktop/quit`); if the app crashes, the server notices that
+  its parent is gone and stops within 5 seconds.
+
+`scripts/prepare-local-server.mjs` gathers what is shipped, before each build: the server with its production
+dependencies and the web app in `local-server/`, and Node (checked against its published checksum) in
+`src-tauri/binaries/`. It runs by itself before `tauri build` and `tauri dev`. **Pages from a server get no access to the
 app**: Tauri only lets the built-in picker call the app's commands (`capabilities/default.json` lists local pages
 only), and a page from a server that tries is refused. A Nootion server, or a page pretending to be one, can't read
 the list of servers or open anything on the computer.
@@ -81,7 +104,7 @@ git tag desktop-v3.4.0 && git push github desktop-v3.4.0
 | System  | Files                                    |
 | ------- | ---------------------------------------- |
 | Windows | `.exe` (installs for the user), `.msi`   |
-| macOS   | `.dmg`, one app for Intel and Apple chips |
+| macOS   | `.dmg`, one for Apple chips, one for Intel |
 | Linux   | `.AppImage`, `.deb`, `.rpm`              |
 
 "Run workflow" on the Actions tab builds them too, without a release: they are kept as the run's artifacts. On a
@@ -100,6 +123,5 @@ and macOS refuses to open the app at first: right-click > Open, or System Settin
 
 ## What comes next
 
-See the plan: a local mode (a Nootion space on the computer, no server needed), then continuous sync between that
-local space and a server, then system notifications for reminders, a global shortcut for quick capture and automatic
+See the plan: continuous sync between the local space and a server, then system notifications for reminders, a global shortcut for quick capture and automatic
 updates.

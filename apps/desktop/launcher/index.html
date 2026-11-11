@@ -39,9 +39,13 @@
         </form>
       </section>
 
-      <section class="soon">
+      <section id="local-section" hidden>
         <h2 data-t="localTitle"></h2>
-        <p class="muted" data-t="localSoon"></p>
+        <div class="local">
+          <p class="muted" data-t="localText"></p>
+          <button type="button" id="open-local" class="secondary" data-t="openLocal"></button>
+        </div>
+        <p id="local-message" role="status" hidden></p>
       </section>
 
       <footer class="muted" id="version"></footer>

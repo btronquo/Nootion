@@ -27,6 +27,11 @@ export interface Config {
   trustProxy?: boolean | string;
   /** Sends a Content-Security-Policy with the interface. Off with CONTENT_SECURITY_POLICY=off. */
   contentSecurityPolicy?: boolean;
+  /**
+   * Set by the desktop app when it runs Nootion on the computer (NOOTION_DESKTOP_TOKEN, at least 32 characters): the
+   * app signs its user in without a password (`routes/desktop.ts`). Never set on a server.
+   */
+  desktop?: { token: string; userName: string } | null;
 }
 
 /** Proxies trusted by default: on the server itself or its private network (a public visitor can't pose as one). */
@@ -69,5 +74,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     trustProxy: trustProxy(env.TRUST_PROXY),
     contentSecurityPolicy: !/^(off|false|no|0)$/i.test(env.CONTENT_SECURITY_POLICY?.trim() ?? ""),
     notionApiUrl: (env.NOTION_API_URL ?? "https://api.notion.com").replace(/\/+$/, ""),
+    desktop: desktopConfig(env),
   };
+}
+
+function desktopConfig(env: NodeJS.ProcessEnv): Config["desktop"] {
+  const token = env.NOOTION_DESKTOP_TOKEN?.trim();
+  if (!token) return null;
+  if (token.length < 32) throw new Error("NOOTION_DESKTOP_TOKEN must be at least 32 characters long.");
+  return { token, userName: env.NOOTION_DESKTOP_USER?.trim() || "Nootion" };
 }

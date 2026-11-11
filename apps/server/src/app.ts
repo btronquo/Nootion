@@ -19,6 +19,7 @@ import { requestLocale, withLocale } from "./i18n.js";
 import { t } from "@nootion/shared";
 import type { UserRow } from "./users.js";
 import { setupRoutes } from "./routes/setup.js";
+import { desktopRoutes } from "./routes/desktop.js";
 import { authRoutes } from "./routes/auth.js";
 import { twoFactorRoutes } from "./routes/two-factor.js";
 import { favoriteRoutes } from "./routes/favorites.js";
@@ -311,6 +312,7 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
 
   app.get("/api/health", async () => ({ ok: true, version: currentVersion() }));
   await app.register(setupRoutes, { prefix: "/api" });
+  await app.register(desktopRoutes, { prefix: "/api/desktop" });
   await app.register(authRoutes, { prefix: "/api/auth" });
   await app.register(twoFactorRoutes, { prefix: "/api/auth" });
   await app.register(adminRoutes, { prefix: "/api/admin" });

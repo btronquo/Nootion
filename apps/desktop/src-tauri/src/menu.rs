@@ -15,6 +15,7 @@ const ZOOM_IN: &str = "zoom-in";
 const ZOOM_OUT: &str = "zoom-out";
 const ZOOM_RESET: &str = "zoom-reset";
 const DEVTOOLS: &str = "devtools";
+const QUIT: &str = "quit";
 
 /// Items that only make sense while a server is open.
 const SERVER_ITEMS: [&str; 2] = [SWITCH, RELOAD];
@@ -49,7 +50,8 @@ pub fn build(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
             &PredefinedMenuItem::hide_others(app, None)?,
             #[cfg(target_os = "macos")]
             &PredefinedMenuItem::separator(app)?,
-            &PredefinedMenuItem::quit(app, Some(tr("Quitter", "Quit")))?,
+            // Not the predefined item: it does nothing on Linux, and quitting must stop the local server.
+            &MenuItem::with_id(app, QUIT, tr("Quitter", "Quit"), true, Some("CmdOrCtrl+Q"))?,
         ],
     )?;
     let edit = Submenu::with_items(
@@ -122,6 +124,7 @@ fn zoom(app: &AppHandle, f: impl FnOnce(f64) -> f64) {
 pub fn handle(app: &AppHandle, event: MenuEvent) {
     match event.id().as_ref() {
         SWITCH => show_launcher(app),
+        QUIT => app.exit(0),
         RELOAD => {
             if let Some(w) = app.get_webview_window(MAIN) {
                 let _ = w.reload();

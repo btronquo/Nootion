@@ -5,7 +5,7 @@ const invoke = (cmd, args) => window.__TAURI__.core.invoke(cmd, args);
 
 const TEXT = {
   fr: {
-    tagline: "Connectez-vous à votre serveur Nootion.",
+    tagline: "Ouvrez votre serveur Nootion, ou un espace sur cet ordinateur.",
     yourServers: "Vos serveurs",
     addServer: "Ajouter un serveur",
     editServer: "Modifier le serveur",
@@ -22,7 +22,10 @@ const TEXT = {
     remove: "Retirer",
     confirmRemove: "Retirer ?",
     localTitle: "Sur cet ordinateur",
-    localSoon: "Bientôt : un espace Nootion local, sans serveur, synchronisé quand vous le souhaitez.",
+    localText: "Un espace Nootion rien qu'à vous, gardé sur cet ordinateur. Pas besoin de serveur ni de connexion.",
+    openLocal: "Ouvrir",
+    startingLocal: "Démarrage…",
+    err_local: "L'espace local n'a pas pu démarrer. Détails dans le fichier server.log du dossier de l'application.",
     version: "Nootion pour ordinateur {v}",
     serverVersion: "version {v}",
     neverOpened: "jamais ouvert",
@@ -36,7 +39,7 @@ const TEXT = {
     err_unknown: "Une erreur inattendue s'est produite.",
   },
   en: {
-    tagline: "Connect to your Nootion server.",
+    tagline: "Open your Nootion server, or a space on this computer.",
     yourServers: "Your servers",
     addServer: "Add a server",
     editServer: "Edit server",
@@ -53,7 +56,10 @@ const TEXT = {
     remove: "Remove",
     confirmRemove: "Remove?",
     localTitle: "On this computer",
-    localSoon: "Coming soon: a local Nootion space, no server needed, synced when you want.",
+    localText: "A Nootion space of your own, kept on this computer. No server or connection needed.",
+    openLocal: "Open",
+    startingLocal: "Starting…",
+    err_local: "The local space couldn't start. Details are in server.log, in the app's folder.",
     version: "Nootion for desktop {v}",
     serverVersion: "version {v}",
     neverOpened: "never opened",
@@ -238,13 +244,39 @@ urlInput.addEventListener("input", () => {
 
 cancelBtn.addEventListener("click", resetForm);
 
+const localBtn = $("open-local");
+const localMessage = $("local-message");
+
+async function openLocal() {
+  localBtn.disabled = true;
+  localBtn.textContent = t("startingLocal");
+  localMessage.hidden = true;
+  try {
+    await invoke("open_local");
+  } catch (e) {
+    console.error(e);
+    localBtn.disabled = false;
+    localBtn.textContent = t("openLocal");
+    localMessage.textContent = t("err_local");
+    localMessage.hidden = false;
+    $("app").hidden = false;
+  }
+}
+
+localBtn.addEventListener("click", openLocal);
+
 async function start() {
   const state = await invoke("launcher_state");
   lang = state.french ? "fr" : "en";
   translate();
   $("version").textContent = t("version", { v: state.version });
+  $("local-section").hidden = !state.localAvailable;
   const choose = new URLSearchParams(location.search).has("choose");
-  // Reopen the last server at start, without showing the picker.
+  // Reopen the last server, or the local space, at start without showing the picker.
+  if (!choose && state.last === "local" && state.localAvailable) {
+    await openLocal();
+    return;
+  }
   if (!choose && state.last && state.profiles.some((p) => p.id === state.last)) {
     try {
       await invoke("open_server", { id: state.last });

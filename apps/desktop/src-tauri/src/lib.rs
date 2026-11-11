@@ -3,7 +3,9 @@
 //! The window first shows a small built-in page (`launcher/`) to pick or add a Nootion server, then loads that
 //! server's own web app: the interface, offline mode and updates all come from the server, as in a browser.
 //! Pages loaded from a server get no access to the app's commands (see `capabilities/default.json`).
+//! "On this computer" runs that same server in the background, with its data in the app's folder (`local.rs`).
 
+mod local;
 mod menu;
 mod probe;
 mod profiles;
@@ -23,6 +25,9 @@ pub struct AppState {
 
 pub(crate) const MAIN: &str = "main";
 
+/// `Profiles::last` when the local space was opened last.
+const LOCAL: &str = "local";
+
 /// Whether the interface should speak French (menus, launcher).
 pub(crate) fn french() -> bool {
     sys_locale::get_locale().is_some_and(|l| l.to_lowercase().starts_with("fr"))
@@ -39,12 +44,39 @@ struct LauncherState {
     last: Option<String>,
     french: bool,
     version: &'static str,
+    /// Whether this build ships the local server.
+    local_available: bool,
 }
 
 #[tauri::command]
-fn launcher_state(state: State<'_, AppState>) -> LauncherState {
+fn launcher_state(app: AppHandle, state: State<'_, AppState>) -> LauncherState {
     let p = state.profiles.lock().unwrap();
-    LauncherState { profiles: p.sorted(), last: p.last.clone(), french: french(), version: env!("CARGO_PKG_VERSION") }
+    LauncherState {
+        profiles: p.sorted(),
+        last: p.last.clone(),
+        french: french(),
+        version: env!("CARGO_PKG_VERSION"),
+        local_available: local::available(&app),
+    }
+}
+
+/// Starts the local server if needed, signs in and shows the local space.
+#[tauri::command]
+async fn open_local(
+    app: AppHandle,
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    local: State<'_, local::Local>,
+) -> Result<(), String> {
+    let (port, token) = local.ensure_started(&app).await?;
+    let url = local::sign_in_url(port, &token).await?;
+    {
+        let mut p = state.profiles.lock().unwrap();
+        p.last = Some(LOCAL.into());
+        save(&state, &p)?;
+    }
+    let _ = window.set_title(if french() { "Sur cet ordinateur · Nootion" } else { "On this computer · Nootion" });
+    window.navigate(Url::parse(&url).map_err(|e| e.to_string())?).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -150,17 +182,24 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_window_state::Builder::default().build())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![launcher_state, check_server, add_server, remove_server, open_server])
+        .invoke_handler(tauri::generate_handler![launcher_state, check_server, add_server, remove_server, open_server, open_local])
         .setup(|app| {
             let dir = app.path().app_config_dir()?;
             let store = Store::new(&dir);
             let profiles = store.load();
             app.manage(AppState { store, profiles: Mutex::new(profiles) });
+            app.manage(local::Local::default());
             app.set_menu(menu::build(app.handle())?)?;
             app.on_menu_event(menu::handle);
             create_main_window(app.handle())?;
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running Nootion");
+        .build(tauri::generate_context!())
+        .expect("error while building Nootion")
+        .run(|app, event| {
+            // Quitting closes the local server's database cleanly.
+            if let tauri::RunEvent::Exit = event {
+                app.state::<local::Local>().stop();
+            }
+        });
 }

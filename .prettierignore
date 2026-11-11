@@ -9,3 +9,4 @@ docs
 # Desktop app (Tauri)
 apps/desktop/src-tauri/target/
 apps/desktop/src-tauri/gen/
+apps/desktop/local-server/
