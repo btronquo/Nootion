@@ -2198,7 +2198,7 @@ checksum = "650eef8c711430f1a879fdd01d4745a7deea475becfb90269c06775983bbf086"
 
 [[package]]
 name = "nootion-desktop"
-version = "3.4.0"
+version = "3.5.0"
 dependencies = [
  "rand 0.9.5",
  "reqwest 0.12.28",
