@@ -1,6 +1,6 @@
 [package]
 name = "nootion-desktop"
-version = "3.4.0"
+version = "3.5.0"
 description = "Nootion for Windows, macOS and Linux"
 license = "AGPL-3.0-only"
 edition = "2021"

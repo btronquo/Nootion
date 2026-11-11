@@ -5,15 +5,33 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed
+
+- The map block (Map plugin) showed "Access blocked" instead of OpenStreetMap's tiles: they are now requested with
+  the site's address, as OpenStreetMap's tile usage policy asks.
+
+## [3.5.0] - 2026-11-11
+
 ### Added
 
+- Repeating to-dos: "Repeat" in a to-do's block menu (every day, week, two weeks, month, year, or on chosen days).
+  Checking it moves the first date written in it to the next time it is due, keeping its reminder; it stays checked
+  until that day, then unchecks by itself. A loop after the text shows that it repeats.
+- Automations on a schedule: every N days, weeks (on some days) or months (on a day), at a time in a time zone,
+  from a day and until an optional last one. Their steps add rows, create pages or call webhooks. A time missed
+  while the server was off still runs once, within a day.
+- Formulas in automation and button steps: `{{= dateAdd(prop("Due"), 1, "weeks")}}` is computed as a formula column
+  of the row would be. A task can repeat as in Notion: when its status becomes Done, move its due date on and set
+  the status back. A formula that fails stops the steps, with its message in the automation's runs.
 - Videos in pages (`/video`): a YouTube, Vimeo, Dailymotion, Loom, PeerTube, Twitch or Google Drive link plays in
   the site's own player (YouTube's without cookies until played), and a video file (MP4, WebM) uploaded or dropped
   in a page plays in the browser's. A video link pasted alone on an empty line becomes a video. Notion videos are
   imported as videos, and attached files can be played from any point (HTTP ranges).
+- Images open full screen when clicked, in pages, columns and public pages: arrows, swipe or the keyboard go through
+  the page's images, a click shows a large image at full size, Esc closes. Alt+click still selects the image.
 - A desktop app for Windows, macOS and Linux (`apps/desktop`, built with Tauri): type the address of a Nootion
   server, keep several servers and switch between them from the menu. It reopens the last server at start, keeps you
-  signed in, and opens links in the default browser. Installers are built by GitHub Actions on a `desktop-v*` tag.
+  signed in, and opens links in the default browser. Its installers are attached to each release.
 - The desktop app can also keep a Nootion space on the computer, with no server: "On this computer" starts Nootion in
   the background and signs in at once, without an account to create.
 - Sync between the desktop app and a Nootion server: link spaces of a server from *Sync*, and they stay on the
@@ -29,6 +47,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 ### Fixed
 
 - Files linked from another site in a Notion file column showed a missing message in the import report.
+- The block handle no longer covers a callout's emoji.
 
 ## [3.4.0] - 2026-11-10
 

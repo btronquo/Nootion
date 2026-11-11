@@ -1,6 +1,8 @@
 # The desktop app (apps/desktop): checks on every change to it, installers for Windows, macOS and Linux on a tag.
 #   - pull request or push touching apps/desktop -> Rust format, lints and tests
-#   - git tag "desktop-v1.2.3", or "Run workflow"  -> builds the three platforms and attaches them to a draft release
+#   - git tag "v1.2.3" (a Nootion release)          -> builds the three platforms and attaches them to that version's
+#                                                     GitHub release (created as a draft if it doesn't exist yet)
+#   - git tag "desktop-v1.2.3", or "Run workflow"  -> same, as a separate draft pre-release (tests of the app)
 #
 # The installers are not signed yet: Windows shows a SmartScreen warning and macOS asks to open the app from
 # System Settings > Privacy & Security. Signing is set up by adding the secrets listed at the bottom of this file.
@@ -9,7 +11,7 @@ name: Desktop
 on:
   push:
     branches: [main, develop]
-    tags: ["desktop-v*"]
+    tags: ["v*", "desktop-v*"]
     paths: ["apps/desktop/**", ".github/workflows/desktop.yml"]
   pull_request:
     paths: ["apps/desktop/**", ".github/workflows/desktop.yml"]
@@ -41,7 +43,7 @@ jobs:
 
   build:
     needs: check
-    if: startsWith(github.ref, 'refs/tags/desktop-v') || github.event_name == 'workflow_dispatch'
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     permissions:
       contents: write
     strategy:
@@ -84,10 +86,11 @@ jobs:
           projectPath: apps/desktop
           tauriScript: pnpm tauri
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
-          releaseName: "Nootion Desktop ${{ github.ref_name }}"
+          # A Nootion release (v1.2.3) gets the installers in its own release; its notes are written by hand.
+          releaseName: ${{ startsWith(github.ref, 'refs/tags/v') && format('Nootion {0}', github.ref_name) || format('Nootion Desktop {0}', github.ref_name) }}
           releaseBody: "Installers for Windows (.exe, .msi), macOS (.dmg, Apple chips and Intel) and Linux (.AppImage, .deb, .rpm)."
           releaseDraft: true
-          prerelease: true
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
       # Without a tag ("Run workflow"), the installers are kept as the run's artifacts instead of a release.
       - if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         uses: actions/upload-artifact@v4

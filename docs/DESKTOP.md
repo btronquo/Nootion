@@ -120,10 +120,11 @@ cd apps/desktop/src-tauri && cargo test        # tests of the Rust side
 `apps/desktop/src-tauri/target/release/bundle/`.
 
 For the three systems at once, push a tag: the [Desktop workflow](../.github/workflows/desktop.yml) builds them on
-GitHub Actions and attaches them to a draft release.
+GitHub Actions. The tag of a Nootion release (`v3.5.0`) attaches them to that release on GitHub, created as a draft
+if it doesn't exist yet. A `desktop-v…` tag builds them for a test, in a separate draft pre-release.
 
 ```sh
-git tag desktop-v3.4.0 && git push github desktop-v3.4.0
+git tag desktop-v3.5.0-test && git push github desktop-v3.5.0-test
 ```
 
 | System  | Files                                    |
