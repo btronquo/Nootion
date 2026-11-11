@@ -28,7 +28,7 @@ export const isEmpty = (v: CellValue | undefined) => v === null || v === undefin
 export function boardGroupProp(data: DatabaseData, view: DatabaseViewInfo): DatabaseProperty | undefined {
   const chosen = data.properties.find((p) => p.id === view.config.groupBy && canGroupBy(p.type));
   return (
-    chosen ?? data.properties.find((p) => p.type === "select") ?? data.properties.find((p) => ["multi_select", "person", "checkbox"].includes(p.type))
+    chosen ?? data.properties.find((p) => p.type === "status") ?? data.properties.find((p) => p.type === "select") ?? data.properties.find((p) => ["multi_select", "person", "checkbox"].includes(p.type))
   );
 }
 
@@ -94,7 +94,7 @@ export function BoardView({
           className={`flex w-64 shrink-0 flex-col gap-1.5 rounded-lg p-1.5 ${over === g.key ? "bg-blue-50 dark:bg-blue-950/40" : "bg-neutral-50 dark:bg-neutral-900"}`}
         >
           <header className="flex items-center gap-1.5 px-1 py-0.5">
-            {g.option ? <OptionChip option={g.option} /> : <span className="font-medium">{g.label}</span>}
+            {g.option ? <OptionChip option={g.option} status={prop?.type === "status"} /> : <span className="font-medium">{g.label}</span>}
             <span className="text-xs text-neutral-400">{g.rows.length}</span>
           </header>
           {g.rows.map((row) => (

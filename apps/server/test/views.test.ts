@@ -123,6 +123,30 @@ describe("filters, sorts and groups", () => {
     expect(moveToGroup(paid, false, "false", "true")).toBe(true);
   });
 
+  it("status columns filter, sort and group by category, then by option", () => {
+    const step = prop("step", "status", {
+      options: [
+        { id: "done", name: "Terminé", color: "green", group: "done" },
+        { id: "todo", name: "À faire", color: "gray", group: "todo" },
+        { id: "doing", name: "En cours", color: "blue", group: "in_progress" },
+        { id: "idea", name: "Idée", color: "gray" },
+      ],
+    });
+    const list = [row("A", { step: "done" }), row("B", { step: "idea" }), row("C", { step: "doing" }), row("D", { step: null }), row("E", { step: "todo" })];
+    const c: ViewContext = { ...ctx, properties: [title, step], rows: list };
+    expect(titles(applyView(c, { sorts: [{ propertyId: "step", direction: "asc" }] }))).toEqual(["E", "B", "C", "A", "D"]);
+    expect(titles(applyView(c, { filters: [{ propertyId: "step", operator: "is", value: "doing" }] }))).toEqual(["C"]);
+    expect(groupRows(step, list, c).map((g) => [g.label, titles(g.rows)])).toEqual([
+      ["À faire", ["E"]],
+      ["Idée", ["B"]],
+      ["En cours", ["C"]],
+      ["Terminé", ["A"]],
+      ["Sans step", ["D"]],
+    ]);
+    expect(initialValues(c, { filters: [{ propertyId: "step", operator: "is", value: "doing" }] })).toEqual({ step: "doing" });
+    expect(initialValues(c, {}, { prop: step, key: "done" })).toEqual({ step: "done" });
+  });
+
   it("prefills a new row from the filters and the group", () => {
     const config = {
       filters: [

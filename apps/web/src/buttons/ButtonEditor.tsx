@@ -540,6 +540,7 @@ const VALUE_HINTS: Partial<Record<DatabaseProperty["type"], MessageKey>> = {
   date: "button.hint.date",
   checkbox: "button.hint.checkbox",
   select: "button.hint.select",
+  status: "button.hint.select",
   multi_select: "button.hint.multiSelect",
   person: "button.hint.person",
   relation: "button.hint.relation",

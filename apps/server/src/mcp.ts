@@ -51,6 +51,7 @@ function readable(properties: DatabaseProperty[], values: Record<string, CellVal
     const option = (id: string) => p.config.options?.find((o) => o.id === id)?.name ?? id;
     switch (p.type) {
       case "select":
+      case "status":
         out[p.name] = option(String(v));
         break;
       case "multi_select":
@@ -93,7 +94,7 @@ const markdown = z.string().max(2_000_000).describe("Content in Markdown: headin
 const cellValues = z
   .record(z.string(), z.unknown())
   .describe(
-    'Cell values by column name: text, number, true/false, a date as {"start": "2026-11-15"} or {"start": "2026-11-15T09:00"}, an option name for a select, a list of names for a multi-select, user ids for a person, row ids for a relation; null empties a cell.',
+    'Cell values by column name: text, number, true/false, a date as {"start": "2026-11-15"} or {"start": "2026-11-15T09:00"}, an option name for a select or a status, a list of names for a multi-select, user ids for a person, row ids for a relation; null empties a cell.',
   );
 const filterSchema = z.object({
   column: z.string().describe("Column name."),
@@ -389,8 +390,12 @@ function buildServer(call: Call, scope: TokenScope): McpServer {
           .array(
             z.object({
               name: z.string().min(1).max(100),
-              type: z.enum(["text", "number", "currency", "percent", "checkbox", "date", "select", "multi_select", "person", "url", "email", "file"]),
-              options: z.array(z.string().min(1).max(100)).max(100).optional().describe("For select and multi_select: the option names."),
+              type: z.enum(["text", "number", "currency", "percent", "checkbox", "date", "select", "multi_select", "status", "person", "url", "email", "file"]),
+              options: z
+                .array(z.string().min(1).max(100))
+                .max(100)
+                .optional()
+                .describe("For select and multi_select: the option names. A status column starts with Not started, In progress and Done."),
             }),
           )
           .max(50)
@@ -403,7 +408,7 @@ function buildServer(call: Call, scope: TokenScope): McpServer {
       // The columns a new database starts with, besides its title, give way to the ones asked for.
       if (cols?.length) for (const p of database.properties) if (p.type !== "title") await call("DELETE", `/databases/${database.id}/properties/${p.id}`);
       for (const c of cols ?? []) {
-        const options = c.options?.map((name, i) => ({ id: randomUUID().slice(0, 8), name, color: OPTION_COLORS[(i + 1) % OPTION_COLORS.length] }));
+        const options = c.type === "status" ? undefined : c.options?.map((name, i) => ({ id: randomUUID().slice(0, 8), name, color: OPTION_COLORS[(i + 1) % OPTION_COLORS.length] }));
         await call("POST", `/databases/${database.id}/properties`, { name: c.name, type: c.type, config: options ? { options } : {} });
       }
       const { database: done } = await call<DatabaseAnswer>("GET", `/databases/${database.id}`);

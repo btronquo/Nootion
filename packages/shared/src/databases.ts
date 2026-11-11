@@ -15,6 +15,7 @@ export const PROPERTY_TYPES = [
   "date",
   "select",
   "multi_select",
+  "status",
   "checkbox",
   "url",
   "email",
@@ -41,16 +42,50 @@ export const CREATABLE_TYPES = PROPERTY_TYPES.filter((t) => t !== "title");
 export const OPTION_COLORS = ["gray", "brown", "orange", "yellow", "green", "blue", "purple", "pink", "red"] as const;
 export type OptionColor = (typeof OPTION_COLORS)[number];
 
+/** Categories of a status column's options, in workflow order (like Notion's To-do / In progress / Complete). */
+export const STATUS_GROUPS = ["todo", "in_progress", "done"] as const;
+export type StatusGroup = (typeof STATUS_GROUPS)[number];
+
 export const selectOptionSchema = z.object({
   id: z.string().min(1).max(64),
   name: z.string().trim().min(1).max(100),
   color: z.enum(OPTION_COLORS).default("gray"),
+  /** status: the category the option belongs to. */
+  group: z.enum(STATUS_GROUPS).optional(),
 });
 export type SelectOption = z.infer<typeof selectOptionSchema>;
 
+/** Types whose cells hold one option id. */
+export const SINGLE_OPTION_TYPES: readonly PropertyType[] = ["select", "status"];
+/** Types whose settings hold a list of options. */
+export const OPTION_TYPES: readonly PropertyType[] = ["select", "multi_select", "status"];
+export const hasOptions = (type: PropertyType) => OPTION_TYPES.includes(type);
+export const isSingleOption = (type: PropertyType) => SINGLE_OPTION_TYPES.includes(type);
+
+/** Category of a status option (options without one count as "to do"). */
+export const statusGroupOf = (o: Pick<SelectOption, "group"> | undefined): StatusGroup => o?.group ?? "todo";
+
+/**
+ * Options as stored for a column type: a status column's options all have a category and are
+ * sorted by category (keeping their order inside each one); other columns' have none.
+ */
+export function normalizeOptions(type: PropertyType, options: SelectOption[]): SelectOption[] {
+  if (type !== "status") return options.map(({ group: _g, ...o }) => o);
+  return STATUS_GROUPS.flatMap((g) => options.filter((o) => statusGroupOf(o) === g).map((o) => ({ ...o, group: g })));
+}
+
+/** Options a new status column starts with. */
+export function defaultStatusOptions(): SelectOption[] {
+  return [
+    { id: "not_started", name: t("status.notStarted"), color: "gray", group: "todo" },
+    { id: "in_progress", name: t("status.inProgress"), color: "blue", group: "in_progress" },
+    { id: "done", name: t("status.done"), color: "green", group: "done" },
+  ];
+}
+
 export const propertyConfigSchema = z
   .object({
-    /** select / multi_select */
+    /** select / multi_select / status */
     options: z.array(selectOptionSchema).max(500).optional(),
     /** currency: ISO 4217 code */
     currency: z.string().regex(/^[A-Z]{3}$/).optional(),
@@ -122,6 +157,7 @@ export function valueSchema(type: PropertyType): z.ZodType<CellValue> {
     case "date":
       return z.object({ start: isoDate, end: isoDate.nullable().optional() }).nullable() as z.ZodType<CellValue>;
     case "select":
+    case "status":
       return z.string().min(1).max(64).nullable() as z.ZodType<CellValue>;
     case "relation":
       return z.array(z.string().min(1).max(64)).max(500).nullable() as z.ZodType<CellValue>;

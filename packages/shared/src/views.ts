@@ -13,6 +13,17 @@ import type {
 import type { FormulaResult } from "./formula.js";
 import { intlLocale, t } from "./i18n/index.js";
 
+// Kept here, not imported from databases.ts, which imports this module.
+const hasOptions = (type: PropertyType) => type === "select" || type === "multi_select" || type === "status";
+const isSingleOption = (type: PropertyType) => type === "select" || type === "status";
+const STATUS_ORDER = ["todo", "in_progress", "done"] as const;
+/** A column's options in display order: as arranged, and for a status column by category first. */
+export function orderedOptions(prop: Pick<DatabaseProperty, "type" | "config">): SelectOption[] {
+  const options = prop.config.options ?? [];
+  if (prop.type !== "status") return options;
+  return STATUS_ORDER.flatMap((g) => options.filter((o) => (o.group ?? "todo") === g));
+}
+
 /** Filters, sorts and groups of database views. Applied in the browser, on rows the reader can already see. */
 
 export const VIEW_TYPES = ["table", "board", "list", "gallery", "calendar", "timeline"] as const;
@@ -108,6 +119,7 @@ export function filterKind(prop: DatabaseProperty, ctx: Pick<ViewContext, "rows"
   if (NUMBER_TYPES.includes(t)) return "number";
   if (DATE_TYPES.includes(t)) return "date";
   if (t === "checkbox" || t === "select" || t === "multi_select") return t;
+  if (t === "status") return "select";
   if (t === "person" || t === "created_by") return "people";
   if (t === "relation" || t === "file") return "list";
   if (t === "rollup" || t === "formula") {
@@ -187,6 +199,7 @@ export function cellText(prop: DatabaseProperty, value: CellValue, ctx: Omit<Vie
   if (value === null || value === undefined) return "";
   switch (prop.type) {
     case "select":
+    case "status":
       return prop.config.options?.find((o) => o.id === value)?.name ?? "";
     case "multi_select":
       return (value as string[])
@@ -382,8 +395,9 @@ function sortKey(prop: DatabaseProperty, kind: FilterKind, row: DatabaseRow, ctx
     case "checkbox":
       return v ? 1 : 0;
     case "select": {
-      // Options sort in the order they were arranged, like Notion.
-      const i = prop.config.options?.findIndex((o) => o.id === v) ?? -1;
+      // Options sort in the order they were arranged, like Notion; statuses by category first.
+      const options = orderedOptions(prop);
+      const i = options.findIndex((o) => o.id === v);
       return i < 0 ? null : i;
     }
     case "multi_select": {
@@ -438,7 +452,7 @@ export function canGroupBy(type: PropertyType): boolean {
 
 /** Types whose groups can receive rows (board drag and drop, "new" in a group). */
 export function canMoveBetweenGroups(type: PropertyType): boolean {
-  return ["select", "multi_select", "checkbox", "person", "text", "url", "email", "number", "currency", "percent", "plugin"].includes(type);
+  return ["select", "status", "multi_select", "checkbox", "person", "text", "url", "email", "number", "currency", "percent", "plugin"].includes(type);
 }
 
 export interface RowGroup {
@@ -460,6 +474,7 @@ function groupKeysOf(prop: DatabaseProperty, row: DatabaseRow, ctx: ViewContext)
     case "checkbox":
       return [{ key: String(v === true), label: v === true ? t("group.checked") : t("group.unchecked") }];
     case "select":
+    case "status":
     case "multi_select":
       return (Array.isArray(v) ? (v as string[]) : [v as string])
         .filter((id) => prop.config.options?.some((o) => o.id === id))
@@ -494,8 +509,8 @@ function groupKeysOf(prop: DatabaseProperty, row: DatabaseRow, ctx: ViewContext)
 export function groupRows(prop: DatabaseProperty, rows: DatabaseRow[], ctx: ViewContext): RowGroup[] {
   const groups = new Map<string, RowGroup>();
   const empty: RowGroup = { key: "", label: t("group.none", { name: prop.name.toLowerCase() }), rows: [] };
-  if (prop.type === "select" || prop.type === "multi_select") {
-    for (const o of prop.config.options ?? []) groups.set(o.id, { key: o.id, label: o.name, option: o, rows: [] });
+  if (hasOptions(prop.type)) {
+    for (const o of orderedOptions(prop)) groups.set(o.id, { key: o.id, label: o.name, option: o, rows: [] });
   }
   if (prop.type === "checkbox") {
     groups.set("true", { key: "true", label: t("group.checked"), rows: [] });
@@ -513,7 +528,7 @@ export function groupRows(prop: DatabaseProperty, rows: DatabaseRow[], ctx: View
   let list = [...groups.values()];
   if (DATE_TYPES.includes(prop.type)) list.sort((a, b) => (a.key < b.key ? -1 : 1));
   else if (NUMBER_TYPES.includes(prop.type)) list.sort((a, b) => Number(a.key) - Number(b.key));
-  else if (prop.type !== "select" && prop.type !== "multi_select" && prop.type !== "checkbox")
+  else if (!hasOptions(prop.type) && prop.type !== "checkbox")
     list.sort((a, b) => collator.compare(a.label, b.label));
   if (prop.type !== "checkbox") list = [...list, empty];
   return list;
@@ -550,7 +565,7 @@ export function initialValues(
   if (config.filterMode !== "or" || filters.length === 1) {
     for (const f of filters) {
       const prop = ctx.properties.find((p) => p.id === f.propertyId)!;
-      if (prop.type === "select" && f.operator === "is") values[prop.id] = f.value as string;
+      if (isSingleOption(prop.type) && f.operator === "is") values[prop.id] = f.value as string;
       else if (prop.type === "multi_select" && f.operator === "contains") values[prop.id] = [f.value as string];
       else if (prop.type === "person" && f.operator === "contains") {
         const id = f.value === "me" ? ctx.me : (f.value as string);

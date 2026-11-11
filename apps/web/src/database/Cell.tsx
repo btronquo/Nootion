@@ -154,9 +154,10 @@ function Display(props: CellProps) {
           {String(value)}
         </a>
       );
-    case "select": {
+    case "select":
+    case "status": {
       const o = prop.config.options?.find((x) => x.id === value);
-      return o ? <OptionChip option={o} /> : null;
+      return o ? <OptionChip option={o} status={prop.type === "status"} /> : null;
     }
     case "multi_select":
       return (
@@ -302,7 +303,7 @@ function InlineEditor({ prop, value, onChange, onDone }: CellProps & { onDone: (
 
 function PopupEditor(props: CellProps) {
   const { prop, value, onChange, onCreateOption } = props;
-  if (prop.type === "select" || prop.type === "multi_select") {
+  if (prop.type === "select" || prop.type === "multi_select" || prop.type === "status") {
     const multi = prop.type === "multi_select";
     const selected = value === null || value === undefined ? [] : multi ? (value as string[]) : [value as string];
     return (

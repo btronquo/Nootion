@@ -20,6 +20,9 @@ import {
   applyView,
   viewFilterSchema,
   viewSortSchema,
+  hasOptions,
+  isSingleOption,
+  normalizeOptions,
 } from "@nootion/shared";
 import { and, eq, inArray, isNull, max } from "drizzle-orm";
 import { databaseProperties, databaseViews, pages } from "../db/schema.js";
@@ -101,7 +104,7 @@ function valuesByIds(properties: DatabaseProperty[], values: Record<string, unkn
     }
     const option = (v: unknown) =>
       typeof v === "string" ? (prop.config.options?.find((o) => o.id === v) ?? prop.config.options?.find((o) => o.name.toLowerCase() === v.toLowerCase()))?.id ?? v : v;
-    out[prop.id] = prop.type === "select" ? option(value) : prop.type === "multi_select" && Array.isArray(value) ? value.map(option) : value;
+    out[prop.id] = isSingleOption(prop.type) ? option(value) : prop.type === "multi_select" && Array.isArray(value) ? value.map(option) : value;
   }
   return out;
 }
@@ -222,6 +225,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
       ...input.config,
     };
     delete config.twinPropertyId;
+    if (config.options) config.options = normalizeOptions(input.type, config.options);
     let twin: { databaseId: string; id: string } | null = null;
     if (input.type === "relation") {
       if (!config.databaseId) throw new HttpError(400, "relation_target", t("error.relationTarget"));
@@ -333,15 +337,15 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
         set.type = target;
         set.config = config;
       } else if (input.config) {
-        set.config = input.config;
+        set.config = input.config.options ? { ...input.config, options: normalizeOptions(prop.type, input.config.options) } : input.config;
         // Removing select options clears the cells that used them.
-        if ((prop.type === "select" || prop.type === "multi_select") && input.config.options) {
+        if (hasOptions(prop.type) && input.config.options) {
           const kept = new Set(input.config.options.map((o) => o.id));
           for (const r of rows) {
             const props = { ...(r.props ?? {}) } as Record<string, CellValue>;
             const v = props[prop.id];
             if (v == null) continue;
-            const next = prop.type === "select" ? (kept.has(v as string) ? v : null) : (v as string[]).filter((x) => kept.has(x));
+            const next = isSingleOption(prop.type) ? (kept.has(v as string) ? v : null) : (v as string[]).filter((x) => kept.has(x));
             if (JSON.stringify(next) === JSON.stringify(v)) continue;
             if (next === null || (Array.isArray(next) && next.length === 0)) delete props[prop.id];
             else props[prop.id] = next;

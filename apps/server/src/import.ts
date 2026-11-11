@@ -46,6 +46,7 @@ const IMPORTABLE = new Set([
   "percent",
   "date",
   "select",
+  "status",
   "multi_select",
   "checkbox",
   "url",
@@ -208,6 +209,7 @@ export function planImport(
         return start ? { start, end: end ?? null } : null;
       }
       case "select":
+      case "status":
         return option(prop, raw);
       case "multi_select":
         return split(raw).map((n) => option(prop, n));

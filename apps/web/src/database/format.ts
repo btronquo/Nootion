@@ -75,6 +75,7 @@ export function formatValue(prop: DatabaseProperty, value: CellValue, people: Re
     case "last_edited_time":
       return formatDateString(value as string);
     case "select":
+    case "status":
       return prop.config.options?.find((o) => o.id === value)?.name ?? "";
     case "multi_select":
       return (value as string[])

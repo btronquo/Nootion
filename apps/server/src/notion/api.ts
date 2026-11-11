@@ -79,7 +79,7 @@ export interface NotionPropertySchema {
   number?: { format: string };
   select?: { options: NotionOption[] };
   multi_select?: { options: NotionOption[] };
-  status?: { options: NotionOption[] };
+  status?: { options: NotionOption[]; groups?: { id: string; name: string; color?: string; option_ids: string[] }[] };
   formula?: { expression: string };
   relation?: { database_id: string; type?: "single_property" | "dual_property"; dual_property?: { synced_property_id: string; synced_property_name: string } };
   rollup?: {

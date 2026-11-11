@@ -18,6 +18,10 @@ import {
   type FormulaNode,
   type FormulaResult,
   valueSchema,
+  defaultStatusOptions,
+  hasOptions,
+  isSingleOption,
+  normalizeOptions,
   type CalcFunction,
   type RelatedRow,
   type RollupValue,
@@ -298,6 +302,7 @@ function toFormulaValue(prop: DatabaseProperty, value: CellValue, ctx: FormulaCo
     case "last_edited_time":
       return makeDate(value as string);
     case "select":
+    case "status":
       return prop.config.options?.find((o) => o.id === value)?.name ?? null;
     case "multi_select":
       return (value as string[]).map((id) => prop.config.options?.find((o) => o.id === id)?.name ?? "").filter(Boolean);
@@ -453,7 +458,7 @@ export function validateValues(db: DbLike, properties: DatabaseProperty[], rowId
       title = (value as string | null) ?? "";
       continue;
     }
-    if (prop.type === "select" && value !== null && !(prop.config.options ?? []).some((o) => o.id === value)) {
+    if (isSingleOption(prop.type) && value !== null && !(prop.config.options ?? []).some((o) => o.id === value)) {
       throw new HttpError(400, "unknown_option", t("error.unknownOption", { name: prop.name }));
     }
     if (prop.type === "multi_select" && value !== null) {
@@ -519,6 +524,7 @@ export function valueToText(value: CellValue, prop: DatabaseProperty): string {
   const opts = new Map((prop.config.options ?? []).map((o) => [o.id, o.name]));
   switch (prop.type) {
     case "select":
+    case "status":
       return opts.get(value as string) ?? "";
     case "multi_select":
       return (value as string[]).map((v) => opts.get(v) ?? "").filter(Boolean).join(", ");
@@ -544,10 +550,12 @@ export function valueToText(value: CellValue, prop: DatabaseProperty): string {
 export function convertColumn(rowValues: CellValue[], from: DatabaseProperty, toType: PropertyType, toConfig: PropertyConfig) {
   const texts = rowValues.map((v) => valueToText(v, from));
   const config: PropertyConfig = { ...toConfig };
-  if (toType === "select" || toType === "multi_select") {
-    const options: SelectOption[] = [...(config.options ?? [])];
-    // Keep option ids when going select <-> multi_select.
-    if ((from.type === "select" || from.type === "multi_select") && !config.options) options.push(...(from.config.options ?? []));
+  if (hasOptions(toType)) {
+    // Between option columns, the options carry over (ids, colors, statuses' categories).
+    // Otherwise a status column starts with its usual options, which values then match by name.
+    const options: SelectOption[] = hasOptions(from.type)
+      ? [...(from.config.options ?? [])]
+      : [...(config.options ?? (toType === "status" ? defaultStatusOptions() : []))];
     const byName = new Map(options.map((o) => [o.name.toLowerCase(), o]));
     const colors = ["gray", "brown", "orange", "yellow", "green", "blue", "purple", "pink", "red"] as const;
     const ensure = (name: string) => {
@@ -563,9 +571,9 @@ export function convertColumn(rowValues: CellValue[], from: DatabaseProperty, to
     const values = texts.map((t) => {
       const parts = (toType === "multi_select" ? t.split(",") : [t]).map((p) => p.trim()).filter(Boolean);
       if (!parts.length) return null;
-      return toType === "select" ? ensure(parts[0]) : [...new Set(parts.map(ensure))];
+      return toType === "multi_select" ? [...new Set(parts.map(ensure))] : ensure(parts[0]);
     });
-    config.options = options;
+    config.options = normalizeOptions(toType, options);
     return { values: values as CellValue[], config };
   }
   const values = texts.map((t, i): CellValue => {
@@ -597,6 +605,8 @@ export function defaultConfig(type: PropertyType): PropertyConfig {
     case "select":
     case "multi_select":
       return { options: [] };
+    case "status":
+      return { options: defaultStatusOptions() };
     case "currency":
       return { currency: "EUR", decimals: 2 };
     case "percent":

@@ -5,6 +5,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+
+- Status columns, as in Notion: one choice among options sorted into three categories (To do, In progress, Done),
+  starting with Not started / In progress / Done. Options can be renamed, recolored, added to any category or moved
+  to another; filters, sorts, groups, boards and charts follow the categories' order. A board picks a status column
+  first. The Notion import keeps status columns and their categories (they used to become select columns), and
+  turns the ones an earlier import made into selects back into status columns.
+
 ### Fixed
 
 - The map block (Map plugin) showed "Access blocked" instead of OpenStreetMap's tiles: they are now requested with

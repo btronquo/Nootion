@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import type { DatabaseData, DatabaseProperty } from "@nootion/shared";
 import { eq } from "drizzle-orm";
-import { pages } from "../src/db/schema.js";
+import { databaseProperties, pages } from "../src/db/schema.js";
 import type { ProseMirrorNode } from "../src/collab.js";
 import { Client, inviteUser, makeApp, setupAdmin } from "./helpers.js";
 import { fakeNotion } from "./notion-fake.js";
@@ -56,7 +56,8 @@ describe("Notion import", () => {
     expect(Object.keys(report.notes)).not.toEqual(expect.arrayContaining(["toggle"]));
     expect(report.formulas).toEqual([expect.objectContaining({ database: "Tasks", name: "Weird" })]);
     // Each note says where it is, with a link to Notion (to the block for page contents).
-    expect(report.details.status).toEqual([{ where: "Tasks", item: "Status", url: "https://www.notion.so/33333333333333333333333333333333" }]);
+    // Status columns are kept as status columns: nothing to report.
+    expect(report.details.status).toBeUndefined();
     expect(report.details.propertyType).toEqual([expect.objectContaining({ where: "Tasks", item: "Button", info: "button" })]);
     expect(report.details.icon).toEqual([expect.objectContaining({ where: "Notes", info: "i.png" })]);
     expect(report.details.table_of_contents).toEqual([{ where: "Home", url: "https://www.notion.so/11111111111111111111111111111111#b14" }]);
@@ -130,8 +131,13 @@ describe("Notion import", () => {
 
     // Columns and their types.
     const tasks = await getDb(byTitle("Tasks").id);
-    expect(prop(tasks, "Status").type).toBe("select");
-    expect(prop(tasks, "Status").config).toMatchObject({ options: expect.arrayContaining([expect.objectContaining({ name: "Doing" })]) });
+    // Status columns keep their options' categories.
+    expect(prop(tasks, "Status").type).toBe("status");
+    expect(prop(tasks, "Status").config.options).toEqual([
+      { id: "s1", name: "To do", color: "gray", group: "todo" },
+      { id: "s2", name: "Doing", color: "blue", group: "in_progress" },
+      { id: "s3", name: "Shipped", color: "green", group: "done" },
+    ]);
     expect(prop(tasks, "Price")).toMatchObject({ type: "currency", config: { currency: "EUR" } });
     expect(prop(tasks, "Done").type).toBe("checkbox");
     expect(prop(tasks, "Assignee").type).toBe("person");
@@ -194,6 +200,24 @@ describe("Notion import", () => {
     const tasks = await getDb(after.find((p) => p.title === "Tasks")!.id);
     expect(tasks.rows).toHaveLength(2);
     expect(tasks.properties.filter((p) => p.name === "Price")).toHaveLength(1);
+  });
+
+  it("turns status columns imported as selects by older versions into status columns", async () => {
+    await runImport();
+    let tasks = await getDb((await tree()).find((p) => p.title === "Tasks")!.id);
+    const status = prop(tasks, "Status");
+    const doing = tasks.rows.find((r) => r.values[status.id] === "s2")!;
+    // As an older version left it: a select, without categories.
+    app.db
+      .update(databaseProperties)
+      .set({ type: "select", config: { options: status.config.options!.map(({ group: _g, ...o }) => o) } })
+      .where(eq(databaseProperties.id, status.id))
+      .run();
+    await runImport({});
+    tasks = await getDb(tasks.id);
+    expect(prop(tasks, "Status")).toMatchObject({ id: status.id, type: "status" });
+    expect(prop(tasks, "Status").config.options!.map((o) => o.group)).toEqual(["todo", "in_progress", "done"]);
+    expect(tasks.rows.find((r) => r.id === doing.id)!.values[status.id]).toBe("s2");
   });
 
   it("imports unchanged pages again when asked, reusing their icons", async () => {

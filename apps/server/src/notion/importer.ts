@@ -7,7 +7,10 @@ import {
   ICON_MAX_BYTES,
   NOTION_DETAILS_MAX,
   OPTION_COLORS,
+  STATUS_GROUPS,
+  normalizeOptions,
   t,
+  type StatusGroup,
   type NotionImportDetail,
   type NotionImportJob,
   type CalcFunction,
@@ -129,6 +132,29 @@ export const normId = (id: string) => id.replace(/-/g, "").toLowerCase();
 const colorOf = (c: string): SelectOption["color"] => ((OPTION_COLORS as readonly string[]).includes(c) ? (c as SelectOption["color"]) : "gray");
 const toOptions = (options: { id: string; name: string; color: string }[] = []): SelectOption[] =>
   options.filter((o) => o.name.trim()).map((o) => ({ id: (o.id || randomUUID()).slice(0, 64), name: o.name.trim().slice(0, 100), color: colorOf(o.color) }));
+
+/**
+ * Category of each option of a Notion status column, by option id. Notion always has three groups,
+ * in workflow order (To-do, In progress, Complete), whose names depend on the language.
+ */
+export function statusGroups(status: NotionPropertySchema["status"]): Map<string, StatusGroup> {
+  const out = new Map<string, StatusGroup>();
+  const byName: Record<string, StatusGroup> = { "to-do": "todo", "to do": "todo", "in progress": "in_progress", complete: "done", done: "done" };
+  (status?.groups ?? []).forEach((g, i) => {
+    const group = byName[g.name.trim().toLowerCase()] ?? STATUS_GROUPS[Math.min(i, STATUS_GROUPS.length - 1)]!;
+    for (const id of g.option_ids ?? []) out.set(id, group);
+  });
+  return out;
+}
+
+/** A Notion status column's options, with their categories. */
+const toStatusOptions = (status: NotionPropertySchema["status"]): SelectOption[] => {
+  const groups = statusGroups(status);
+  return normalizeOptions(
+    "status",
+    toOptions(status?.options).map((o) => ({ ...o, group: groups.get(o.id) ?? "todo" })),
+  );
+};
 
 const emojiOf = (icon: NotionIcon) => (icon?.type === "emoji" ? icon.emoji : null);
 
@@ -340,14 +366,19 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
     const known = existingColumns(dbId).get(notionPropId);
     const current = known ? listProperties(db, dbId).find((p) => p.id === known) : undefined;
     if (current) {
-      // Imported before: renamed, and new options added; the type stays the one chosen in Nootion.
+      // Imported before: renamed, and new options added; the type stays the one chosen in Nootion,
+      // except for status columns, which earlier versions imported as selects.
+      const upgrade = type === "status" && current.type === "select";
+      const nextType = upgrade ? "status" : current.type;
       const merged: PropertyConfig = { ...current.config };
       if (config.options) {
-        const ids = new Set((current.config.options ?? []).map((x) => x.id));
-        merged.options = [...(current.config.options ?? []), ...config.options.filter((x) => !ids.has(x.id))];
+        const incoming = new Map(config.options.map((x) => [x.id, x]));
+        const kept = (current.config.options ?? []).map((x) => (upgrade ? { ...x, group: incoming.get(x.id)?.group } : x));
+        const ids = new Set(kept.map((x) => x.id));
+        merged.options = normalizeOptions(nextType, [...kept, ...config.options.filter((x) => !ids.has(x.id))]);
       }
-      db.update(databaseProperties).set({ name, config: merged }).where(eq(databaseProperties.id, current.id)).run();
-      return { ...current, name, config: merged };
+      db.update(databaseProperties).set({ name, type: nextType, config: merged }).where(eq(databaseProperties.id, current.id)).run();
+      return { ...current, name, type: nextType, config: merged };
     }
     const id = randomUUID();
     db.insert(databaseProperties).values({ id, databaseId: dbId, name, type, config, position }).run();
@@ -667,8 +698,7 @@ function plainColumn(p: NotionPropertySchema, note: (what: string, info?: string
     case "select":
       return { type: "select", config: { options: toOptions(p.select?.options) } };
     case "status":
-      note("status");
-      return { type: "select", config: { options: toOptions(p.status?.options) } };
+      return { type: "status", config: { options: toStatusOptions(p.status) } };
     case "multi_select":
       return { type: "multi_select", config: { options: toOptions(p.multi_select?.options) } };
     case "date":

@@ -520,7 +520,7 @@ export function TableView({
                       className="sticky left-1 flex items-center gap-1.5 rounded px-1 py-0.5 enabled:hover:bg-neutral-100 dark:enabled:hover:bg-neutral-800"
                     >
                       {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                      {g.option ? <OptionChip option={g.option} /> : <span className="font-medium">{g.label}</span>}
+                      {g.option ? <OptionChip option={g.option} status={groupProp?.type === "status"} /> : <span className="font-medium">{g.label}</span>}
                       <span className="text-xs text-neutral-400">{g.rows.length}</span>
                     </button>
                   </div>

@@ -111,6 +111,56 @@ describe("databases", () => {
     expect((await boris.patch(`/api/databases/${d.id}/properties/${d.properties[0].id}`, { type: "text" })).statusCode).toBe(400);
   });
 
+  it("status columns: options by category, like Notion", async () => {
+    const d = await createDb(boris);
+    const st = await addProp(boris, d.id, "Avancement", "status");
+    expect(st.config.options!.map((o) => [o.name, o.group])).toEqual([
+      ["Pas commencé", "todo"],
+      ["En cours", "in_progress"],
+      ["Terminé", "done"],
+    ]);
+    const row = (await boris.post(`/api/databases/${d.id}/rows`, { values: { [st.id]: "in_progress" } })).json().row;
+    expect(row.values[st.id]).toBe("in_progress");
+    const named = (await boris.post(`/api/databases/${d.id}/rows`, { values: { [st.id]: "done" } })).json().row;
+    expect(named.values[st.id]).toBe("done");
+    expect((await boris.post(`/api/databases/${d.id}/rows`, { values: { [st.id]: "inconnue" } })).statusCode).toBe(400);
+
+    // Renamed and added options keep their category; the list is stored sorted by category.
+    const options = [
+      { id: "done", name: "Livré", color: "green", group: "done" },
+      { id: "not_started", name: "À faire", color: "gray", group: "todo" },
+      { id: "in_progress", name: "En cours", color: "blue", group: "in_progress" },
+      { id: "review", name: "En relecture", color: "purple", group: "in_progress" },
+      { id: "nogroup", name: "Idée", color: "gray" },
+    ];
+    const updated = (await boris.patch(`/api/databases/${d.id}/properties/${st.id}`, { config: { options } })).json().property;
+    expect(updated.config.options.map((o: { id: string; group: string }) => `${o.id}:${o.group}`)).toEqual([
+      "not_started:todo",
+      "nogroup:todo",
+      "in_progress:in_progress",
+      "review:in_progress",
+      "done:done",
+    ]);
+    expect((await getDb(boris, d.id)).rows.find((r) => r.id === row.id)!.values[st.id]).toBe("in_progress");
+
+    // A select becomes a status with the same options (all to do); a text with the usual ones plus its values.
+    const sel = await addProp(boris, d.id, "Étape", "select", { options: [{ id: "x", name: "X", color: "red" }] });
+    await boris.patch(`/api/databases/${d.id}/rows/${row.id}`, { values: { [sel.id]: "x" } });
+    const fromSelect = (await boris.patch(`/api/databases/${d.id}/properties/${sel.id}`, { type: "status" })).json().property;
+    expect(fromSelect.config.options).toEqual([{ id: "x", name: "X", color: "red", group: "todo" }]);
+    expect((await getDb(boris, d.id)).rows.find((r) => r.id === row.id)!.values[sel.id]).toBe("x");
+    const txt = await addProp(boris, d.id, "Note", "text");
+    await boris.patch(`/api/databases/${d.id}/rows/${row.id}`, { values: { [txt.id]: "Terminé" } });
+    await boris.patch(`/api/databases/${d.id}/rows/${named.id}`, { values: { [txt.id]: "Bloqué" } });
+    const fromText = (await boris.patch(`/api/databases/${d.id}/properties/${txt.id}`, { type: "status" })).json().property;
+    expect(fromText.config.options.map((o: { name: string }) => o.name)).toEqual(["Pas commencé", "Bloqué", "En cours", "Terminé"]);
+    const rows = (await getDb(boris, d.id)).rows;
+    expect(rows.find((r) => r.id === row.id)!.values[txt.id]).toBe("done");
+    // And back to a select: the categories go.
+    const back = (await boris.patch(`/api/databases/${d.id}/properties/${txt.id}`, { type: "select" })).json().property;
+    expect(back.config.options.every((o: { group?: string }) => o.group === undefined)).toBe(true);
+  });
+
   it("deleting an option empties the cells that used it", async () => {
     const d = await createDb(boris);
     const s = await addProp(boris, d.id, "Statut", "multi_select", {

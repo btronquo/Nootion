@@ -100,6 +100,7 @@ export function cellText(prop: DatabaseProperty, value: unknown, names: Map<stri
   const option = (id: string) => prop.config.options?.find((o) => o.id === id)?.name ?? "";
   switch (prop.type) {
     case "select":
+    case "status":
       return option(String(value));
     case "multi_select":
       return (value as string[]).map(option).filter(Boolean).join(", ");

@@ -56,6 +56,7 @@ export function exportJson(prop: DatabaseProperty, value: CellValue, data: Datab
   const names = (ids: string[], lookup: (id: string) => string | undefined) => ids.map((id) => lookup(id) ?? null).filter((x) => x !== null);
   switch (prop.type) {
     case "select":
+    case "status":
       return prop.config.options?.find((o) => o.id === value)?.name ?? null;
     case "multi_select":
       return names(value as string[], (id) => prop.config.options?.find((o) => o.id === id)?.name);

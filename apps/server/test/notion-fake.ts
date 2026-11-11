@@ -62,6 +62,13 @@ export function fakeNotion() {
         options: [
           { id: "s1", name: "To do", color: "gray" },
           { id: "s2", name: "Doing", color: "blue" },
+          { id: "s3", name: "Shipped", color: "green" },
+        ],
+        // Groups named in another language: their order tells the category.
+        groups: [
+          { id: "g1", name: "À faire", color: "gray", option_ids: ["s1"] },
+          { id: "g2", name: "En cours", color: "blue", option_ids: ["s2"] },
+          { id: "g3", name: "Terminé", color: "green", option_ids: ["s3"] },
         ],
       },
     },
