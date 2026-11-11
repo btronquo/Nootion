@@ -99,6 +99,9 @@ export function findTokenUser(db: Db, token: string, now = new Date()) {
 // deleting for good, administration, other tokens.
 const ALLOWED: [methods: string, path: RegExp][] = [
   ["GET", /^\/api\/auth\/me$/],
+  // Sync with the desktop app (routes/sync.ts).
+  ["GET", /^\/api\/sync\/[^/]+\/changes$/],
+  ["POST", /^\/api\/sync\/[^/]+\/push$/],
   ["GET", /^\/api\/users$/],
   ["GET", /^\/api\/workspaces$/],
   ["GET", /^\/api\/workspaces\/[^/]+\/pages$/],

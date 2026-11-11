@@ -74,7 +74,7 @@ export const pageMeta = {
   template: pages.template,
   defaultTemplateId: pages.defaultTemplateId,
 };
-export type PageMeta = Omit<PageRow, "contentState" | "contentJson" | "contentText" | "props">;
+export type PageMeta = Omit<PageRow, "contentState" | "contentJson" | "contentText" | "props" | "syncClock" | "fieldClock">;
 
 /** Database rows are pages too, but they are listed inside their database, not in page trees. */
 export const notRow = <T extends { kind: string }>(p: T) => p.kind !== "row";
