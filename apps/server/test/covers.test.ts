@@ -61,3 +61,19 @@ describe("page covers", () => {
     expect((await visitor.get(pub.cover)).statusCode).toBe(200);
   });
 });
+
+describe("attached files", () => {
+  it("are sent by parts on request, for videos", async () => {
+    const ws = await boris.personalWorkspace();
+    const id = await boris.createPage(ws, "Clip");
+    const file = await upload(boris, id);
+    const whole = await boris.get(file.url);
+    expect(whole.headers["accept-ranges"]).toBe("bytes");
+    const part = await boris.request("GET", file.url, undefined, { range: "bytes=2-4" });
+    expect(part.statusCode).toBe(206);
+    expect(part.headers["content-range"]).toBe("bytes 2-4/8");
+    expect(part.rawPayload).toEqual(Buffer.from("4e470d", "hex"));
+    expect((await boris.request("GET", file.url, undefined, { range: "bytes=-2" })).rawPayload).toEqual(Buffer.from("1a0a", "hex"));
+    expect((await boris.request("GET", file.url, undefined, { range: "bytes=50-" })).statusCode).toBe(416);
+  });
+});

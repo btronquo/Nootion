@@ -7,6 +7,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Videos in pages (`/video`): a YouTube, Vimeo, Dailymotion, Loom, PeerTube, Twitch or Google Drive link plays in
+  the site's own player (YouTube's without cookies until played), and a video file (MP4, WebM) uploaded or dropped
+  in a page plays in the browser's. A video link pasted alone on an empty line becomes a video. Notion videos are
+  imported as videos, and attached files can be played from any point (HTTP ranges).
 - A desktop app for Windows, macOS and Linux (`apps/desktop`, built with Tauri): type the address of a Nootion
   server, keep several servers and switch between them from the menu. It reopens the last server at start, keeps you
   signed in, and opens links in the default browser. Installers are built by GitHub Actions on a `desktop-v*` tag.

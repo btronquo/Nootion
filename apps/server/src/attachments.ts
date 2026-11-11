@@ -20,19 +20,45 @@ export function attachmentPath(dataDir: string, id: string): string {
 // so an uploaded file can never run code in the app's origin.
 const INLINE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "image/avif", "application/pdf", "video/mp4", "video/webm", "audio/mpeg", "audio/ogg", "text/plain"]);
 
-export function sendAttachment(reply: FastifyReply, dataDir: string, a: AttachmentRow, forceDownload = false) {
+/**
+ * Sends an attached file. A `range` header ("bytes=0-1023") gets that part only, so that videos can be played from
+ * any point without being downloaded whole first.
+ */
+export function sendAttachment(reply: FastifyReply, dataDir: string, a: AttachmentRow, forceDownload = false, range?: string) {
   const file = attachmentPath(dataDir, a.id);
   if (!fs.existsSync(file)) return reply.status(404).send({ error: "not_found", message: t("error.fileNotFound") });
   const inline = !forceDownload && INLINE_TYPES.has(a.mimeType);
   const encoded = encodeURIComponent(a.filename);
+  const size = fs.statSync(file).size;
+  const part = range ? byteRange(range, size) : null;
+  if (part === "unsatisfiable") return reply.status(416).header("content-range", `bytes */${size}`).send();
+  if (part) reply.status(206).header("content-range", `bytes ${part.start}-${part.end}/${size}`);
   reply
     .header("content-type", inline ? a.mimeType : "application/octet-stream")
-    .header("content-length", a.size)
+    .header("content-length", part ? part.end - part.start + 1 : size)
+    .header("accept-ranges", "bytes")
     .header("content-disposition", `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encoded}`)
     .header("x-content-type-options", "nosniff")
     .header("content-security-policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox")
     .header("cache-control", "private, max-age=3600");
-  return reply.send(fs.createReadStream(file));
+  return reply.send(fs.createReadStream(file, part ?? undefined));
+}
+
+/** A single range of bytes ("bytes=500-", "bytes=-500", "bytes=0-99"); null when the header isn't one we take. */
+export function byteRange(header: string, size: number): { start: number; end: number } | "unsatisfiable" | null {
+  const m = /^bytes=(\d*)-(\d*)$/.exec(header.trim());
+  if (!m || (!m[1] && !m[2])) return null;
+  let start: number;
+  let end: number;
+  if (!m[1]) {
+    start = Math.max(0, size - Number(m[2]));
+    end = size - 1;
+  } else {
+    start = Number(m[1]);
+    end = m[2] ? Math.min(Number(m[2]), size - 1) : size - 1;
+  }
+  if (start >= size || start > end) return "unsatisfiable";
+  return { start, end };
 }
 
 /** Removes files whose attachment row is gone (deleted pages or workspaces). */

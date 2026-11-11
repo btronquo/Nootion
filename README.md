@@ -82,6 +82,7 @@ offline use and the Notion import.
   Every access check is done on the server (`apps/server/src/permissions.ts`) and covered by tests.
 - Notion-like page editor ("/" commands, to-do lists, tables, callouts, toggles, columns, images and attached files,
   links between pages with "@", people mentions, table of contents), with real-time collaborative editing.
+- Videos (`/video`): YouTube, Vimeo, Dailymotion, Loom, PeerTube, Twitch or Google Drive links, or video files.
 - Drawing block (`/drawing`): pen, highlighter, shapes, arrows and text boxes, saved with the page, with a
   full-screen whiteboard and an SVG download.
 - Comments on a passage or on the whole page: threads with replies, resolved and reopened, that follow their

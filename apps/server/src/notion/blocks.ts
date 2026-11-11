@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { ProseMirrorNode } from "../collab.js";
 import type { NotionBlock, NotionFile, RichText } from "./api.js";
+import { videoSource } from "@nootion/shared";
 
 /** A Notion block with its children already loaded. */
 export type BlockTree = NotionBlock & { children?: BlockTree[] };
@@ -188,9 +189,31 @@ async function convertBlock(block: BlockTree, ctx: ConvertContext): Promise<Pros
       }
       return url ? [{ type: "image", attrs: { src: url, alt: caption || null } }] : [];
     }
+    case "video": {
+      // In a video block: a file of the export, or a video site's link (YouTube…).
+      const file = data as unknown as NotionFile & { name?: string; caption?: RichText[] };
+      const url = fileUrl(file);
+      if (file.type === "file") {
+        const saved = await ctx.saveFile(url, file.name || fileName(url, "video"));
+        if (!saved) {
+          note("fileMissing", file.name || fileName(url, "video"));
+          return [];
+        }
+        return [/^video\/(mp4|webm)$/.test(saved.mimeType) ? { type: "video", attrs: { src: saved.url } } : { type: "fileAttachment", attrs: saved }];
+      }
+      if (videoSource(url, "localhost")) return [{ type: "video", attrs: { src: url } }];
+      return url
+        ? [
+            paragraph([
+              text(file.name || plainText(file.caption) || url, [
+                { type: "link", attrs: { href: url, target: "_blank", rel: "noopener noreferrer nofollow", class: null } },
+              ]),
+            ]),
+          ]
+        : [];
+    }
     case "file":
     case "pdf":
-    case "video":
     case "audio": {
       const file = data as unknown as NotionFile & { name?: string; caption?: RichText[] };
       const url = fileUrl(file);

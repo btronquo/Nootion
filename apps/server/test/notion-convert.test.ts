@@ -66,3 +66,27 @@ describe("Notion blocks imported differently", () => {
     ]);
   });
 });
+
+describe("Notion videos", () => {
+  it("become video blocks: links of video sites and video files", async () => {
+    const { blocksToDoc } = await import("../src/notion/blocks.js");
+    const block = (id: string, type: string, data: Record<string, unknown>) => ({ object: "block", id, type, has_children: false, [type]: data }) as never;
+    const doc = await blocksToDoc(
+      [
+        block("v1", "video", { type: "external", external: { url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" }, caption: [] }),
+        block("v2", "video", { type: "file", file: { url: "https://files.example/abc/clip.mp4?X-Amz=1" }, caption: [] }),
+        block("v3", "video", { type: "external", external: { url: "https://example.org/page" }, caption: [] }),
+      ],
+      {
+        pageFor: () => null,
+        saveFile: async (_url, name) => ({ url: "/api/attachments/6f1c1f5e-1d2b-4c3a-9e8f-0123456789ab", name, size: 10, mimeType: "video/mp4" }),
+        note: () => {},
+      },
+    );
+    expect(doc.content?.slice(0, 2)).toEqual([
+      { type: "video", attrs: { src: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" } },
+      { type: "video", attrs: { src: "/api/attachments/6f1c1f5e-1d2b-4c3a-9e8f-0123456789ab" } },
+    ]);
+    expect(doc.content?.[2]?.type).toBe("paragraph");
+  });
+});

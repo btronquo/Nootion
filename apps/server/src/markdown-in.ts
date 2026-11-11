@@ -194,7 +194,7 @@ const NODES = new Set([
   "codeBlock", "horizontalRule", "table", "tableRow", "tableHeader", "tableCell", "image", "callout", "details", "detailsSummary",
   "detailsContent", "columns", "column", "fileAttachment", "pageLink", "dateMention", "userMention", "databaseBlock", "calendarBlock", "tableOfContents",
   "recentPages", "favoritesList", "upcomingEvents", "databaseRows", "buttonBlock", "chart", "progressBar", "countdown", "pomodoro",
-  "habitTracker", "clock", "weather", "quoteOfDay", "imageCarousel", "drawing",
+  "habitTracker", "clock", "weather", "quoteOfDay", "imageCarousel", "drawing", "video",
 ]);
 const MARKS = new Set(["bold", "italic", "strike", "underline", "code", "link"]);
 

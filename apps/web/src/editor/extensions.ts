@@ -22,6 +22,7 @@ import {
   TableOfContents,
   Toggle,
   UserMention,
+  Video,
 } from "./nodes";
 import { pluginNodes } from "../plugins/nodes";
 import { BlockAttributes } from "./blockAttrs";
@@ -71,6 +72,7 @@ export function baseExtensions(opts: {
     CalendarBlock.configure({ pageId: opts.pageId ?? null, publicToken: opts.publicToken ?? null }),
     Drawing,
     ButtonBlock.configure({ pageId: opts.publicToken ? null : (opts.pageId ?? null) }),
+    Video.configure({ pageId: opts.publicToken ? null : (opts.pageId ?? null) }),
     ...WIDGETS.map((w) => w.configure({ publicToken: opts.publicToken ?? null, pageId: opts.publicToken ? null : (opts.pageId ?? null) })),
     WidgetCommands,
     ...pluginNodes(opts.plugins, opts.publicToken ? null : (opts.pageId ?? null)),
