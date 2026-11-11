@@ -48,6 +48,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 - Files linked from another site in a Notion file column showed a missing message in the import report.
 - The block handle no longer covers a callout's emoji.
+- The map block (Map plugin) showed "Access blocked" instead of OpenStreetMap's tiles: they are now requested with
+  the site's address, as OpenStreetMap's tile usage policy asks.
 
 ## [3.4.0] - 2026-11-10
 
