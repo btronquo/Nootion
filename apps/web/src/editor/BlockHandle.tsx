@@ -26,6 +26,7 @@ import {
   Quote,
   Repeat,
   Repeat2,
+  SlidersHorizontal,
   Text,
   Trash2,
 } from "lucide-react";
@@ -37,6 +38,7 @@ import { copyText } from "../lib/browser";
 import { canTurnInto, currentKind, deleteBlock, duplicateBlock, moveBlock, stillThere, turnInto, type Block, type TurnInto } from "./blockActions";
 import { canColor, ensureBlockId, lastEdit, setBlockColor, type BlockColor } from "./blockAttrs";
 import { setTaskRepeat, taskRepeatLabel } from "./taskRepeat";
+import { TaskRepeatDialog } from "./TaskRepeatDialog";
 
 /**
  * The handles shown left of the block under the mouse, as in Notion: "+" adds a block below it (the "/" menu opens),
@@ -60,6 +62,8 @@ export function BlockHandle({
     block: Block;
     anchor: HTMLElement;
   } | null>(null);
+  // The "Custom…" repeat of a to-do, at its position.
+  const [repeating, setRepeating] = useState<{ pos: number; repeat: string | null } | null>(null);
 
   function addBelow() {
     const block = current.current;
@@ -137,9 +141,11 @@ export function BlockHandle({
           anchor={menu.anchor}
           onComment={onComment}
           personName={personName}
+          onCustomRepeat={(pos, repeat) => setRepeating({ pos, repeat })}
           onClose={() => setMenu(null)}
         />
       )}
+      {repeating && <TaskRepeatDialog initial={repeating.repeat} onSave={(r) => setTaskRepeat(editor, repeating.pos, r)} onClose={() => setRepeating(null)} />}
     </>
   );
 }
@@ -219,6 +225,7 @@ function BlockMenu({
   anchor,
   onComment,
   personName,
+  onCustomRepeat,
   onClose,
 }: {
   editor: Editor;
@@ -227,6 +234,7 @@ function BlockMenu({
   anchor: HTMLElement;
   onComment?: () => void;
   personName?: (id: string) => string | undefined;
+  onCustomRepeat?: (pos: number, repeat: string | null) => void;
   onClose: () => void;
 }) {
   const [query, setQuery] = useState("");
@@ -301,9 +309,20 @@ function BlockMenu({
           checked: repeat === r,
           run: act(() => setTaskRepeat(editor, task.pos, r)),
         })),
-        // Set elsewhere (by the API, for example): shown so it can be seen and kept.
+        // A custom one: shown so it can be seen, and changed in its dialog.
         ...(repeat && !(TASK_REPEAT_CHOICES as readonly string[]).includes(repeat) && parseTaskRepeat(repeat)
-          ? [{ id: `repeat-${repeat}`, label: taskRepeatLabel(parseTaskRepeat(repeat)!), icon: <Repeat size={16} />, checked: true, run: act(() => {}) }]
+          ? [
+              {
+                id: `repeat-${repeat}`,
+                label: taskRepeatLabel(parseTaskRepeat(repeat)!),
+                icon: <Repeat size={16} />,
+                checked: true,
+                run: act(() => onCustomRepeat?.(task.pos, repeat)),
+              },
+            ]
+          : []),
+        ...(onCustomRepeat
+          ? [{ id: "repeat-custom", label: t("task.repeatCustom"), icon: <SlidersHorizontal size={16} />, run: act(() => onCustomRepeat(task.pos, repeat)) }]
           : []),
         { id: "repeat-none", label: t("task.repeatNone"), icon: <span />, checked: !repeat, run: act(() => setTaskRepeat(editor, task.pos, null)) },
       ]

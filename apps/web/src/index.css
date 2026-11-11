@@ -122,14 +122,17 @@ body {
 }
 .nootion-content ul[data-type="taskList"] li > div {
   @apply flex-1;
-  /* The line through fades in rather than appearing at once. */
-  text-decoration: line-through transparent;
-  transition:
-    color 200ms ease,
-    text-decoration-color 200ms ease;
+  transition: color 200ms ease;
 }
+/* The line through fades in rather than appearing at once. Only on checked to-dos: a transparent one shows in selected text. */
 .nootion-content ul[data-type="taskList"] li[data-checked="true"] > div {
-  @apply text-neutral-400 decoration-neutral-400 dark:text-neutral-500 dark:decoration-neutral-500;
+  @apply text-neutral-400 line-through decoration-neutral-400 dark:text-neutral-500 dark:decoration-neutral-500;
+  animation: nt-strike 200ms ease;
+}
+@keyframes nt-strike {
+  from {
+    text-decoration-color: transparent;
+  }
 }
 /* A repeating to-do: a small loop after its text. */
 .nootion-content ul[data-type="taskList"] li[data-repeat] > div > p:first-child::after {
@@ -183,9 +186,11 @@ body {
 }
 @media (prefers-reduced-motion: reduce) {
   .nootion-content ul[data-type="taskList"] li > div,
+  .nootion-content ul[data-type="taskList"] li[data-checked="true"] > div,
   .nootion-content ul[data-type="taskList"] input[type="checkbox"],
   .nootion-content ul[data-type="taskList"] input[type="checkbox"]::after {
     transition: none;
+    animation: none;
   }
 }
 .nootion-content blockquote {
