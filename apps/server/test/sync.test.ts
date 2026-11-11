@@ -144,9 +144,46 @@ describe("sync between a server and the desktop app", () => {
     expect(await sync()).toEqual({ pulled: 0, pushed: 0 });
   });
 
+  it("only takes a pusher's own comments on a server", async () => {
+    const alice = await inviteUser(server, onServer, { name: "Alice", email: "alice@example.com", password: "alice-password" });
+    const aliceId = await alice.id();
+    await onServer.put(`/api/workspaces/${ws}/members`, { userId: aliceId, role: "editor" });
+    const page = (await onServer.post("/api/pages", { workspaceId: ws, title: "Notes", parentId: null })).json().page.id;
+    const thread = (await alice.post(`/api/pages/${page}/comments`, { body: "De Alice" })).json().thread;
+    const now = Date.now() + 1000;
+    const forged: SyncChange[] = [
+      {
+        entity: "comment",
+        id: thread.comments[0].id,
+        data: { id: thread.comments[0].id, threadId: thread.id, authorId: aliceId, body: "Changé", editedAt: now, createdAt: now, syncClock: now },
+      },
+      {
+        entity: "comment",
+        id: "c-forged-1",
+        data: { id: "c-forged-1", threadId: thread.id, authorId: aliceId, body: "Pas Alice", editedAt: null, createdAt: now, syncClock: now },
+      },
+    ];
+    const res = await onServer.post(`/api/sync/${ws}/push`, { peer: PEER, changes: forged });
+    expect(res.json().applied).toBe(0);
+    const del = await onServer.post(`/api/sync/${ws}/push`, { peer: PEER, changes: [{ entity: "comment", id: thread.comments[0].id, deleted: true }] });
+    expect(del.json().applied).toBe(0);
+    const after = (await onServer.get(`/api/pages/${page}/comments`)).json().threads[0].comments;
+    expect(after.map((c: { body: string }) => c.body)).toEqual(["De Alice"]);
+  });
+
+  it("takes a file only under an attachment id", async () => {
+    const put = (id: string) => onServer.request("PUT", `/api/sync/${ws}/attachments/${id}`, Buffer.from("x"), { "content-type": "application/octet-stream" });
+    expect((await put("..%2F..%2Fnootion.db")).statusCode).toBe(400);
+    expect((await put("6f1c1f5e-1d2b-4c3a-9e8f-0123456789ab")).statusCode).toBe(200);
+  });
+
   it("is closed to people outside the space", async () => {
     const alice = await inviteUser(server, onServer, { name: "Alice", email: "alice@example.com", password: "alice-password" });
     expect((await alice.get(`/api/sync/${ws}/changes`)).statusCode).toBe(404);
     expect((await alice.post(`/api/sync/${ws}/push`, { peer: "alice-peer-1", changes: [] })).statusCode).toBe(404);
+    const put = await alice.request("PUT", `/api/sync/${ws}/attachments/6f1c1f5e-1d2b-4c3a-9e8f-0123456789ab`, Buffer.from("x"), {
+      "content-type": "application/octet-stream",
+    });
+    expect(put.statusCode).toBe(404);
   });
 });

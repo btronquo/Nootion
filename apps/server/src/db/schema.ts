@@ -536,6 +536,8 @@ export const commentThreads = sqliteTable(
     resolvedAt: integer("resolved_at", { mode: "timestamp_ms" }),
     resolvedBy: text("resolved_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: createdAt(),
+    // When it last changed, for the sync (sync.ts).
+    syncClock: integer("sync_clock").notNull().default(0),
   },
   (t) => [index("comment_threads_page_idx").on(t.pageId)],
 );
@@ -554,6 +556,8 @@ export const comments = sqliteTable(
     body: text("body").notNull(),
     editedAt: integer("edited_at", { mode: "timestamp_ms" }),
     createdAt: createdAt(),
+    // When it last changed, for the sync (sync.ts).
+    syncClock: integer("sync_clock").notNull().default(0),
   },
   (t) => [index("comments_thread_idx").on(t.threadId)],
 );
@@ -736,7 +740,7 @@ export const syncChanges = sqliteTable(
   "sync_changes",
   {
     seq: integer("seq").primaryKey({ autoIncrement: true }),
-    entity: text("entity", { enum: ["page", "property", "view"] }).notNull(),
+    entity: text("entity", { enum: ["page", "property", "view", "attachment", "thread", "comment"] }).notNull(),
     entityId: text("entity_id").notNull(),
     workspaceId: text("workspace_id"),
     deleted: integer("deleted", { mode: "boolean" }).notNull().default(false),
@@ -765,6 +769,9 @@ export const syncLinks = sqliteTable("sync_links", {
   accessExpiresAt: integer("access_expires_at", { mode: "timestamp_ms" }).notNull(),
   /** This peer's id, sent with each push so its own changes aren't sent back. */
   peerId: text("peer_id").notNull(),
+  /** The account here that made the link, and its account on the server: the same person (authors of comments…). */
+  userId: text("user_id"),
+  remoteUserId: text("remote_user_id"),
   /** Last change of the server already pulled, and last local change already pushed. */
   pulledSeq: integer("pulled_seq").notNull().default(0),
   pushedSeq: integer("pushed_seq").notNull().default(0),

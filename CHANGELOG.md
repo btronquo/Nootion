@@ -14,7 +14,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   the background and signs in at once, without an account to create.
 - Sync between the desktop app and a Nootion server: link spaces of a server from *Sync*, and they stay on the
   computer, usable without a connection, with changes from both sides merged (latest change of each field and cell,
-  page text merged). Attached files, comments and members are not synced yet.
+  page text merged). Attached files and comments come along, with their authors.
 
 ### Changed
 

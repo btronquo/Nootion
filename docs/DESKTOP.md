@@ -22,8 +22,8 @@ installer weighs a few megabytes.
   run in the background by the app; quitting the app stops it.
 - **Sync with a server.** On this computer, *Sync* (bottom of the sidebar) links spaces of a Nootion server: type its
   address, sign in there and pick the spaces. They come to the computer, work without a connection, and changes made
-  on either side are merged every few seconds when the server can be reached. Not synced yet: attached files and
-  images, comments, and the other members of a space.
+  on either side are merged every few seconds when the server can be reached, attached files and comments included.
+  Who has access to a space is still managed on the server.
 - **Several servers.** Each one is kept with a name; *Nootion > Switch server…* (Ctrl/Cmd+Shift+O) goes back to the
   list. The last server opens by itself at start.
 - **Like the browser, in its own window.** The interface is the server's own web app: sign-in (password, SSO, 2FA),
@@ -66,12 +66,18 @@ background (`src/local.rs`):
 
 ### Sync
 
-Any Nootion records, in `sync_changes`, every change made to the pages, database columns and views of a space
-(SQLite triggers, `migrations/0034_sync.sql`), with the time of each field and each cell. Two routes give and take
+Any Nootion records, in `sync_changes`, every change made to the pages, database columns, views, attached files,
+comment threads and comments of a space (SQLite triggers, `migrations/0034_sync.sql` and `0035_sync_comments.sql`),
+with the time of each field and each cell; what existed before is recorded once by the migration. Two routes give and take
 them, for the members of the space: `GET /api/sync/:space/changes?since=…` and `POST /api/sync/:space/push`
 (`apps/server/src/routes/sync.ts`). Merging (`apps/server/src/sync.ts`) keeps the latest change of each field or cell,
 and merges the text of pages as the live editor does (Yjs), so that two people writing in the same page both keep
-what they wrote. A change is never sent back to where it came from.
+what they wrote. A change is never sent back to where it came from. Files are uploaded before the push that adds
+them (`PUT /api/sync/:space/attachments/:id`) and downloaded from `/api/attachments/:id`. A push can only add, change
+or delete the pusher's own comments.
+
+The people named by the changes come with them: the computer gets a disabled account, which can't sign in, for each
+author it doesn't know, and the account the space was linked with on the server is taken as the computer's own.
 
 The computer's Nootion links a space through the server's OAuth, as Claude's connectors do
 (`apps/server/src/desktop-sync.ts`): it registers as an app, opens the server's consent page, and gets back a token
@@ -142,5 +148,5 @@ and macOS refuses to open the app at first: right-click > Open, or System Settin
 
 ## What comes next
 
-See the plan: attached files, comments and members in sync, then system notifications for reminders, a global shortcut for quick capture and automatic
+See the plan: system notifications for reminders, a global shortcut for quick capture and automatic
 updates.

@@ -6,7 +6,7 @@ import path from "node:path";
 import { buildApp } from "../src/app.js";
 import { loadConfig } from "../src/config.js";
 import { openDb } from "../src/db/index.js";
-import { Client, makeApp, setupAdmin } from "./helpers.js";
+import { Client, inviteUser, makeApp, setupAdmin } from "./helpers.js";
 
 const TOKEN = "desktop-token-0123456789-0123456789";
 
@@ -60,6 +60,21 @@ async function link(workspaceId: string) {
   expect(done.headers.location).toBe("/sync?linked=1");
 }
 
+const upload = async (c: Client, pageId: string, bytes: string) => {
+  const boundary = "----nootion";
+  const body = Buffer.concat([
+    Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="photo.png"\r\nContent-Type: image/png\r\n\r\n`),
+    Buffer.from(bytes),
+    Buffer.from(`\r\n--${boundary}--\r\n`),
+  ]);
+  const res = await c.request("POST", `/api/pages/${pageId}/attachments`, body, { "content-type": `multipart/form-data; boundary=${boundary}` });
+  expect(res.statusCode, res.body).toBe(200);
+  return res.json().attachment.id as string;
+};
+const syncNow = async (ws: string) => expect((await onLocal.post(`/api/desktop/sync/${ws}/now`)).json().links[0].lastError).toBeNull();
+type Thread = { id: string; resolvedAt: string | null; comments: { authorId: string; authorName: string; body: string }[] };
+const threads = async (c: Client, page: string) => (await c.get(`/api/pages/${page}/comments`)).json().threads as Thread[];
+
 describe("desktop app: linking a space of a server", () => {
   it("brings the space, then keeps both sides in sync", async () => {
     const ws = (await onServer.post("/api/workspaces", { name: "Famille" })).json().workspace.id;
@@ -89,6 +104,59 @@ describe("desktop app: linking a space of a server", () => {
     await link(personal);
     const here = (await onLocal.get("/api/workspaces")).json().workspaces.find((w: { id: string }) => w.id === personal);
     expect(here).toMatchObject({ kind: "shared", name: `Personal space · ${new URL(serverUrl).host}` });
+  });
+
+  it("brings attached files both ways, and their deletion", async () => {
+    const ws = (await onServer.post("/api/workspaces", { name: "Famille" })).json().workspace.id;
+    const page = (await onServer.post("/api/pages", { workspaceId: ws, title: "Photos", parentId: null })).json().page.id;
+    const theirs = await upload(onServer, page, "photo du serveur");
+    await link(ws);
+    const here = await onLocal.get(`/api/attachments/${theirs}`);
+    expect(here.statusCode).toBe(200);
+    expect(here.body).toBe("photo du serveur");
+
+    const mine = await upload(onLocal, page, "photo de l'ordinateur");
+    await syncNow(ws);
+    expect((await onServer.get(`/api/attachments/${mine}`)).body).toBe("photo de l'ordinateur");
+
+    // Deleted with its page on the server: gone here too (files without an attachment are cleaned at start).
+    await onServer.delete(`/api/pages/${page}`);
+    await onServer.delete(`/api/pages/${page}/permanent`);
+    await syncNow(ws);
+    expect((await onLocal.get(`/api/attachments/${mine}`)).statusCode).toBe(404);
+    expect((await onLocal.get(`/api/attachments/${theirs}`)).statusCode).toBe(404);
+  });
+
+  it("keeps comments with their authors, the computer's account being the server's one", async () => {
+    const ws = (await onServer.post("/api/workspaces", { name: "Famille" })).json().workspace.id;
+    const alice = await inviteUser(server, onServer, { name: "Alice", email: "alice@example.com", password: "alice-password" });
+    const aliceId = await alice.id();
+    await onServer.put(`/api/workspaces/${ws}/members`, { userId: aliceId, role: "editor" });
+    const page = (await onServer.post("/api/pages", { workspaceId: ws, title: "Menu", parentId: null })).json().page.id;
+    await alice.post(`/api/pages/${page}/comments`, { body: "On fait des crêpes ?" });
+    await onServer.post(`/api/pages/${page}/comments`, { body: "Écrit sur le serveur" });
+    await link(ws);
+
+    const me = await onLocal.id();
+    const here = await threads(onLocal, page);
+    expect(here.map((t) => t.comments[0])).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ authorId: aliceId, authorName: "Alice", body: "On fait des crêpes ?" }),
+        expect.objectContaining({ authorId: me, body: "Écrit sur le serveur" }),
+      ]),
+    );
+    // Alice's account here can't be used to sign in.
+    expect((await new Client(local).post("/api/auth/login", { email: `${aliceId}@sync.invalid`, password: "x" })).statusCode).not.toBe(200);
+
+    // Answered and resolved on the computer.
+    const crepes = here.find((t) => t.comments[0].authorId === aliceId)!;
+    await onLocal.post(`/api/comments/threads/${crepes.id}/replies`, { body: "Oui, avec <@" + me + ">" });
+    await onLocal.post(`/api/comments/threads/${crepes.id}/resolve`, { resolved: true });
+    await syncNow(ws);
+    const serverMe = await onServer.id();
+    const there = (await threads(onServer, page)).find((t) => t.id === crepes.id)!;
+    expect(there.resolvedAt).not.toBeNull();
+    expect(there.comments[1]).toMatchObject({ authorId: serverMe, body: `Oui, avec <@${serverMe}>` });
   });
 
   it("says when the address isn't a Nootion server", async () => {

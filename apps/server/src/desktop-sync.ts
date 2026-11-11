@@ -6,6 +6,7 @@
  * limited to those spaces. Each space is created here with the same id, then kept in sync every few seconds:
  * pull what changed on the server, push what changed here.
  */
+import fs from "node:fs";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import type { Collab } from "./collab.js";
@@ -15,7 +16,8 @@ import { isLocale, t as translate } from "@nootion/shared";
 import { syncChanges, syncLinks, users, workspaceMembers, workspaces } from "./db/schema.js";
 import { withLocale } from "./i18n.js";
 import { decryptSecret, encryptSecret, secretKey } from "./secrets.js";
-import { applyChanges, changesSince, currentSeq, type SyncChange } from "./sync.js";
+import { attachmentPath } from "./attachments.js";
+import { applyChanges, changesSince, currentSeq, renameUser, type SyncChange, type SyncUser } from "./sync.js";
 
 /** How often linked spaces are synced, and how often changes made here are looked for. */
 const INTERVAL_MS = 20_000;
@@ -104,24 +106,35 @@ export function createDesktopSync(opts: { db: Db; collab: Collab; config: Config
     return { ...link, ...set };
   }
 
-  async function api(
+  /** A request to the server with the space's token, renewed when needed. */
+  async function request(
     link: typeof syncLinks.$inferSelect,
     path: string,
     init: RequestInit = {},
-  ): Promise<{ link: typeof syncLinks.$inferSelect; body: unknown }> {
+  ): Promise<{ link: typeof syncLinks.$inferSelect; res: Response }> {
     if (link.accessExpiresAt.getTime() < Date.now() + 60_000) link = await refresh(link);
+    const type = typeof init.body === "string" ? "application/json" : "application/octet-stream";
     const send = (l: typeof syncLinks.$inferSelect) =>
       call(`${l.serverUrl}${path}`, {
         ...init,
-        headers: { ...(init.headers ?? {}), authorization: `Bearer ${tokenOf(l)}`, "content-type": "application/json" },
+        headers: { ...(init.headers ?? {}), authorization: `Bearer ${tokenOf(l)}`, ...(init.body ? { "content-type": type } : {}) },
       });
     let res = await send(link);
     if (res.status === 401) {
       link = await refresh(link);
       res = await send(link);
     }
-    if (!res.ok) throw new SyncError("server_refused", `The server answered ${res.status}: ${(await res.text()).slice(0, 200)}`);
-    return { link, body: await res.json() };
+    return { link, res };
+  }
+
+  async function api(
+    link: typeof syncLinks.$inferSelect,
+    path: string,
+    init: RequestInit = {},
+  ): Promise<{ link: typeof syncLinks.$inferSelect; body: unknown }> {
+    const r = await request(link, path, init);
+    if (!r.res.ok) throw new SyncError("server_refused", `The server answered ${r.res.status}: ${(await r.res.text()).slice(0, 200)}`);
+    return { link: r.link, body: await r.res.json() };
   }
 
   /** One round for a space: pull, then push. */
@@ -132,16 +145,37 @@ export function createDesktopSync(opts: { db: Db; collab: Collab; config: Config
       for (;;) {
         const r = await api(link, `/api/sync/${workspaceId}/changes?since=${link.pulledSeq}&peer=${encodeURIComponent(link.peerId)}`);
         link = r.link;
-        const body = r.body as { seq: number; more: boolean; changes: SyncChange[] };
-        await applyChanges(db, collab, workspaceId, SERVER, body.changes);
+        const body = r.body as { seq: number; more: boolean; changes: SyncChange[]; users?: SyncUser[] };
+        // The account the space was linked with is this computer's account.
+        const me = link.remoteUserId && link.userId ? [link.remoteUserId, link.userId] : null;
+        const changes = me ? renameUser(body.changes, me[0], me[1]) : body.changes;
+        await applyChanges(db, collab, workspaceId, SERVER, changes, {
+          users: (body.users ?? []).filter((u) => u.id !== me?.[0]),
+          dataDir: config.dataDir,
+          fetchFile: async (id) => {
+            const f = await request(link!, `/api/attachments/${id}?download=1`);
+            link = f.link;
+            return f.res.ok ? Buffer.from(await f.res.arrayBuffer()) : null;
+          },
+        });
         db.update(syncLinks).set({ pulledSeq: body.seq }).where(eq(syncLinks.workspaceId, workspaceId)).run();
         link = { ...link, pulledSeq: body.seq };
         if (!body.more) break;
       }
       for (;;) {
         const mine = changesSince(db, workspaceId, link.pushedSeq, SERVER, 100);
-        if (mine.changes.length) {
-          const r = await api(link, `/api/sync/${workspaceId}/push`, { method: "POST", body: JSON.stringify({ peer: link.peerId, changes: mine.changes }) });
+        const changes = link.remoteUserId && link.userId ? renameUser(mine.changes, link.userId, link.remoteUserId) : mine.changes;
+        // Files go first: the server adds an attachment only once it has its file.
+        for (const c of changes) {
+          if (c.entity !== "attachment" || c.deleted) continue;
+          const file = attachmentPath(config.dataDir, c.id);
+          if (!fs.existsSync(file)) continue;
+          const r = await request(link, `/api/sync/${workspaceId}/attachments/${c.id}`, { method: "PUT", body: fs.readFileSync(file) });
+          link = r.link;
+          if (!r.res.ok) throw new SyncError("server_refused", `The server refused a file (${r.res.status}).`);
+        }
+        if (changes.length) {
+          const r = await api(link, `/api/sync/${workspaceId}/push`, { method: "POST", body: JSON.stringify({ peer: link.peerId, changes }) });
           link = r.link;
         }
         db.update(syncLinks).set({ pushedSeq: mine.seq }).where(eq(syncLinks.workspaceId, workspaceId)).run();
@@ -235,6 +269,8 @@ export function createDesktopSync(opts: { db: Db; collab: Collab; config: Config
       const spaces = await call(`${p.serverUrl}/api/workspaces`, { headers: { authorization: `Bearer ${t.access_token}` } });
       if (!spaces.ok) throw new SyncError("server_refused", `The server refused to list the spaces (${spaces.status}).`);
       const list = ((await spaces.json()) as { workspaces: { id: string; name: string; kind?: string }[] }).workspaces;
+      const me = await call(`${p.serverUrl}/api/auth/me`, { headers: { authorization: `Bearer ${t.access_token}` } });
+      const remoteUserId = me.ok ? (((await me.json()) as { user?: { id?: string } }).user?.id ?? null) : null;
       if (!list.length) throw new SyncError("no_space", "No space was shared with this app.");
       const tokens = {
         clientId: p.clientId,
@@ -267,7 +303,16 @@ export function createDesktopSync(opts: { db: Db; collab: Collab; config: Config
           tx.delete(syncLinks).where(eq(syncLinks.workspaceId, ws.id)).run();
           // What is already here is sent at the first round (pushedSeq 0), merged with what the server has.
           tx.insert(syncLinks)
-            .values({ workspaceId: ws.id, serverUrl: p.serverUrl, peerId: randomUUID(), pulledSeq: 0, pushedSeq: 0, ...tokens })
+            .values({
+              workspaceId: ws.id,
+              serverUrl: p.serverUrl,
+              peerId: randomUUID(),
+              pulledSeq: 0,
+              pushedSeq: 0,
+              userId: p.userId,
+              remoteUserId,
+              ...tokens,
+            })
             .run();
         });
       }

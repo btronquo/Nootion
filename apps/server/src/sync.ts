@@ -9,16 +9,27 @@
  * - every other field of a page, and each cell of a row ("p:<property id>"), is kept from whichever side changed it
  *   last;
  * - columns and views are kept whole from the side that changed them last;
- * - a page, column or view deleted for good on one side is deleted on the other.
+ * - a page, column or view deleted for good on one side is deleted on the other;
+ * - attached files are added or deleted, never changed: the file itself is fetched apart (`fetchFile`, or uploaded
+ *   before a push);
+ * - comment threads and comments are kept whole from the side that changed them last. On a server, a push can only
+ *   add, change or delete its own comments.
+ *
+ * People are sent along with the changes that name them (`users`): the desktop app creates a disabled account for
+ * each one it doesn't know, so that comments keep their author.
  *
  * Changes applied from a peer are recorded with its id as `origin`, so they aren't sent back to it.
  */
+import fs from "node:fs";
+import { randomBytes } from "node:crypto";
 import * as Y from "yjs";
 import { and, eq, gt, inArray, sql } from "drizzle-orm";
+import { attachmentPath, uploadsDir } from "./attachments.js";
+import { hashPassword } from "./auth/password.js";
 import type { Collab } from "./collab.js";
 import { editContent, encodeContent } from "./collab.js";
 import type { Db } from "./db/index.js";
-import { databaseProperties, databaseViews, pages, syncChanges, syncState, users } from "./db/schema.js";
+import { attachments, commentThreads, comments, databaseProperties, databaseViews, pages, syncChanges, syncState, users } from "./db/schema.js";
 
 /** The fields of a page kept from the side that changed them last, as named in `field_clock`. */
 export const PAGE_FIELDS = [
@@ -71,10 +82,93 @@ export interface SyncColumn {
   syncClock: number;
 }
 
+export interface SyncAttachment {
+  id: string;
+  pageId: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  createdBy: string | null;
+  createdAt: number;
+}
+
+export interface SyncThread {
+  id: string;
+  pageId: string;
+  anchorStart: string | null;
+  anchorEnd: string | null;
+  quote: string;
+  resolvedAt: number | null;
+  resolvedBy: string | null;
+  createdAt: number;
+  syncClock: number;
+}
+
+export interface SyncComment {
+  id: string;
+  threadId: string;
+  authorId: string;
+  body: string;
+  editedAt: number | null;
+  createdAt: number;
+  syncClock: number;
+}
+
+/** Someone named by the changes (author of a page or a comment…). */
+export interface SyncUser {
+  id: string;
+  name: string;
+}
+
+export type SyncEntity = "page" | "property" | "view" | "attachment" | "thread" | "comment";
+
 export type SyncChange =
   | { entity: "page"; id: string; deleted?: false; data: SyncPage }
   | { entity: "property" | "view"; id: string; deleted?: false; data: SyncColumn }
-  | { entity: "page" | "property" | "view"; id: string; deleted: true };
+  | { entity: "attachment"; id: string; deleted?: false; data: SyncAttachment }
+  | { entity: "thread"; id: string; deleted?: false; data: SyncThread }
+  | { entity: "comment"; id: string; deleted?: false; data: SyncComment }
+  | { entity: SyncEntity; id: string; deleted: true };
+
+/** The ids of people a change names. */
+export function usersOf(c: SyncChange): (string | null)[] {
+  if (c.deleted) return [];
+  switch (c.entity) {
+    case "page":
+      return [c.data.createdBy, c.data.deletedBy];
+    case "attachment":
+      return [c.data.createdBy];
+    case "thread":
+      return [c.data.resolvedBy];
+    case "comment":
+      return [c.data.authorId];
+    default:
+      return [];
+  }
+}
+
+/**
+ * The same changes with one person's id replaced by another (the desktop app's account and the account it has on
+ * the server are the same person), mentions in comments included.
+ */
+export function renameUser(changes: SyncChange[], from: string, to: string): SyncChange[] {
+  const swap = <T extends string | null>(id: T): T => (id === from ? (to as T) : id);
+  return changes.map((c): SyncChange => {
+    if (c.deleted) return c;
+    switch (c.entity) {
+      case "page":
+        return { ...c, data: { ...c.data, createdBy: swap(c.data.createdBy), deletedBy: swap(c.data.deletedBy) } };
+      case "attachment":
+        return { ...c, data: { ...c.data, createdBy: swap(c.data.createdBy) } };
+      case "thread":
+        return { ...c, data: { ...c.data, resolvedBy: swap(c.data.resolvedBy) } };
+      case "comment":
+        return { ...c, data: { ...c.data, authorId: swap(c.data.authorId), body: c.data.body.split(`<@${from}>`).join(`<@${to}>`) } };
+      default:
+        return c;
+    }
+  });
+}
 
 /** The last change recorded, to start pulling from. */
 export function currentSeq(db: Db): number {
@@ -119,6 +213,40 @@ const toSyncColumn = (r: typeof databaseProperties.$inferSelect): SyncColumn => 
   syncClock: r.syncClock,
 });
 
+const ms = (d: Date | null) => d?.getTime() ?? null;
+
+const toSyncAttachment = (r: typeof attachments.$inferSelect): SyncAttachment => ({
+  id: r.id,
+  pageId: r.pageId,
+  filename: r.filename,
+  mimeType: r.mimeType,
+  size: r.size,
+  createdBy: r.createdBy,
+  createdAt: r.createdAt.getTime(),
+});
+
+const toSyncThread = (r: typeof commentThreads.$inferSelect): SyncThread => ({
+  id: r.id,
+  pageId: r.pageId,
+  anchorStart: r.anchorStart,
+  anchorEnd: r.anchorEnd,
+  quote: r.quote,
+  resolvedAt: ms(r.resolvedAt),
+  resolvedBy: r.resolvedBy,
+  createdAt: r.createdAt.getTime(),
+  syncClock: r.syncClock,
+});
+
+const toSyncComment = (r: typeof comments.$inferSelect): SyncComment => ({
+  id: r.id,
+  threadId: r.threadId,
+  authorId: r.authorId,
+  body: r.body,
+  editedAt: ms(r.editedAt),
+  createdAt: r.createdAt.getTime(),
+  syncClock: r.syncClock,
+});
+
 /**
  * What changed in a space after `since`, as the objects are now (or their deletion), oldest change first.
  * Changes applied from `peer` are left out. `seq` is where the next pull starts; `more` says it should come at once.
@@ -129,7 +257,7 @@ export function changesSince(
   since: number,
   peer: string | null,
   limit = 200,
-): { seq: number; more: boolean; changes: SyncChange[] } {
+): { seq: number; more: boolean; changes: SyncChange[]; users: SyncUser[] } {
   const rows = db
     .select()
     .from(syncChanges)
@@ -137,7 +265,7 @@ export function changesSince(
     .orderBy(syncChanges.seq)
     .limit(limit * 5)
     .all();
-  if (!rows.length) return { seq: since, more: false, changes: [] };
+  if (!rows.length) return { seq: since, more: false, changes: [], users: [] };
   // Each object once; one only changed by the peer itself (its own changes coming back) stays out.
   const latest = new Map<string, (typeof rows)[number]>();
   const fromOthers = new Set<string>();
@@ -182,9 +310,53 @@ export function changesSince(
           .map((r) => [r.id, r])
       : [],
   );
+  // Attachments and threads belong to a page, comments to a thread: they count only while it is in this space.
+  const attachmentRows = new Map(
+    ids("attachment").length
+      ? db
+          .select({ a: attachments })
+          .from(attachments)
+          .innerJoin(pages, eq(pages.id, attachments.pageId))
+          .where(and(inArray(attachments.id, ids("attachment")), eq(pages.workspaceId, workspaceId)))
+          .all()
+          .map((r) => [r.a.id, r.a])
+      : [],
+  );
+  const threadRows = new Map(
+    ids("thread").length
+      ? db
+          .select({ t: commentThreads })
+          .from(commentThreads)
+          .innerJoin(pages, eq(pages.id, commentThreads.pageId))
+          .where(and(inArray(commentThreads.id, ids("thread")), eq(pages.workspaceId, workspaceId)))
+          .all()
+          .map((r) => [r.t.id, r.t])
+      : [],
+  );
+  const commentRows = new Map(
+    ids("comment").length
+      ? db
+          .select({ c: comments })
+          .from(comments)
+          .innerJoin(commentThreads, eq(commentThreads.id, comments.threadId))
+          .innerJoin(pages, eq(pages.id, commentThreads.pageId))
+          .where(and(inArray(comments.id, ids("comment")), eq(pages.workspaceId, workspaceId)))
+          .all()
+          .map((r) => [r.c.id, r.c])
+      : [],
+  );
   const changes: SyncChange[] = [];
   for (const r of wanted) {
-    if (r.entity === "page") {
+    if (r.entity === "attachment" || r.entity === "thread" || r.entity === "comment") {
+      const id = r.entityId;
+      const a = r.entity === "attachment" ? attachmentRows.get(id) : undefined;
+      const t = r.entity === "thread" ? threadRows.get(id) : undefined;
+      const c = r.entity === "comment" ? commentRows.get(id) : undefined;
+      if (a) changes.push({ entity: "attachment", id, data: toSyncAttachment(a) });
+      else if (t) changes.push({ entity: "thread", id, data: toSyncThread(t) });
+      else if (c) changes.push({ entity: "comment", id, data: toSyncComment(c) });
+      else changes.push({ entity: r.entity, id, deleted: true });
+    } else if (r.entity === "page") {
       const row = pageRows.get(r.entityId);
       // Moved to another space: gone from this one.
       if (row && row.workspaceId === workspaceId) changes.push({ entity: "page", id: r.entityId, data: toSyncPage(row) });
@@ -195,7 +367,9 @@ export function changesSince(
       else changes.push({ entity: r.entity, id: r.entityId, deleted: true });
     }
   }
-  return { seq, more, changes };
+  const named = [...new Set(changes.flatMap(usersOf).filter((u): u is string => !!u))];
+  const people = named.length ? db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, named)).all() : [];
+  return { seq, more, changes, users: people };
 }
 
 /** Runs `fn` with the changes it makes recorded as `peer`'s, and their clocks kept as given. */
@@ -270,21 +444,147 @@ export function mergeContent(local: Buffer | null, incoming: string | null): Buf
   return Buffer.compare(Buffer.from(before), Buffer.from(after)) === 0 ? null : Buffer.from(merged);
 }
 
+export interface ApplyOptions {
+  /** Where attached files are kept. Without it, attachments are left out. */
+  dataDir?: string;
+  /** Gets an attached file this side doesn't have yet (the desktop app, from the server). */
+  fetchFile?: (id: string) => Promise<Buffer | null>;
+  /** The people the changes name: those unknown here get a disabled account (the desktop app only). */
+  users?: SyncUser[];
+  /** Who pushed the changes, on a server: comments other than theirs are left alone. */
+  pusher?: string;
+}
+
+/** Ids of attachments are used as file names: only the server's own kind (UUIDs) are taken. */
+export const isAttachmentId = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id);
+
+/** Creates, disabled and unable to sign in, the accounts of the people named by changes from a server. */
+async function addPeople(db: Db, people: SyncUser[]): Promise<void> {
+  for (const u of people) {
+    if (db.select({ id: users.id }).from(users).where(eq(users.id, u.id)).get()) continue;
+    const passwordHash = await hashPassword(randomBytes(32).toString("base64url"));
+    db.insert(users)
+      .values({ id: u.id, name: u.name.slice(0, 200) || "?", email: `${u.id}@sync.invalid`, passwordHash, disabled: true })
+      .onConflictDoNothing()
+      .run();
+  }
+}
+
 /**
- * Applies a peer's changes to a space. Pages come first (columns and views belong to a database page), deletions
- * last. Changes for another space are refused. Returns how many objects changed here.
+ * Applies a peer's changes to a space. Pages come first (columns, views, files and comments belong to a page),
+ * deletions last. Changes for another space are refused. Returns how many objects changed here.
  */
-export async function applyChanges(db: Db, collab: Collab | null, workspaceId: string, peer: string, changes: SyncChange[]): Promise<number> {
+export async function applyChanges(
+  db: Db,
+  collab: Collab | null,
+  workspaceId: string,
+  peer: string,
+  changes: SyncChange[],
+  opts: ApplyOptions = {},
+): Promise<number> {
   let applied = 0;
-  const order = { page: 0, property: 1, view: 2 } as const;
+  const order = { page: 0, property: 1, view: 2, attachment: 3, thread: 4, comment: 5 } as const;
   const upserts = changes.filter((c) => !c.deleted).sort((a, b) => order[a.entity] - order[b.entity]);
   const deletions = changes.filter((c) => c.deleted).sort((a, b) => order[b.entity] - order[a.entity]);
   const contentToMerge: { id: string; update: Uint8Array }[] = [];
+  const filesToRemove: string[] = [];
+
+  if (opts.users && !opts.pusher) await addPeople(db, opts.users);
+  // Files first, outside the transaction: an attachment is added only once its file is here.
+  const { dataDir } = opts;
+  const filed = new Set<string>();
+  for (const c of upserts) {
+    if (c.entity !== "attachment" || c.deleted || !dataDir || !isAttachmentId(c.id) || c.data.id !== c.id) continue;
+    if (db.select({ id: attachments.id }).from(attachments).where(eq(attachments.id, c.id)).get()) continue;
+    const file = attachmentPath(dataDir, c.id);
+    if (!fs.existsSync(file) && opts.fetchFile) {
+      const bytes = await opts.fetchFile(c.id);
+      if (bytes) {
+        fs.mkdirSync(uploadsDir(dataDir), { recursive: true });
+        fs.writeFileSync(`${file}.part`, bytes);
+        fs.renameSync(`${file}.part`, file);
+      }
+    }
+    if (fs.existsSync(file)) filed.add(c.id);
+  }
+  const pageIn = (tx: Pick<Db, "select">, pageId: string) =>
+    tx.select({ ws: pages.workspaceId }).from(pages).where(eq(pages.id, pageId)).get()?.ws === workspaceId;
+  const threadIn = (tx: Pick<Db, "select">, threadId: string) => {
+    const t = tx.select({ pageId: commentThreads.pageId }).from(commentThreads).where(eq(commentThreads.id, threadId)).get();
+    return !!t && pageIn(tx, t.pageId);
+  };
 
   asPeer(db, peer, () =>
     db.transaction((tx) => {
       for (const c of upserts) {
         if (c.deleted) continue;
+        if (c.entity === "attachment") {
+          const a = c.data;
+          if (!filed.has(c.id) || !pageIn(tx, a.pageId)) continue;
+          tx.insert(attachments)
+            .values({
+              id: a.id,
+              pageId: a.pageId,
+              filename: a.filename,
+              mimeType: a.mimeType,
+              size: a.size,
+              createdBy: knownUser(db, a.createdBy),
+              createdAt: new Date(a.createdAt),
+            })
+            .onConflictDoNothing()
+            .run();
+          applied++;
+          continue;
+        }
+        if (c.entity === "thread") {
+          const th = c.data;
+          if (th.id !== c.id || !pageIn(tx, th.pageId)) continue;
+          const row = tx.select().from(commentThreads).where(eq(commentThreads.id, th.id)).get();
+          if (row && row.pageId !== th.pageId) continue;
+          const values = {
+            anchorStart: th.anchorStart,
+            anchorEnd: th.anchorEnd,
+            quote: th.quote,
+            resolvedAt: date(th.resolvedAt),
+            resolvedBy: knownUser(db, th.resolvedBy),
+            syncClock: th.syncClock,
+          };
+          if (!row)
+            tx.insert(commentThreads)
+              .values({ id: th.id, pageId: th.pageId, createdAt: new Date(th.createdAt), ...values })
+              .run();
+          else if (th.syncClock > row.syncClock) tx.update(commentThreads).set(values).where(eq(commentThreads.id, th.id)).run();
+          else continue;
+          applied++;
+          continue;
+        }
+        if (c.entity === "comment") {
+          const cm = c.data;
+          if (cm.id !== c.id || !threadIn(tx, cm.threadId) || !knownUser(db, cm.authorId)) continue;
+          if (opts.pusher && cm.authorId !== opts.pusher) continue;
+          const row = tx.select().from(comments).where(eq(comments.id, cm.id)).get();
+          if (row && (row.threadId !== cm.threadId || row.authorId !== cm.authorId)) continue;
+          if (!row) {
+            tx.insert(comments)
+              .values({
+                id: cm.id,
+                threadId: cm.threadId,
+                authorId: cm.authorId,
+                body: cm.body,
+                editedAt: date(cm.editedAt),
+                createdAt: new Date(cm.createdAt),
+                syncClock: cm.syncClock,
+              })
+              .run();
+          } else if (cm.syncClock > row.syncClock) {
+            tx.update(comments)
+              .set({ body: cm.body, editedAt: date(cm.editedAt), syncClock: cm.syncClock })
+              .where(eq(comments.id, cm.id))
+              .run();
+          } else continue;
+          applied++;
+          continue;
+        }
         if (c.entity === "page") {
           const p = c.data;
           if (p.workspaceId !== workspaceId || p.id !== c.id) continue;
@@ -360,6 +660,40 @@ export async function applyChanges(db: Db, collab: Collab | null, workspaceId: s
         }
       }
       for (const c of deletions) {
+        if (c.entity === "attachment") {
+          const row = tx.select({ pageId: attachments.pageId }).from(attachments).where(eq(attachments.id, c.id)).get();
+          if (!row || !pageIn(tx, row.pageId)) continue;
+          tx.delete(attachments).where(eq(attachments.id, c.id)).run();
+          if (dataDir && isAttachmentId(c.id)) filesToRemove.push(attachmentPath(dataDir, c.id));
+          applied++;
+          continue;
+        }
+        if (c.entity === "thread") {
+          const row = tx.select({ pageId: commentThreads.pageId }).from(commentThreads).where(eq(commentThreads.id, c.id)).get();
+          if (!row || !pageIn(tx, row.pageId)) continue;
+          // On a server, a thread goes only with comments of the one who pushed.
+          if (
+            opts.pusher &&
+            tx
+              .select({ a: comments.authorId })
+              .from(comments)
+              .where(eq(comments.threadId, c.id))
+              .all()
+              .some((r) => r.a !== opts.pusher)
+          )
+            continue;
+          tx.delete(commentThreads).where(eq(commentThreads.id, c.id)).run();
+          applied++;
+          continue;
+        }
+        if (c.entity === "comment") {
+          const row = tx.select({ threadId: comments.threadId, authorId: comments.authorId }).from(comments).where(eq(comments.id, c.id)).get();
+          if (!row || !threadIn(tx, row.threadId)) continue;
+          if (opts.pusher && row.authorId !== opts.pusher) continue;
+          tx.delete(comments).where(eq(comments.id, c.id)).run();
+          applied++;
+          continue;
+        }
         if (c.entity === "page") {
           const row = tx.select({ ws: pages.workspaceId }).from(pages).where(eq(pages.id, c.id)).get();
           if (row?.ws !== workspaceId) continue;
@@ -376,6 +710,8 @@ export async function applyChanges(db: Db, collab: Collab | null, workspaceId: s
       }
     }),
   );
+
+  for (const f of filesToRemove) fs.rmSync(f, { force: true });
 
   // Content goes through the live editing server when someone has the page open, so their editor gets it too.
   for (const { id, update } of contentToMerge) {
