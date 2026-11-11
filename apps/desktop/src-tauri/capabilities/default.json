@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "launcher",
+  "description": "What the built-in server picker may call. Pages loaded from a Nootion server get no access to the app.",
+  "windows": ["main"],
+  "local": true,
+  "permissions": ["core:default"]
+}

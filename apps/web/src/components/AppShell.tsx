@@ -28,6 +28,7 @@ import {
   Inbox,
   Library,
   Waypoints,
+  RefreshCw,
 } from "lucide-react";
 import {
   disablePush,
@@ -66,6 +67,7 @@ import { clearOfflineData } from "../lib/offline";
 import { SyncStatus } from "./SyncStatus";
 import { useLiveEvents } from "../lib/live";
 import { pageIcon } from "../lib/icons";
+import { syncErrorText, useDesktopSync } from "../pages/SyncPage";
 
 export function AppShell() {
   const { user, refresh } = useSession();
@@ -115,6 +117,9 @@ export function AppShell() {
     await refresh();
     navigate("/login", { replace: true });
   }
+
+  const syncLinks = useDesktopSync().data;
+  const syncError = syncLinks?.find((l) => l.lastError)?.lastError;
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-2 rounded-md px-2 py-1.5 text-sm ${isActive ? "bg-neutral-200/70 font-medium dark:bg-neutral-800" : "hover:bg-neutral-200/50 dark:hover:bg-neutral-800/60"}`;
@@ -211,6 +216,16 @@ export function AppShell() {
         <NavLink to="/trash" className={linkClass}>
           <Trash2 size={16} /> {t("trash.title")}
         </NavLink>
+        {syncLinks && (
+          <NavLink to="/sync" className={linkClass}>
+            <RefreshCw size={16} /> {t("sync.title")}
+            {syncError && (
+              <span className="ml-auto text-amber-500" title={syncErrorText(syncError)} data-sync-warning>
+                <AlertTriangle size={14} aria-label={syncErrorText(syncError)} />
+              </span>
+            )}
+          </NavLink>
+        )}
         <NavLink to="/account" className={linkClass}>
           <User size={16} /> {t("account.title")}
         </NavLink>

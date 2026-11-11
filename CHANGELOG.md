@@ -5,6 +5,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+
+- A desktop app for Windows, macOS and Linux (`apps/desktop`, built with Tauri): type the address of a Nootion
+  server, keep several servers and switch between them from the menu. It reopens the last server at start, keeps you
+  signed in, and opens links in the default browser. Installers are built by GitHub Actions on a `desktop-v*` tag.
+- The desktop app can also keep a Nootion space on the computer, with no server: "On this computer" starts Nootion in
+  the background and signs in at once, without an account to create.
+- Sync between the desktop app and a Nootion server: link spaces of a server from *Sync*, and they stay on the
+  computer, usable without a connection, with changes from both sides merged (latest change of each field and cell,
+  page text merged). Attached files and comments come along, with their authors.
+
 ### Changed
 
 - The Notion import's report lists what was imported differently, line by line: the page or database, the column or

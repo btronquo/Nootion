@@ -213,6 +213,7 @@ To find your way in the code: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 ```
 apps/server      Fastify API + Drizzle + SQLite
 apps/web         React + Vite + Tailwind interface
+apps/desktop     Desktop app for Windows, macOS and Linux (Tauri), see docs/DESKTOP.md
 packages/shared  Types, validation, formulas, views and translations shared by both
 docker/          Dockerfile
 docs/            Documentation (deployment, architecture, API, SSO, plugins…)

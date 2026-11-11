@@ -1,0 +1,46 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Nootion",
+  "mainBinaryName": "nootion",
+  "version": "../package.json",
+  "identifier": "app.nootion.desktop",
+  "build": {
+    "frontendDist": "../launcher",
+    "beforeBuildCommand": "node scripts/prepare-local-server.mjs",
+    "beforeDevCommand": "node scripts/prepare-local-server.mjs"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "msi", "dmg", "app", "appimage", "deb", "rpm"],
+    "category": "Productivity",
+    "shortDescription": "Pages, databases and notes, on your own server",
+    "longDescription": "Nootion is a self-hosted workspace for pages, databases and notes. This app connects to a Nootion server, or keeps a Nootion space on the computer.",
+    "copyright": "AGPL-3.0-only",
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
+    "linux": {
+      "deb": {
+        "section": "office"
+      }
+    },
+    "macOS": {
+      "minimumSystemVersion": "11.0"
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["French", "English"]
+      }
+    },
+    "externalBin": ["binaries/nootion-node"],
+    "resources": {
+      "../local-server/": "local-server/"
+    }
+  }
+}
