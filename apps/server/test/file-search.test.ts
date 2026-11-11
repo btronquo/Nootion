@@ -71,7 +71,7 @@ describe("search in attached files", { timeout: 60_000 }, () => {
     expect(await search(boris, "imposition")).toEqual([]);
   });
 
-  it.skipIf(!process.env.CI && !fs.existsSync("/usr/bin/pdftotext"))("reads the text of PDFs", async () => {
+  it.skipIf(!!process.env.NOOTION_SKIP_OCR || (!process.env.CI && !fs.existsSync("/usr/bin/pdftotext")))("reads the text of PDFs", async () => {
     const page = await boris.createPage(await boris.personalWorkspace(), "Logement");
     const id = await upload(boris, page, "quittance.pdf", "application/pdf", fixture("rent.pdf"));
     await app.extractor.drain();
@@ -79,7 +79,7 @@ describe("search in attached files", { timeout: 60_000 }, () => {
     expect((await search(boris, "quittance loyer"))[0]?.file?.id).toBe(id);
   });
 
-  it.skipIf(!process.env.CI && !fs.existsSync("/usr/bin/tesseract"))("reads images and scanned PDFs by OCR", async () => {
+  it.skipIf(!!process.env.NOOTION_SKIP_OCR || (!process.env.CI && !fs.existsSync("/usr/bin/tesseract")))("reads images and scanned PDFs by OCR", async () => {
     expect(tools.ocr).toContain("fra");
     const page = await boris.createPage(await boris.personalWorkspace(), "Papiers");
     const img = await upload(boris, page, "facture.png", "image/png", fixture("invoice.png"));
