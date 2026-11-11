@@ -106,6 +106,9 @@ export function fakeNotion() {
     Link: { id: "ln", name: "Link", type: "url", url: {} },
     Created: { id: "cr", name: "Created", type: "created_time", created_time: {} },
     Button: { id: "bt", name: "Button", type: "button", button: {} },
+    Phone: { id: "ph", name: "Phone", type: "phone_number", phone_number: {} },
+    Ref: { id: "rf", name: "Ref", type: "unique_id", unique_id: { prefix: "TASK" } },
+    Editor: { id: "ed", name: "Editor", type: "last_edited_by", last_edited_by: {} },
   };
   const projectsSchema = {
     Name: { id: "title", name: "Name", type: "title", title: {} },
@@ -148,6 +151,7 @@ export function fakeNotion() {
     created_time: "2024-01-03T09:00:00.000Z",
     last_edited_time: "2024-01-03T10:00:00.000Z",
     created_by: { id: IDS.ada },
+    last_edited_by: { id: IDS.ada },
     icon: null,
     cover: null,
     archived: false,
@@ -177,6 +181,8 @@ export function fakeNotion() {
       Weird: { id: "wd", type: "formula", formula: { type: "string", string: "Buy paint" } },
       Link: { id: "ln", type: "url", url: "https://example.org" },
       Created: { id: "cr", type: "created_time", created_time: "2024-01-03T09:00:00.000Z" },
+      Phone: { id: "ph", type: "phone_number", phone_number: "+33 6 12 34 56 78" },
+      Ref: { id: "rf", type: "unique_id", unique_id: { prefix: "TASK", number: 7 } },
     }),
     row(IDS.task2, IDS.tasks, {
       Name: { id: "title", type: "title", title: [rt("Call plumber")] },

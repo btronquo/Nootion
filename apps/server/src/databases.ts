@@ -22,6 +22,8 @@ import {
   hasOptions,
   isSingleOption,
   normalizeOptions,
+  PEOPLE_TYPES,
+  uniqueIdText,
   type CalcFunction,
   type RelatedRow,
   type RollupValue,
@@ -83,11 +85,11 @@ export function createDatabase(db: Db, input: { workspaceId: string; parentId: s
   });
 }
 
-type RowPage = Pick<typeof pages.$inferSelect, "id" | "title" | "icon" | "props" | "cover" | "coverPosition" | "createdAt" | "updatedAt" | "createdBy" | "position">;
+type RowPage = Pick<typeof pages.$inferSelect, "id" | "title" | "icon" | "props" | "cover" | "coverPosition" | "createdAt" | "updatedAt" | "createdBy" | "updatedBy" | "position">;
 
 export function listRowPages(db: DbLike, databaseId: string): RowPage[] {
   return db
-    .select({ id: pages.id, title: pages.title, icon: pages.icon, props: pages.props, cover: pages.cover, coverPosition: pages.coverPosition, createdAt: pages.createdAt, updatedAt: pages.updatedAt, createdBy: pages.createdBy, position: pages.position })
+    .select({ id: pages.id, title: pages.title, icon: pages.icon, props: pages.props, cover: pages.cover, coverPosition: pages.coverPosition, createdAt: pages.createdAt, updatedAt: pages.updatedAt, createdBy: pages.createdBy, updatedBy: pages.updatedBy, position: pages.position })
     .from(pages)
     .where(and(eq(pages.parentId, databaseId), eq(pages.kind, "row"), eq(pages.template, false), isNull(pages.deletedAt)))
     .all()
@@ -111,6 +113,12 @@ export function toRow(r: RowPage, properties: DatabaseProperty[]): DatabaseRow {
       case "created_by":
         values[p.id] = r.createdBy ? [r.createdBy] : [];
         break;
+      case "last_edited_by": {
+        // Rows nobody changed since they were created were last edited by their author.
+        const by = r.updatedBy ?? r.createdBy;
+        values[p.id] = by ? [by] : [];
+        break;
+      }
       default:
         values[p.id] = stored[p.id] ?? null;
     }
@@ -126,7 +134,7 @@ export function collectPeople(
   rollupTargets: Record<string, DatabaseProperty | null> = {},
 ): Record<string, string> {
   const personIds = new Set<string>();
-  const isPeople = (t: PropertyType | undefined) => t === "person" || t === "created_by";
+  const isPeople = (t: PropertyType | undefined) => !!t && PEOPLE_TYPES.includes(t);
   for (const p of properties) {
     if (isPeople(p.type)) {
       for (const r of rows) for (const id of (r.values[p.id] as string[] | null) ?? []) personIds.add(id);
@@ -308,7 +316,10 @@ function toFormulaValue(prop: DatabaseProperty, value: CellValue, ctx: FormulaCo
       return (value as string[]).map((id) => prop.config.options?.find((o) => o.id === id)?.name ?? "").filter(Boolean);
     case "person":
     case "created_by":
+    case "last_edited_by":
       return (value as string[]).map(ctx.userName);
+    case "unique_id":
+      return prop.config.prefix ? uniqueIdText(prop, value) : (value as number);
     case "file":
       return (value as { name: string }[]).map((f) => f.name);
     case "relation":
@@ -534,6 +545,10 @@ export function valueToText(value: CellValue, prop: DatabaseProperty): string {
     }
     case "checkbox":
       return value ? t("common.yes") : "";
+    case "unique_id":
+      return uniqueIdText(prop, value);
+    case "last_edited_by":
+      return "";
     case "file":
       return (value as { name: string }[]).map((f) => f.name).join(", ");
     case "person":
@@ -582,6 +597,7 @@ export function convertColumn(rowValues: CellValue[], from: DatabaseProperty, to
       case "text":
       case "url":
       case "email":
+      case "phone":
         return t;
       case "number":
       case "currency":
@@ -598,6 +614,34 @@ export function convertColumn(rowValues: CellValue[], from: DatabaseProperty, to
     }
   });
   return { values, config };
+}
+
+/**
+ * Numbers the rows of a database's ID columns that have no number yet, after the highest one given so far
+ * (rows in the trash count, so a number is never given twice), in the rows' order. Returns how many were numbered.
+ */
+export function assignUniqueIds(db: DbLike, databaseId: string): number {
+  const props = listProperties(db, databaseId).filter((p) => p.type === "unique_id");
+  if (!props.length) return 0;
+  const rows = db
+    .select({ id: pages.id, props: pages.props, position: pages.position, createdAt: pages.createdAt, deletedAt: pages.deletedAt })
+    .from(pages)
+    .where(and(eq(pages.parentId, databaseId), eq(pages.kind, "row"), eq(pages.template, false)))
+    .all()
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || a.position - b.position);
+  const changed = new Map<string, Record<string, unknown>>();
+  for (const p of props) {
+    let next = Math.max(0, ...rows.map((r) => (typeof r.props?.[p.id] === "number" ? (r.props[p.id] as number) : 0))) + 1;
+    for (const r of rows) {
+      if (r.deletedAt || typeof r.props?.[p.id] === "number") continue;
+      const values = changed.get(r.id) ?? { ...(r.props ?? {}) };
+      values[p.id] = next++;
+      changed.set(r.id, values);
+      r.props = values;
+    }
+  }
+  for (const [id, values] of changed) db.update(pages).set({ props: values }).where(eq(pages.id, id)).run();
+  return changed.size;
 }
 
 export function defaultConfig(type: PropertyType): PropertyConfig {

@@ -161,6 +161,45 @@ describe("databases", () => {
     expect(back.config.options.every((o: { group?: string }) => o.group === undefined)).toBe(true);
   });
 
+  it("last edited by, IDs, phones and progress bars", async () => {
+    const d = await createDb(boris);
+    const by = await addProp(boris, d.id, "Modifié par", "last_edited_by");
+    const phone = await addProp(boris, d.id, "Téléphone", "phone");
+    const done = await addProp(boris, d.id, "Avancement", "percent", { showAs: "bar" });
+    expect(done.config).toMatchObject({ showAs: "bar" });
+    const first = (await boris.post(`/api/databases/${d.id}/rows`, { values: { [phone.id]: "+33 6 12 34 56 78" } })).json().row;
+    const second = (await boris.post(`/api/databases/${d.id}/rows`, {})).json().row;
+    expect(first.values[phone.id]).toBe("+33 6 12 34 56 78");
+    expect((await boris.post(`/api/databases/${d.id}/rows`, { values: { [phone.id]: "1".repeat(51) } })).statusCode).toBe(400);
+
+    // Last edited by: the author until someone else changes the row.
+    expect(first.values[by.id]).toEqual([await boris.id()]);
+    await boris.put(`/api/pages/${d.id}/shares`, { userId: await alice.id(), role: "editor" });
+    expect((await alice.patch(`/api/databases/${d.id}/rows/${first.id}`, { values: { [done.id]: 40 } })).statusCode).toBe(200);
+    let data = await getDb(boris, d.id);
+    expect(data.rows.find((r) => r.id === first.id)!.values[by.id]).toEqual([await alice.id()]);
+    expect(data.people[await alice.id()]).toBe("Alice");
+    expect((await boris.patch(`/api/databases/${d.id}/rows/${first.id}`, { values: { [by.id]: [] } })).statusCode).toBe(400);
+
+    // IDs: existing rows are numbered in their order, new and duplicated rows get the next numbers, never reused.
+    const id = await addProp(boris, d.id, "Réf", "unique_id", { prefix: "TACHE" });
+    data = await getDb(boris, d.id);
+    const num = (rowId: string) => data.rows.find((r) => r.id === rowId)?.values[id.id];
+    expect([num(first.id), num(second.id)]).toEqual([1, 2]);
+    const third = (await boris.post(`/api/databases/${d.id}/rows`, {})).json().row;
+    expect(third.values[id.id]).toBe(3);
+    const copy = (await boris.post(`/api/databases/${d.id}/rows/${first.id}/duplicate`)).json().row;
+    expect(copy.values[id.id]).toBe(4);
+    await boris.post(`/api/databases/${d.id}/rows/delete`, { ids: [copy.id] });
+    expect((await boris.post(`/api/databases/${d.id}/rows`, {})).json().row.values[id.id]).toBe(5);
+    expect((await boris.patch(`/api/databases/${d.id}/rows/${first.id}`, { values: { [id.id]: 9 } })).statusCode).toBe(400);
+    expect((await boris.post(`/api/databases/${d.id}/properties`, { name: "X", type: "unique_id", config: { prefix: "A-B" } })).statusCode).toBe(400);
+    // As a text, the prefix comes along.
+    await boris.patch(`/api/databases/${d.id}/properties/${id.id}`, { type: "text" });
+    data = await getDb(boris, d.id);
+    expect(num(first.id)).toBe("TACHE-1");
+  });
+
   it("deleting an option empties the cells that used it", async () => {
     const d = await createDb(boris);
     const s = await addProp(boris, d.id, "Statut", "multi_select", {

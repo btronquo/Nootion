@@ -51,6 +51,7 @@ const IMPORTABLE = new Set([
   "checkbox",
   "url",
   "email",
+  "phone",
   "person",
   "relation",
 ]);
@@ -197,6 +198,7 @@ export function planImport(
       case "text":
       case "url":
       case "email":
+      case "phone":
         return raw.slice(0, prop.type === "text" ? 20000 : 2000);
       case "number":
       case "currency":

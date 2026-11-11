@@ -12,6 +12,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   to another; filters, sorts, groups, boards and charts follow the categories' order. A board picks a status column
   first. The Notion import keeps status columns and their categories (they used to become select columns), and
   turns the ones an earlier import made into selects back into status columns.
+- "Last edited by" columns: who changed the row last (a cell, its title or its content), else its author.
+- ID columns: rows are numbered 1, 2, 3… in the order they were created, with an optional prefix (TASK-12). New and
+  duplicated rows get the next number; a number is never given twice.
+- Phone columns: the number is a link that calls it.
+- Percent columns can be shown as progress bars.
+- The Notion import brings these too: phone numbers, IDs (with their prefix and numbers) and "Last edited by" (when
+  the person has an account here), instead of texts or nothing. A new import upgrades the columns an earlier one
+  imported as texts.
 
 ### Fixed
 

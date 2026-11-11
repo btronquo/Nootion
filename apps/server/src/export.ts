@@ -6,6 +6,7 @@ import {
   applyView,
   t,
   cellText,
+  uniqueIdText,
   type CellValue,
   type DatabaseData,
   type DatabaseProperty,
@@ -51,7 +52,7 @@ export function exportText(prop: DatabaseProperty, value: CellValue, data: Datab
 export function exportJson(prop: DatabaseProperty, value: CellValue, data: DatabaseData): unknown {
   if (value === null || value === undefined) {
     if (prop.type === "checkbox") return false;
-    return ["multi_select", "person", "created_by", "relation", "file"].includes(prop.type) ? [] : null;
+    return ["multi_select", "person", "created_by", "last_edited_by", "relation", "file"].includes(prop.type) ? [] : null;
   }
   const names = (ids: string[], lookup: (id: string) => string | undefined) => ids.map((id) => lookup(id) ?? null).filter((x) => x !== null);
   switch (prop.type) {
@@ -60,8 +61,11 @@ export function exportJson(prop: DatabaseProperty, value: CellValue, data: Datab
       return prop.config.options?.find((o) => o.id === value)?.name ?? null;
     case "multi_select":
       return names(value as string[], (id) => prop.config.options?.find((o) => o.id === id)?.name);
+    case "unique_id":
+      return prop.config.prefix ? uniqueIdText(prop, value) : value;
     case "person":
     case "created_by":
+    case "last_edited_by":
       return names(value as string[], (id) => data.people[id]);
     case "relation":
       return names(value as string[], (id) => data.related[id]?.title);

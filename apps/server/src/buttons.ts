@@ -6,6 +6,9 @@ import {
   fillTemplate,
   FormulaError,
   FORMULA_TEMPLATE,
+  PEOPLE_TYPES,
+  uniqueIdText,
+  type CellValue,
   t,
   type ButtonConfig,
   type ButtonStep,
@@ -105,7 +108,11 @@ export function cellText(prop: DatabaseProperty, value: unknown, names: Map<stri
     case "multi_select":
       return (value as string[]).map(option).filter(Boolean).join(", ");
     case "person":
+    case "created_by":
+    case "last_edited_by":
       return (value as string[]).map((id) => names.get(id) ?? id).join(", ");
+    case "unique_id":
+      return uniqueIdText(prop, value as CellValue);
     case "date": {
       const d = value as { start: string; end?: string | null };
       return d.start;
@@ -194,7 +201,7 @@ export async function runButton(app: FastifyInstance, runner: Runner, ctx: Butto
     const rowPage = listRowPages(db, ctx.row.databaseId).find((r) => r.id === ctx.row!.id);
     if (rowPage) {
       const row = toRow(rowPage, properties);
-      const people = properties.filter((p) => p.type === "person" || p.type === "created_by").flatMap((p) => (row.values[p.id] as string[] | null) ?? []);
+      const people = properties.filter((p) => PEOPLE_TYPES.includes(p.type)).flatMap((p) => (row.values[p.id] as string[] | null) ?? []);
       const names = new Map(
         people.length
           ? db

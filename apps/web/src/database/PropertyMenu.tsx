@@ -135,6 +135,36 @@ export function PropertyMenu({
           </select>
         </label>
       )}
+      {prop.type === "percent" && (
+        <label className="block">
+          <span className="mb-0.5 block text-xs text-neutral-500">{t("property.showAs")}</span>
+          <select
+            className={field}
+            value={prop.config.showAs ?? "number"}
+            onChange={(e) => onChangeConfig({ ...prop.config, showAs: e.target.value === "bar" ? "bar" : undefined })}
+          >
+            <option value="number">{t("property.showAsNumber")}</option>
+            <option value="bar">{t("property.showAsBar")}</option>
+          </select>
+        </label>
+      )}
+      {prop.type === "unique_id" && (
+        <label className="block">
+          <span className="mb-0.5 block text-xs text-neutral-500">{t("property.prefix")}</span>
+          <input
+            className={field}
+            defaultValue={prop.config.prefix ?? ""}
+            maxLength={20}
+            placeholder="TASK"
+            onBlur={(e) => {
+              const prefix = e.target.value.replace(/[^\p{L}\p{N}_]/gu, "").slice(0, 20);
+              e.target.value = prefix;
+              if (prefix !== (prop.config.prefix ?? "")) onChangeConfig({ ...prop.config, prefix: prefix || undefined });
+            }}
+          />
+          <span className="mt-0.5 block text-xs text-neutral-500">{t("property.prefixHelp")}</span>
+        </label>
+      )}
       {prop.type === "relation" && <RelationInfo prop={prop} />}
       {prop.type === "rollup" && <RollupSettings prop={prop} properties={properties} onChange={onChangeConfig} field={field} />}
       {prop.type === "date" && (

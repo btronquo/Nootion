@@ -26,7 +26,7 @@ import { imageExtension } from "../images.js";
 import { iconsDir } from "../routes/icons.js";
 import { attachmentPath, uploadsDir } from "../attachments.js";
 import { writeContent, type Collab } from "../collab.js";
-import { checkFormula, listProperties } from "../databases.js";
+import { assignUniqueIds, checkFormula, listProperties } from "../databases.js";
 import { nextPosition } from "../pages.js";
 import {
   NotionClient,
@@ -260,6 +260,8 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
   );
   const target = new Map<string, { id: string; title: string; isNew: boolean; changed: boolean }>();
   const titleOf = (item: Item) => (item.kind === "database" ? plainText(item.database.title) : pageTitle(item.page));
+  // Who last edited a page in Notion, when they have an account here.
+  const lastEditor = (item: Item) => (item.kind !== "database" && personId(item.page.last_edited_by)) || null;
   const editedAt = (item: Item) => (item.kind === "database" ? item.database.last_edited_time : item.page.last_edited_time);
 
   // Parents first, so children can be placed under them.
@@ -291,7 +293,7 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
     const link = links.get(id);
     if (link) {
       const changed = !!o.refresh || link.editedAt !== editedAt(item);
-      if (changed) db.update(pages).set({ title, icon, updatedAt: new Date() }).where(eq(pages.id, link.pageId)).run();
+      if (changed) db.update(pages).set({ title, icon, updatedAt: new Date(), updatedBy: lastEditor(item) }).where(eq(pages.id, link.pageId)).run();
       target.set(id, { id: link.pageId, title, isNew: false, changed });
       report[changed ? "updated" : "unchanged"]++;
     } else {
@@ -311,6 +313,7 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
           createdBy: (item.kind !== "database" && personId(item.page.created_by)) || o.userId,
           createdAt: new Date(created),
           updatedAt: new Date(editedAt(item)),
+          updatedBy: lastEditor(item),
           props: item.kind === "row" ? {} : null,
         })
         .run();
@@ -367,10 +370,10 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
     const current = known ? listProperties(db, dbId).find((p) => p.id === known) : undefined;
     if (current) {
       // Imported before: renamed, and new options added; the type stays the one chosen in Nootion,
-      // except for status columns, which earlier versions imported as selects.
-      const upgrade = type === "status" && current.type === "select";
-      const nextType = upgrade ? "status" : current.type;
-      const merged: PropertyConfig = { ...current.config };
+      // except for the types earlier versions didn't have: status (imported as selects), phone and ID (as texts).
+      const upgrade = (type === "status" && current.type === "select") || ((type === "phone" || type === "unique_id") && current.type === "text");
+      const nextType = upgrade ? type : current.type;
+      const merged: PropertyConfig = { ...current.config, ...(upgrade ? config : {}) };
       if (config.options) {
         const incoming = new Map(config.options.map((x) => [x.id, x]));
         const kept = (current.config.options ?? []).map((x) => (upgrade ? { ...x, group: incoming.get(x.id)?.group } : x));
@@ -378,6 +381,18 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
         merged.options = normalizeOptions(nextType, [...kept, ...config.options.filter((x) => !ids.has(x.id))]);
       }
       db.update(databaseProperties).set({ name, type: nextType, config: merged }).where(eq(databaseProperties.id, current.id)).run();
+      if (upgrade && nextType === "unique_id") {
+        // Rows Notion doesn't send again keep their number: TASK-12, imported as a text, becomes 12.
+        for (const r of db.select({ id: pages.id, props: pages.props }).from(pages).where(eq(pages.parentId, dbId)).all()) {
+          const v = r.props?.[current.id];
+          if (v === undefined) continue;
+          const props = { ...r.props };
+          const n = typeof v === "string" ? /(\d+)$/.exec(v)?.[1] : undefined;
+          if (n) props[current.id] = Number(n);
+          else delete props[current.id];
+          db.update(pages).set({ props }).where(eq(pages.id, r.id)).run();
+        }
+      }
       return { ...current, name, type: nextType, config: merged };
     }
     const id = randomUUID();
@@ -549,6 +564,8 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
     }
     job.done++;
   }
+  // ID columns: rows Notion gave no number get the next ones.
+  for (const { database } of databases) assignUniqueIds(db, target.get(normId(database.id))!.id);
 
   // --- 5. Page contents --------------------------------------------------------------------------
   async function saveFile(pageId: string, url: string, name: string) {
@@ -686,9 +703,14 @@ function plainColumn(p: NotionPropertySchema, note: (what: string, info?: string
     case "title":
       return { type: "title", config: {} };
     case "rich_text":
-    case "phone_number":
-    case "unique_id":
       return { type: "text", config: {} };
+    case "phone_number":
+      return { type: "phone", config: {} };
+    case "unique_id": {
+      // Nootion's prefixes are letters, digits and _.
+      const prefix = (p.unique_id?.prefix ?? "").replace(/[^\p{L}\p{N}_]/gu, "").slice(0, 20);
+      return { type: "unique_id", config: prefix ? { prefix } : {} };
+    }
     case "number": {
       const format = p.number?.format ?? "number";
       if (format === "percent") return { type: "percent", config: { decimals: 0 } };
@@ -719,6 +741,8 @@ function plainColumn(p: NotionPropertySchema, note: (what: string, info?: string
       return { type: "last_edited_time", config: {} };
     case "created_by":
       return { type: "created_by", config: {} };
+    case "last_edited_by":
+      return { type: "last_edited_by", config: {} };
     case "relation":
     case "rollup":
     case "formula":
@@ -765,6 +789,7 @@ async function cellValue(schema: NotionPropertySchema, v: NotionPropertyValue, p
     case "phone_number":
       return v.phone_number ?? null;
     case "unique_id":
+      if (prop.type === "unique_id") return typeof v.unique_id?.number === "number" ? v.unique_id.number : null;
       return v.unique_id?.number === null || v.unique_id?.number === undefined
         ? null
         : `${v.unique_id.prefix ? `${v.unique_id.prefix}-` : ""}${v.unique_id.number}`;

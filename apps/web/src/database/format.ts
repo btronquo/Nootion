@@ -1,5 +1,6 @@
 import {
   intlLocale,
+  uniqueIdText,
   t,
   type CalcResult,
   type CellValue,
@@ -84,7 +85,10 @@ export function formatValue(prop: DatabaseProperty, value: CellValue, people: Re
         .join(", ");
     case "person":
     case "created_by":
+    case "last_edited_by":
       return (value as string[]).map((id) => people[id] ?? "?").join(", ");
+    case "unique_id":
+      return uniqueIdText(prop, value);
     case "checkbox":
       return value ? "✓" : "";
     case "file":

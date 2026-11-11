@@ -36,6 +36,7 @@ import { parseMarkdown } from "../markdown-in.js";
 import {
   collectPeople,
   convertColumn,
+  assignUniqueIds,
   createDatabase,
   defaultConfig,
   checkFormula,
@@ -171,6 +172,8 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
       userId: user.id,
     });
     const { page, role } = requireDatabase(db, user.id, id, "viewer");
+    // Rows added another way (synced from a device, moved in…) get their number when the database is read.
+    assignUniqueIds(db, page.id);
     return { database: loadDatabase(db, page, role, canReadAs(db, user.id)) };
   });
 
@@ -273,6 +276,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
           .run();
       }
     });
+    if (input.type === "unique_id") assignUniqueIds(db, req.params.id);
     return {
       property: listProperties(db, req.params.id).find((p) => p.id === id),
     };
@@ -330,7 +334,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
         });
         rows.forEach((r, i) => {
           const props = { ...(r.props ?? {}) } as Record<string, CellValue>;
-          if (values[i] === null || ["created_time", "last_edited_time", "created_by"].includes(target)) delete props[prop.id];
+          if (values[i] === null || ["created_time", "last_edited_time", "created_by", "last_edited_by", "unique_id"].includes(target)) delete props[prop.id];
           else props[prop.id] = values[i];
           tx.update(pages).set({ props }).where(eq(pages.id, r.id)).run();
         });
@@ -355,6 +359,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
       }
       if (Object.keys(set).length) tx.update(databaseProperties).set(set).where(eq(databaseProperties.id, prop.id)).run();
     });
+    if (input.type === "unique_id") assignUniqueIds(db, req.params.id);
     return {
       property: listProperties(db, req.params.id).find((p) => p.id === prop.id),
     };
@@ -454,6 +459,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
       for (const p of properties) if (p.type === "relation" && values[p.id]) syncTwin(tx, p, id, [], values[p.id] as string[]);
     });
     if (input.after !== undefined) db.transaction((tx) => placeRow(tx, database.id, id, input.after ?? null));
+    assignUniqueIds(db, database.id);
     // The row's page content, given at once through the API.
     const markdown = (req.body as { markdown?: unknown } | null)?.markdown;
     if (typeof markdown === "string" && markdown.trim()) {
@@ -529,6 +535,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
         .set({
           props,
           updatedAt: new Date(),
+          updatedBy: user.id,
           ...(newTitle !== undefined ? { title: newTitle } : {}),
         })
         .where(eq(pages.id, req.params.rowId))
@@ -559,10 +566,17 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     });
     db.transaction((tx) => {
       const props = (tx.select({ props: pages.props }).from(pages).where(eq(pages.id, id)).get()?.props ?? {}) as Record<string, CellValue>;
+      // The copy gets a number of its own.
+      const ids = properties.filter((p) => p.type === "unique_id" && p.id in props);
+      if (ids.length) {
+        for (const p of ids) delete props[p.id];
+        tx.update(pages).set({ props }).where(eq(pages.id, id)).run();
+      }
       // Two-way relations: the linked rows point to the copy too.
       for (const p of properties) if (p.type === "relation" && Array.isArray(props[p.id]) && (props[p.id] as string[]).length) syncTwin(tx, p, id, [], props[p.id] as string[]);
       placeRow(tx, database.id, id, req.params.rowId);
     });
+    assignUniqueIds(db, database.id);
     if (!fromAutomation(req)) {
       const after = rowSnapshot(db, database.id, id);
       if (after) await app.automations.rowChanged({ databaseId: database.id, rowId: id, before: null, after });
@@ -699,6 +713,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
         for (const p of properties) if (p.type === "relation" && values[p.id]) syncTwin(tx, p, id, [], values[p.id] as string[]);
       }
     });
+    assignUniqueIds(db, database.id);
     return { imported: plan.rows.length, createdColumns: plan.newColumns.map((c) => c.name), ignoredColumns: plan.ignored };
   });
 };

@@ -109,7 +109,7 @@ export interface ViewContext {
   me?: string | null;
 }
 
-const TEXT_TYPES: readonly PropertyType[] = ["title", "text", "url", "email", "plugin"];
+const TEXT_TYPES: readonly PropertyType[] = ["title", "text", "url", "email", "phone", "plugin"];
 const NUMBER_TYPES: readonly PropertyType[] = ["number", "currency", "percent"];
 const DATE_TYPES: readonly PropertyType[] = ["date", "created_time", "last_edited_time"];
 
@@ -120,7 +120,8 @@ export function filterKind(prop: DatabaseProperty, ctx: Pick<ViewContext, "rows"
   if (DATE_TYPES.includes(t)) return "date";
   if (t === "checkbox" || t === "select" || t === "multi_select") return t;
   if (t === "status") return "select";
-  if (t === "person" || t === "created_by") return "people";
+  if (t === "unique_id") return "number";
+  if (t === "person" || t === "created_by" || t === "last_edited_by") return "people";
   if (t === "relation" || t === "file") return "list";
   if (t === "rollup" || t === "formula") {
     // Computed columns take the type of what they produce.
@@ -206,8 +207,11 @@ export function cellText(prop: DatabaseProperty, value: CellValue, ctx: Omit<Vie
         .map((id) => prop.config.options?.find((o) => o.id === id)?.name ?? "")
         .filter(Boolean)
         .join(", ");
+    case "unique_id":
+      return typeof value === "number" ? (prop.config.prefix ? `${prop.config.prefix}-${value}` : String(value)) : "";
     case "person":
     case "created_by":
+    case "last_edited_by":
       return (value as string[])
         .map((id) => ctx.people[id] ?? "")
         .filter(Boolean)
@@ -447,12 +451,12 @@ export function applyView(
 
 /** Types a view can be grouped by. */
 export function canGroupBy(type: PropertyType): boolean {
-  return type !== "title" && type !== "file" && type !== "button";
+  return type !== "title" && type !== "file" && type !== "button" && type !== "unique_id";
 }
 
 /** Types whose groups can receive rows (board drag and drop, "new" in a group). */
 export function canMoveBetweenGroups(type: PropertyType): boolean {
-  return ["select", "status", "multi_select", "checkbox", "person", "text", "url", "email", "number", "currency", "percent", "plugin"].includes(type);
+  return ["select", "status", "multi_select", "checkbox", "person", "text", "url", "email", "phone", "number", "currency", "percent", "plugin"].includes(type);
 }
 
 export interface RowGroup {
@@ -481,6 +485,7 @@ function groupKeysOf(prop: DatabaseProperty, row: DatabaseRow, ctx: ViewContext)
         .map((id) => ({ key: id, label: "" }));
     case "person":
     case "created_by":
+    case "last_edited_by":
       return (v as string[]).map((id) => ({ key: id, label: ctx.people[id] ?? "?" }));
     case "relation":
       return (v as string[]).map((id) => ({ key: id, label: ctx.related[id]?.title || t("common.untitled") }));
@@ -572,7 +577,7 @@ export function initialValues(
         if (id) values[prop.id] = [id];
       } else if (prop.type === "checkbox" && (f.operator === "checked" || f.operator === "unchecked")) values[prop.id] = f.operator === "checked";
       else if (["number", "currency", "percent"].includes(prop.type) && f.operator === "eq") values[prop.id] = Number(f.value);
-      else if (["text", "url", "email", "plugin"].includes(prop.type) && f.operator === "is") values[prop.id] = String(f.value);
+      else if (["text", "url", "email", "phone", "plugin"].includes(prop.type) && f.operator === "is") values[prop.id] = String(f.value);
     }
   }
   if (group && canMoveBetweenGroups(group.prop.type)) values[group.prop.id] = moveToGroup(group.prop, values[group.prop.id] ?? null, "", group.key);

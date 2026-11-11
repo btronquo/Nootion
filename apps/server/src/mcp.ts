@@ -4,7 +4,7 @@ import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { CallToolResult, ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
-import { OPTION_COLORS, type CellValue, type DatabaseProperty, type RelatedRow, type WorkspaceSummary } from "@nootion/shared";
+import { OPTION_COLORS, uniqueIdText, type CellValue, type DatabaseProperty, type RelatedRow, type WorkspaceSummary } from "@nootion/shared";
 import { findTokenUser, type TokenScope } from "./api-tokens.js";
 
 const VERSION = "1.2.0";
@@ -57,8 +57,12 @@ function readable(properties: DatabaseProperty[], values: Record<string, CellVal
       case "multi_select":
         out[p.name] = (v as string[]).map(option);
         break;
+      case "unique_id":
+        out[p.name] = uniqueIdText(p, v);
+        break;
       case "person":
       case "created_by":
+      case "last_edited_by":
         out[p.name] = (Array.isArray(v) ? (v as string[]) : [v as string]).map((id) => people[id] ?? id);
         break;
       case "relation":
@@ -390,7 +394,7 @@ function buildServer(call: Call, scope: TokenScope): McpServer {
           .array(
             z.object({
               name: z.string().min(1).max(100),
-              type: z.enum(["text", "number", "currency", "percent", "checkbox", "date", "select", "multi_select", "status", "person", "url", "email", "file"]),
+              type: z.enum(["text", "number", "currency", "percent", "checkbox", "date", "select", "multi_select", "status", "person", "url", "email", "phone", "file"]),
               options: z
                 .array(z.string().min(1).max(100))
                 .max(100)

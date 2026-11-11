@@ -39,6 +39,7 @@ export interface NotionPage {
   created_time: string;
   last_edited_time: string;
   created_by?: { id: string };
+  last_edited_by?: { id: string };
   archived?: boolean;
   in_trash?: boolean;
   icon: NotionIcon;
@@ -81,6 +82,7 @@ export interface NotionPropertySchema {
   multi_select?: { options: NotionOption[] };
   status?: { options: NotionOption[]; groups?: { id: string; name: string; color?: string; option_ids: string[] }[] };
   formula?: { expression: string };
+  unique_id?: { prefix: string | null };
   relation?: { database_id: string; type?: "single_property" | "dual_property"; dual_property?: { synced_property_id: string; synced_property_name: string } };
   rollup?: {
     relation_property_id: string;

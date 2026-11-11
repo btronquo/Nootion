@@ -110,7 +110,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     recordSnapshot(db, page.id, { content: readContent(app.collab, db, page.id), force: true });
     await writeContent(app.collab, db, page.id, doc);
     recordAgentVersion(db, page.id, readContent(app.collab, db, page.id), user.id);
-    db.update(pages).set({ updatedAt: new Date() }).where(eq(pages.id, page.id)).run();
+    db.update(pages).set({ updatedAt: new Date(), updatedBy: user.id }).where(eq(pages.id, page.id)).run();
     return { ok: true };
   });
 
@@ -121,7 +121,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     const doc = contentInput(req.body, user.id)!;
     await appendContent(app.collab, db, page.id, doc.content ?? []);
     recordAgentVersion(db, page.id, readContent(app.collab, db, page.id), user.id);
-    db.update(pages).set({ updatedAt: new Date() }).where(eq(pages.id, page.id)).run();
+    db.update(pages).set({ updatedAt: new Date(), updatedBy: user.id }).where(eq(pages.id, page.id)).run();
     return { ok: true };
   });
 
@@ -255,7 +255,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     const current = db.select({ content: pages.contentJson }).from(pages).where(eq(pages.id, page.id)).get();
     if (current?.content) recordSnapshot(db, page.id, { content: current.content as ProseMirrorNode, force: true });
     await writeContent(app.collab, db, page.id, snapshot.content as ProseMirrorNode);
-    db.update(pages).set({ title: snapshot.title, updatedAt: new Date() }).where(eq(pages.id, page.id)).run();
+    db.update(pages).set({ title: snapshot.title, updatedAt: new Date(), updatedBy: user.id }).where(eq(pages.id, page.id)).run();
     recordSnapshot(db, page.id, { content: snapshot.content as ProseMirrorNode, authors: [user.id], force: true, restoredFrom: snapshot.createdAt });
     return { ok: true };
   });
@@ -296,7 +296,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     const rowBefore = current.kind === "row" && current.parentId && input.title !== undefined ? rowSnapshot(db, current.parentId, current.id) : null;
     const page = db
       .update(pages)
-      .set({ ...input, updatedAt: new Date() })
+      .set({ ...input, updatedAt: new Date(), updatedBy: user.id })
       .where(eq(pages.id, req.params.id))
       .returning(pageMeta)
       .get();

@@ -19,7 +19,7 @@ interface Group {
   color: string;
 }
 
-const GROUPABLE = ["status", "select", "multi_select", "checkbox", "person", "created_by", "date", "created_time", "last_edited_time", "text", "url", "email", "number"];
+const GROUPABLE = ["status", "select", "multi_select", "checkbox", "person", "created_by", "last_edited_by", "date", "created_time", "last_edited_time", "text", "url", "email", "number"];
 const MAX_GROUPS = 12;
 
 const monthLabel = (key: string) => new Date(`${key}-01T00:00:00`).toLocaleDateString(intlLocale(), { month: "short", year: "numeric" });
@@ -51,6 +51,7 @@ function keysOf(
       return v ? [{ key: "yes", label: t("common.yes"), order: 0 }] : [{ key: "no", label: t("common.no"), order: 1 }];
     case "person":
     case "created_by":
+    case "last_edited_by":
       return (v as string[]).map((id) => ({ key: id, label: people[id] ?? "?" }));
     case "date":
     case "created_time":
