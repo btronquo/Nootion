@@ -31,19 +31,19 @@ jobs:
       # Known vulnerabilities in what ships in the image. Development tools are left out.
       - run: pnpm audit --prod --audit-level high
       # Text of attached PDFs and OCR of images, as in the Docker image. GitHub's runners fetch packages from Azure's copy
-      # of Ubuntu's servers, which is sometimes down for hours: Ubuntu's own servers are used instead, tried three times.
+      # of Ubuntu's servers, which is sometimes down for hours: Ubuntu's own servers are used instead, tried twice.
       # If they can't be reached either, the PDF and OCR tests are skipped rather than failing the whole run.
       - name: PDF and OCR tools
         id: ocr
         continue-on-error: true
-        timeout-minutes: 10
+        timeout-minutes: 4
         run: |
           sudo sed -i 's#http://azure.archive.ubuntu.com/ubuntu#http://archive.ubuntu.com/ubuntu#g' /etc/apt/sources.list.d/*.sources /etc/apt/sources.list 2>/dev/null || true
-          for attempt in 1 2 3; do
-            sudo apt-get update -q -o Acquire::Retries=3 \
+          for attempt in 1 2; do
+            sudo apt-get update -q -o Acquire::Retries=3 -o Acquire::http::Timeout=20 \
               && sudo apt-get install -y -q --no-install-recommends -o Acquire::Retries=3 poppler-utils tesseract-ocr tesseract-ocr-fra tesseract-ocr-eng \
               && exit 0
-            sleep 20
+            sleep 10
           done
           exit 1
       - if: steps.ocr.outcome == 'failure'
