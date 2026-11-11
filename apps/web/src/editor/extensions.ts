@@ -1,6 +1,6 @@
 import type { AnyExtension } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
-import { TaskItem, TaskList } from "@tiptap/extension-list";
+import { TaskList } from "@tiptap/extension-list";
 import { TableKit } from "@tiptap/extension-table";
 import Image from "@tiptap/extension-image";
 import { Placeholder } from "@tiptap/extensions";
@@ -28,6 +28,7 @@ import { BlockAttributes } from "./blockAttrs";
 import { HandleTargets } from "./handleTargets";
 import { LinkClicks } from "./linkClicks";
 import { ImageViewer } from "./imageViewer";
+import { RepeatingTaskItem, TaskRepeatExtension } from "./taskRepeat";
 import { t } from "@nootion/shared";
 
 /** Extensions shared by the collaborative editor and the read-only public view. Keep both schemas identical. */
@@ -49,7 +50,8 @@ export function baseExtensions(opts: {
       heading: { levels: [1, 2, 3] },
     }),
     TaskList,
-    TaskItem.configure({ nested: true }),
+    RepeatingTaskItem.configure({ nested: true }),
+    TaskRepeatExtension,
     TableKit.configure({ table: { resizable: true } }),
     Image,
     ImageViewer,

@@ -131,6 +131,19 @@ body {
 .nootion-content ul[data-type="taskList"] li[data-checked="true"] > div {
   @apply text-neutral-400 decoration-neutral-400 dark:text-neutral-500 dark:decoration-neutral-500;
 }
+/* A repeating to-do: a small loop after its text. */
+.nootion-content ul[data-type="taskList"] li[data-repeat] > div > p:first-child::after {
+  content: "";
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  margin-left: 6px;
+  vertical-align: -1px;
+  background: currentColor;
+  opacity: 0.4;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m17 2 4 4-4 4'/%3E%3Cpath d='M3 11v-1a4 4 0 0 1 4-4h14'/%3E%3Cpath d='m7 22-4-4 4-4'/%3E%3Cpath d='M21 13v1a4 4 0 0 1-4 4H3'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
 /* To-do boxes as in Notion: a bit bigger, blue when checked, with a check that pops in. */
 .nootion-content ul[data-type="taskList"] input[type="checkbox"] {
   @apply relative m-0 h-[18px] w-[18px] shrink-0 cursor-pointer appearance-none rounded-[4px] border-[1.5px] border-neutral-400 bg-transparent dark:border-neutral-500;
