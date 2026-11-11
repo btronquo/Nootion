@@ -21,6 +21,19 @@ export const automationRoutes: FastifyPluginAsync = async (app) => {
   /** The trigger's column must exist, with the right type. */
   function checkTrigger(databaseId: string, input: ReturnType<typeof automationInput.parse>) {
     if (input.trigger.type === "row_added") return;
+    if (input.trigger.type === "schedule") {
+      const trigger = input.trigger;
+      if (trigger.frequency === "weekly" && !trigger.weekdays.length) throw new HttpError(400, "no_weekday", t("recurrence.noWeekday"));
+      try {
+        new Intl.DateTimeFormat("en", { timeZone: trigger.timeZone });
+      } catch {
+        throw new HttpError(400, "bad_time_zone", t("recurrence.badTimeZone"));
+      }
+      if (trigger.endDate && trigger.endDate < trigger.startDate) throw new HttpError(400, "bad_trigger", t("automation.badEndDate"));
+      // No row to change: as in Notion, a schedule adds rows, creates pages or calls webhooks.
+      if (input.steps.some((s) => s.type === "update_row")) throw new HttpError(400, "bad_step", t("automation.scheduleNoRow"));
+      return;
+    }
     const prop = listProperties(db, databaseId).find((p) => p.id === (input.trigger as { propertyId: string }).propertyId);
     if (!prop || (input.trigger.type === "date_reached" && prop.type !== "date")) throw new HttpError(400, "bad_trigger", t("automation.badTrigger"));
   }

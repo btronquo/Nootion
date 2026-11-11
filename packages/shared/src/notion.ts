@@ -23,9 +23,25 @@ export interface NotionImportReport {
   unchanged: number;
   /** What couldn't be imported as it was, by kind (messages "notion.note.<kind>"). */
   notes: Record<string, number>;
+  /** The same, one entry per page, column, block or file concerned, so it can be checked in Notion (at most NOTION_DETAILS_MAX per kind). */
+  details: Record<string, NotionImportDetail[]>;
   /** Formulas Nootion can't compute: their values were kept in a plain column. */
-  formulas: { database: string; name: string; reason: string }[];
+  formulas: { database: string; name: string; reason: string; url?: string }[];
 }
+
+/** Something imported differently, and where to find it in Notion. */
+export interface NotionImportDetail {
+  /** The page, database or row it is in ("Database › Row" for a row). */
+  where: string;
+  /** The column, block or file concerned. */
+  item?: string;
+  /** More about it: the column's type, the file's name, the block's kind… */
+  info?: string;
+  /** Its place in Notion (the page, or the block in it). */
+  url?: string;
+}
+
+export const NOTION_DETAILS_MAX = 500;
 
 export interface NotionImportJob {
   id: string;

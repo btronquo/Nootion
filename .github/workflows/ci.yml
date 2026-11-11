@@ -30,9 +30,20 @@ jobs:
       - run: pnpm lint
       # Known vulnerabilities in what ships in the image. Development tools are left out.
       - run: pnpm audit --prod --audit-level high
-      # Text of attached PDFs and OCR of images, as in the Docker image.
-      - run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends poppler-utils tesseract-ocr tesseract-ocr-fra tesseract-ocr-eng
+      # Text of attached PDFs and OCR of images, as in the Docker image. If Ubuntu's servers can't be reached, the PDF and
+      # OCR tests are skipped rather than failing the whole run.
+      - name: PDF and OCR tools
+        id: ocr
+        continue-on-error: true
+        timeout-minutes: 6
+        uses: ./.github/actions/apt-install
+        with:
+          packages: poppler-utils tesseract-ocr tesseract-ocr-fra tesseract-ocr-eng
+      - if: steps.ocr.outcome == 'failure'
+        run: echo "::warning::Ubuntu's package servers can't be reached, the PDF and OCR tests are skipped."
       - run: pnpm test
+        env:
+          NOOTION_SKIP_OCR: ${{ steps.ocr.outcome == 'failure' && '1' || '' }}
 
   docker-image:
     needs: test

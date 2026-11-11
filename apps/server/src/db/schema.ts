@@ -152,6 +152,10 @@ export const pages = sqliteTable(
     contentText: text("content_text"),
     // Rows only: cell values by property id.
     props: text("props", { mode: "json" }).$type<Record<string, unknown>>(),
+    // Sync with another Nootion (desktop app, sync.ts): when the page last changed (ms), and when each of its fields
+    // did, by column name, or "p:<property id>" for a cell.
+    syncClock: integer("sync_clock").notNull().default(0),
+    fieldClock: text("field_clock", { mode: "json" }).$type<Record<string, number>>(),
     // A page template (offered when starting an empty page), or a row template of its database (hidden from its rows).
     template: integer("template", { mode: "boolean" }).notNull().default(false),
     // Databases only: the row template new rows start from, if any.
@@ -236,6 +240,8 @@ export const databaseProperties = sqliteTable(
     config: text("config", { mode: "json" }).$type<Record<string, unknown>>().notNull().default({}),
     position: integer("position").notNull().default(0),
     createdAt: createdAt(),
+    /** When it last changed (ms), for sync. */
+    syncClock: integer("sync_clock").notNull().default(0),
   },
   (t) => [index("database_properties_db_idx").on(t.databaseId)],
 );
@@ -252,6 +258,8 @@ export const databaseViews = sqliteTable(
     config: text("config", { mode: "json" }).$type<Record<string, unknown>>().notNull().default({}),
     position: integer("position").notNull().default(0),
     createdAt: createdAt(),
+    /** When it last changed (ms), for sync. */
+    syncClock: integer("sync_clock").notNull().default(0),
   },
   (t) => [index("database_views_db_idx").on(t.databaseId)],
 );
@@ -528,6 +536,8 @@ export const commentThreads = sqliteTable(
     resolvedAt: integer("resolved_at", { mode: "timestamp_ms" }),
     resolvedBy: text("resolved_by").references(() => users.id, { onDelete: "set null" }),
     createdAt: createdAt(),
+    // When it last changed, for the sync (sync.ts).
+    syncClock: integer("sync_clock").notNull().default(0),
   },
   (t) => [index("comment_threads_page_idx").on(t.pageId)],
 );
@@ -546,6 +556,8 @@ export const comments = sqliteTable(
     body: text("body").notNull(),
     editedAt: integer("edited_at", { mode: "timestamp_ms" }),
     createdAt: createdAt(),
+    // When it last changed, for the sync (sync.ts).
+    syncClock: integer("sync_clock").notNull().default(0),
   },
   (t) => [index("comments_thread_idx").on(t.threadId)],
 );
@@ -718,4 +730,52 @@ export const instanceSettings = sqliteTable("instance_settings", {
   updatedAt: integer("updated_at", { mode: "timestamp_ms" })
     .notNull()
     .$defaultFn(() => new Date()),
+});
+
+/**
+ * What changed, in order, for the desktop app's sync (see sync.ts). Filled by SQLite triggers (migration 0034), so
+ * every way of changing data is recorded. `origin` is the peer whose changes were being applied, if any.
+ */
+export const syncChanges = sqliteTable(
+  "sync_changes",
+  {
+    seq: integer("seq").primaryKey({ autoIncrement: true }),
+    entity: text("entity", { enum: ["page", "property", "view", "attachment", "thread", "comment"] }).notNull(),
+    entityId: text("entity_id").notNull(),
+    workspaceId: text("workspace_id"),
+    deleted: integer("deleted", { mode: "boolean" }).notNull().default(false),
+    origin: text("origin"),
+    at: integer("at").notNull(),
+  },
+  (t) => [index("sync_changes_ws_idx").on(t.workspaceId, t.seq), index("sync_changes_entity_idx").on(t.entityId)],
+);
+
+/** Read by the sync triggers: `applying` holds the peer whose changes are being written, while they are. */
+export const syncState = sqliteTable("sync_state", {
+  key: text("key").primaryKey(),
+  value: text("value"),
+});
+
+/** Desktop app, local mode: a space kept in sync with a space of a Nootion server. */
+export const syncLinks = sqliteTable("sync_links", {
+  workspaceId: text("workspace_id")
+    .primaryKey()
+    .references(() => workspaces.id, { onDelete: "cascade" }),
+  serverUrl: text("server_url").notNull(),
+  clientId: text("client_id").notNull(),
+  /** Encrypted with APP_SECRET (secrets.ts). */
+  accessToken: text("access_token").notNull(),
+  refreshToken: text("refresh_token").notNull(),
+  accessExpiresAt: integer("access_expires_at", { mode: "timestamp_ms" }).notNull(),
+  /** This peer's id, sent with each push so its own changes aren't sent back. */
+  peerId: text("peer_id").notNull(),
+  /** The account here that made the link, and its account on the server: the same person (authors of comments…). */
+  userId: text("user_id"),
+  remoteUserId: text("remote_user_id"),
+  /** Last change of the server already pulled, and last local change already pushed. */
+  pulledSeq: integer("pulled_seq").notNull().default(0),
+  pushedSeq: integer("pushed_seq").notNull().default(0),
+  lastSyncAt: integer("last_sync_at", { mode: "timestamp_ms" }),
+  lastError: text("last_error"),
+  createdAt: createdAt(),
 });

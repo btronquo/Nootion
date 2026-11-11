@@ -8,18 +8,20 @@ import { CalendarBlockView } from "../database/CalendarBlockView";
 import { DateMentionView } from "./DateMentionView";
 import { ButtonBlockView } from "./ButtonBlockView";
 import { DrawingBlockView } from "./DrawingBlockView";
+import { VideoBlockView } from "./VideoBlockView";
 import { TableOfContentsView } from "./TableOfContentsView";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { DatabaseRowsView, FavoritesListView, RecentPagesView, UpcomingEventsView } from "./HomeWidgets";
 import { ChartView } from "./widgets/Chart";
 import { ClockView, CountdownView, PomodoroView, ProgressView } from "./widgets/Time";
 import { CarouselView, HabitView, QuoteView, WeatherView } from "./widgets/Extra";
-import { DRAWING_DEFAULT_HEIGHT, drawingHeight, intlLocale, reminderTime, t } from "@nootion/shared";
+import { DRAWING_DEFAULT_HEIGHT, drawingHeight, intlLocale, reminderTime, t, videoSource } from "@nootion/shared";
 import { formatMentionDate } from "../lib/reminders";
 import { randomId } from "../lib/browser";
 
 declare module "@tiptap/core" {
   interface Commands<ReturnType> {
+    video: { insertVideo: (src?: string) => ReturnType };
     callout: { setCallout: () => ReturnType };
     fileAttachment: { insertFile: (attrs: { url: string; name: string; size: number; mimeType: string }) => ReturnType };
     pageLink: { insertPageLink: (attrs: { pageId: string; title: string }) => ReturnType };
@@ -728,5 +730,63 @@ export const Drawing = Node.create({
         ({ commands }) =>
           commands.insertContent([{ type: this.name, attrs: { strokes: [], height: DRAWING_DEFAULT_HEIGHT } }, { type: "paragraph" }]),
     };
+  },
+});
+
+/**
+ * A video: the player of a video site (YouTube, Vimeo… see videoSource) or a video file. A link to a video pasted
+ * alone in an empty line becomes one.
+ */
+export const Video = Node.create<{ pageId: string | null }>({
+  name: "video",
+  group: "block",
+  atom: true,
+  draggable: true,
+  selectable: true,
+  addOptions() {
+    return { pageId: null };
+  },
+  addAttributes() {
+    return { src: { default: null, parseHTML: (el) => el.dataset.src || null, renderHTML: (attrs) => (attrs.src ? { "data-src": attrs.src } : {}) } };
+  },
+  parseHTML() {
+    return [{ tag: "div[data-video]" }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ["div", mergeAttributes(HTMLAttributes, { "data-video": "" }), `🎬 ${t("video.title")}`];
+  },
+  addNodeView() {
+    return ReactNodeViewRenderer(VideoBlockView, { stopEvent: ({ event }) => !event.type.startsWith("drag") });
+  },
+  addCommands() {
+    return {
+      insertVideo:
+        (src) =>
+        ({ commands }) =>
+          commands.insertContent([{ type: this.name, attrs: { src: src ?? null } }, { type: "paragraph" }]),
+    };
+  },
+  addProseMirrorPlugins() {
+    const type = this.type;
+    return [
+      new Plugin({
+        key: new PluginKey("videoPaste"),
+        props: {
+          handlePaste(view, event) {
+            const text = event.clipboardData?.getData("text/plain")?.trim() ?? "";
+            if (!text || /\s/.test(text) || videoSource(text, window.location.hostname)?.kind !== "player") return false;
+            const { $from, empty } = view.state.selection;
+            if (!empty || $from.parent.type.name !== "paragraph" || $from.parent.content.size > 0) return false;
+            const pos = $from.before();
+            // An empty line after it, to go on writing.
+            const tr = view.state.tr.replaceWith(pos, $from.after(), [type.create({ src: text }), view.state.schema.nodes.paragraph!.create()]);
+            tr.setSelection(TextSelection.create(tr.doc, pos + 2));
+            view.dispatch(tr.scrollIntoView());
+            view.focus();
+            return true;
+          },
+        },
+      }),
+    ];
   },
 });

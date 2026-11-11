@@ -1,6 +1,6 @@
 import type { AnyExtension } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
-import { TaskItem, TaskList } from "@tiptap/extension-list";
+import { TaskList } from "@tiptap/extension-list";
 import { TableKit } from "@tiptap/extension-table";
 import Image from "@tiptap/extension-image";
 import { Placeholder } from "@tiptap/extensions";
@@ -22,11 +22,14 @@ import {
   TableOfContents,
   Toggle,
   UserMention,
+  Video,
 } from "./nodes";
 import { pluginNodes } from "../plugins/nodes";
 import { BlockAttributes } from "./blockAttrs";
 import { HandleTargets } from "./handleTargets";
 import { LinkClicks } from "./linkClicks";
+import { ImageViewer } from "./imageViewer";
+import { RepeatingTaskItem, TaskRepeatExtension } from "./taskRepeat";
 import { t } from "@nootion/shared";
 
 /** Extensions shared by the collaborative editor and the read-only public view. Keep both schemas identical. */
@@ -48,9 +51,11 @@ export function baseExtensions(opts: {
       heading: { levels: [1, 2, 3] },
     }),
     TaskList,
-    TaskItem.configure({ nested: true }),
+    RepeatingTaskItem.configure({ nested: true }),
+    TaskRepeatExtension,
     TableKit.configure({ table: { resizable: true } }),
     Image,
+    ImageViewer,
     Callout,
     Toggle,
     // Its placeholder is shown by CSS (the Placeholder extension only handles top-level blocks).
@@ -67,6 +72,7 @@ export function baseExtensions(opts: {
     CalendarBlock.configure({ pageId: opts.pageId ?? null, publicToken: opts.publicToken ?? null }),
     Drawing,
     ButtonBlock.configure({ pageId: opts.publicToken ? null : (opts.pageId ?? null) }),
+    Video.configure({ pageId: opts.publicToken ? null : (opts.pageId ?? null) }),
     ...WIDGETS.map((w) => w.configure({ publicToken: opts.publicToken ?? null, pageId: opts.publicToken ? null : (opts.pageId ?? null) })),
     WidgetCommands,
     ...pluginNodes(opts.plugins, opts.publicToken ? null : (opts.pageId ?? null)),

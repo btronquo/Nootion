@@ -54,6 +54,25 @@ Texts may hold variables between double braces, inserted by clicking them under 
 | `{{form.<field>}}` | An answer to the form, by field name. |
 | `{{created.title}}`, `{{created.url}}`, `{{created.id}}` | The last page or row a step created. |
 
+### Formulas
+
+`{{= formula}}` is computed as a formula column of the row would be, with the same functions, columns, relations and
+rollups (see the formula editor's help). For example, to repeat a task as in Notion, an automation "when Status
+becomes Done" with the steps:
+
+- set **Due** to `{{= dateAdd(prop("Due"), 1, "weeks")}}`;
+- set **Status** back to `To do`.
+
+A formula that fails stops the steps with its message, listed in the automation's runs.
+
+## Automations
+
+A database's **automations** run the same steps by themselves: when a row is added, when a column changes, when a
+date arrives, or **on a schedule** (every N days, weeks on some days, or months on a day, at a time in a time zone,
+from a day and until an optional last one). Steps on a schedule act on no row: they add rows, create pages or call
+webhooks, and may use formulas such as `{{= dateAdd(today(), 1, "weeks")}}`. A time missed while the server was off
+still runs once, within a day.
+
 ## Forms
 
 Fields are text, long text, number, date, choice, checkbox or person, each possibly required. The form opens when the

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Editor } from "@tiptap/react";
 import { DragHandle } from "@tiptap/extension-drag-handle-react";
+import type { Middleware } from "@floating-ui/dom";
 import { TextSelection } from "@tiptap/pm/state";
 import {
   ArrowDown,
@@ -23,17 +24,21 @@ import {
   Palette,
   Plus,
   Quote,
+  Repeat,
   Repeat2,
+  SlidersHorizontal,
   Text,
   Trash2,
 } from "lucide-react";
-import { OPTION_COLORS, t, type MessageKey, type OptionColor } from "@nootion/shared";
+import { OPTION_COLORS, TASK_REPEAT_CHOICES, parseTaskRepeat, t, type MessageKey, type OptionColor } from "@nootion/shared";
 import { Popover } from "../database/Popover";
 import { isMac } from "../components/QuickCapture";
 import { editedLabel } from "../components/EditedAt";
 import { copyText } from "../lib/browser";
 import { canTurnInto, currentKind, deleteBlock, duplicateBlock, moveBlock, stillThere, turnInto, type Block, type TurnInto } from "./blockActions";
 import { canColor, ensureBlockId, lastEdit, setBlockColor, type BlockColor } from "./blockAttrs";
+import { setTaskRepeat, taskRepeatLabel } from "./taskRepeat";
+import { TaskRepeatDialog } from "./TaskRepeatDialog";
 
 /**
  * The handles shown left of the block under the mouse, as in Notion: "+" adds a block below it (the "/" menu opens),
@@ -57,6 +62,8 @@ export function BlockHandle({
     block: Block;
     anchor: HTMLElement;
   } | null>(null);
+  // The "Custom…" repeat of a to-do, at its position.
+  const [repeating, setRepeating] = useState<{ pos: number; repeat: string | null } | null>(null);
 
   function addBelow() {
     const block = current.current;
@@ -97,10 +104,16 @@ export function BlockHandle({
     setMenu({ block, anchor });
   }
 
+  // Beside the first line of a callout, the handle sat over its emoji: it goes left of the emoji then.
+  const position = useMemo(
+    () => ({ placement: "left-start" as const, strategy: "absolute" as const, middleware: [clearCalloutEmoji(editor, current)] }),
+    [editor],
+  );
+
   const button = "flex h-6 w-6 items-center justify-center rounded text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800";
   return (
     <>
-      <DragHandle editor={editor} nested onNodeChange={({ node, pos }) => (current.current = node ? { node, pos } : null)}>
+      <DragHandle editor={editor} nested computePositionConfig={position} onNodeChange={({ node, pos }) => (current.current = node ? { node, pos } : null)}>
         <div className="nt-block-handle flex items-center pr-1" data-block-handle>
           <button type="button" className={button} onClick={addBelow} title={t("editor.addBelow")} aria-label={t("editor.addBelow")}>
             <Plus size={16} />
@@ -128,12 +141,42 @@ export function BlockHandle({
           anchor={menu.anchor}
           onComment={onComment}
           personName={personName}
+          onCustomRepeat={(pos, repeat) => setRepeating({ pos, repeat })}
           onClose={() => setMenu(null)}
         />
       )}
+      {repeating && <TaskRepeatDialog initial={repeating.repeat} onSave={(r) => setTaskRepeat(editor, repeating.pos, r)} onClose={() => setRepeating(null)} />}
     </>
   );
 }
+
+/** Where a callout draws its emoji (index.css: `top-4 left-4`, `text-xl leading-7`). */
+const CALLOUT_EMOJI = { left: 16, top: 16, size: 28 };
+
+/**
+ * Moves the handle left of a callout's emoji when it would cover it: the blocks of a callout start right of the emoji,
+ * so the handle of the one beside it (its first line, often empty) was drawn over it.
+ */
+function clearCalloutEmoji(editor: Editor, current: { current: Block | null }): Middleware {
+  return {
+    name: "clearCalloutEmoji",
+    fn({ x, elements }) {
+      const block = current.current;
+      if (!block || editor.isDestroyed) return {};
+      const dom = editor.view.nodeDOM(block.pos);
+      const callout = dom instanceof HTMLElement ? dom.parentElement?.closest<HTMLElement>(".callout") : null;
+      if (!callout?.dataset.emoji) return {};
+      const box = callout.getBoundingClientRect();
+      const ref = elements.reference.getBoundingClientRect();
+      const width = elements.floating.getBoundingClientRect().width;
+      const emojiLeft = box.left + CALLOUT_EMOJI.left;
+      const overlaps = ref.top < box.top + CALLOUT_EMOJI.top + CALLOUT_EMOJI.size && ref.left - width < emojiLeft + CALLOUT_EMOJI.size && ref.left > emojiLeft;
+      return overlaps ? { x: x - (ref.left - emojiLeft) } : {};
+    },
+  };
+}
+
+type Sub = "turn" | "color" | "repeat";
 
 interface Action {
   id: string;
@@ -143,7 +186,7 @@ interface Action {
   danger?: boolean;
   checked?: boolean;
   /** Opens a submenu. */
-  sub?: "turn" | "color";
+  sub?: Sub;
   /** A heading above the item, in a submenu. */
   section?: string;
   run: () => void;
@@ -174,7 +217,7 @@ function Swatch({ color }: { color: BlockColor | null }) {
   );
 }
 
-/** The menu of a block (a click on its dots): turn into, color, copy link, duplicate, move, comment, delete. */
+/** The menu of a block (a click on its dots): turn into, color, repeat (to-dos), copy link, duplicate, move, comment, delete. */
 function BlockMenu({
   editor,
   pageId,
@@ -182,6 +225,7 @@ function BlockMenu({
   anchor,
   onComment,
   personName,
+  onCustomRepeat,
   onClose,
 }: {
   editor: Editor;
@@ -190,10 +234,11 @@ function BlockMenu({
   anchor: HTMLElement;
   onComment?: () => void;
   personName?: (id: string) => string | undefined;
+  onCustomRepeat?: (pos: number, repeat: string | null) => void;
   onClose: () => void;
 }) {
   const [query, setQuery] = useState("");
-  const [sub, setSub] = useState<"turn" | "color" | null>(null);
+  const [sub, setSub] = useState<Sub | null>(null);
   const [active, setActive] = useState(0);
   const [copied, setCopied] = useState(false);
   const search = useRef<HTMLInputElement>(null);
@@ -217,7 +262,7 @@ function BlockMenu({
     onClose();
     if (stillThere(editor, block)) fn();
   };
-  const open = (which: "turn" | "color") => () => (setSub(which), setActive(0), setQuery(""));
+  const open = (which: Sub) => () => (setSub(which), setActive(0), setQuery(""));
   const kind = currentKind(block);
   const kinds: Action[] = canTurnInto(block)
     ? KINDS.map((k) => ({
@@ -247,9 +292,57 @@ function BlockMenu({
       ]
     : [];
 
+  // A to-do, or a list of a single to-do (the handle can point at either).
+  const task =
+    block.node.type.name === "taskItem"
+      ? { node: block.node, pos: block.pos }
+      : block.node.type.name === "taskList" && block.node.childCount === 1
+        ? { node: block.node.firstChild!, pos: block.pos + 1 }
+        : null;
+  const repeat = task ? ((task.node.attrs.repeat as string | null) ?? null) : null;
+  const repeats: Action[] = task
+    ? [
+        ...TASK_REPEAT_CHOICES.map((r) => ({
+          id: `repeat-${r}`,
+          label: taskRepeatLabel(parseTaskRepeat(r)!),
+          icon: <Repeat size={16} />,
+          checked: repeat === r,
+          run: act(() => setTaskRepeat(editor, task.pos, r)),
+        })),
+        // A custom one: shown so it can be seen, and changed in its dialog.
+        ...(repeat && !(TASK_REPEAT_CHOICES as readonly string[]).includes(repeat) && parseTaskRepeat(repeat)
+          ? [
+              {
+                id: `repeat-${repeat}`,
+                label: taskRepeatLabel(parseTaskRepeat(repeat)!),
+                icon: <Repeat size={16} />,
+                checked: true,
+                run: act(() => onCustomRepeat?.(task.pos, repeat)),
+              },
+            ]
+          : []),
+        ...(onCustomRepeat
+          ? [{ id: "repeat-custom", label: t("task.repeatCustom"), icon: <SlidersHorizontal size={16} />, run: act(() => onCustomRepeat(task.pos, repeat)) }]
+          : []),
+        { id: "repeat-none", label: t("task.repeatNone"), icon: <span />, checked: !repeat, run: act(() => setTaskRepeat(editor, task.pos, null)) },
+      ]
+    : [];
+
   const actions: Action[] = [
     ...(kinds.length ? [{ id: "turn", label: t("block.turnInto"), icon: <Repeat2 size={16} />, sub: "turn" as const, run: open("turn") }] : []),
     ...(colors.length ? [{ id: "color", label: t("block.color"), icon: <Palette size={16} />, sub: "color" as const, run: open("color") }] : []),
+    ...(repeats.length
+      ? [
+          {
+            id: "repeat",
+            label: t("task.repeat"),
+            icon: <Repeat size={16} />,
+            keys: parseTaskRepeat(repeat) ? taskRepeatLabel(parseTaskRepeat(repeat)!) : undefined,
+            sub: "repeat" as const,
+            run: open("repeat"),
+          },
+        ]
+      : []),
     {
       id: "link",
       label: copied ? t("block.linkCopied") : t("block.copyLink"),
@@ -303,13 +396,14 @@ function BlockMenu({
   // Typing searches every action, those of the submenus included.
   const shown = useMemo(() => {
     const q = query.trim().toLocaleLowerCase();
-    if (!q) return sub === "turn" ? kinds : sub === "color" ? colors : actions;
+    if (!q) return sub === "turn" ? kinds : sub === "color" ? colors : sub === "repeat" ? repeats : actions;
     const prefixed = (list: Action[], prefix: string) => list.map((a) => ({ ...a, section: undefined, label: `${prefix} : ${a.label}` }));
     return [
       ...actions.filter((a) => !a.sub),
       ...prefixed(kinds, t("block.turnInto")),
       ...prefixed(colors.slice(0, OPTION_COLORS.length + 1), t("block.textColor")),
       ...prefixed(colors.slice(OPTION_COLORS.length + 1), t("block.background")),
+      ...prefixed(repeats, t("task.repeat")),
     ].filter((a) => {
       // Every word, in any order: "blue back" finds "Background: Blue".
       const label = a.label.toLocaleLowerCase();
@@ -355,7 +449,7 @@ function BlockMenu({
             onClick={() => setSub(null)}
             className="flex w-full items-center gap-1 rounded px-2 py-1 text-left text-xs font-medium text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
           >
-            <ChevronLeft size={14} /> {sub === "turn" ? t("block.turnInto") : t("block.color")}
+            <ChevronLeft size={14} /> {sub === "turn" ? t("block.turnInto") : sub === "repeat" ? t("task.repeat") : t("block.color")}
           </button>
         )}
         <div className={sub === "color" && !query ? "max-h-80 overflow-y-auto" : undefined}>

@@ -142,6 +142,8 @@ function block(n: ProseMirrorNode, links: MarkdownLinks): string {
     }
     case "tableOfContents":
       return "";
+    case "video":
+      return n.attrs?.src ? `[🎬 ${translate("video.title")}](${dest(fileUrl(n.attrs.src, links))})` : "";
     case "drawing":
       // The drawing goes along as an image, inside the file.
       return drawingStrokes(n.attrs?.strokes).length

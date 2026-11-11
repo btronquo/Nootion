@@ -82,6 +82,9 @@ offline use and the Notion import.
   Every access check is done on the server (`apps/server/src/permissions.ts`) and covered by tests.
 - Notion-like page editor ("/" commands, to-do lists, tables, callouts, toggles, columns, images and attached files,
   links between pages with "@", people mentions, table of contents), with real-time collaborative editing.
+- Repeating to-dos: checked, their date moves on to the next day, week, month or chosen days, reminder included.
+- Images open full screen when clicked, to go through a page's images.
+- Videos (`/video`): YouTube, Vimeo, Dailymotion, Loom, PeerTube, Twitch or Google Drive links, or video files.
 - Drawing block (`/drawing`): pen, highlighter, shapes, arrows and text boxes, saved with the page, with a
   full-screen whiteboard and an SVG download.
 - Comments on a passage or on the whole page: threads with replies, resolved and reopened, that follow their
@@ -129,7 +132,8 @@ offline use and the Notion import.
 ### Automation
 
 - Database automations: when a row is added, a column changes or a date arrives, run steps on the row (e.g. "Status
-  set to Paid → fill in the payment date"), with the last runs and their errors listed.
+  set to Paid → fill in the payment date"), or on a schedule (every day, week or month), with the last runs and
+  their errors listed. Steps can hold formulas (`{{= dateAdd(prop("Due"), 1, "weeks")}}`).
 - Buttons with automations and forms: add a row, change the current row, create a page from a template, open a
   link, call a webhook, after an optional form that can also be opened by a public link. See [docs/BUTTONS.md](docs/BUTTONS.md).
 - Dates written in plain words (`@tomorrow 9am`, `@vendredi`, `@in 3 days`) with reminders, sent as notifications
@@ -178,6 +182,12 @@ offline use and the Notion import.
 - Works offline: pages already opened stay readable and editable, and changes sync when the connection comes back
   (page content is merged with others' changes, database cells are sent in order).
 
+### Desktop app
+
+- For Windows, macOS and Linux: connect to one or more Nootion servers, or keep a space on the computer with no
+  server at all. Spaces of a server can be synced to the computer, to work on them without a connection; changes
+  from both sides are merged. See [docs/DESKTOP.md](docs/DESKTOP.md).
+
 ### Hosting
 
 - Single Docker image (amd64 and arm64), data in `/data`.
@@ -213,6 +223,7 @@ To find your way in the code: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 ```
 apps/server      Fastify API + Drizzle + SQLite
 apps/web         React + Vite + Tailwind interface
+apps/desktop     Desktop app for Windows, macOS and Linux (Tauri), see docs/DESKTOP.md
 packages/shared  Types, validation, formulas, views and translations shared by both
 docker/          Dockerfile
 docs/            Documentation (deployment, architecture, API, SSO, plugins…)

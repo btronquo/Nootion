@@ -6,6 +6,7 @@ import {
   automationTriggerSchema,
   buttonStepSchema,
   DAY_REMINDER_HOUR,
+  nextScheduledRun,
   type Automation,
   type AutomationTrigger,
   type ButtonStep,
@@ -92,7 +93,8 @@ export function createAutomations(app: FastifyInstance) {
   const { db } = app;
   let queue: Promise<void> = Promise.resolve();
 
-  async function run(a: AutomationRow, rowId: string, key: string | null = null) {
+  /** Runs an automation's steps on a row, or on none (on a schedule). `key` makes it run once for that key. */
+  async function run(a: AutomationRow, rowId: string | null, key: string | null = null) {
     const runId = randomUUID();
     if (key) {
       // Claimed first: a date sets an automation off only once, even if two checks overlap.
@@ -114,8 +116,12 @@ export function createAutomations(app: FastifyInstance) {
       await runButton(
         app,
         runner,
-        { config: { label: a.name, color: "default", steps, form: null }, pageId: rowId, row: { databaseId: a.databaseId, id: rowId } },
-        { source: { kind: "block", pageId: rowId, blockId: "" }, form: {}, now: localNow(new Date()) },
+        {
+          config: { label: a.name, color: "default", steps, form: null },
+          pageId: rowId ?? a.databaseId,
+          row: rowId ? { databaseId: a.databaseId, id: rowId } : null,
+        },
+        { source: { kind: "block", pageId: rowId ?? a.databaseId, blockId: "" }, form: {}, now: localNow(new Date()) },
       );
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
@@ -123,7 +129,7 @@ export function createAutomations(app: FastifyInstance) {
     }
     if (key) db.update(automationRuns).set({ error }).where(eq(automationRuns.id, runId)).run();
     else db.insert(automationRuns).values({ id: runId, automationId: a.id, rowId, error }).run();
-    // Only the latest runs are kept (dates reached stay, so they don't go off again).
+    // Only the latest runs are kept (dates reached stay, so they don't go off again; a schedule only needs its last one).
     const old = db
       .select({ id: automationRuns.id, key: automationRuns.key })
       .from(automationRuns)
@@ -131,7 +137,7 @@ export function createAutomations(app: FastifyInstance) {
       .orderBy(desc(automationRuns.createdAt))
       .all()
       .slice(KEPT_RUNS)
-      .filter((r) => !r.key);
+      .filter((r) => !r.key || r.key.startsWith("schedule:"));
     if (old.length)
       db.delete(automationRuns)
         .where(
@@ -183,11 +189,18 @@ export function createAutomations(app: FastifyInstance) {
     await Promise.race([done, new Promise((resolve) => setTimeout(resolve, wait).unref())]);
   }
 
-  /** Sets off "date reached" automations whose date arrived. */
+  /** Sets off "date reached" automations whose date arrived, and scheduled ones whose time came. */
   async function tick(now = new Date()) {
     const list = db.select().from(automations).where(eq(automations.enabled, true)).all();
     for (const a of list) {
       const trigger = automationTriggerSchema.safeParse(a.trigger);
+      if (trigger.success && trigger.data.type === "schedule") {
+        // The last time it was due, unless before the automation existed or long gone (the server was off).
+        const since = new Date(Math.max(now.getTime() - TOO_LATE, a.createdAt.getTime()));
+        const at = nextScheduledRun(trigger.data, new Date(since.getTime() - 1));
+        if (at && at <= now) await run(a, null, `schedule:${at.toISOString()}`);
+        continue;
+      }
       if (!trigger.success || trigger.data.type !== "date_reached") continue;
       const propertyId = trigger.data.propertyId;
       const properties = listProperties(db, a.databaseId);

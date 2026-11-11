@@ -21,4 +21,16 @@ const shutdown = async () => {
 process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);
 
+// Started by the desktop app: stop with it, even if it crashed and couldn't say so.
+const parent = Number(process.env.NOOTION_DESKTOP_PARENT_PID);
+if (config.desktop && parent > 0) {
+  setInterval(() => {
+    try {
+      process.kill(parent, 0);
+    } catch {
+      void shutdown();
+    }
+  }, 5000).unref();
+}
+
 await app.listen({ port: config.port, host: config.host });

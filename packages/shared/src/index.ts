@@ -16,6 +16,8 @@ export * from "./notion.js";
 export * from "./comments.js";
 export * from "./automations.js";
 export * from "./recurrence.js";
+export * from "./taskRepeat.js";
+export * from "./video.js";
 export * from "./inbox.js";
 export * from "./backups.js";
 export * from "./mail.js";

@@ -42,6 +42,103 @@ const today = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
+type ScheduleRule = Pick<RecurrenceRule, "frequency" | "interval" | "weekdays" | "monthDay" | "time" | "timeZone" | "startDate">;
+
+const fieldInput =
+  "rounded-md border border-neutral-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-blue-500 dark:border-neutral-700 dark:bg-neutral-900";
+function scheduleField(label: string, control: React.ReactNode, help?: string) {
+  return (
+    <div className="text-sm">
+      <span className="mb-1 block font-medium">{label}</span>
+      {control}
+      {help && <p className="mt-1 text-xs text-neutral-500">{help}</p>}
+    </div>
+  );
+}
+
+/** When something repeats: every N days, weeks (on some days) or months (on a day), at a time, from a day. */
+export function ScheduleFields<R extends ScheduleRule>({ rule, set }: { rule: R; set: (patch: Partial<ScheduleRule>) => void }) {
+  const input = fieldInput;
+  const field = scheduleField;
+  return (
+    <>
+      <div className="flex flex-wrap gap-4">
+        {field(
+          t("recurrence.frequency"),
+          <Select className="py-2" value={rule.frequency} onChange={(e) => set({ frequency: e.target.value as RecurrenceRule["frequency"] })} name="frequency">
+            <option value="daily">{t("recurrence.daily")}</option>
+            <option value="weekly">{t("recurrence.weekly")}</option>
+            <option value="monthly">{t("recurrence.monthly")}</option>
+          </Select>,
+        )}
+        {field(
+          t("recurrence.interval"),
+          <span className="flex items-center gap-2">
+            <input
+              type="number"
+              min={1}
+              max={52}
+              name="interval"
+              className={`${input} w-16`}
+              value={rule.interval}
+              onChange={(e) => set({ interval: Math.min(52, Math.max(1, Number(e.target.value) || 1)) })}
+            />
+            {t(`recurrence.unit.${rule.frequency}`, { count: rule.interval })}
+          </span>,
+        )}
+        {field(
+          t("recurrence.time"),
+          <input type="time" required name="time" className={input} value={rule.time} onChange={(e) => set({ time: e.target.value })} />,
+        )}
+      </div>
+      {rule.frequency === "weekly" &&
+        field(
+          t("recurrence.weekdays"),
+          <div className="flex flex-wrap gap-1" data-weekdays>
+            {[1, 2, 3, 4, 5, 6, 0].map((d) => {
+              const on = rule.weekdays.includes(d);
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  aria-pressed={on}
+                  title={weekdayName(d, "long")}
+                  onClick={() => set({ weekdays: on ? rule.weekdays.filter((x) => x !== d) : [...rule.weekdays, d] })}
+                  className={`min-w-11 rounded-md border px-2 py-1.5 text-sm capitalize transition ${
+                    on
+                      ? "border-neutral-900 bg-neutral-900 text-white dark:border-white dark:bg-white dark:text-neutral-900"
+                      : "border-neutral-300 hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
+                  }`}
+                >
+                  {weekdayName(d, "short")}
+                </button>
+              );
+            })}
+          </div>,
+        )}
+      {rule.frequency === "monthly" &&
+        field(
+          t("recurrence.monthDay"),
+          <input
+            type="number"
+            min={1}
+            max={31}
+            name="monthDay"
+            className={`${input} w-20`}
+            value={rule.monthDay}
+            onChange={(e) => set({ monthDay: Math.min(31, Math.max(1, Number(e.target.value) || 1)) })}
+          />,
+          rule.monthDay > 28 ? t("recurrence.monthDayHelp") : undefined,
+        )}
+      {field(
+        t("recurrence.startDate"),
+        <input type="date" required name="startDate" className={input} value={rule.startDate} onChange={(e) => set({ startDate: e.target.value })} />,
+        t("recurrence.timeZone", { zone: rule.timeZone }),
+      )}
+    </>
+  );
+}
+
 /** Sets when a template makes a new page (or row) by itself, or stops it. */
 export function RecurrenceDialog({ page, recurrence, onClose }: { page: PageDetail; recurrence: Recurrence | null; onClose: () => void }) {
   const row = page.kind === "row";
@@ -70,15 +167,7 @@ export function RecurrenceDialog({ page, recurrence, onClose }: { page: PageDeta
   const [saving, setSaving] = useState(false);
   const closeRef = useRef<(() => void) | null>(null);
   const set = (patch: Partial<RecurrenceRule>) => setRule((r) => ({ ...r, ...patch }));
-  const input =
-    "rounded-md border border-neutral-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-blue-500 dark:border-neutral-700 dark:bg-neutral-900";
-  const field = (label: string, control: React.ReactNode, help?: string) => (
-    <div className="text-sm">
-      <span className="mb-1 block font-medium">{label}</span>
-      {control}
-      {help && <p className="mt-1 text-xs text-neutral-500">{help}</p>}
-    </div>
-  );
+  const field = scheduleField;
 
   async function done(request: Promise<unknown>) {
     setSaving(true);
@@ -105,84 +194,7 @@ export function RecurrenceDialog({ page, recurrence, onClose }: { page: PageDeta
         }}
       >
         <p className="text-sm text-neutral-500">{t(row ? "recurrence.helpRow" : "recurrence.help")}</p>
-        <div className="flex flex-wrap gap-4">
-          {field(
-            t("recurrence.frequency"),
-            <Select
-              className="py-2"
-              value={rule.frequency}
-              onChange={(e) => set({ frequency: e.target.value as RecurrenceRule["frequency"] })}
-              name="frequency"
-            >
-              <option value="daily">{t("recurrence.daily")}</option>
-              <option value="weekly">{t("recurrence.weekly")}</option>
-              <option value="monthly">{t("recurrence.monthly")}</option>
-            </Select>,
-          )}
-          {field(
-            t("recurrence.interval"),
-            <span className="flex items-center gap-2">
-              <input
-                type="number"
-                min={1}
-                max={52}
-                name="interval"
-                className={`${input} w-16`}
-                value={rule.interval}
-                onChange={(e) => set({ interval: Math.min(52, Math.max(1, Number(e.target.value) || 1)) })}
-              />
-              {t(`recurrence.unit.${rule.frequency}`, { count: rule.interval })}
-            </span>,
-          )}
-          {field(
-            t("recurrence.time"),
-            <input type="time" required name="time" className={input} value={rule.time} onChange={(e) => set({ time: e.target.value })} />,
-          )}
-        </div>
-        {rule.frequency === "weekly" &&
-          field(
-            t("recurrence.weekdays"),
-            <div className="flex flex-wrap gap-1" data-weekdays>
-              {[1, 2, 3, 4, 5, 6, 0].map((d) => {
-                const on = rule.weekdays.includes(d);
-                return (
-                  <button
-                    key={d}
-                    type="button"
-                    aria-pressed={on}
-                    title={weekdayName(d, "long")}
-                    onClick={() => set({ weekdays: on ? rule.weekdays.filter((x) => x !== d) : [...rule.weekdays, d] })}
-                    className={`min-w-11 rounded-md border px-2 py-1.5 text-sm capitalize transition ${
-                      on
-                        ? "border-neutral-900 bg-neutral-900 text-white dark:border-white dark:bg-white dark:text-neutral-900"
-                        : "border-neutral-300 hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
-                    }`}
-                  >
-                    {weekdayName(d, "short")}
-                  </button>
-                );
-              })}
-            </div>,
-          )}
-        {rule.frequency === "monthly" &&
-          field(
-            t("recurrence.monthDay"),
-            <input
-              type="number"
-              min={1}
-              max={31}
-              name="monthDay"
-              className={`${input} w-20`}
-              value={rule.monthDay}
-              onChange={(e) => set({ monthDay: Math.min(31, Math.max(1, Number(e.target.value) || 1)) })}
-            />,
-            rule.monthDay > 28 ? t("recurrence.monthDayHelp") : undefined,
-          )}
-        {field(
-          t("recurrence.startDate"),
-          <input type="date" required name="startDate" className={input} value={rule.startDate} onChange={(e) => set({ startDate: e.target.value })} />,
-          t("recurrence.timeZone", { zone: rule.timeZone }),
-        )}
+        <ScheduleFields rule={rule} set={set} />
         {row
           ? field(
               t("recurrence.dateProperty"),

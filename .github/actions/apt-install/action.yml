@@ -1,0 +1,24 @@
+# Installs Ubuntu packages on a GitHub runner from Ubuntu's own servers. The runners fetch them from Azure's copy of
+# those servers, listed in /etc/apt/apt-mirrors.txt, which is sometimes unreachable for hours.
+name: Install Ubuntu packages
+description: apt-get install from Ubuntu's own servers, with retries
+inputs:
+  packages:
+    description: Packages to install, separated by spaces
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        PACKAGES: ${{ inputs.packages }}
+      run: |
+        echo "http://archive.ubuntu.com/ubuntu/" | sudo tee /etc/apt/apt-mirrors.txt > /dev/null
+        sudo sed -i 's#http://azure.archive.ubuntu.com/ubuntu#http://archive.ubuntu.com/ubuntu#g' /etc/apt/sources.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true
+        opts="-q -o Acquire::Retries=3 -o Acquire::http::Timeout=30"
+        for attempt in 1 2 3; do
+          # shellcheck disable=SC2086
+          sudo apt-get update $opts && sudo apt-get install -y $opts --no-install-recommends $PACKAGES && exit 0
+          sleep 15
+        done
+        exit 1

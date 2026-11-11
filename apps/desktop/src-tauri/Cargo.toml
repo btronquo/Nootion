@@ -1,0 +1,38 @@
+[package]
+name = "nootion-desktop"
+version = "3.5.0"
+description = "Nootion for Windows, macOS and Linux"
+license = "AGPL-3.0-only"
+edition = "2021"
+rust-version = "1.90"
+
+[lib]
+name = "nootion_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.5", features = [] }
+
+[dependencies]
+tauri = { version = "2.12", features = [] }
+tauri-plugin-opener = "2"
+tauri-plugin-single-instance = "2"
+tauri-plugin-window-state = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "blocking"] }
+rand = "0.9"
+tokio = { version = "1", features = ["time"] }
+url = "2"
+uuid = { version = "1", features = ["v4"] }
+sys-locale = "0.3"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "io-util"] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

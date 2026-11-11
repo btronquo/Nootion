@@ -75,7 +75,7 @@ export const notionRoutes: FastifyPluginAsync = async (app) => {
       phase: "discover",
       done: 0,
       total: 0,
-      report: { pages: 0, databases: 0, rows: 0, files: 0, updated: 0, unchanged: 0, notes: {}, formulas: [] },
+      report: { pages: 0, databases: 0, rows: 0, files: 0, updated: 0, unchanged: 0, notes: {}, details: {}, formulas: [] },
       error: null,
       startedAt: Date.now(),
     };

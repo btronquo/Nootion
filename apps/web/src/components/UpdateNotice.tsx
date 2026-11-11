@@ -18,14 +18,20 @@ export function useUpdateStatus(admin: boolean) {
 }
 
 /** The running version, for everyone. */
+const useHealth = () =>
+  useQuery({
+    queryKey: ["health"],
+    queryFn: () => api<{ version: string; desktop?: boolean }>("/health"),
+    staleTime: Infinity,
+  });
+
 export function useVersion(): string | null {
-  return (
-    useQuery({
-      queryKey: ["health"],
-      queryFn: () => api<{ version: string }>("/health"),
-      staleTime: Infinity,
-    }).data?.version ?? null
-  );
+  return useHealth().data?.version ?? null;
+}
+
+/** Whether this is the desktop app's own Nootion, on the computer. */
+export function useIsDesktopLocal(): boolean {
+  return useHealth().data?.desktop === true;
 }
 
 /** "Update available" warning at the top of the administration page, which can be hidden for that version. */

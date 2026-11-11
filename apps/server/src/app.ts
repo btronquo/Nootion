@@ -19,6 +19,8 @@ import { requestLocale, withLocale } from "./i18n.js";
 import { t } from "@nootion/shared";
 import type { UserRow } from "./users.js";
 import { setupRoutes } from "./routes/setup.js";
+import { desktopRoutes } from "./routes/desktop.js";
+import { syncRoutes } from "./routes/sync.js";
 import { authRoutes } from "./routes/auth.js";
 import { twoFactorRoutes } from "./routes/two-factor.js";
 import { favoriteRoutes } from "./routes/favorites.js";
@@ -309,8 +311,11 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
     if (req.method === "DELETE") cleanOrphanFiles(opts.db, opts.config.dataDir);
   });
 
-  app.get("/api/health", async () => ({ ok: true, version: currentVersion() }));
+  // `desktop`: the desktop app's own Nootion, which can keep spaces in sync with a server (routes/desktop.ts).
+  app.get("/api/health", async () => ({ ok: true, version: currentVersion(), ...(app.config.desktop ? { desktop: true } : {}) }));
   await app.register(setupRoutes, { prefix: "/api" });
+  await app.register(desktopRoutes, { prefix: "/api/desktop" });
+  await app.register(syncRoutes, { prefix: "/api/sync" });
   await app.register(authRoutes, { prefix: "/api/auth" });
   await app.register(twoFactorRoutes, { prefix: "/api/auth" });
   await app.register(adminRoutes, { prefix: "/api/admin" });
