@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Nootion</title>
+    <link rel="stylesheet" href="launcher.css" />
+    <script type="module" src="launcher.js"></script>
+  </head>
+  <body>
+    <main id="app" hidden>
+      <header>
+        <img src="logo.svg" alt="" width="48" height="48" />
+        <h1>Nootion</h1>
+        <p class="muted" data-t="tagline"></p>
+      </header>
+
+      <section id="servers-section" hidden>
+        <h2 data-t="yourServers"></h2>
+        <ul id="servers"></ul>
+      </section>
+
+      <section>
+        <h2 id="add-title" data-t="addServer"></h2>
+        <form id="add-form" autocomplete="off">
+          <label>
+            <span data-t="address"></span>
+            <input id="url" type="text" inputmode="url" spellcheck="false" placeholder="notes.example.org" required />
+          </label>
+          <label>
+            <span data-t="name"></span>
+            <input id="name" type="text" data-t-placeholder="namePlaceholder" />
+          </label>
+          <p id="message" role="status" hidden></p>
+          <div class="actions">
+            <button type="button" id="cancel" class="secondary" hidden data-t="cancel"></button>
+            <button type="submit" id="connect" data-t="connect"></button>
+          </div>
+        </form>
+      </section>
+
+      <section class="soon">
+        <h2 data-t="localTitle"></h2>
+        <p class="muted" data-t="localSoon"></p>
+      </section>
+
+      <footer class="muted" id="version"></footer>
+    </main>
+  </body>
+</html>

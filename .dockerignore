@@ -8,3 +8,4 @@ data
 .gitlab-ci.yml
 .env
 .env.*
+apps/desktop

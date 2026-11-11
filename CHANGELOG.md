@@ -5,6 +5,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+
+- A desktop app for Windows, macOS and Linux (`apps/desktop`, built with Tauri): type the address of a Nootion
+  server, keep several servers and switch between them from the menu. It reopens the last server at start, keeps you
+  signed in, and opens links in the default browser. Installers are built by GitHub Actions on a `desktop-v*` tag.
+
 ### Changed
 
 - The Notion import's report lists what was imported differently, line by line: the page or database, the column or
