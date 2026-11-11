@@ -311,7 +311,8 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
     if (req.method === "DELETE") cleanOrphanFiles(opts.db, opts.config.dataDir);
   });
 
-  app.get("/api/health", async () => ({ ok: true, version: currentVersion() }));
+  // `desktop`: the desktop app's own Nootion, which can keep spaces in sync with a server (routes/desktop.ts).
+  app.get("/api/health", async () => ({ ok: true, version: currentVersion(), ...(app.config.desktop ? { desktop: true } : {}) }));
   await app.register(setupRoutes, { prefix: "/api" });
   await app.register(desktopRoutes, { prefix: "/api/desktop" });
   await app.register(syncRoutes, { prefix: "/api/sync" });

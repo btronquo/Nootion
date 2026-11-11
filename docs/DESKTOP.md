@@ -20,6 +20,10 @@ installer weighs a few megabytes.
 - **On this computer.** *Open* under "On this computer" starts Nootion on the computer itself, with no server and no
   connection needed, and signs in at once (no account to create, no password). It is the same Nootion as on a server,
   run in the background by the app; quitting the app stops it.
+- **Sync with a server.** On this computer, *Sync* (bottom of the sidebar) links spaces of a Nootion server: type its
+  address, sign in there and pick the spaces. They come to the computer, work without a connection, and changes made
+  on either side are merged every few seconds when the server can be reached. Not synced yet: attached files and
+  images, comments, and the other members of a space.
 - **Several servers.** Each one is kept with a name; *Nootion > Switch server…* (Ctrl/Cmd+Shift+O) goes back to the
   list. The last server opens by itself at start.
 - **Like the browser, in its own window.** The interface is the server's own web app: sign-in (password, SSO, 2FA),
@@ -59,6 +63,21 @@ background (`src/local.rs`):
   the web view; a server started without it has none of these routes.
 - Quitting asks the server to close its database (`/api/desktop/quit`); if the app crashes, the server notices that
   its parent is gone and stops within 5 seconds.
+
+### Sync
+
+Any Nootion records, in `sync_changes`, every change made to the pages, database columns and views of a space
+(SQLite triggers, `migrations/0034_sync.sql`), with the time of each field and each cell. Two routes give and take
+them, for the members of the space: `GET /api/sync/:space/changes?since=…` and `POST /api/sync/:space/push`
+(`apps/server/src/routes/sync.ts`). Merging (`apps/server/src/sync.ts`) keeps the latest change of each field or cell,
+and merges the text of pages as the live editor does (Yjs), so that two people writing in the same page both keep
+what they wrote. A change is never sent back to where it came from.
+
+The computer's Nootion links a space through the server's OAuth, as Claude's connectors do
+(`apps/server/src/desktop-sync.ts`): it registers as an app, opens the server's consent page, and gets back a token
+limited to the spaces picked there (stored encrypted with `APP_SECRET`). The space is created on the computer with the
+same id, then synced every 20 seconds, and 4 seconds after a change made on the computer. *Stop syncing* forgets the
+token on both sides and keeps the space, as it is, on the computer.
 
 `scripts/prepare-local-server.mjs` gathers what is shipped, before each build: the server with its production
 dependencies and the web app in `local-server/`, and Node (checked against its published checksum) in
@@ -123,5 +142,5 @@ and macOS refuses to open the app at first: right-click > Open, or System Settin
 
 ## What comes next
 
-See the plan: continuous sync between the local space and a server, then system notifications for reminders, a global shortcut for quick capture and automatic
+See the plan: attached files, comments and members in sync, then system notifications for reminders, a global shortcut for quick capture and automatic
 updates.

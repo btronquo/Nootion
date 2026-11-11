@@ -12,6 +12,12 @@ describe("desktop local mode", () => {
     const app = await makeApp();
     expect((await ticket(app)).statusCode).toBe(404);
     expect((await new Client(app).get("/api/desktop/session?ticket=x")).statusCode).toBe(404);
+    expect((await new Client(app).get("/api/health")).json().desktop).toBeUndefined();
+  });
+
+  it("tells the web app it runs on the computer", async () => {
+    const app = await makeApp(undefined, { NOOTION_DESKTOP_TOKEN: TOKEN });
+    expect((await new Client(app).get("/api/health")).json()).toMatchObject({ ok: true, desktop: true });
   });
 
   it("refuses a wrong token and an unknown ticket", async () => {

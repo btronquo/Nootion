@@ -6,6 +6,9 @@ import { HttpError } from "../http.js";
 import { requestLocale } from "../i18n.js";
 import { createUser } from "../users.js";
 import { startSession } from "./session-cookie.js";
+import { createDesktopSync, SyncError } from "../desktop-sync.js";
+import { requireUser } from "../http.js";
+import { requireWorkspaceRole } from "../permissions.js";
 
 /** How long a ticket can be used, once. */
 const TICKET_TTL_MS = 60_000;
@@ -67,5 +70,51 @@ export const desktopRoutes: FastifyPluginAsync = async (app) => {
     }
     startSession(app, reply, user.id);
     return reply.redirect("/");
+  });
+
+  // Keeping spaces in sync with a Nootion server (desktop-sync.ts).
+  const sync = createDesktopSync({ db: app.db, collab: app.collab, config: app.config });
+  if (!process.env.VITEST) sync.startTimers();
+  app.addHook("onClose", async () => sync.stop());
+
+  app.get("/sync", async (req) => {
+    requireUser(req);
+    return { links: sync.status() };
+  });
+
+  app.post<{ Body: { serverUrl?: unknown } }>("/sync/link", async (req) => {
+    const user = requireUser(req);
+    if (typeof req.body?.serverUrl !== "string") throw new HttpError(400, "invalid_url", "Missing address");
+    try {
+      return { authorizeUrl: await sync.start(req.body.serverUrl, user.id) };
+    } catch (err) {
+      if (err instanceof SyncError) throw new HttpError(400, err.code, err.message);
+      throw err;
+    }
+  });
+
+  app.get<{ Querystring: { code?: string; state?: string; error?: string } }>("/sync/callback", async (req, reply) => {
+    const { code, state, error } = req.query;
+    if (error || !code || !state) return reply.redirect(`/sync?error=${encodeURIComponent(error ?? "cancelled")}`);
+    try {
+      await sync.finish(code, state);
+      return reply.redirect("/sync?linked=1");
+    } catch (err) {
+      return reply.redirect(`/sync?error=${encodeURIComponent(err instanceof SyncError ? err.code : "failed")}`);
+    }
+  });
+
+  app.post<{ Params: { workspaceId: string } }>("/sync/:workspaceId/now", async (req) => {
+    const user = requireUser(req);
+    requireWorkspaceRole(app.db, user.id, req.params.workspaceId, ["owner", "editor"]);
+    await sync.syncNow(req.params.workspaceId);
+    return { links: sync.status() };
+  });
+
+  app.delete<{ Params: { workspaceId: string } }>("/sync/:workspaceId", async (req) => {
+    const user = requireUser(req);
+    requireWorkspaceRole(app.db, user.id, req.params.workspaceId, ["owner"]);
+    await sync.unlink(req.params.workspaceId);
+    return { links: sync.status() };
   });
 };
