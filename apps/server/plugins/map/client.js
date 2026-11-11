@@ -483,7 +483,9 @@ export function activate(nootion) {
           if (gone || !mapEl.current) return;
           L.current = leafletLib;
           const m = leafletLib.map(mapEl.current, { worldCopyJump: true, zoomControl: true }).setView([46.6, 2.4], 5);
-          leafletLib.tileLayer(cfg.tileUrl, { maxZoom: 19, attribution: cfg.attribution }).addTo(m);
+          // OpenStreetMap's tile servers refuse requests without a Referer, and Nootion's pages send none by default
+          // (Referrer-Policy: same-origin): the tiles send this site's address, nothing more.
+          leafletLib.tileLayer(cfg.tileUrl, { maxZoom: 19, attribution: cfg.attribution, referrerPolicy: "strict-origin-when-cross-origin" }).addTo(m);
           layer.current = leafletLib.layerGroup().addTo(m);
           const pick = (e) => {
             if (!modeRef.current.canAdd) return;

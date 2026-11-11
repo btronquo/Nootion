@@ -5,6 +5,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed
+
+- The map block (Map plugin) showed "Access blocked" instead of OpenStreetMap's tiles: they are now requested with
+  the site's address, as OpenStreetMap's tile usage policy asks.
+
 ## [3.5.0] - 2026-11-11
 
 ### Added
