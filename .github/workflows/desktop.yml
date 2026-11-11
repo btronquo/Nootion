@@ -27,7 +27,7 @@ jobs:
       run:
         working-directory: apps/desktop/src-tauri
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/apt-install
         timeout-minutes: 20
         with:
@@ -60,7 +60,7 @@ jobs:
           - platform: windows-latest
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - if: matrix.platform == 'ubuntu-22.04'
         uses: ./.github/actions/apt-install
         timeout-minutes: 20
