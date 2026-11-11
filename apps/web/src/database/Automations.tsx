@@ -5,6 +5,7 @@ import { COMPUTED_TYPES, intlLocale, t, type Automation, type AutomationTrigger,
 import { api } from "../lib/api";
 import { Button, CancelButton, Modal, Select } from "../components/ui";
 import { ButtonEditor } from "../buttons/ButtonEditor";
+import { recurrenceText, ScheduleFields } from "../components/RecurrenceDialog";
 
 const automationsKey = (databaseId: string) => ["automations", databaseId] as const;
 
@@ -14,6 +15,7 @@ const watchable = (p: DatabaseProperty) => !COMPUTED_TYPES.includes(p.type);
 /** "When a row is added", "When Status becomes Paid"… */
 function triggerText(trigger: AutomationTrigger, properties: DatabaseProperty[]): string {
   if (trigger.type === "row_added") return t("automation.when.row_added");
+  if (trigger.type === "schedule") return recurrenceText({ ...trigger, parentId: null, dateProperty: null, enabled: true });
   const name = properties.find((p) => p.id === trigger.propertyId)?.name ?? "?";
   if (trigger.type === "date_reached") return t("automation.when.date_reached", { column: name });
   return trigger.to ? t("automation.when.becomes", { column: name, value: trigger.to }) : t("automation.when.changes", { column: name });
@@ -80,10 +82,14 @@ export function AutomationsDialog({ data, onClose }: { data: DatabaseData; onClo
                 >
                   {last.error && <AlertCircle size={12} className="mt-0.5 shrink-0" />}
                   <span>
-                    {t(last.error ? "automation.lastRunFailed" : "automation.lastRun", {
-                      when: new Date(last.at).toLocaleString(intlLocale(), { dateStyle: "medium", timeStyle: "short" }),
-                      row: last.rowTitle || t("common.untitled"),
-                    })}
+                    {last.rowId
+                      ? t(last.error ? "automation.lastRunFailed" : "automation.lastRun", {
+                          when: new Date(last.at).toLocaleString(intlLocale(), { dateStyle: "medium", timeStyle: "short" }),
+                          row: last.rowTitle || t("common.untitled"),
+                        })
+                      : t(last.error ? "automation.lastRunFailedAt" : "automation.lastRunAt", {
+                          when: new Date(last.at).toLocaleString(intlLocale(), { dateStyle: "medium", timeStyle: "short" }),
+                        })}
                     {last.error && ` ${last.error}`}
                   </span>
                 </p>
@@ -113,9 +119,34 @@ function AutomationEditor({ data, automation, onDone }: { data: DatabaseData; au
 
   const setType = (type: AutomationTrigger["type"]) => {
     if (type === "row_added") return setTrigger({ type });
+    if (type === "schedule") {
+      const now = new Date();
+      const pad = (n: number) => String(n).padStart(2, "0");
+      return setTrigger({
+        type,
+        frequency: "weekly",
+        interval: 1,
+        weekdays: [now.getDay()],
+        monthDay: now.getDate(),
+        time: "08:00",
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        startDate: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`,
+        endDate: null,
+      });
+    }
     const first = data.properties.find((p) => (type === "date_reached" ? p.type === "date" : watchable(p)));
     setTrigger(type === "date_reached" ? { type, propertyId: first?.id ?? "" } : { type, propertyId: first?.id ?? "", to: null });
   };
+
+  const scheduled = trigger.type === "schedule";
+  const savedSteps = automation?.steps ?? [];
+  const initialSteps = scheduled
+    ? savedSteps.some((s) => s.type !== "update_row")
+      ? savedSteps.filter((s) => s.type !== "update_row")
+      : [{ type: "add_row" as const, databaseId: data.id, values: {}, open: false }]
+    : automation && automation.trigger.type !== "schedule"
+      ? savedSteps
+      : [{ type: "update_row" as const, values: {} }];
 
   const head = (
     <div className="space-y-3" data-automation-head>
@@ -135,8 +166,9 @@ function AutomationEditor({ data, automation, onDone }: { data: DatabaseData; au
             <option value="row_added">{t("automation.trigger.row_added")}</option>
             <option value="property_changed">{t("automation.trigger.property_changed")}</option>
             <option value="date_reached">{t("automation.trigger.date_reached")}</option>
+            <option value="schedule">{t("automation.trigger.schedule")}</option>
           </Select>
-          {trigger.type !== "row_added" && (
+          {(trigger.type === "property_changed" || trigger.type === "date_reached") && (
             <Select
               className="py-2"
               value={trigger.propertyId}
@@ -159,14 +191,32 @@ function AutomationEditor({ data, automation, onDone }: { data: DatabaseData; au
         </div>
         {trigger.type === "date_reached" && <p className="mt-1 text-xs text-neutral-500">{t("automation.dateHelp")}</p>}
       </div>
-      <p className="text-xs text-neutral-500">{t("automation.stepsHelp")}</p>
+      {trigger.type === "schedule" && (
+        <div className="space-y-3" data-automation-schedule>
+          <ScheduleFields rule={trigger} set={(patch) => setTrigger({ ...trigger, ...patch })} />
+          <label className="block text-sm">
+            <span className="mb-1 block font-medium">{t("automation.scheduleEnd")}</span>
+            <input
+              type="date"
+              name="endDate"
+              className="rounded-md border border-neutral-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-blue-500 dark:border-neutral-700 dark:bg-neutral-900"
+              value={trigger.endDate ?? ""}
+              min={trigger.startDate}
+              onChange={(e) => setTrigger({ ...trigger, endDate: e.target.value || null })}
+            />
+          </label>
+        </div>
+      )}
+      <p className="text-xs text-neutral-500">{t(trigger.type === "schedule" ? "automation.scheduleHelp" : "automation.stepsHelp")}</p>
     </div>
   );
 
   return (
     <ButtonEditor
-      initial={{ label: name, color: "default", steps: automation?.steps ?? [{ type: "update_row", values: {} }], form: null }}
-      rowDatabaseId={data.id}
+      // On a schedule there is no row: the steps start again without "change this row".
+      key={scheduled ? "schedule" : "row"}
+      initial={{ label: name, color: "default", steps: initialSteps, form: null }}
+      rowDatabaseId={scheduled ? null : data.id}
       pageId={null}
       defaultLabel=""
       automation={{ title: automation ? t("automation.edit") : t("automation.new"), head }}

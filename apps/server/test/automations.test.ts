@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
+import { zonedInstant } from "@nootion/shared";
 import { Client, inviteUser, makeApp, setupAdmin } from "./helpers.js";
 
 let app: FastifyInstance;
@@ -119,6 +120,55 @@ describe("automations", () => {
     const runs = (await boris.get(`/api/databases/${db}/automations`)).json().automations.find((a: { id: string }) => a.id === broken.id).runs;
     expect(runs[0].error).toMatch(/Nope/);
     expect((await values(row))[payeLe]).toBeNull();
+  });
+
+  it("runs on a schedule, once per time, from when it was made until its last day", async () => {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const day = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    // Days ahead, so that the time of day the test runs at doesn't matter.
+    const first = new Date(Date.now() + 10 * 86_400_000);
+    const schedule = {
+      type: "schedule",
+      frequency: "daily",
+      time: "08:00",
+      timeZone: "Europe/Paris",
+      startDate: day(first),
+      endDate: day(new Date(first.getTime() + 86_400_000)),
+    };
+    // No row to change on a schedule.
+    const noRow = await automation({ trigger: schedule, steps: [{ type: "update_row", values: { [note]: "x" } }] });
+    expect(noRow.statusCode).toBe(400);
+    expect((await automation({ trigger: { ...schedule, endDate: "2000-01-01" }, steps: [{ type: "add_row", databaseId: db, values: {} }] })).statusCode).toBe(
+      400,
+    );
+
+    const daily = (
+      await automation({
+        name: "Quotidienne",
+        trigger: schedule,
+        steps: [{ type: "add_row", databaseId: db, values: { [note]: "Arroser {{today}}", [echeance]: '{{= dateAdd(today(), 1, "jour")}}' } }],
+      })
+    ).json().automation;
+    expect(daily.trigger).toMatchObject({ type: "schedule", interval: 1, endDate: schedule.endDate });
+    const rows = async () => (await boris.get(`/api/databases/${db}`)).json().database.rows as { title: string; values: Record<string, unknown> }[];
+
+    // Before its time on its first day, nothing; at 8:00 (Paris) it runs once, however often the clock ticks.
+    const at = (d: Date, hh: number, mm: number) => zonedInstant(d.getFullYear(), d.getMonth() + 1, d.getDate(), hh, mm, "Europe/Paris");
+    await app.automations.tick(at(first, 7, 59));
+    expect(await rows()).toHaveLength(0);
+    await app.automations.tick(at(first, 8, 0));
+    await app.automations.tick(at(first, 9, 30));
+    const made = await rows();
+    expect(made).toHaveLength(1);
+    expect(made[0]!.values[note]).toMatch(/^Arroser \d{4}-\d{2}-\d{2}$/);
+    expect(made[0]!.values[echeance]).toMatchObject({ start: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) });
+    const runs = (await boris.get(`/api/databases/${db}/automations`)).json().automations.find((a: { id: string }) => a.id === daily.id).runs;
+    expect(runs).toMatchObject([{ rowId: null, error: null }]);
+
+    // Past its last day, it stops.
+    const later = new Date(first.getTime() + 3 * 86_400_000);
+    await app.automations.tick(at(later, 8, 5));
+    expect(await rows()).toHaveLength(1);
   });
 
   it("goes off once when a date arrives", async () => {

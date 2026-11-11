@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { buttonStepSchema } from "./buttons.js";
+import { dayIn, nextOccurrence, recurrenceInput } from "./recurrence.js";
 
 /**
  * Database automations: when something happens to a row, run steps, the same steps as buttons, on that row
@@ -13,9 +14,30 @@ export const automationTriggerSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("property_changed"), propertyId: z.string().min(1).max(64), to: z.string().max(500).nullable().default(null) }),
   /** The date in a date column arrives: at its time, or at 9:00 for a day. */
   z.object({ type: z.literal("date_reached"), propertyId: z.string().min(1).max(64) }),
+  /**
+   * On a schedule, as recurring templates: every N days, weeks (on some days) or months (on a day), at a time, from
+   * a day and until one. Its steps act on no row: they add rows, create pages or call webhooks.
+   */
+  recurrenceInput.pick({ frequency: true, interval: true, weekdays: true, monthDay: true, time: true, timeZone: true, startDate: true }).extend({
+    type: z.literal("schedule"),
+    /** The last day it may run, or null for no end. */
+    endDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .nullable()
+      .default(null),
+  }),
 ]);
 export type AutomationTrigger = z.infer<typeof automationTriggerSchema>;
-export const AUTOMATION_TRIGGERS = ["row_added", "property_changed", "date_reached"] as const;
+export const AUTOMATION_TRIGGERS = ["row_added", "property_changed", "date_reached", "schedule"] as const;
+export type ScheduleTrigger = Extract<AutomationTrigger, { type: "schedule" }>;
+
+/** The next time a scheduled automation runs, strictly after `after`; null once past its last day. */
+export function nextScheduledRun(trigger: ScheduleTrigger, after: Date): Date | null {
+  const at = nextOccurrence({ ...trigger, parentId: null, dateProperty: null, enabled: true }, after);
+  if (!at || !trigger.endDate) return at;
+  return dayIn(at, trigger.timeZone) > trigger.endDate ? null : at;
+}
 
 export const automationInput = z.object({
   name: z.string().trim().max(100).default(""),
