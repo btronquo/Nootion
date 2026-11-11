@@ -26,7 +26,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   the page's images, a click shows a large image at full size, Esc closes. Alt+click still selects the image.
 - A desktop app for Windows, macOS and Linux (`apps/desktop`, built with Tauri): type the address of a Nootion
   server, keep several servers and switch between them from the menu. It reopens the last server at start, keeps you
-  signed in, and opens links in the default browser. Installers are built by GitHub Actions on a `desktop-v*` tag.
+  signed in, and opens links in the default browser. Its installers are attached to each release.
 - The desktop app can also keep a Nootion space on the computer, with no server: "On this computer" starts Nootion in
   the background and signs in at once, without an account to create.
 - Sync between the desktop app and a Nootion server: link spaces of a server from *Sync*, and they stay on the
