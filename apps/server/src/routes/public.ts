@@ -142,6 +142,6 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
     const link = resolve(req.params.token);
     const a = db.select().from(attachments).where(eq(attachments.id, req.params.id)).get();
     if (!a || !inScope(link, a.pageId)) throw notFound();
-    return sendAttachment(reply, app.config.dataDir, a);
+    return sendAttachment(reply, app.config.dataDir, a, false, req.headers.range);
   });
 };

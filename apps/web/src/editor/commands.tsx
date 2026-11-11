@@ -38,6 +38,7 @@ import {
   Timer,
   MessageSquareQuote,
   Brush,
+  Film,
 } from "lucide-react";
 import { currentLocale, parseNaturalDate, pluginNodeName, type ClientPluginInfo, type PageSummary, type UserDirectoryEntry } from "@nootion/shared";
 import { formatMentionDate } from "../lib/reminders";
@@ -152,6 +153,13 @@ export function slashItems(ctx: CommandContext) {
       <Brush size={16} />,
       (e, r) => del(e, r).insertDrawing().run(),
       "dessin draw sketch croquis whiteboard tableau blanc canvas miro pen stylo",
+    ),
+    item(
+      "Video",
+      t("command.video"),
+      <Film size={16} />,
+      (e, r) => del(e, r).insertVideo().run(),
+      "vidéo youtube vimeo dailymotion loom peertube twitch embed intégrer film movie mp4",
     ),
     item("Calendar", t("command.calendar"), <CalendarDays size={16} />, (e, r) => del(e, r).insertCalendar().run(), "agenda events dates ical"),
     item("Recent pages", t("command.recentPages"), <Clock size={16} />, (e, r) => del(e, r).insertWidget("recentPages").run(), "widget visited history home"),

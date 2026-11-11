@@ -45,6 +45,6 @@ export const attachmentRoutes: FastifyPluginAsync = async (app) => {
     const a = db.select().from(attachments).where(eq(attachments.id, req.params.id)).get();
     if (!a) throw notFound();
     requirePageRole(db, user.id, a.pageId, "viewer");
-    return sendAttachment(reply, dataDir, a, req.query.download !== undefined);
+    return sendAttachment(reply, dataDir, a, req.query.download !== undefined, req.headers.range);
   });
 };

@@ -20,12 +20,15 @@ export async function uploadFile(pageId: string, file: File): Promise<UploadedFi
 }
 
 const DISPLAYABLE_IMAGES = /^image\/(png|jpeg|gif|webp|avif)$/;
+const PLAYABLE_VIDEOS = /^video\/(mp4|webm)$/;
 
-/** Inserts an attached file at `pos` (or the cursor): an image inline, anything else as a file block. */
+/** Inserts an attached file at `pos` (or the cursor): an image inline, a video in a player, anything else as a file block. */
 export function insertUploaded(editor: Editor, up: UploadedFile, pos?: number) {
   const node = DISPLAYABLE_IMAGES.test(up.mimeType)
     ? { type: "image", attrs: { src: up.url, alt: up.filename } }
-    : { type: "fileAttachment", attrs: { url: up.url, name: up.filename, size: up.size, mimeType: up.mimeType } };
+    : PLAYABLE_VIDEOS.test(up.mimeType)
+      ? { type: "video", attrs: { src: up.url } }
+      : { type: "fileAttachment", attrs: { url: up.url, name: up.filename, size: up.size, mimeType: up.mimeType } };
   // A paragraph after the block keeps the cursor out of it, so typing does not replace it.
   const content = [node, { type: "paragraph" }];
   if (pos !== undefined) editor.chain().focus().insertContentAt(pos, content).run();
