@@ -70,15 +70,24 @@ if (fs.existsSync(exe)) {
   fs.chmodSync(exe, 0o755);
   fs.rmSync(tmp, { recursive: true, force: true });
 }
+checkFileNames(out);
 console.log("Local server ready.");
 
-/** Leaves out what never runs: links to command-line tools, types, sources of native modules, docs and source maps. */
+/**
+ * Leaves out what never runs: links to command-line tools, types, sources of native modules, tests, docs and source maps.
+ * Tests also hold the odd file name the Windows installer (MSI) can't store, such as "snow ☃" in @fastify/send.
+ */
 function pruneNodeModules(dir) {
   for (const name of fs.readdirSync(dir)) {
     const full = path.join(dir, name);
     const stat = fs.lstatSync(full);
     // musl builds of native modules (Alpine Linux) are installed beside the glibc ones and would never load here.
-    if (stat.isSymbolicLink() || name === ".bin" || name === "@types" || (stat.isDirectory() && name.endsWith("-musl"))) {
+    if (
+      stat.isSymbolicLink() ||
+      name === ".bin" ||
+      name === "@types" ||
+      (stat.isDirectory() && (name.endsWith("-musl") || (isPackage(dir) && /^(test|tests|__tests__)$/.test(name))))
+    ) {
       fs.rmSync(full, { recursive: true, force: true });
     } else if (stat.isDirectory()) {
       if (path.basename(dir) === "better-sqlite3" && (name === "deps" || name === "src")) fs.rmSync(full, { recursive: true, force: true });
@@ -86,6 +95,19 @@ function pruneNodeModules(dir) {
     } else if (/\.(d\.ts|d\.mts|d\.cts|map|md|markdown)$/i.test(name) && !/^license/i.test(name)) {
       fs.rmSync(full, { force: true });
     }
+  }
+}
+
+/** A package's own folder, where its tests sit (node_modules/name or node_modules/@scope/name). */
+function isPackage(dir) {
+  return fs.existsSync(path.join(dir, "package.json")) && path.basename(path.dirname(dir)).match(/^(node_modules|@.+)$/) !== null;
+}
+
+/** File names the Windows installer can't store (it only knows the Western European characters): the build would fail at its very end. */
+function checkFileNames(dir) {
+  for (const name of fs.readdirSync(dir)) {
+    if (/[^\x20-\x7e\u00a0-\u00ff]/.test(name)) throw new Error(`The Windows installer can't hold this file name: ${path.join(dir, name)}`);
+    if (fs.statSync(path.join(dir, name)).isDirectory()) checkFileNames(path.join(dir, name));
   }
 }
 
