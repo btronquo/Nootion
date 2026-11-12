@@ -128,6 +128,8 @@ export const movePageInput = z.object({
   parentId: z.string().min(1).nullable(),
   /** Index among the new siblings; appended at the end when omitted. */
   index: z.number().int().min(0).optional(),
+  /** Another space to move it to, with its subpages; the page's own space when omitted. */
+  workspaceId: z.string().min(1).optional(),
 });
 
 export const sharePageInput = z.object({ userId: z.string().min(1), role: z.enum(PAGE_ROLES) });

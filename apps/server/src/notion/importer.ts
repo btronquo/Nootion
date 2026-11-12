@@ -3,6 +3,7 @@ import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import {
+  atLeast,
   CUSTOM_ICON_PREFIX,
   ICON_MAX_BYTES,
   NOTION_DETAILS_MAX,
@@ -25,6 +26,7 @@ import { attachmentPath, uploadsDir } from "../attachments.js";
 import { writeContent, type Collab } from "../collab.js";
 import { checkFormula, listProperties } from "../databases.js";
 import { nextPosition } from "../pages.js";
+import { getPageRole } from "../permissions.js";
 import {
   NotionClient,
   type NotionDatabase,
@@ -224,7 +226,14 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
   // --- 2. Pages, databases and rows: created, or found from a previous import ----------------
   const links = new Map(
     db
-      .select({ notionId: notionLinks.notionId, pageId: notionLinks.pageId, editedAt: notionLinks.notionEditedAt, deletedAt: pages.deletedAt })
+      .select({
+        notionId: notionLinks.notionId,
+        pageId: notionLinks.pageId,
+        editedAt: notionLinks.notionEditedAt,
+        deletedAt: pages.deletedAt,
+        workspaceId: pages.workspaceId,
+        title: pages.title,
+      })
       .from(notionLinks)
       .innerJoin(pages, eq(pages.id, notionLinks.pageId))
       .where(eq(notionLinks.workspaceId, o.workspaceId))
@@ -233,6 +242,22 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
       .map((l) => [l.notionId, l]),
   );
   const target = new Map<string, { id: string; title: string; isNew: boolean; changed: boolean }>();
+  // Pages moved since to another space: imported again there, unless the person importing can't edit them any more
+  // (someone's private space). Those are left as they are, still linked to; new Notion pages under them come at the
+  // top of the import.
+  for (const [id, link] of links) {
+    if (link.workspaceId === o.workspaceId || !items.has(id) || atLeast(getPageRole(db, o.userId, link.pageId), "editor")) continue;
+    items.delete(id);
+    links.delete(id);
+    target.set(id, { id: link.pageId, title: link.title, isNew: false, changed: false });
+    report.unchanged++;
+  }
+  for (const [id, item] of items) if (item.kind === "row" && !items.has(item.databaseId)) items.delete(id);
+  for (let i = databases.length - 1; i >= 0; i--) {
+    if (items.has(normId(databases[i].database.id))) continue;
+    rowsByDb.delete(normId(databases[i].database.id));
+    databases.splice(i, 1);
+  }
   const titleOf = (item: Item) => (item.kind === "database" ? plainText(item.database.title) : pageTitle(item.page));
   const editedAt = (item: Item) => (item.kind === "database" ? item.database.last_edited_time : item.page.last_edited_time);
 
@@ -271,17 +296,19 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
     } else {
       const parentNotion = parents.get(id);
       const parentId = parentNotion ? target.get(parentNotion)!.id : o.parentId;
+      // Under a page moved to another space since the last import: in that space.
+      const space = (parentId && db.select({ ws: pages.workspaceId }).from(pages).where(eq(pages.id, parentId)).get()?.ws) || o.workspaceId;
       const pageId = randomUUID();
       const created = item.kind === "database" ? item.database.created_time : item.page.created_time;
       db.insert(pages)
         .values({
           id: pageId,
-          workspaceId: o.workspaceId,
+          workspaceId: space,
           parentId,
           kind: item.kind,
           title,
           icon,
-          position: item.kind === "row" ? rowIndex.get(id)! : nextPosition(db, o.workspaceId, parentId),
+          position: item.kind === "row" ? rowIndex.get(id)! : nextPosition(db, space, parentId),
           createdBy: (item.kind !== "database" && personId(item.page.created_by)) || o.userId,
           createdAt: new Date(created),
           updatedAt: new Date(editedAt(item)),

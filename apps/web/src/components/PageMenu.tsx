@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -6,10 +6,12 @@ import { Copy, CornerUpRight, Database, ExternalLink, FileText, Link2, Pencil, S
 import { t, type PageSummary } from "@nootion/shared";
 import { api } from "../lib/api";
 import { copyText } from "../lib/browser";
-import { keys, useFavorites, useRefreshPages } from "../lib/queries";
+import { keys, useFavorites, useRefreshPages, useWorkspacePages, useWorkspaces } from "../lib/queries";
+import { workspaceName } from "../lib/labels";
 import { pageTitle } from "../lib/tree";
 import { Popover } from "../database/Popover";
-import { Modal } from "./ui";
+import { Modal, Select } from "./ui";
+import { canOrganise, moveToSpace, SpaceMoveConfirm } from "./SpaceMove";
 import { pageIcon } from "../lib/icons";
 
 /** Where a menu opens: under a button, or where the mouse was right-clicked. */
@@ -124,11 +126,23 @@ export function PageMenu({
   );
 }
 
-/** Chooses the page to move a page into, in the same space, or the top of the space. */
+/**
+ * Chooses where to move a page: a page of its space, or the top of it; or, for those who organise its space,
+ * another space where they can add pages (asked to confirm, since who can see it changes).
+ */
 function MoveDialog({ page, all, onClose }: { page: PageSummary; all: PageSummary[]; onClose: () => void }) {
   const refresh = useRefreshPages();
+  const spaces = useWorkspaces().data ?? [];
+  const from = spaces.find((w) => w.id === page.workspaceId);
+  const targets = canOrganise(from) ? spaces.filter(canOrganise) : [];
+  const [space, setSpace] = useState(page.workspaceId);
+  const crossing = space !== page.workspaceId;
+  const otherPages = useWorkspacePages(space);
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
+  // Another space's parent waiting for the confirmation (null: its top level).
+  const [confirming, setConfirming] = useState<{ parentId: string | null } | null>(null);
+  const done = useRef(false);
   // Not into itself, its subpages, its current parent, or a database.
   const choices = useMemo(() => {
     const below = new Set([page.id]);
@@ -138,10 +152,14 @@ function MoveDialog({ page, all, onClose }: { page: PageSummary; all: PageSummar
       for (const p of all) if (p.parentId && below.has(p.parentId) && !below.has(p.id)) (below.add(p.id), (grew = true));
     }
     const q = query.trim().toLocaleLowerCase();
-    return all.filter((p) => !below.has(p.id) && p.id !== page.parentId && p.kind === "page" && pageTitle(p.title).toLocaleLowerCase().includes(q)).slice(0, 50);
-  }, [all, page, query]);
+    const pagesThere = crossing ? (otherPages.data ?? []) : all;
+    return pagesThere
+      .filter((p) => !below.has(p.id) && p.id !== page.parentId && p.kind === "page" && pageTitle(p.title).toLocaleLowerCase().includes(q))
+      .slice(0, 50);
+  }, [all, crossing, otherPages.data, page, query]);
 
   async function move(parentId: string | null) {
+    if (crossing) return setConfirming({ parentId });
     try {
       await api(`/pages/${page.id}/move`, { method: "POST", body: { parentId } });
       await refresh();
@@ -151,9 +169,38 @@ function MoveDialog({ page, all, onClose }: { page: PageSummary; all: PageSummar
     }
   }
 
+  const target = spaces.find((w) => w.id === space);
+  if (confirming && target) {
+    return (
+      <SpaceMoveConfirm
+        title={page.title}
+        from={from}
+        to={target}
+        onConfirm={async () => {
+          await moveToSpace(page.id, space, confirming.parentId);
+          done.current = true;
+          await refresh();
+        }}
+        onClose={() => (done.current ? onClose() : setConfirming(null))}
+      />
+    );
+  }
+
   const row = "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800";
   return (
     <Modal title={t("page.moveTitle", { title: pageTitle(page.title) })} onClose={onClose}>
+      {targets.length > 1 && (
+        <label className="mb-2 flex items-center gap-2 text-sm">
+          <span className="shrink-0 text-neutral-500">{t("page.moveSpace")}</span>
+          <Select value={space} onChange={(e) => setSpace(e.target.value)} className="w-full" data-move-space>
+            {targets.map((w) => (
+              <option key={w.id} value={w.id}>
+                {workspaceName(w)}
+              </option>
+            ))}
+          </Select>
+        </label>
+      )}
       <input
         value={query}
         onChange={(e) => setQuery(e.target.value)}
@@ -162,7 +209,7 @@ function MoveDialog({ page, all, onClose }: { page: PageSummary; all: PageSummar
         className="mb-2 w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 dark:border-neutral-700 dark:bg-neutral-900"
       />
       <div className="max-h-72 overflow-y-auto" data-move-choices>
-        {page.parentId && !query && (
+        {(page.parentId || crossing) && !query && (
           <button type="button" className={row} onClick={() => void move(null)}>
             <CornerUpRight size={14} className="shrink-0 text-neutral-400" /> {t("page.moveRoot")}
           </button>
@@ -175,7 +222,7 @@ function MoveDialog({ page, all, onClose }: { page: PageSummary; all: PageSummar
             <span className="truncate">{pageTitle(p.title)}</span>
           </button>
         ))}
-        {choices.length === 0 && <p className="px-2 py-1.5 text-sm text-neutral-500">{t("page.moveNone")}</p>}
+        {choices.length === 0 && !crossing && <p className="px-2 py-1.5 text-sm text-neutral-500">{t("page.moveNone")}</p>}
       </div>
       {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
     </Modal>

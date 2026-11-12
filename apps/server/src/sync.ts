@@ -29,7 +29,7 @@ import { hashPassword } from "./auth/password.js";
 import type { Collab } from "./collab.js";
 import { editContent, encodeContent } from "./collab.js";
 import type { Db } from "./db/index.js";
-import { attachments, commentThreads, comments, databaseProperties, databaseViews, pages, syncChanges, syncState, users } from "./db/schema.js";
+import { attachments, commentThreads, comments, databaseProperties, databaseViews, pages, syncChanges, syncLinks, syncState, users } from "./db/schema.js";
 
 /** The fields of a page kept from the side that changed them last, as named in `field_clock`. */
 export const PAGE_FIELDS = [
@@ -453,6 +453,8 @@ export interface ApplyOptions {
   users?: SyncUser[];
   /** Who pushed the changes, on a server: comments other than theirs are left alone. */
   pusher?: string;
+  /** The desktop app, applying the server's changes: pages the server moved between two synced spaces follow. */
+  followMoves?: boolean;
 }
 
 /** Ids of attachments are used as file names: only the server's own kind (UUIDs) are taken. */
@@ -588,8 +590,14 @@ export async function applyChanges(
         if (c.entity === "page") {
           const p = c.data;
           if (p.workspaceId !== workspaceId || p.id !== c.id) continue;
-          const row = tx.select().from(pages).where(eq(pages.id, p.id)).get();
-          if (row && row.workspaceId !== workspaceId) continue;
+          let row = tx.select().from(pages).where(eq(pages.id, p.id)).get();
+          if (row && row.workspaceId !== workspaceId) {
+            // Moved on the server from another space it keeps in sync here: moved here too (its old space's
+            // deletion, pulled later, then leaves it alone). Any other page of another space stays out of reach.
+            if (!opts.followMoves || !tx.select({ id: syncLinks.workspaceId }).from(syncLinks).where(eq(syncLinks.workspaceId, row.workspaceId)).get()) continue;
+            tx.update(pages).set({ workspaceId }).where(eq(pages.id, p.id)).run();
+            row = { ...row, workspaceId };
+          }
           if (!row) {
             tx.insert(pages)
               .values({
