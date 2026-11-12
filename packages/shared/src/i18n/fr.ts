@@ -1605,6 +1605,7 @@ export const fr: Messages = {
   "view.name": "Nom de la vue",
   "view.new": "Nouvelle vue",
   "view.noRows": "Aucune ligne",
+  "view.showMore": { one: "Afficher 1 ligne de plus", other: "Afficher plus ({count} lignes restantes)" },
   "view.showPreview": "Afficher la couverture ou la première image",
   "view.shown": "Affichée",
   "view.shownProperties": "Propriétés affichées dans cette vue",

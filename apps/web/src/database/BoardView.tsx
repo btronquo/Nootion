@@ -21,6 +21,10 @@ import type { useDatabaseActions } from "./hooks";
 import { pageTitle } from "../lib/tree";
 import { t } from "@nootion/shared";
 import { pageIcon } from "../lib/icons";
+import { ShowMoreRows } from "./progressive";
+
+/** Cards shown at first in each column, and added each time it is scrolled to the bottom. */
+const CARDS_BATCH = 50;
 
 export const isEmpty = (v: CellValue | undefined) => v === null || v === undefined || v === "" || v === false || (Array.isArray(v) && !v.length);
 
@@ -57,6 +61,11 @@ export function BoardView({
   const groups = useMemo(() => (prop ? groupRows(prop, rows, ctx) : []), [prop, rows, ctx]);
   const [dragging, setDragging] = useState<{ rowId: string; from: string } | null>(null);
   const [over, setOver] = useState<string | null>(null);
+  // Cards shown per column (by group key), so that a column of thousands of rows stays light.
+  const [shown, setShown] = useState<{ view: string; counts: Record<string, number> }>({ view: view.id, counts: {} });
+  const counts = shown.view === view.id ? shown.counts : {};
+  const limitOf = (key: string) => counts[key] ?? CARDS_BATCH;
+  const showMore = (key: string) => setShown({ view: view.id, counts: { ...counts, [key]: limitOf(key) + CARDS_BATCH } });
   const cardProps = orderedColumns(data.properties, view.config.columns).filter(
     (c) => !c.col.hidden && c.prop.type !== "title" && c.prop.id !== prop?.id,
   );
@@ -97,7 +106,7 @@ export function BoardView({
             {g.option ? <OptionChip option={g.option} status={prop?.type === "status"} /> : <span className="font-medium">{g.label}</span>}
             <span className="text-xs text-neutral-400">{g.rows.length}</span>
           </header>
-          {g.rows.map((row) => (
+          {(g.rows.length > limitOf(g.key) ? g.rows.slice(0, limitOf(g.key)) : g.rows).map((row) => (
             <article
               key={row.id}
               draggable={movable}
@@ -147,6 +156,7 @@ export function BoardView({
                 ))}
             </article>
           ))}
+          <ShowMoreRows shown={Math.min(limitOf(g.key), g.rows.length)} total={g.rows.length} onMore={() => showMore(g.key)} />
           {movable && actions && (
             <button
               onClick={() => actions.addRow.mutate(initialValues(ctx, view.config, { prop, key: g.key }))}

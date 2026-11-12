@@ -7,6 +7,7 @@ import { isEmpty } from "./BoardView";
 import type { useDatabaseActions } from "./hooks";
 import { pageTitle } from "../lib/tree";
 import { pageIcon } from "../lib/icons";
+import { countGroupRows, limitGroups, ShowMoreRows, useShownRows } from "./progressive";
 
 /**
  * Table view on phones: one card per row with its filled-in properties. A tap opens the row,
@@ -38,6 +39,8 @@ export function RowCards({
   fileUrl?: (id: string) => string;
 }) {
   const navigate = useNavigate();
+  // Cards come a batch at a time, so that a phone stays smooth with thousands of rows.
+  const { limit, more } = useShownRows(`${data.id}|${view?.id}|${groupProp?.id}`, 50);
   const shown = columns.filter((c) => c.prop.type !== "title" && c.prop.id !== groupProp?.id);
 
   async function addRow(group?: { prop: DatabaseProperty; key: string }) {
@@ -105,18 +108,25 @@ export function RowCards({
   return (
     <div className="pt-2 text-sm">
       {groups ? (
-        groups.map((g) => (
+        limitGroups(groups, limit).map(({ group: g, rows: shownRows }) => (
           <section key={g.key} aria-label={t("table.group", { name: g.label })} className="mb-3">
             <header className="flex items-center gap-1.5 px-1 py-1.5">
               {g.option ? <OptionChip option={g.option} status={groupProp?.type === "status"} /> : <span className="font-medium">{g.label}</span>}
               <span className="text-xs text-neutral-400">{g.rows.length}</span>
             </header>
-            <div role="list" className="space-y-2">{g.rows.map(card)}</div>
-            {editable && movable && newButton({ prop: groupProp, key: g.key })}
+            <div role="list" className="space-y-2">{shownRows.map(card)}</div>
+            {shownRows.length < g.rows.length ? (
+              <ShowMoreRows shown={limit} total={countGroupRows(groups)} onMore={more} />
+            ) : (
+              editable && movable && newButton({ prop: groupProp, key: g.key })
+            )}
           </section>
         ))
       ) : (
-        <div role="list" className="space-y-2">{rows.map(card)}</div>
+        <>
+          <div role="list" className="space-y-2">{rows.slice(0, limit).map(card)}</div>
+          <ShowMoreRows shown={Math.min(limit, rows.length)} total={rows.length} onMore={more} />
+        </>
       )}
       {rows.length === 0 && !editable && <div className="px-1 py-2 text-neutral-400">{t("table.noRows")}</div>}
       {editable && !(groups && movable) && newButton()}

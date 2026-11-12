@@ -10,6 +10,7 @@
     "start": "node dist/index.js",
     "db:generate": "drizzle-kit generate",
     "test": "vitest run",
+    "bench:db": "tsx bench/large-database.ts",
     "typecheck": "tsc -p ."
   },
   "dependencies": {

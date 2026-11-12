@@ -49,6 +49,27 @@ export function intlLocale(locale: Locale = currentLocale()): string {
   return INTL[locale];
 }
 
+/**
+ * Intl formatters are slow to build (much slower than to use): the ones asked for are kept, by locale and options,
+ * so that formatting thousands of cells or formula results stays fast.
+ */
+const formatters = new Map<string, Intl.NumberFormat | Intl.DateTimeFormat | Intl.Collator>();
+function cached<T extends Intl.NumberFormat | Intl.DateTimeFormat | Intl.Collator>(kind: string, locale: string, options: object | undefined, make: () => T): T {
+  const key = `${kind}|${locale}|${options ? JSON.stringify(options) : ""}`;
+  let f = formatters.get(key) as T | undefined;
+  if (!f) {
+    if (formatters.size > 500) formatters.clear();
+    formatters.set(key, (f = make()));
+  }
+  return f;
+}
+export const numberFormat = (options?: Intl.NumberFormatOptions, locale: string = intlLocale()) =>
+  cached("n", locale, options, () => new Intl.NumberFormat(locale, options));
+export const dateTimeFormat = (options?: Intl.DateTimeFormatOptions, locale: string = intlLocale()) =>
+  cached("d", locale, options, () => new Intl.DateTimeFormat(locale, options));
+export const collator = (options?: Intl.CollatorOptions, locale: string = intlLocale()) =>
+  cached("c", locale, options, () => new Intl.Collator(locale, options));
+
 const plurals = new Map<Locale, Intl.PluralRules>();
 
 function format(message: Message, locale: Locale, params?: Record<string, string | number>): string {

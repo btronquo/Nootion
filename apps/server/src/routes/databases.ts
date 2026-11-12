@@ -50,6 +50,7 @@ import {
   toRow,
   validateValues,
   canReadAs,
+  databaseVersion,
 } from "../databases.js";
 import type { PageRole } from "@nootion/shared";
 import type { Db, DbLike } from "../db/index.js";
@@ -178,10 +179,15 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     return { database: loadDatabase(db, page, role, canReadAs(db, user.id)) };
   });
 
-  app.get<{ Params: { id: string } }>("/:id", async (req) => {
+  app.get<{ Params: { id: string } }>("/:id", async (req, reply) => {
     const user = requireUser(req);
     const { page, role } = requireDatabase(db, user.id, req.params.id, "viewer");
-    return { database: loadDatabase(db, page, role, canReadAs(db, user.id)) };
+    const canRead = canReadAs(db, user.id);
+    // The app asks again every few seconds: answered "not modified" in a few queries while nothing changed.
+    const version = databaseVersion(db, page, role, canRead);
+    reply.header("etag", version).header("cache-control", "private, no-cache");
+    if (req.headers["if-none-match"] === version) return reply.code(304).send();
+    return { database: loadDatabase(db, page, role, canRead) };
   });
 
   // Rows filtered and sorted (by a view's settings, or by the ones given), a page at a time. For the API.

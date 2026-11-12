@@ -14,7 +14,7 @@ import {
 import { z } from "zod";
 import type { Db } from "./db/index.js";
 import { automationRuns, automations, pages, users } from "./db/schema.js";
-import { listProperties, listRowPages, toRow } from "./databases.js";
+import { listProperties, getRowPage, listRowPages, toRow } from "./databases.js";
 import { getPageRole } from "./permissions.js";
 import { actingAs, cellText, runButton } from "./buttons.js";
 import { INTERNAL_HEADER, INTERNAL_SECRET } from "./internal.js";
@@ -72,7 +72,7 @@ export function toAutomation(db: Db, a: AutomationRow): Automation {
 
 /** A row's values by column id (title included), to compare before and after a change. */
 export function rowSnapshot(db: Db, databaseId: string, rowId: string): Record<string, unknown> | null {
-  const page = listRowPages(db, databaseId).find((r) => r.id === rowId);
+  const page = getRowPage(db, databaseId, rowId);
   return page ? toRow(page, listProperties(db, databaseId)).values : null;
 }
 

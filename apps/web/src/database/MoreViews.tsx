@@ -15,6 +15,7 @@ import type { useDatabaseActions } from "./hooks";
 import { CoverFill } from "../components/PageCover";
 import { pageTitle } from "../lib/tree";
 import { pageIcon } from "../lib/icons";
+import { ShowMoreRows, useShownRows } from "./progressive";
 
 export interface MoreViewProps {
   data: DatabaseData;
@@ -94,10 +95,11 @@ export function ListView(props: MoreViewProps) {
   const { rows, editable, rowHref } = props;
   const navigate = useNavigate();
   const add = useAddRow(props);
+  const { limit, more } = useShownRows(`${props.data.id}|${props.view.id}`);
   return (
     <div className="text-sm">
       <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
-        {rows.map((row) => (
+        {rows.slice(0, limit).map((row) => (
           <li
             key={row.id}
             onClick={(e) => !(e.target as HTMLElement).closest("a") && navigate(rowHref(row))}
@@ -113,6 +115,7 @@ export function ListView(props: MoreViewProps) {
           </li>
         ))}
       </ul>
+      <ShowMoreRows shown={Math.min(limit, rows.length)} total={rows.length} onMore={more} />
       {!rows.length && <p className="px-2 py-3 text-neutral-400">{t("view.noRows")}</p>}
       {editable && (
         <button onClick={() => add()} className={`${newButton} mt-1`}>
@@ -129,6 +132,7 @@ export function GalleryView(props: MoreViewProps) {
   const navigate = useNavigate();
   const add = useAddRow(props);
   const preview = view.config.showPreview !== false;
+  const { limit, more } = useShownRows(`${props.data.id}|${view.id}`, 60);
   // Files of a public page go through its link.
   const coverUrl = (cover: string) => {
     const m = /^\/api\/attachments\/(.+)$/.exec(cover);
@@ -136,7 +140,7 @@ export function GalleryView(props: MoreViewProps) {
   };
   return (
     <div className="grid grid-cols-1 gap-3 text-sm min-[420px]:grid-cols-2 md:grid-cols-3">
-      {rows.map((row) => (
+      {rows.slice(0, limit).map((row) => (
         <article
           key={row.id}
           onClick={(e) => !(e.target as HTMLElement).closest("a") && navigate(rowHref(row))}
@@ -162,6 +166,11 @@ export function GalleryView(props: MoreViewProps) {
           </div>
         </article>
       ))}
+      {rows.length > limit && (
+        <div className="col-span-full">
+          <ShowMoreRows shown={limit} total={rows.length} onMore={more} />
+        </div>
+      )}
       {editable && (
         <button
           onClick={() => add()}

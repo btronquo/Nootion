@@ -163,7 +163,11 @@ export const pages = sqliteTable(
     // Databases only: the row template new rows start from, if any.
     defaultTemplateId: text("default_template_id"),
   },
-  (t) => [index("pages_workspace_idx").on(t.workspaceId), index("pages_parent_idx").on(t.parentId)],
+  (t) => [
+    index("pages_workspace_idx").on(t.workspaceId),
+    // Children of a page; with the clocks, so that a database's version is read from the index alone (databaseVersion).
+    index("pages_parent_clock_idx").on(t.parentId, t.syncClock, t.updatedAt),
+  ],
 );
 
 /** Pages a user starred, in the order shown at the top of their sidebar. */

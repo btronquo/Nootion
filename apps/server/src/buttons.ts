@@ -21,7 +21,7 @@ import {
 import type { Db } from "./db/index.js";
 import { pages, users } from "./db/schema.js";
 import { readContent, type Collab, type ProseMirrorNode } from "./collab.js";
-import { canReadAs, evaluateExpression, listProperties, listRowPages, toRow } from "./databases.js";
+import { canReadAs, evaluateExpression, listProperties, getRowPage, toRow } from "./databases.js";
 import { getPageMeta } from "./pages.js";
 import { requirePageRole } from "./permissions.js";
 import { HttpError, notFound } from "./http.js";
@@ -198,7 +198,7 @@ export async function runButton(app: FastifyInstance, runner: Runner, ctx: Butto
   const loadRow = () => {
     if (!ctx.row) return;
     const properties = listProperties(db, ctx.row.databaseId);
-    const rowPage = listRowPages(db, ctx.row.databaseId).find((r) => r.id === ctx.row!.id);
+    const rowPage = getRowPage(db, ctx.row.databaseId, ctx.row.id);
     if (rowPage) {
       const row = toRow(rowPage, properties);
       const people = properties.filter((p) => PEOPLE_TYPES.includes(p.type)).flatMap((p) => (row.values[p.id] as string[] | null) ?? []);
