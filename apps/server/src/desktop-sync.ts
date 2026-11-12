@@ -152,6 +152,7 @@ export function createDesktopSync(opts: { db: Db; collab: Collab; config: Config
         await applyChanges(db, collab, workspaceId, SERVER, changes, {
           users: (body.users ?? []).filter((u) => u.id !== me?.[0]),
           dataDir: config.dataDir,
+          followMoves: true,
           fetchFile: async (id) => {
             const f = await request(link!, `/api/attachments/${id}?download=1`);
             link = f.link;

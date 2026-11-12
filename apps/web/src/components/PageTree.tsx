@@ -8,6 +8,7 @@ import { pageTitle, type TreeNode } from "../lib/tree";
 import { t } from "@nootion/shared";
 import { PageMenu, type MenuAnchor } from "./PageMenu";
 import { pageIcon } from "../lib/icons";
+import { DRAG_SPACE_TYPE, PendingSpaceMoveDialog, readDraggedSpace, type PendingSpaceMove } from "./SpaceMove";
 
 export const DRAG_TYPE = "application/x-nootion-page";
 
@@ -48,6 +49,7 @@ function PageTreeItem({ node, depth, workspaceId, editable, all }: TreeProps & {
   const [drop, setDrop] = useState<DropZone | null>(null);
   const [menu, setMenu] = useState<MenuAnchor | null>(null);
   const [renaming, setRenaming] = useState(false);
+  const [pending, setPending] = useState<PendingSpaceMove | null>(null);
   const navigate = useNavigate();
   const refresh = useRefreshPages();
   const { page, children } = node;
@@ -78,6 +80,9 @@ function PageTreeItem({ node, depth, workspaceId, editable, all }: TreeProps & {
     setDrop(null);
     const draggedId = e.dataTransfer.getData(DRAG_TYPE);
     if (!draggedId || draggedId === page.id || isInside(all, page.id, draggedId)) return;
+    // From another space's tree: asked first, since who can see it changes.
+    const source = readDraggedSpace(e.dataTransfer);
+    const crossing = !!source && source.workspaceId !== workspaceId;
     let body: { parentId: string | null; index?: number };
     if (zone === "inside") {
       body = { parentId: page.id };
@@ -88,6 +93,10 @@ function PageTreeItem({ node, depth, workspaceId, editable, all }: TreeProps & {
         .sort((a, b) => a.position - b.position);
       const idx = siblings.findIndex((p) => p.id === page.id);
       body = { parentId: page.parentId, index: zone === "before" ? idx : idx + 1 };
+    }
+    if (crossing) {
+      setPending({ page: { id: draggedId, title: source.title, workspaceId: source.workspaceId }, to: workspaceId, ...body });
+      return;
     }
     await api(`/pages/${draggedId}/move`, { method: "POST", body }).catch((err) => alert(err.message));
     await refresh();
@@ -104,6 +113,7 @@ function PageTreeItem({ node, depth, workspaceId, editable, all }: TreeProps & {
         draggable={editable}
         onDragStart={(e) => {
           e.dataTransfer.setData(DRAG_TYPE, page.id);
+          e.dataTransfer.setData(DRAG_SPACE_TYPE, JSON.stringify({ workspaceId: page.workspaceId, title: page.title }));
           e.dataTransfer.effectAllowed = "move";
         }}
         onDragOver={(e) => {
@@ -166,6 +176,7 @@ function PageTreeItem({ node, depth, workspaceId, editable, all }: TreeProps & {
           )}
         </span>
       </div>
+      {pending && <PendingSpaceMoveDialog move={pending} onClose={() => setPending(null)} />}
       {menu && <PageMenu page={page} all={all} anchor={menu} editable={editable} onClose={() => setMenu(null)} onRename={() => setRenaming(true)} />}
       {open && children.length > 0 && (
         <ul>

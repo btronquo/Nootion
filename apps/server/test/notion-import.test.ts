@@ -24,11 +24,11 @@ afterEach(async () => {
   await notion.stop();
 });
 
-async function runImport(body: Record<string, unknown> = { token: "secret_good_token" }, expected = "done") {
-  const res = await boris.post("/api/import/notion", { workspaceId: ws, ...body });
+async function runImport(body: Record<string, unknown> = { token: "secret_good_token" }, expected = "done", who = boris) {
+  const res = await who.post("/api/import/notion", { workspaceId: ws, ...body });
   expect(res.statusCode, res.body).toBe(200);
   for (let i = 0; i < 200; i++) {
-    const status = (await boris.get(`/api/import/notion?workspaceId=${ws}`)).json();
+    const status = (await who.get(`/api/import/notion?workspaceId=${ws}`)).json();
     if (status.job.status !== "running") {
       if (expected === "done") expect(status.job.error).toBeNull();
       expect(status.job.status).toBe(expected);
@@ -231,6 +231,32 @@ describe("Notion import", () => {
     const paint = tasks.rows.find((r) => r.title === "Buy paint")!;
     expect(paint.values[prop(tasks, "Price").id]).toBe(120);
     expect(JSON.stringify(content(after.find((p) => p.title === "Home")!.id))).toContain("Welcome");
+  });
+
+  it("keeps updating pages moved to another space, unless whoever imports can't edit them there", async () => {
+    ws = (await boris.post("/api/workspaces", { name: "Startup" })).json().workspace.id;
+    const alice = await inviteUser(app, boris, { name: "Alice", email: "alice@example.com", password: "alice-password" });
+    await boris.put(`/api/workspaces/${ws}/members`, { userId: await alice.id(), role: "editor" });
+    await runImport();
+    const personal = await boris.personalWorkspace();
+    const notes = (await tree()).find((p) => p.title === "Notes")!;
+    const count = (await tree()).length;
+
+    // Moved to Boris's private space: the next import updates it there, without a copy in the shared space.
+    expect((await boris.post(`/api/pages/${notes.id}/move`, { workspaceId: personal, parentId: null })).statusCode).toBe(200);
+    notion.editNotes("Second notes.");
+    expect((await runImport({})).job.report).toMatchObject({ updated: 1 });
+    expect(JSON.stringify(content(notes.id))).toContain("Second notes.");
+    expect((await tree()).length).toBe(count - 1);
+    expect((await tree()).some((p) => p.title === "Notes")).toBe(false);
+
+    // Alice imports too, but can't see Boris's private space: the page is left alone, and not imported again.
+    notion.editNotes("Third notes.");
+    const status = await runImport({ refresh: true }, "done", alice);
+    expect(status.job.report.updated).toBeGreaterThan(0);
+    expect(JSON.stringify(content(notes.id))).toContain("Second notes.");
+    expect((await tree()).length).toBe(count - 1);
+    expect((await boris.get(`/api/pages/${notes.id}`)).json().page.workspaceId).toBe(personal);
   });
 
   it("refuses bad tokens and people outside the space", async () => {

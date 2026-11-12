@@ -5,6 +5,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+
+- Moving pages between spaces, with their subpages: drag a page onto another space's tree or onto its name in the
+  sidebar, or choose the space in "Move to…" (right click). Handy to sort a Notion import, or to write a draft in
+  your personal space and share it by moving it into a shared one. A confirmation says who will gain or lose access;
+  content, history, attached files, comments, direct shares and public link are kept. Only owners and editors of
+  both spaces can do it. A later Notion import keeps updating moved pages where they are, and leaves alone those its
+  author can no longer edit. The desktop app follows moves made on the server (it refuses them in synced spaces).
+
 ### Fixed
 
 - The map block (Map plugin) showed "Access blocked" instead of OpenStreetMap's tiles: they are now requested with
