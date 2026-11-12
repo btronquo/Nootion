@@ -50,7 +50,10 @@ describe("row templates", () => {
   it("start new rows with the template's values and content, and can be the default", async () => {
     const db = await invoices();
     const tpl = (await boris.post(`/api/databases/${db.id}/templates`)).json().template;
-    await boris.patch(`/api/databases/${db.id}/rows/${tpl.id}`, { values: { [db.title]: "Facture EDF", [db.status]: "todo" } });
+    const edited = await boris.patch(`/api/databases/${db.id}/rows/${tpl.id}`, { values: { [db.title]: "Facture EDF", [db.status]: "todo" } });
+    // Edited like a row, and answered like one (it used to fail with a 500, the change saved anyway).
+    expect(edited.statusCode, edited.body).toBe(200);
+    expect(edited.json().row).toMatchObject({ id: tpl.id, title: "Facture EDF" });
     const file = await upload(tpl.id);
     setContent(tpl.id, [{ type: "paragraph", content: [{ type: "text", text: "Montant :" }] }, { type: "image", attrs: { src: file.url } }]);
 
