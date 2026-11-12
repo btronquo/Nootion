@@ -67,7 +67,7 @@ Ids are UUIDs. Dates are ISO 8601.
 | `GET /api/pages/:id` | A page's details: title, icon, cover, `kind` (`page`, `database` or `row`), your role, breadcrumb. |
 | `POST /api/pages` | Creates a page: `{ "workspaceId", "parentId": null, "title", "icon"?, "markdown"? }` (or `content`, see below). A subpage gets a link at the end of its parent, unless `"linkInParent": false`. |
 | `PATCH /api/pages/:id` | Changes `title`, `icon`, `cover` (`https://…` image), `fullWidth`. |
-| `POST /api/pages/:id/move` | Moves it: `{ "parentId": "…" or null, "index"? }`. A line holding only a link to it moves with it, from the old parent to the end of the new one. |
+| `POST /api/pages/:id/move` | Moves it: `{ "parentId": "…" or null, "index"?, "workspaceId"? }`. A line holding only a link to it moves with it, from the old parent to the end of the new one. With `workspaceId`, it goes to another space with all its subpages (owners and editors of both spaces only; `parentId` must then be a page of that space, or null). |
 | `DELETE /api/pages/:id` | Moves it to the trash, with its subpages. |
 | `POST /api/pages/:id/restore` | Takes it out of the trash. |
 | `GET /api/pages/:id/backlinks` | Pages that link to it. |
@@ -125,16 +125,16 @@ A database is a page of kind `database`; its rows are pages of kind `row`, with 
 
 | Column type | Value |
 | --- | --- |
-| `title`, `text`, `url`, `email` | `"text"` |
+| `title`, `text`, `url`, `email`, `phone` | `"text"` |
 | `number`, `currency`, `percent` | `12.5` |
 | `checkbox` | `true` / `false` |
 | `date` | `{ "start": "2026-11-15", "end": null }`; with a time: `{ "start": "2026-11-15T09:00" }` |
-| `select` | `"Done"` (option name or id) |
+| `select`, `status` | `"Done"` (option name or id) |
 | `multi_select` | `["Urgent", "Home"]` |
 | `person` | `["<user id>"]` |
 | `relation` | `["<row id>"]` |
 | `file` | `[{ "id": "<attachment id>", "name": "bill.pdf" }]` |
-| `created_time`, `last_edited_time`, `created_by`, `rollup`, `formula` | Read only. |
+| `created_time`, `last_edited_time`, `created_by`, `last_edited_by`, `unique_id`, `rollup`, `formula` | Read only. |
 
 Rows read back have `values` keyed by column **id**, with option ids: `GET /api/databases/:id` (or the query's
 `properties`) gives the names.
@@ -160,14 +160,14 @@ Operators, by column type:
 
 | Type | Operators | `value` |
 | --- | --- | --- |
-| text, url, email, title | `contains`, `not_contains`, `is`, `is_not`, `starts_with`, `ends_with` | text |
-| number, currency, percent | `eq`, `neq`, `gt`, `lt`, `gte`, `lte` | number |
+| text, url, email, phone, title | `contains`, `not_contains`, `is`, `is_not`, `starts_with`, `ends_with` | text |
+| number, currency, percent, unique_id | `eq`, `neq`, `gt`, `lt`, `gte`, `lte` | number |
 | date, created/edited time | `is`, `before`, `after`, `on_or_before`, `on_or_after` | `"2026-11-15"`, or `today`, `tomorrow`, `yesterday`, `one_week_ago`, `one_week_from_now`, `one_month_ago`, `one_month_from_now` |
 | date | `within` | `past_week`, `past_month`, `past_year`, `next_week`, `next_month`, `next_year` |
 | checkbox | `checked`, `unchecked` | none |
-| select | `is`, `is_not` | option name or id |
+| select, status | `is`, `is_not` | option name or id |
 | multi_select | `contains`, `not_contains` | option name or id |
-| person, created_by | `contains`, `not_contains` | user id, or `me` for you |
+| person, created_by, last_edited_by | `contains`, `not_contains` | user id, or `me` for you |
 | relation, file | `contains`, `not_contains` | text found in a linked row's title or a file's name |
 | all | `is_empty`, `is_not_empty` | none |
 
