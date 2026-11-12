@@ -15,14 +15,18 @@ export const PROPERTY_TYPES = [
   "date",
   "select",
   "multi_select",
+  "status",
   "checkbox",
   "url",
   "email",
+  "phone",
   "person",
   "file",
   "created_time",
   "last_edited_time",
   "created_by",
+  "last_edited_by",
+  "unique_id",
   "relation",
   "rollup",
   "formula",
@@ -32,7 +36,9 @@ export const PROPERTY_TYPES = [
 export type PropertyType = (typeof PROPERTY_TYPES)[number];
 
 /** Types computed by the server; their cells cannot be edited. */
-export const COMPUTED_TYPES: readonly PropertyType[] = ["created_time", "last_edited_time", "created_by", "rollup", "formula", "button"];
+export const COMPUTED_TYPES: readonly PropertyType[] = ["created_time", "last_edited_time", "created_by", "last_edited_by", "unique_id", "rollup", "formula", "button"];
+/** Types whose cells hold user ids. */
+export const PEOPLE_TYPES: readonly PropertyType[] = ["person", "created_by", "last_edited_by"];
 /** Types that need their own settings: a column can't be converted to or from them. */
 export const STRUCTURAL_TYPES: readonly PropertyType[] = ["relation", "rollup", "formula", "button", "plugin"];
 /** Types that can be created by users (the title column always exists, exactly once). */
@@ -41,16 +47,62 @@ export const CREATABLE_TYPES = PROPERTY_TYPES.filter((t) => t !== "title");
 export const OPTION_COLORS = ["gray", "brown", "orange", "yellow", "green", "blue", "purple", "pink", "red"] as const;
 export type OptionColor = (typeof OPTION_COLORS)[number];
 
+/** Categories of a status column's options, in workflow order (like Notion's To-do / In progress / Complete). */
+export const STATUS_GROUPS = ["todo", "in_progress", "done"] as const;
+export type StatusGroup = (typeof STATUS_GROUPS)[number];
+
 export const selectOptionSchema = z.object({
   id: z.string().min(1).max(64),
   name: z.string().trim().min(1).max(100),
   color: z.enum(OPTION_COLORS).default("gray"),
+  /** status: the category the option belongs to. */
+  group: z.enum(STATUS_GROUPS).optional(),
 });
 export type SelectOption = z.infer<typeof selectOptionSchema>;
 
+/** Types whose cells hold one option id. */
+export const SINGLE_OPTION_TYPES: readonly PropertyType[] = ["select", "status"];
+/** Types whose settings hold a list of options. */
+export const OPTION_TYPES: readonly PropertyType[] = ["select", "multi_select", "status"];
+export const hasOptions = (type: PropertyType) => OPTION_TYPES.includes(type);
+export const isSingleOption = (type: PropertyType) => SINGLE_OPTION_TYPES.includes(type);
+
+/** Category of a status option (options without one count as "to do"). */
+export const statusGroupOf = (o: Pick<SelectOption, "group"> | undefined): StatusGroup => o?.group ?? "todo";
+
+/**
+ * Options as stored for a column type: a status column's options all have a category and are
+ * sorted by category (keeping their order inside each one); other columns' have none.
+ */
+export function normalizeOptions(type: PropertyType, options: SelectOption[]): SelectOption[] {
+  if (type !== "status") return options.map(({ group: _g, ...o }) => o);
+  return STATUS_GROUPS.flatMap((g) => options.filter((o) => statusGroupOf(o) === g).map((o) => ({ ...o, group: g })));
+}
+
+/** Text of a unique id: its number, after the column's prefix (TASK-12). */
+export function uniqueIdText(prop: Pick<DatabaseProperty, "config">, value: CellValue): string {
+  if (typeof value !== "number") return "";
+  return prop.config.prefix ? `${prop.config.prefix}-${value}` : String(value);
+}
+
+/** Address a phone number calls (tel:), or null when it has no digit. */
+export function phoneHref(value: string): string | null {
+  const n = value.replace(/[^\d+]/g, "");
+  return /\d/.test(n) ? `tel:${n}` : null;
+}
+
+/** Options a new status column starts with. */
+export function defaultStatusOptions(): SelectOption[] {
+  return [
+    { id: "not_started", name: t("status.notStarted"), color: "gray", group: "todo" },
+    { id: "in_progress", name: t("status.inProgress"), color: "blue", group: "in_progress" },
+    { id: "done", name: t("status.done"), color: "green", group: "done" },
+  ];
+}
+
 export const propertyConfigSchema = z
   .object({
-    /** select / multi_select */
+    /** select / multi_select / status */
     options: z.array(selectOptionSchema).max(500).optional(),
     /** currency: ISO 4217 code */
     currency: z.string().regex(/^[A-Z]{3}$/).optional(),
@@ -58,6 +110,14 @@ export const propertyConfigSchema = z
     decimals: z.number().int().min(0).max(8).optional(),
     /** date */
     includeTime: z.boolean().optional(),
+    /** percent: shown as a number (default) or as a progress bar */
+    showAs: z.enum(["number", "bar"]).optional(),
+    /** unique_id: written before the number, e.g. TASK for TASK-12 */
+    prefix: z
+      .string()
+      .trim()
+      .regex(/^[\p{L}\p{N}_]{0,20}$/u)
+      .optional(),
     /** relation: the related database. Set at creation. */
     databaseId: z.string().min(1).optional(),
     /** relation: the matching property in the related database, for two-way relations. Managed by the server. */
@@ -122,6 +182,7 @@ export function valueSchema(type: PropertyType): z.ZodType<CellValue> {
     case "date":
       return z.object({ start: isoDate, end: isoDate.nullable().optional() }).nullable() as z.ZodType<CellValue>;
     case "select":
+    case "status":
       return z.string().min(1).max(64).nullable() as z.ZodType<CellValue>;
     case "relation":
       return z.array(z.string().min(1).max(64)).max(500).nullable() as z.ZodType<CellValue>;
@@ -140,6 +201,8 @@ export function valueSchema(type: PropertyType): z.ZodType<CellValue> {
         .nullable() as z.ZodType<CellValue>;
     case "email":
       return z.string().trim().max(254).nullable() as z.ZodType<CellValue>;
+    case "phone":
+      return z.string().trim().max(50).nullable() as z.ZodType<CellValue>;
     case "file":
       return z.array(z.object({ id: z.string().uuid(), name: z.string().max(255) })).max(50).nullable() as z.ZodType<CellValue>;
     default:

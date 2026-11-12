@@ -8,7 +8,10 @@ import {
   ICON_MAX_BYTES,
   NOTION_DETAILS_MAX,
   OPTION_COLORS,
+  STATUS_GROUPS,
+  normalizeOptions,
   t,
+  type StatusGroup,
   type NotionImportDetail,
   type NotionImportJob,
   type CalcFunction,
@@ -24,7 +27,7 @@ import { imageExtension } from "../images.js";
 import { iconsDir } from "../routes/icons.js";
 import { attachmentPath, uploadsDir } from "../attachments.js";
 import { writeContent, type Collab } from "../collab.js";
-import { checkFormula, listProperties } from "../databases.js";
+import { assignUniqueIds, checkFormula, listProperties } from "../databases.js";
 import { nextPosition } from "../pages.js";
 import { getPageRole } from "../permissions.js";
 import {
@@ -131,6 +134,29 @@ export const normId = (id: string) => id.replace(/-/g, "").toLowerCase();
 const colorOf = (c: string): SelectOption["color"] => ((OPTION_COLORS as readonly string[]).includes(c) ? (c as SelectOption["color"]) : "gray");
 const toOptions = (options: { id: string; name: string; color: string }[] = []): SelectOption[] =>
   options.filter((o) => o.name.trim()).map((o) => ({ id: (o.id || randomUUID()).slice(0, 64), name: o.name.trim().slice(0, 100), color: colorOf(o.color) }));
+
+/**
+ * Category of each option of a Notion status column, by option id. Notion always has three groups,
+ * in workflow order (To-do, In progress, Complete), whose names depend on the language.
+ */
+export function statusGroups(status: NotionPropertySchema["status"]): Map<string, StatusGroup> {
+  const out = new Map<string, StatusGroup>();
+  const byName: Record<string, StatusGroup> = { "to-do": "todo", "to do": "todo", "in progress": "in_progress", complete: "done", done: "done" };
+  (status?.groups ?? []).forEach((g, i) => {
+    const group = byName[g.name.trim().toLowerCase()] ?? STATUS_GROUPS[Math.min(i, STATUS_GROUPS.length - 1)]!;
+    for (const id of g.option_ids ?? []) out.set(id, group);
+  });
+  return out;
+}
+
+/** A Notion status column's options, with their categories. */
+const toStatusOptions = (status: NotionPropertySchema["status"]): SelectOption[] => {
+  const groups = statusGroups(status);
+  return normalizeOptions(
+    "status",
+    toOptions(status?.options).map((o) => ({ ...o, group: groups.get(o.id) ?? "todo" })),
+  );
+};
 
 const emojiOf = (icon: NotionIcon) => (icon?.type === "emoji" ? icon.emoji : null);
 
@@ -259,6 +285,8 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
     databases.splice(i, 1);
   }
   const titleOf = (item: Item) => (item.kind === "database" ? plainText(item.database.title) : pageTitle(item.page));
+  // Who last edited a page in Notion, when they have an account here.
+  const lastEditor = (item: Item) => (item.kind !== "database" && personId(item.page.last_edited_by)) || null;
   const editedAt = (item: Item) => (item.kind === "database" ? item.database.last_edited_time : item.page.last_edited_time);
 
   // Parents first, so children can be placed under them.
@@ -290,7 +318,7 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
     const link = links.get(id);
     if (link) {
       const changed = !!o.refresh || link.editedAt !== editedAt(item);
-      if (changed) db.update(pages).set({ title, icon, updatedAt: new Date() }).where(eq(pages.id, link.pageId)).run();
+      if (changed) db.update(pages).set({ title, icon, updatedAt: new Date(), updatedBy: lastEditor(item) }).where(eq(pages.id, link.pageId)).run();
       target.set(id, { id: link.pageId, title, isNew: false, changed });
       report[changed ? "updated" : "unchanged"]++;
     } else {
@@ -312,6 +340,7 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
           createdBy: (item.kind !== "database" && personId(item.page.created_by)) || o.userId,
           createdAt: new Date(created),
           updatedAt: new Date(editedAt(item)),
+          updatedBy: lastEditor(item),
           props: item.kind === "row" ? {} : null,
         })
         .run();
@@ -367,14 +396,31 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
     const known = existingColumns(dbId).get(notionPropId);
     const current = known ? listProperties(db, dbId).find((p) => p.id === known) : undefined;
     if (current) {
-      // Imported before: renamed, and new options added; the type stays the one chosen in Nootion.
-      const merged: PropertyConfig = { ...current.config };
+      // Imported before: renamed, and new options added; the type stays the one chosen in Nootion,
+      // except for the types earlier versions didn't have: status (imported as selects), phone and ID (as texts).
+      const upgrade = (type === "status" && current.type === "select") || ((type === "phone" || type === "unique_id") && current.type === "text");
+      const nextType = upgrade ? type : current.type;
+      const merged: PropertyConfig = { ...current.config, ...(upgrade ? config : {}) };
       if (config.options) {
-        const ids = new Set((current.config.options ?? []).map((x) => x.id));
-        merged.options = [...(current.config.options ?? []), ...config.options.filter((x) => !ids.has(x.id))];
+        const incoming = new Map(config.options.map((x) => [x.id, x]));
+        const kept = (current.config.options ?? []).map((x) => (upgrade ? { ...x, group: incoming.get(x.id)?.group } : x));
+        const ids = new Set(kept.map((x) => x.id));
+        merged.options = normalizeOptions(nextType, [...kept, ...config.options.filter((x) => !ids.has(x.id))]);
       }
-      db.update(databaseProperties).set({ name, config: merged }).where(eq(databaseProperties.id, current.id)).run();
-      return { ...current, name, config: merged };
+      db.update(databaseProperties).set({ name, type: nextType, config: merged }).where(eq(databaseProperties.id, current.id)).run();
+      if (upgrade && nextType === "unique_id") {
+        // Rows Notion doesn't send again keep their number: TASK-12, imported as a text, becomes 12.
+        for (const r of db.select({ id: pages.id, props: pages.props }).from(pages).where(eq(pages.parentId, dbId)).all()) {
+          const v = r.props?.[current.id];
+          if (v === undefined) continue;
+          const props = { ...r.props };
+          const n = typeof v === "string" ? /(\d+)$/.exec(v)?.[1] : undefined;
+          if (n) props[current.id] = Number(n);
+          else delete props[current.id];
+          db.update(pages).set({ props }).where(eq(pages.id, r.id)).run();
+        }
+      }
+      return { ...current, name, type: nextType, config: merged };
     }
     const id = randomUUID();
     db.insert(databaseProperties).values({ id, databaseId: dbId, name, type, config, position }).run();
@@ -545,6 +591,8 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
     }
     job.done++;
   }
+  // ID columns: rows Notion gave no number get the next ones.
+  for (const { database } of databases) assignUniqueIds(db, target.get(normId(database.id))!.id);
 
   // --- 5. Page contents --------------------------------------------------------------------------
   async function saveFile(pageId: string, url: string, name: string) {
@@ -682,9 +730,14 @@ function plainColumn(p: NotionPropertySchema, note: (what: string, info?: string
     case "title":
       return { type: "title", config: {} };
     case "rich_text":
-    case "phone_number":
-    case "unique_id":
       return { type: "text", config: {} };
+    case "phone_number":
+      return { type: "phone", config: {} };
+    case "unique_id": {
+      // Nootion's prefixes are letters, digits and _.
+      const prefix = (p.unique_id?.prefix ?? "").replace(/[^\p{L}\p{N}_]/gu, "").slice(0, 20);
+      return { type: "unique_id", config: prefix ? { prefix } : {} };
+    }
     case "number": {
       const format = p.number?.format ?? "number";
       if (format === "percent") return { type: "percent", config: { decimals: 0 } };
@@ -694,8 +747,7 @@ function plainColumn(p: NotionPropertySchema, note: (what: string, info?: string
     case "select":
       return { type: "select", config: { options: toOptions(p.select?.options) } };
     case "status":
-      note("status");
-      return { type: "select", config: { options: toOptions(p.status?.options) } };
+      return { type: "status", config: { options: toStatusOptions(p.status) } };
     case "multi_select":
       return { type: "multi_select", config: { options: toOptions(p.multi_select?.options) } };
     case "date":
@@ -716,6 +768,8 @@ function plainColumn(p: NotionPropertySchema, note: (what: string, info?: string
       return { type: "last_edited_time", config: {} };
     case "created_by":
       return { type: "created_by", config: {} };
+    case "last_edited_by":
+      return { type: "last_edited_by", config: {} };
     case "relation":
     case "rollup":
     case "formula":
@@ -762,6 +816,7 @@ async function cellValue(schema: NotionPropertySchema, v: NotionPropertyValue, p
     case "phone_number":
       return v.phone_number ?? null;
     case "unique_id":
+      if (prop.type === "unique_id") return typeof v.unique_id?.number === "number" ? v.unique_id.number : null;
       return v.unique_id?.number === null || v.unique_id?.number === undefined
         ? null
         : `${v.unique_id.prefix ? `${v.unique_id.prefix}-` : ""}${v.unique_id.number}`;

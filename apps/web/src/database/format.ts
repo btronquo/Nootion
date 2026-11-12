@@ -1,5 +1,6 @@
 import {
   intlLocale,
+  uniqueIdText,
   t,
   type CalcResult,
   type CellValue,
@@ -75,6 +76,7 @@ export function formatValue(prop: DatabaseProperty, value: CellValue, people: Re
     case "last_edited_time":
       return formatDateString(value as string);
     case "select":
+    case "status":
       return prop.config.options?.find((o) => o.id === value)?.name ?? "";
     case "multi_select":
       return (value as string[])
@@ -83,7 +85,10 @@ export function formatValue(prop: DatabaseProperty, value: CellValue, people: Re
         .join(", ");
     case "person":
     case "created_by":
+    case "last_edited_by":
       return (value as string[]).map((id) => people[id] ?? "?").join(", ");
+    case "unique_id":
+      return uniqueIdText(prop, value);
     case "checkbox":
       return value ? "✓" : "";
     case "file":

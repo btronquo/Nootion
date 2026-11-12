@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import type { NodeViewProps } from "@tiptap/react";
 import { NodeViewWrapper } from "@tiptap/react";
 import { BarChart3 } from "lucide-react";
-import { intlLocale, t, type DatabaseProperty, type DatabaseRow, type DateValue } from "@nootion/shared";
+import { intlLocale, orderedOptions, t, type DatabaseProperty, type DatabaseRow, type DateValue } from "@nootion/shared";
 import { useUserDirectory } from "../../lib/queries";
 import { pageTitle } from "../../lib/tree";
 import { pageIcon } from "../../lib/icons";
@@ -19,7 +19,7 @@ interface Group {
   color: string;
 }
 
-const GROUPABLE = ["select", "multi_select", "checkbox", "person", "created_by", "date", "created_time", "last_edited_time", "text", "url", "email", "number"];
+const GROUPABLE = ["status", "select", "multi_select", "checkbox", "person", "created_by", "last_edited_by", "date", "created_time", "last_edited_time", "text", "url", "email", "number"];
 const MAX_GROUPS = 12;
 
 const monthLabel = (key: string) => new Date(`${key}-01T00:00:00`).toLocaleDateString(intlLocale(), { month: "short", year: "numeric" });
@@ -37,11 +37,13 @@ function keysOf(
     return prop.type === "checkbox" ? [{ key: "no", label: t("common.no"), order: 1 }] : [none];
   switch (prop.type) {
     case "select":
+    case "status":
     case "multi_select": {
       const ids = Array.isArray(v) ? (v as string[]) : [v as string];
+      const options = orderedOptions(prop);
       return ids.map((id) => {
-        const i = prop.config.options?.findIndex((o) => o.id === id) ?? -1;
-        const o = prop.config.options?.[i];
+        const i = options.findIndex((o) => o.id === id);
+        const o = options[i];
         return o ? { key: id, label: o.name, color: OPTION_HEX[o.color], order: i } : none;
       });
     }
@@ -49,6 +51,7 @@ function keysOf(
       return v ? [{ key: "yes", label: t("common.yes"), order: 0 }] : [{ key: "no", label: t("common.no"), order: 1 }];
     case "person":
     case "created_by":
+    case "last_edited_by":
       return (v as string[]).map((id) => ({ key: id, label: people[id] ?? "?" }));
     case "date":
     case "created_time":
@@ -99,7 +102,7 @@ export function ChartView({ node, updateAttributes, editor, extension }: NodeVie
   const directory = useUserDirectory();
   const people = useMemo(() => Object.fromEntries((directory.data ?? []).map((u) => [u.id, u.name])), [directory.data]);
   const props = useMemo(() => data?.properties ?? [], [data?.properties]);
-  const groupProp = props.find((p) => p.id === attrs.groupBy) ?? props.find((p) => p.type === "select") ?? props.find((p) => GROUPABLE.includes(p.type));
+  const groupProp = props.find((p) => p.id === attrs.groupBy) ?? props.find((p) => p.type === "status" || p.type === "select") ?? props.find((p) => GROUPABLE.includes(p.type));
   const numberProp = props.find((p) => p.id === attrs.measure);
   const list = useMemo(
     () => (data ? groups(rows, props, groupProp?.id ?? null, attrs.measure, people) : []),

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { EyeOff, Trash2, X } from "lucide-react";
+import { ArrowRightLeft, EyeOff, Plus, Trash2, X } from "lucide-react";
 import {
   buttonConfigSchema,
   emptyButtonConfig,
@@ -8,7 +8,12 @@ import {
   t,
   CREATABLE_TYPES,
   OPTION_COLORS,
+  STATUS_GROUPS,
   STRUCTURAL_TYPES,
+  hasOptions,
+  statusGroupOf,
+  type SelectOption,
+  type StatusGroup,
   FUNCTIONS,
   FormulaError,
   calcFunctionsFor,
@@ -23,6 +28,7 @@ import { colorLabel, CURRENCIES, OPTION_CLASSES, typeLabel } from "./format";
 import { useDatabase } from "./hooks";
 import { pageTitle } from "../lib/tree";
 import { ButtonEditor } from "../buttons/ButtonEditor";
+import { newOption, statusGroupLabel } from "./OptionPicker";
 
 /** Settings of a column: name, type, type options, hide, delete. */
 export function PropertyMenu({
@@ -129,6 +135,36 @@ export function PropertyMenu({
           </select>
         </label>
       )}
+      {prop.type === "percent" && (
+        <label className="block">
+          <span className="mb-0.5 block text-xs text-neutral-500">{t("property.showAs")}</span>
+          <select
+            className={field}
+            value={prop.config.showAs ?? "number"}
+            onChange={(e) => onChangeConfig({ ...prop.config, showAs: e.target.value === "bar" ? "bar" : undefined })}
+          >
+            <option value="number">{t("property.showAsNumber")}</option>
+            <option value="bar">{t("property.showAsBar")}</option>
+          </select>
+        </label>
+      )}
+      {prop.type === "unique_id" && (
+        <label className="block">
+          <span className="mb-0.5 block text-xs text-neutral-500">{t("property.prefix")}</span>
+          <input
+            className={field}
+            defaultValue={prop.config.prefix ?? ""}
+            maxLength={20}
+            placeholder="TASK"
+            onBlur={(e) => {
+              const prefix = e.target.value.replace(/[^\p{L}\p{N}_]/gu, "").slice(0, 20);
+              e.target.value = prefix;
+              if (prefix !== (prop.config.prefix ?? "")) onChangeConfig({ ...prop.config, prefix: prefix || undefined });
+            }}
+          />
+          <span className="mt-0.5 block text-xs text-neutral-500">{t("property.prefixHelp")}</span>
+        </label>
+      )}
       {prop.type === "relation" && <RelationInfo prop={prop} />}
       {prop.type === "rollup" && <RollupSettings prop={prop} properties={properties} onChange={onChangeConfig} field={field} />}
       {prop.type === "date" && (
@@ -137,51 +173,7 @@ export function PropertyMenu({
           {t("property.includeTime")}
         </label>
       )}
-      {(prop.type === "select" || prop.type === "multi_select") && (
-        <div>
-          <span className="mb-0.5 block text-xs text-neutral-500">{t("property.options")}</span>
-          <div className="max-h-56 space-y-1 overflow-y-auto">
-            {(prop.config.options ?? []).map((o) => (
-              <div key={o.id} className="flex items-center gap-1">
-                <select
-                  aria-label={t("option.colorOf", { name: o.name })}
-                  value={o.color}
-                  onChange={(e) =>
-                    onChangeConfig({ ...prop.config, options: prop.config.options!.map((x) => (x.id === o.id ? { ...x, color: e.target.value as OptionColor } : x)) })
-                  }
-                  className={`w-20 shrink-0 rounded px-1 py-0.5 text-xs ${OPTION_CLASSES[o.color]}`}
-                >
-                  {OPTION_COLORS.map((c) => (
-                    <option key={c} value={c}>
-                      {colorLabel(c)}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  defaultValue={o.name}
-                  aria-label={t("option.name")}
-                  onBlur={(e) => {
-                    const v = e.target.value.trim();
-                    if (v && v !== o.name) onChangeConfig({ ...prop.config, options: prop.config.options!.map((x) => (x.id === o.id ? { ...x, name: v } : x)) });
-                  }}
-                  className="min-w-0 flex-1 rounded border border-transparent bg-transparent px-1 py-0.5 hover:border-neutral-200 focus:border-neutral-400 dark:hover:border-neutral-700"
-                />
-                <button
-                  title={t("option.delete")}
-                  className="text-neutral-400 hover:text-red-600"
-                  onClick={() =>
-                    confirm(t("option.confirmDelete", { name: o.name })) &&
-                    onChangeConfig({ ...prop.config, options: prop.config.options!.filter((x) => x.id !== o.id) })
-                  }
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            ))}
-            {!prop.config.options?.length && <p className="px-1 text-xs text-neutral-500">{t("option.help")}</p>}
-          </div>
-        </div>
-      )}
+      {hasOptions(prop.type) && <OptionsEditor prop={prop} onChange={onChangeConfig} />}
 
       <div className="border-t border-neutral-200 pt-1 dark:border-neutral-700">
         {onHide && (
@@ -197,6 +189,90 @@ export function PropertyMenu({
             <Trash2 size={14} /> {t("property.delete")}
           </button>
         )}
+      </div>
+    </div>
+  );
+}
+
+/** Options of a select, multi-select or status column: color, name, delete; a status's by category. */
+function OptionsEditor({ prop, onChange }: { prop: DatabaseProperty; onChange: (config: PropertyConfig) => void }) {
+  const options = prop.config.options ?? [];
+  const status = prop.type === "status";
+  const set = (next: SelectOption[]) => onChange({ ...prop.config, options: next });
+  const patch = (id: string, change: Partial<SelectOption>) => set(options.map((x) => (x.id === id ? { ...x, ...change } : x)));
+  const row = (o: SelectOption) => (
+    <div key={o.id} className="flex items-center gap-1">
+      <select
+        aria-label={t("option.colorOf", { name: o.name })}
+        value={o.color}
+        onChange={(e) => patch(o.id, { color: e.target.value as OptionColor })}
+        className={`w-20 shrink-0 rounded px-1 py-0.5 text-xs ${OPTION_CLASSES[o.color]}`}
+      >
+        {OPTION_COLORS.map((c) => (
+          <option key={c} value={c}>
+            {colorLabel(c)}
+          </option>
+        ))}
+      </select>
+      <input
+        defaultValue={o.name}
+        aria-label={t("option.name")}
+        onBlur={(e) => {
+          const v = e.target.value.trim();
+          if (v && v !== o.name) patch(o.id, { name: v });
+        }}
+        className="min-w-0 flex-1 rounded border border-transparent bg-transparent px-1 py-0.5 hover:border-neutral-200 focus:border-neutral-400 dark:hover:border-neutral-700"
+      />
+      {status && (
+        // A small icon over an invisible list: moves the option to another category.
+        <span title={t("status.groupOf", { name: o.name })} className="relative flex shrink-0 rounded p-0.5 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800">
+          <ArrowRightLeft size={13} />
+          <select
+            aria-label={t("status.groupOf", { name: o.name })}
+            value={statusGroupOf(o)}
+            onChange={(e) => patch(o.id, { group: e.target.value as StatusGroup })}
+            className="absolute inset-0 cursor-pointer opacity-0"
+          >
+            {STATUS_GROUPS.map((g) => (
+              <option key={g} value={g}>
+                {statusGroupLabel(g)}
+              </option>
+            ))}
+          </select>
+        </span>
+      )}
+      <button
+        title={t("option.delete")}
+        className="text-neutral-400 hover:text-red-600"
+        onClick={() => confirm(t("option.confirmDelete", { name: o.name })) && set(options.filter((x) => x.id !== o.id))}
+      >
+        <X size={14} />
+      </button>
+    </div>
+  );
+  return (
+    <div>
+      <span className="mb-0.5 block text-xs text-neutral-500">{t("property.options")}</span>
+      <div className="max-h-72 space-y-1 overflow-y-auto">
+        {status
+          ? STATUS_GROUPS.map((g) => (
+              <div key={g} className="space-y-1 pb-1">
+                <div className="flex items-center justify-between px-1 pt-1 text-xs font-medium text-neutral-500">
+                  {statusGroupLabel(g)}
+                  <button
+                    title={t("status.addOption")}
+                    aria-label={`${t("status.addOption")} (${statusGroupLabel(g)})`}
+                    className="rounded p-0.5 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                    onClick={() => set([...options, newOption(t("status.newOption"), options, g)])}
+                  >
+                    <Plus size={12} />
+                  </button>
+                </div>
+                {options.filter((o) => statusGroupOf(o) === g).map(row)}
+              </div>
+            ))
+          : options.map(row)}
+        {!status && !options.length && <p className="px-1 text-xs text-neutral-500">{t("option.help")}</p>}
       </div>
     </div>
   );

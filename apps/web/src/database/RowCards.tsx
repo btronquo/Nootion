@@ -108,7 +108,7 @@ export function RowCards({
         groups.map((g) => (
           <section key={g.key} aria-label={t("table.group", { name: g.label })} className="mb-3">
             <header className="flex items-center gap-1.5 px-1 py-1.5">
-              {g.option ? <OptionChip option={g.option} /> : <span className="font-medium">{g.label}</span>}
+              {g.option ? <OptionChip option={g.option} status={groupProp?.type === "status"} /> : <span className="font-medium">{g.label}</span>}
               <span className="text-xs text-neutral-400">{g.rows.length}</span>
             </header>
             <div role="list" className="space-y-2">{g.rows.map(card)}</div>

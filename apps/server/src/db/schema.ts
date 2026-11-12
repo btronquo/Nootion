@@ -142,6 +142,8 @@ export const pages = sqliteTable(
     updatedAt: integer("updated_at", { mode: "timestamp_ms" })
       .notNull()
       .default(sql`(unixepoch('subsec') * 1000)`),
+    // Who changed the page (title, content, cells) last; null until someone does, or for changes made on another device.
+    updatedBy: text("updated_by").references(() => users.id, { onDelete: "set null" }),
     // Set on the page that was moved to the trash; its descendants are trashed through it.
     deletedAt: integer("deleted_at", { mode: "timestamp_ms" }),
     deletedBy: text("deleted_by").references(() => users.id, { onDelete: "set null" }),

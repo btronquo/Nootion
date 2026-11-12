@@ -155,10 +155,10 @@ export function createDemo(db: Db, dataDir: string, userId: string): string {
       const id = randomUUID();
       return { id, name, type, config };
     };
-    const opt = (name: string, color: string) => ({ id: randomUUID(), name, color });
-    const todo = opt(L("À faire", "To do"), "gray");
-    const doing = opt(L("En cours", "In progress"), "blue");
-    const done = opt(L("Terminé", "Done"), "green");
+    const opt = (name: string, color: string, group?: string) => ({ id: randomUUID(), name, color, ...(group ? { group } : {}) });
+    const todo = opt(L("À faire", "To do"), "gray", "todo");
+    const doing = opt(L("En cours", "In progress"), "blue", "in_progress");
+    const done = opt(L("Terminé", "Done"), "green", "done");
     const high = opt(L("Haute", "High"), "red");
     const medium = opt(L("Moyenne", "Medium"), "orange");
     const low = opt(L("Basse", "Low"), "gray");
@@ -167,7 +167,7 @@ export function createDemo(db: Db, dataDir: string, userId: string): string {
     const tagMarketing = opt("Marketing", "pink");
     const tagOps = opt(L("Opérations", "Operations"), "brown");
     const title = prop(L("Nom", "Name"), "title");
-    const status = prop(L("Statut", "Status"), "select", { options: [todo, doing, done] });
+    const status = prop(L("Statut", "Status"), "status", { options: [todo, doing, done] });
     const priority = prop(L("Priorité", "Priority"), "select", { options: [high, medium, low] });
     const when = prop(L("Échéance", "Dates"), "date", { includeTime: false });
     const owner = prop(L("Responsable", "Owner"), "person");

@@ -46,10 +46,12 @@ const IMPORTABLE = new Set([
   "percent",
   "date",
   "select",
+  "status",
   "multi_select",
   "checkbox",
   "url",
   "email",
+  "phone",
   "person",
   "relation",
 ]);
@@ -196,6 +198,7 @@ export function planImport(
       case "text":
       case "url":
       case "email":
+      case "phone":
         return raw.slice(0, prop.type === "text" ? 20000 : 2000);
       case "number":
       case "currency":
@@ -208,6 +211,7 @@ export function planImport(
         return start ? { start, end: end ?? null } : null;
       }
       case "select":
+      case "status":
         return option(prop, raw);
       case "multi_select":
         return split(raw).map((n) => option(prop, n));
