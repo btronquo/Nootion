@@ -32,6 +32,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Fixed
 
+- Editing a database row template through the API (`PATCH /api/databases/:id/rows/:templateId`) answered with an
+  error 500, although the change was saved.
 - The map block (Map plugin) showed "Access blocked" instead of OpenStreetMap's tiles: they are now requested with
   the site's address, as OpenStreetMap's tile usage policy asks.
 

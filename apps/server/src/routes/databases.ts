@@ -133,7 +133,8 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
   /** A row as the client shows it, with the relation titles it references. */
   const rowResponse = (userId: string, databaseId: string, rowId: string) => {
     const properties = listProperties(db, databaseId);
-    const row = toRow(listRowPages(db, databaseId).find((r) => r.id === rowId)!, properties);
+    // Read on its own: listRowPages leaves out row templates, which are edited like rows.
+    const row = toRow(db.select().from(pages).where(eq(pages.id, rowId)).get()!, properties);
     const { related } = enrichRows(db, properties, [row], canReadAs(db, userId));
     return { row, related };
   };
