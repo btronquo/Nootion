@@ -52,6 +52,7 @@ import { useUpdateStatus, useVersion } from "./UpdateNotice";
 import { WhatsNewDialog } from "./WhatsNew";
 import { buildTree, pageTitle } from "../lib/tree";
 import { DRAG_TYPE, PageTree } from "./PageTree";
+import { PendingSpaceMoveDialog, readDraggedSpace, type PendingSpaceMove } from "./SpaceMove";
 import { Avatar } from "./Avatar";
 import { Button, CancelButton, ErrorText, Field, Modal } from "./ui";
 import { usePlugins } from "../plugins/registry";
@@ -319,6 +320,23 @@ function WorkspaceSection({ workspace }: { workspace: WorkspaceSummary }) {
   const navigate = useNavigate();
   const refresh = useRefreshPages();
   const canEdit = workspace.role === "owner" || workspace.role === "editor";
+  // A page dropped on the space's name goes to its top level, at the end; from another space, once confirmed.
+  const [dropping, setDropping] = useState(false);
+  const [pending, setPending] = useState<PendingSpaceMove | null>(null);
+
+  async function onDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDropping(false);
+    const id = e.dataTransfer.getData(DRAG_TYPE);
+    if (!id) return;
+    const source = readDraggedSpace(e.dataTransfer);
+    if (source && source.workspaceId !== workspace.id) {
+      setPending({ page: { id, title: source.title, workspaceId: source.workspaceId }, to: workspace.id, parentId: null });
+      return;
+    }
+    await api(`/pages/${id}/move`, { method: "POST", body: { parentId: null } }).catch((err: Error) => alert(err.message));
+    await refresh();
+  }
 
   async function addPage() {
     const res = await api<{ page: PageSummary }>("/pages", {
@@ -333,6 +351,17 @@ function WorkspaceSection({ workspace }: { workspace: WorkspaceSummary }) {
     "rounded p-0.5 text-neutral-400 hover:bg-neutral-200 hover:text-neutral-700 dark:hover:bg-neutral-800";
   return (
     <div>
+      <div
+        className={`rounded-md ${dropping ? "bg-blue-100 dark:bg-blue-950" : ""}`}
+        data-space-drop={workspace.id}
+        onDragOver={(e) => {
+          if (!canEdit || !e.dataTransfer.types.includes(DRAG_TYPE)) return;
+          e.preventDefault();
+          setDropping(true);
+        }}
+        onDragLeave={() => setDropping(false)}
+        onDrop={onDrop}
+      >
       <SectionHeader
         icon={
           workspace.kind === "personal" ? (
@@ -366,6 +395,8 @@ function WorkspaceSection({ workspace }: { workspace: WorkspaceSummary }) {
           </button>
         )}
       </SectionHeader>
+      </div>
+      {pending && <PendingSpaceMoveDialog move={pending} onClose={() => setPending(null)} />}
       {pages.data && (
         <PageTree
           nodes={buildTree(pages.data)}

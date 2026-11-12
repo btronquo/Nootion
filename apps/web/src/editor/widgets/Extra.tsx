@@ -337,7 +337,7 @@ export function QuoteView({ node, updateAttributes, editor, extension }: NodeVie
     const row = list.length ? list[(dayNumber() + shift) % list.length] : undefined;
     text = row ? pageTitle(row.title) : "";
     const v = row && authorProp ? row.values[authorProp.id] : null;
-    by = typeof v === "string" ? (authorProp?.type === "select" ? (authorProp.config.options?.find((o) => o.id === v)?.name ?? "") : v) : "";
+    by = typeof v === "string" ? (authorProp?.type === "select" || authorProp?.type === "status" ? (authorProp.config.options?.find((o) => o.id === v)?.name ?? "") : v) : "";
   } else {
     const q = QUOTES[(dayNumber() + shift) % QUOTES.length]!;
     text = fr ? q.fr : q.en;
@@ -392,7 +392,7 @@ export function QuoteView({ node, updateAttributes, editor, extension }: NodeVie
               <select className={field} value={authorProp?.id ?? ""} onChange={(e) => updateAttributes({ authorProp: e.target.value || null })}>
                 <option value="">—</option>
                 {data.properties
-                  .filter((p) => p.type === "text" || p.type === "select")
+                  .filter((p) => p.type === "text" || p.type === "select" || p.type === "status")
                   .map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.name}

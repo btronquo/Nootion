@@ -5,6 +5,37 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [3.6.0] - 2026-11-12
+
+### Added
+
+- Moving pages between spaces, with their subpages: drag a page onto another space's tree or onto its name in the
+  sidebar, or choose the space in "Move to…" (right click). Handy to sort a Notion import, or to write a draft in
+  your personal space and share it by moving it into a shared one. A confirmation says who will gain or lose access;
+  content, history, attached files, comments, direct shares and public link are kept. Only owners and editors of
+  both spaces can do it. A later Notion import keeps updating moved pages where they are, and leaves alone those its
+  author can no longer edit. The desktop app follows moves made on the server (it refuses them in synced spaces).
+- Status columns, as in Notion: one choice among options sorted into three categories (To do, In progress, Done),
+  starting with Not started / In progress / Done. Options can be renamed, recolored, added to any category or moved
+  to another; filters, sorts, groups, boards and charts follow the categories' order. A board picks a status column
+  first. The Notion import keeps status columns and their categories (they used to become select columns), and
+  turns the ones an earlier import made into selects back into status columns.
+- "Last edited by" columns: who changed the row last (a cell, its title or its content), else its author.
+- ID columns: rows are numbered 1, 2, 3… in the order they were created, with an optional prefix (TASK-12). New and
+  duplicated rows get the next number; a number is never given twice.
+- Phone columns: the number is a link that calls it.
+- Percent columns can be shown as progress bars.
+- The Notion import brings these too: phone numbers, IDs (with their prefix and numbers) and "Last edited by" (when
+  the person has an account here), instead of texts or nothing. A new import upgrades the columns an earlier one
+  imported as texts.
+
+### Fixed
+
+- Editing a database row template through the API (`PATCH /api/databases/:id/rows/:templateId`) answered with an
+  error 500, although the change was saved.
+- The map block (Map plugin) showed "Access blocked" instead of OpenStreetMap's tiles: they are now requested with
+  the site's address, as OpenStreetMap's tile usage policy asks.
+
 ## [3.5.0] - 2026-11-11
 
 ### Added

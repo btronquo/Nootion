@@ -33,6 +33,7 @@ import {
   VIEW_TYPES,
   filterKind,
   isActiveFilter,
+  orderedOptions,
   type DatabaseData,
   type DatabaseProperty,
   type DatabaseViewInfo,
@@ -516,7 +517,7 @@ function FilterValue({
     </select>
   );
 
-  if (kind === "select" || kind === "multi_select") return select((prop.config.options ?? []).map((o) => ({ value: o.id, label: o.name })));
+  if (kind === "select" || kind === "multi_select") return select(orderedOptions(prop).map((o) => ({ value: o.id, label: o.name })));
   if (kind === "people") return select([{ value: "me", label: t("filter.me") }, ...(users.data ?? []).map((u) => ({ value: u.id, label: u.name }))]);
   if (kind === "date") {
     if (filter.operator === "within") return select(DATE_PERIODS.map((p) => ({ value: p, label: periodLabel(p) })));

@@ -271,6 +271,9 @@ What is not, or differently:
 - Notion's API doesn't give the views: each database gets a table view.
 - Formulas using `link()` or `email()`, which Nootion's formulas don't have, keep their values in a text column.
 - Comments and page history are left out. Toggles, columns, callouts and covers are kept.
+- Notion's API doesn't say whether a page was private or in a teamspace: everything goes into the space chosen for
+  the import. Pages that were private can then be moved to your personal space (drag them onto it in the sidebar, or
+  *Move to…*); importing again keeps updating them there.
 
 The report at the end lists these cases. **Importing again** uses the saved secret: pages and rows changed in Notion
 since the last import are updated (their content is replaced, edits made in Nootion included), the others are left

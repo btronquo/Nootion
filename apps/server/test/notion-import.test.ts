@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import type { DatabaseData, DatabaseProperty } from "@nootion/shared";
 import { eq } from "drizzle-orm";
-import { pages } from "../src/db/schema.js";
+import { databaseProperties, pages } from "../src/db/schema.js";
 import type { ProseMirrorNode } from "../src/collab.js";
 import { Client, inviteUser, makeApp, setupAdmin } from "./helpers.js";
 import { fakeNotion } from "./notion-fake.js";
@@ -24,11 +24,11 @@ afterEach(async () => {
   await notion.stop();
 });
 
-async function runImport(body: Record<string, unknown> = { token: "secret_good_token" }, expected = "done") {
-  const res = await boris.post("/api/import/notion", { workspaceId: ws, ...body });
+async function runImport(body: Record<string, unknown> = { token: "secret_good_token" }, expected = "done", who = boris) {
+  const res = await who.post("/api/import/notion", { workspaceId: ws, ...body });
   expect(res.statusCode, res.body).toBe(200);
   for (let i = 0; i < 200; i++) {
-    const status = (await boris.get(`/api/import/notion?workspaceId=${ws}`)).json();
+    const status = (await who.get(`/api/import/notion?workspaceId=${ws}`)).json();
     if (status.job.status !== "running") {
       if (expected === "done") expect(status.job.error).toBeNull();
       expect(status.job.status).toBe(expected);
@@ -56,7 +56,8 @@ describe("Notion import", () => {
     expect(Object.keys(report.notes)).not.toEqual(expect.arrayContaining(["toggle"]));
     expect(report.formulas).toEqual([expect.objectContaining({ database: "Tasks", name: "Weird" })]);
     // Each note says where it is, with a link to Notion (to the block for page contents).
-    expect(report.details.status).toEqual([{ where: "Tasks", item: "Status", url: "https://www.notion.so/33333333333333333333333333333333" }]);
+    // Status columns are kept as status columns: nothing to report.
+    expect(report.details.status).toBeUndefined();
     expect(report.details.propertyType).toEqual([expect.objectContaining({ where: "Tasks", item: "Button", info: "button" })]);
     expect(report.details.icon).toEqual([expect.objectContaining({ where: "Notes", info: "i.png" })]);
     expect(report.details.table_of_contents).toEqual([{ where: "Home", url: "https://www.notion.so/11111111111111111111111111111111#b14" }]);
@@ -130,8 +131,13 @@ describe("Notion import", () => {
 
     // Columns and their types.
     const tasks = await getDb(byTitle("Tasks").id);
-    expect(prop(tasks, "Status").type).toBe("select");
-    expect(prop(tasks, "Status").config).toMatchObject({ options: expect.arrayContaining([expect.objectContaining({ name: "Doing" })]) });
+    // Status columns keep their options' categories.
+    expect(prop(tasks, "Status").type).toBe("status");
+    expect(prop(tasks, "Status").config.options).toEqual([
+      { id: "s1", name: "To do", color: "gray", group: "todo" },
+      { id: "s2", name: "Doing", color: "blue", group: "in_progress" },
+      { id: "s3", name: "Shipped", color: "green", group: "done" },
+    ]);
     expect(prop(tasks, "Price")).toMatchObject({ type: "currency", config: { currency: "EUR" } });
     expect(prop(tasks, "Done").type).toBe("checkbox");
     expect(prop(tasks, "Assignee").type).toBe("person");
@@ -140,6 +146,9 @@ describe("Notion import", () => {
     expect(prop(tasks, "Label")).toMatchObject({ type: "formula", config: { expression: 'upper(prop("Name"))' } });
     expect(prop(tasks, "Weird").type).toBe("text");
     expect(tasks.properties.find((p) => p.name === "Button")).toBeUndefined();
+    expect(prop(tasks, "Phone").type).toBe("phone");
+    expect(prop(tasks, "Ref")).toMatchObject({ type: "unique_id", config: { prefix: "TASK" } });
+    expect(prop(tasks, "Editor").type).toBe("last_edited_by");
 
     // Rows and their values.
     expect(tasks.rows.map((r) => r.title).sort()).toEqual(["Buy paint", "Call plumber"]);
@@ -153,6 +162,12 @@ describe("Notion import", () => {
     expect(v("Due")).toMatchObject({ start: "2024-02-01" });
     expect(v("Assignee")).toEqual([await boris.id()]);
     expect(v("Weird")).toBe("Buy paint");
+    expect(v("Phone")).toBe("+33 6 12 34 56 78");
+    // Notion's numbers are kept; a row without one gets the next.
+    expect(v("Ref")).toBe(7);
+    expect(tasks.rows.find((r) => r.title === "Call plumber")!.values[prop(tasks, "Ref").id]).toBe(8);
+    // Last edited by Ada in Notion, who is Boris here.
+    expect(v("Editor")).toEqual([await boris.id()]);
     expect(prop(tasks, "TagList")).toMatchObject({ type: "formula", config: { expression: 'join(map(prop("Tags"), name(current)), ",")' } });
     expect(v("TagList")).toEqual({ kind: "text", value: "paint,urgent" });
     expect(v("Double")).toMatchObject({ value: 240 });
@@ -196,6 +211,34 @@ describe("Notion import", () => {
     expect(tasks.properties.filter((p) => p.name === "Price")).toHaveLength(1);
   });
 
+  it("turns status columns imported as selects by older versions into status columns", async () => {
+    await runImport();
+    let tasks = await getDb((await tree()).find((p) => p.title === "Tasks")!.id);
+    const status = prop(tasks, "Status");
+    const doing = tasks.rows.find((r) => r.values[status.id] === "s2")!;
+    // As an older version left it: a select, without categories; phones and IDs as texts.
+    app.db
+      .update(databaseProperties)
+      .set({ type: "select", config: { options: status.config.options!.map(({ group: _g, ...o }) => o) } })
+      .where(eq(databaseProperties.id, status.id))
+      .run();
+    const ref = prop(tasks, "Ref");
+    for (const name of ["Phone", "Ref"]) app.db.update(databaseProperties).set({ type: "text", config: {} }).where(eq(databaseProperties.id, prop(tasks, name).id)).run();
+    for (const r of tasks.rows) {
+      const props = { ...(app.db.select({ props: pages.props }).from(pages).where(eq(pages.id, r.id)).get()!.props ?? {}) };
+      props[ref.id] = `TASK-${r.values[ref.id]}`;
+      app.db.update(pages).set({ props }).where(eq(pages.id, r.id)).run();
+    }
+    await runImport({});
+    tasks = await getDb(tasks.id);
+    expect(prop(tasks, "Status")).toMatchObject({ id: status.id, type: "status" });
+    expect(prop(tasks, "Status").config.options!.map((o) => o.group)).toEqual(["todo", "in_progress", "done"]);
+    expect(tasks.rows.find((r) => r.id === doing.id)!.values[status.id]).toBe("s2");
+    expect(prop(tasks, "Phone").type).toBe("phone");
+    expect(prop(tasks, "Ref")).toMatchObject({ type: "unique_id", config: { prefix: "TASK" } });
+    expect(tasks.rows.map((r) => r.values[ref.id]).sort()).toEqual([7, 8]);
+  });
+
   it("imports unchanged pages again when asked, reusing their icons", async () => {
     await runImport();
     const home = (await tree()).find((p) => p.title === "Home")!;
@@ -231,6 +274,32 @@ describe("Notion import", () => {
     const paint = tasks.rows.find((r) => r.title === "Buy paint")!;
     expect(paint.values[prop(tasks, "Price").id]).toBe(120);
     expect(JSON.stringify(content(after.find((p) => p.title === "Home")!.id))).toContain("Welcome");
+  });
+
+  it("keeps updating pages moved to another space, unless whoever imports can't edit them there", async () => {
+    ws = (await boris.post("/api/workspaces", { name: "Startup" })).json().workspace.id;
+    const alice = await inviteUser(app, boris, { name: "Alice", email: "alice@example.com", password: "alice-password" });
+    await boris.put(`/api/workspaces/${ws}/members`, { userId: await alice.id(), role: "editor" });
+    await runImport();
+    const personal = await boris.personalWorkspace();
+    const notes = (await tree()).find((p) => p.title === "Notes")!;
+    const count = (await tree()).length;
+
+    // Moved to Boris's private space: the next import updates it there, without a copy in the shared space.
+    expect((await boris.post(`/api/pages/${notes.id}/move`, { workspaceId: personal, parentId: null })).statusCode).toBe(200);
+    notion.editNotes("Second notes.");
+    expect((await runImport({})).job.report).toMatchObject({ updated: 1 });
+    expect(JSON.stringify(content(notes.id))).toContain("Second notes.");
+    expect((await tree()).length).toBe(count - 1);
+    expect((await tree()).some((p) => p.title === "Notes")).toBe(false);
+
+    // Alice imports too, but can't see Boris's private space: the page is left alone, and not imported again.
+    notion.editNotes("Third notes.");
+    const status = await runImport({ refresh: true }, "done", alice);
+    expect(status.job.report.updated).toBeGreaterThan(0);
+    expect(JSON.stringify(content(notes.id))).toContain("Second notes.");
+    expect((await tree()).length).toBe(count - 1);
+    expect((await boris.get(`/api/pages/${notes.id}`)).json().page.workspaceId).toBe(personal);
   });
 
   it("refuses bad tokens and people outside the space", async () => {

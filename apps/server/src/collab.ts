@@ -131,6 +131,8 @@ export function createCollab(db: Db) {
   const sockets = new Set<WebSocketLike & { close(code?: number, reason?: string): void }>();
   // Who edited each open page since its last version.
   const editors = new Map<string, Set<string>>();
+  // Who changed each document last since it was stored, for "Last edited by".
+  const lastEditors = new Map<string, string>();
   // Set by the app: what else to do once a page's content is saved.
   const storeHooks: { onStored?: (pageId: string, json: ProseMirrorNode) => void } = {};
   const hocuspocus = new Hocuspocus<CollabContext>({
@@ -159,14 +161,16 @@ export function createCollab(db: Db) {
       let set = editors.get(documentName);
       if (!set) editors.set(documentName, (set = new Set()));
       set.add(userId);
+      lastEditors.set(documentName, userId);
     },
 
     async onStoreDocument({ document, documentName }) {
       const { state, json, text } = encodeContent(document);
       db.update(pages)
-        .set({ contentState: state, contentJson: json, contentText: text, updatedAt: new Date() })
+        .set({ contentState: state, contentJson: json, contentText: text, updatedAt: new Date(), ...(lastEditors.has(documentName) ? { updatedBy: lastEditors.get(documentName) } : {}) })
         .where(eq(pages.id, documentName))
         .run();
+      lastEditors.delete(documentName);
       syncReminders(db, documentName, json);
       storeHooks.onStored?.(documentName, json);
       // A version every few minutes while people edit.

@@ -29,6 +29,7 @@ import { breadcrumbFor, getPageMeta, notRow, pageMeta, listDescendants, nextPosi
 import { t } from "@nootion/shared";
 import { homePageOf, recordVisit } from "../home.js";
 import { copyTree } from "../templates.js";
+import { isSyncedSpace, moveSubtreeToSpace, subtreeIds } from "../spaces-move.js";
 import { syncReminders } from "../reminders.js";
 import { listBacklinks } from "../backlinks.js";
 import { getSnapshot, listVersions, recordAgentVersion, recordSnapshot } from "../history.js";
@@ -110,7 +111,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     recordSnapshot(db, page.id, { content: readContent(app.collab, db, page.id), force: true });
     await writeContent(app.collab, db, page.id, doc);
     recordAgentVersion(db, page.id, readContent(app.collab, db, page.id), user.id);
-    db.update(pages).set({ updatedAt: new Date() }).where(eq(pages.id, page.id)).run();
+    db.update(pages).set({ updatedAt: new Date(), updatedBy: user.id }).where(eq(pages.id, page.id)).run();
     return { ok: true };
   });
 
@@ -121,7 +122,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     const doc = contentInput(req.body, user.id)!;
     await appendContent(app.collab, db, page.id, doc.content ?? []);
     recordAgentVersion(db, page.id, readContent(app.collab, db, page.id), user.id);
-    db.update(pages).set({ updatedAt: new Date() }).where(eq(pages.id, page.id)).run();
+    db.update(pages).set({ updatedAt: new Date(), updatedBy: user.id }).where(eq(pages.id, page.id)).run();
     return { ok: true };
   });
 
@@ -255,7 +256,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     const current = db.select({ content: pages.contentJson }).from(pages).where(eq(pages.id, page.id)).get();
     if (current?.content) recordSnapshot(db, page.id, { content: current.content as ProseMirrorNode, force: true });
     await writeContent(app.collab, db, page.id, snapshot.content as ProseMirrorNode);
-    db.update(pages).set({ title: snapshot.title, updatedAt: new Date() }).where(eq(pages.id, page.id)).run();
+    db.update(pages).set({ title: snapshot.title, updatedAt: new Date(), updatedBy: user.id }).where(eq(pages.id, page.id)).run();
     recordSnapshot(db, page.id, { content: snapshot.content as ProseMirrorNode, authors: [user.id], force: true, restoredFrom: snapshot.createdAt });
     return { ok: true };
   });
@@ -296,7 +297,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     const rowBefore = current.kind === "row" && current.parentId && input.title !== undefined ? rowSnapshot(db, current.parentId, current.id) : null;
     const page = db
       .update(pages)
-      .set({ ...input, updatedAt: new Date() })
+      .set({ ...input, updatedAt: new Date(), updatedBy: user.id })
       .where(eq(pages.id, req.params.id))
       .returning(pageMeta)
       .get();
@@ -316,17 +317,34 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     const input = parseBody(movePageInput, req.body);
     const { page } = requirePageRole(db, user.id, req.params.id, "full");
     if (page.kind === "row") throw new HttpError(400, "row_move", t("error.rowMove"));
+    const from = page.workspaceId;
+    const to = input.workspaceId ?? from;
+    const crossing = to !== from;
+    if (crossing) {
+      // Taking a page out of a space takes it away from its members: only those who can organise the space may,
+      // not someone it was only shared with. And it goes only into a space where they can add pages.
+      const fromRole = getWorkspaceRole(db, user.id, from);
+      if (!fromRole || !CAN_CREATE_ROOT_PAGES.includes(fromRole)) {
+        throw new HttpError(403, "space_move_source", t("error.moveSpaceSource"));
+      }
+      requireWorkspaceRole(db, user.id, to, CAN_CREATE_ROOT_PAGES);
+      // The desktop app's sync would delete the page from the server's old space before adding it to the new one,
+      // losing its history and shares: synced spaces are reorganised on the server, and the app follows.
+      if (isSyncedSpace(db, from) || isSyncedSpace(db, to)) throw new HttpError(409, "space_move_synced", t("error.moveSpaceSynced"));
+    }
     if (input.parentId) {
       const { page: parent, chain } = requirePageRole(db, user.id, input.parentId, "editor");
-      if (parent.workspaceId !== page.workspaceId) throw notFound();
+      if (parent.workspaceId !== to) throw notFound();
       if (parent.kind === "database") throw new HttpError(400, "database_parent", t("error.moveIntoDatabase"));
       if (chain.some((c) => c.id === page.id)) {
         throw new HttpError(400, "cycle", t("error.moveCycle"));
       }
-    } else {
+    } else if (!crossing) {
       requireWorkspaceRole(db, user.id, page.workspaceId, CAN_CREATE_ROOT_PAGES);
     }
+    const ids = crossing ? subtreeIds(db, page.id) : [];
     db.transaction((tx) => {
+      if (crossing) moveSubtreeToSpace(tx, ids, from, to);
       tx.update(pages).set({ parentId: input.parentId }).where(eq(pages.id, page.id)).run();
       const moved = getPageMeta(tx, page.id)!;
       placeAmongSiblings(tx, moved, input.index);
@@ -336,7 +354,9 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
       if (page.parentId) await unlinkChildPage(app.collab, db, page.parentId, page.id);
       if (input.parentId && !hasLinkLine(app.collab, db, input.parentId, page.id)) await linkChildPage(app.collab, db, input.parentId, page);
     }
-    return { page: toSummary(getPageMeta(db, page.id)!) };
+    // Open editors are checked again: members of the old space who lost access are cut off.
+    if (crossing) app.collab.revalidateAll();
+    return { page: toSummary(getPageMeta(db, page.id)!), moved: crossing ? ids.length : 0 };
   });
 
   // Moves the page (and its subpages) to the trash.

@@ -20,6 +20,9 @@ import {
   applyView,
   viewFilterSchema,
   viewSortSchema,
+  hasOptions,
+  isSingleOption,
+  normalizeOptions,
 } from "@nootion/shared";
 import { and, eq, inArray, isNull, max } from "drizzle-orm";
 import { databaseProperties, databaseViews, pages } from "../db/schema.js";
@@ -33,6 +36,7 @@ import { parseMarkdown } from "../markdown-in.js";
 import {
   collectPeople,
   convertColumn,
+  assignUniqueIds,
   createDatabase,
   defaultConfig,
   checkFormula,
@@ -101,7 +105,7 @@ function valuesByIds(properties: DatabaseProperty[], values: Record<string, unkn
     }
     const option = (v: unknown) =>
       typeof v === "string" ? (prop.config.options?.find((o) => o.id === v) ?? prop.config.options?.find((o) => o.name.toLowerCase() === v.toLowerCase()))?.id ?? v : v;
-    out[prop.id] = prop.type === "select" ? option(value) : prop.type === "multi_select" && Array.isArray(value) ? value.map(option) : value;
+    out[prop.id] = isSingleOption(prop.type) ? option(value) : prop.type === "multi_select" && Array.isArray(value) ? value.map(option) : value;
   }
   return out;
 }
@@ -129,7 +133,8 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
   /** A row as the client shows it, with the relation titles it references. */
   const rowResponse = (userId: string, databaseId: string, rowId: string) => {
     const properties = listProperties(db, databaseId);
-    const row = toRow(listRowPages(db, databaseId).find((r) => r.id === rowId)!, properties);
+    // Read on its own: listRowPages leaves out row templates, which are edited like rows.
+    const row = toRow(db.select().from(pages).where(eq(pages.id, rowId)).get()!, properties);
     const { related } = enrichRows(db, properties, [row], canReadAs(db, userId));
     return { row, related };
   };
@@ -168,6 +173,8 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
       userId: user.id,
     });
     const { page, role } = requireDatabase(db, user.id, id, "viewer");
+    // Rows added another way (synced from a device, moved in…) get their number when the database is read.
+    assignUniqueIds(db, page.id);
     return { database: loadDatabase(db, page, role, canReadAs(db, user.id)) };
   });
 
@@ -222,6 +229,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
       ...input.config,
     };
     delete config.twinPropertyId;
+    if (config.options) config.options = normalizeOptions(input.type, config.options);
     let twin: { databaseId: string; id: string } | null = null;
     if (input.type === "relation") {
       if (!config.databaseId) throw new HttpError(400, "relation_target", t("error.relationTarget"));
@@ -269,6 +277,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
           .run();
       }
     });
+    if (input.type === "unique_id") assignUniqueIds(db, req.params.id);
     return {
       property: listProperties(db, req.params.id).find((p) => p.id === id),
     };
@@ -326,22 +335,22 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
         });
         rows.forEach((r, i) => {
           const props = { ...(r.props ?? {}) } as Record<string, CellValue>;
-          if (values[i] === null || ["created_time", "last_edited_time", "created_by"].includes(target)) delete props[prop.id];
+          if (values[i] === null || ["created_time", "last_edited_time", "created_by", "last_edited_by", "unique_id"].includes(target)) delete props[prop.id];
           else props[prop.id] = values[i];
           tx.update(pages).set({ props }).where(eq(pages.id, r.id)).run();
         });
         set.type = target;
         set.config = config;
       } else if (input.config) {
-        set.config = input.config;
+        set.config = input.config.options ? { ...input.config, options: normalizeOptions(prop.type, input.config.options) } : input.config;
         // Removing select options clears the cells that used them.
-        if ((prop.type === "select" || prop.type === "multi_select") && input.config.options) {
+        if (hasOptions(prop.type) && input.config.options) {
           const kept = new Set(input.config.options.map((o) => o.id));
           for (const r of rows) {
             const props = { ...(r.props ?? {}) } as Record<string, CellValue>;
             const v = props[prop.id];
             if (v == null) continue;
-            const next = prop.type === "select" ? (kept.has(v as string) ? v : null) : (v as string[]).filter((x) => kept.has(x));
+            const next = isSingleOption(prop.type) ? (kept.has(v as string) ? v : null) : (v as string[]).filter((x) => kept.has(x));
             if (JSON.stringify(next) === JSON.stringify(v)) continue;
             if (next === null || (Array.isArray(next) && next.length === 0)) delete props[prop.id];
             else props[prop.id] = next;
@@ -351,6 +360,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
       }
       if (Object.keys(set).length) tx.update(databaseProperties).set(set).where(eq(databaseProperties.id, prop.id)).run();
     });
+    if (input.type === "unique_id") assignUniqueIds(db, req.params.id);
     return {
       property: listProperties(db, req.params.id).find((p) => p.id === prop.id),
     };
@@ -450,6 +460,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
       for (const p of properties) if (p.type === "relation" && values[p.id]) syncTwin(tx, p, id, [], values[p.id] as string[]);
     });
     if (input.after !== undefined) db.transaction((tx) => placeRow(tx, database.id, id, input.after ?? null));
+    assignUniqueIds(db, database.id);
     // The row's page content, given at once through the API.
     const markdown = (req.body as { markdown?: unknown } | null)?.markdown;
     if (typeof markdown === "string" && markdown.trim()) {
@@ -525,6 +536,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
         .set({
           props,
           updatedAt: new Date(),
+          updatedBy: user.id,
           ...(newTitle !== undefined ? { title: newTitle } : {}),
         })
         .where(eq(pages.id, req.params.rowId))
@@ -555,10 +567,17 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     });
     db.transaction((tx) => {
       const props = (tx.select({ props: pages.props }).from(pages).where(eq(pages.id, id)).get()?.props ?? {}) as Record<string, CellValue>;
+      // The copy gets a number of its own.
+      const ids = properties.filter((p) => p.type === "unique_id" && p.id in props);
+      if (ids.length) {
+        for (const p of ids) delete props[p.id];
+        tx.update(pages).set({ props }).where(eq(pages.id, id)).run();
+      }
       // Two-way relations: the linked rows point to the copy too.
       for (const p of properties) if (p.type === "relation" && Array.isArray(props[p.id]) && (props[p.id] as string[]).length) syncTwin(tx, p, id, [], props[p.id] as string[]);
       placeRow(tx, database.id, id, req.params.rowId);
     });
+    assignUniqueIds(db, database.id);
     if (!fromAutomation(req)) {
       const after = rowSnapshot(db, database.id, id);
       if (after) await app.automations.rowChanged({ databaseId: database.id, rowId: id, before: null, after });
@@ -695,6 +714,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
         for (const p of properties) if (p.type === "relation" && values[p.id]) syncTwin(tx, p, id, [], values[p.id] as string[]);
       }
     });
+    assignUniqueIds(db, database.id);
     return { imported: plan.rows.length, createdColumns: plan.newColumns.map((c) => c.name), ignoredColumns: plan.ignored };
   });
 };

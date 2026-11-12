@@ -25,7 +25,7 @@ import { OptionChip, OptionPicker } from "./OptionPicker";
 import { Popover } from "./Popover";
 import { ButtonAction } from "../buttons/ButtonAction";
 import { pluginCell } from "../plugins/PluginCell";
-import { linkHref, t } from "@nootion/shared";
+import { linkHref, phoneHref, t, uniqueIdText } from "@nootion/shared";
 import { pageIcon } from "../lib/icons";
 
 export interface CellProps {
@@ -95,7 +95,7 @@ export function Cell(props: CellProps) {
   }
 
   // A plugin column whose plugin is off is edited as a plain text.
-  const inline = ["title", "text", "number", "currency", "percent", "url", "email", "plugin"].includes(prop.type);
+  const inline = ["title", "text", "number", "currency", "percent", "url", "email", "phone", "plugin"].includes(prop.type);
   return (
     <div
       ref={ref}
@@ -121,6 +121,19 @@ export function Cell(props: CellProps) {
   );
 }
 
+/** A percentage as a bar (0 to 100 %, beyond is shown full), with its value after it. */
+function ProgressBar({ value, label }: { value: number; label: string }) {
+  const width = Math.max(0, Math.min(100, value));
+  return (
+    <div className="flex items-center gap-2" role="meter" aria-valuemin={0} aria-valuemax={100} aria-valuenow={value} aria-label={label}>
+      <div className="h-1.5 min-w-10 flex-1 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-700">
+        <div className={`h-full rounded-full ${width >= 100 ? "bg-green-500" : "bg-blue-500"}`} style={{ width: `${width}%` }} />
+      </div>
+      <span className="shrink-0 text-xs tabular-nums text-neutral-500">{label}</span>
+    </div>
+  );
+}
+
 function Display(props: CellProps) {
   const { prop, value, people, variant, fileUrl = (id) => `/api/attachments/${id}`, related = {}, rowHref = (id) => `/page/${id}` } = props;
   const wrap = variant === "panel" ? "flex flex-wrap gap-1" : "flex gap-1 overflow-hidden whitespace-nowrap";
@@ -130,10 +143,24 @@ function Display(props: CellProps) {
       return <span className="font-medium">{String(value)}</span>;
     case "checkbox":
       return <span>{value ? "☑" : "☐"}</span>;
+    case "percent":
+      if (prop.config.showAs === "bar") return <ProgressBar value={value as number} label={formatNumber(value as number, prop)} />;
+      return <div className={`tabular-nums ${variant === "panel" ? "" : "text-right"}`}>{formatNumber(value as number, prop)}</div>;
     case "number":
     case "currency":
-    case "percent":
       return <div className={`tabular-nums ${variant === "panel" ? "" : "text-right"}`}>{formatNumber(value as number, prop)}</div>;
+    case "unique_id":
+      return <span className="tabular-nums text-neutral-500">{uniqueIdText(prop, value)}</span>;
+    case "phone": {
+      const href = phoneHref(String(value));
+      return href ? (
+        <a href={href} onClick={(e) => e.stopPropagation()} className="truncate text-blue-600 underline dark:text-blue-400">
+          {String(value)}
+        </a>
+      ) : (
+        <span className="truncate">{String(value)}</span>
+      );
+    }
     case "date":
       return <span>{formatDate(value as DateValue)}</span>;
     case "created_time":
@@ -154,9 +181,10 @@ function Display(props: CellProps) {
           {String(value)}
         </a>
       );
-    case "select": {
+    case "select":
+    case "status": {
       const o = prop.config.options?.find((x) => x.id === value);
-      return o ? <OptionChip option={o} /> : null;
+      return o ? <OptionChip option={o} status={prop.type === "status"} /> : null;
     }
     case "multi_select":
       return (
@@ -169,6 +197,7 @@ function Display(props: CellProps) {
       );
     case "person":
     case "created_by":
+    case "last_edited_by":
       return (
         <div className={wrap}>
           {(value as string[]).map((id) => (
@@ -278,7 +307,7 @@ function InlineEditor({ prop, value, onChange, onDone }: CellProps & { onDone: (
   return (
     <input
       ref={input}
-      type={prop.type === "email" ? "email" : "text"}
+      type={prop.type === "email" ? "email" : prop.type === "phone" ? "tel" : "text"}
       inputMode={isNumber ? "decimal" : undefined}
       value={text}
       onChange={(e) => {
@@ -302,7 +331,7 @@ function InlineEditor({ prop, value, onChange, onDone }: CellProps & { onDone: (
 
 function PopupEditor(props: CellProps) {
   const { prop, value, onChange, onCreateOption } = props;
-  if (prop.type === "select" || prop.type === "multi_select") {
+  if (prop.type === "select" || prop.type === "multi_select" || prop.type === "status") {
     const multi = prop.type === "multi_select";
     const selected = value === null || value === undefined ? [] : multi ? (value as string[]) : [value as string];
     return (
