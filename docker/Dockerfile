@@ -3,8 +3,9 @@
 
 FROM node:26-bookworm-slim AS build
 WORKDIR /src
-RUN corepack enable
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.base.json ./
+# Node 25+ no longer ships corepack: pnpm is installed with npm, at the version package.json names.
+RUN npm install -g "$(node -p "require('./package.json').packageManager")"
 COPY apps/server/package.json apps/server/
 COPY apps/web/package.json apps/web/
 COPY packages/shared/package.json packages/shared/
