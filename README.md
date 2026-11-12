@@ -3,7 +3,7 @@
 **An open-source, self-hosted alternative to Notion, Capacities and Docmost**: pages, wikis and real databases,
 on your own server, in a single Docker container.
 
-> Version 3.4.0. See [CHANGELOG.md](CHANGELOG.md) for what changed and [PLAN.md](PLAN.md) for what comes next.
+> Version 3.6.0. See [CHANGELOG.md](CHANGELOG.md) for what changed and [PLAN.md](PLAN.md) for what comes next.
 
 ![A Nootion page with its sidebar, a callout, a table of contents and formatted text](docs/screenshots/editor.png)
 
@@ -19,13 +19,15 @@ the freedom of an open-source app you host yourself, and the databases that make
   groups and calculations, table, board, list, gallery, calendar and timeline views, embedded in any page. Enough to run invoices, projects,
   a reading list or a CRM.
 - **Leave Notion without losing anything.** The Notion import brings pages, databases, relations, rollups,
-  formulas, files and links between pages, and can run again to fetch what changed.
+  formulas, status columns, files and links between pages, and can run again to fetch what changed. Then sort the
+  pages into private and shared spaces by dragging them in the sidebar.
 - **Write together.** Real-time collaborative editing, comments and @mentions, shared spaces with roles, page
   sharing and read-only public links, with every access checked on the server.
 - **Let it run by itself.** Database automations, recurring templates, buttons, and automatic backups to a NAS or
   Nextcloud.
-- **On the phone, even offline.** Installs as an app on phones and computers; pages already opened stay readable
-  and editable offline and sync when the connection comes back, merged with others' changes.
+- **On the phone and the desktop, even offline.** Installs as an app on phones; a desktop app for Windows, macOS and
+  Linux keeps whole spaces on the computer. Pages stay readable and editable offline and sync when the connection
+  comes back, merged with others' changes.
 - **Yours to extend.** Plugins add editor blocks, database column types, API routes, scheduled tasks and formula
   functions.
 - **Open for good.** Licensed under the AGPL-3.0: the code, and the code of any hosted version of it, stays open.
@@ -38,11 +40,13 @@ The interface is available in English and French; each user picks their language
 | | |
 | --- | --- |
 | ![The Projects database as a table, with status, priority, date range and owner columns](docs/screenshots/database-table.png) | ![The same database as a board grouped by status](docs/screenshots/database-board.png) |
-| **Databases**: one database, many views (table, board, calendar, timeline, gallery, list). | **Board** view, grouped by any select column. |
+| **Databases**: one database, many views (table, board, calendar, timeline, gallery, list). | **Board** view, grouped by any select or status column. |
 | ![The database as a monthly calendar, with multi-day entries shown as bars](docs/screenshots/database-calendar.png) | ![Clock, weather, donut and bar charts and progress bars widgets](docs/screenshots/widgets.png) |
 | **Calendar** with date ranges and times. | **Widgets** for dashboards: charts, progress, weather, clock and more. |
-| ![The demo page in dark mode](docs/screenshots/dark.png) | |
-| **Dark mode**, following the system or picked by hand. | |
+| ![A table view with an ID column (PRJ-1…), a status column, progress bars and phone numbers](docs/screenshots/database-columns.png) | ![The options of a status column, sorted into To do, In progress and Done](docs/screenshots/status-options.png) |
+| **Column types** for tracking: IDs, progress bars, phone numbers, last edited by and more. | **Status** columns, as in Notion: options sorted into To do, In progress and Done. |
+| ![Dragging a draft from the personal space to a shared space asks who will see it](docs/screenshots/move-between-spaces.png) | ![The demo page in dark mode](docs/screenshots/dark.png) |
+| **Move pages between spaces**: write a draft privately, then share it by dragging it into a shared space. | **Dark mode**, following the system or picked by hand. |
 
 These come from "Discover Nootion", the demo page every new user gets.
 
@@ -70,6 +74,8 @@ offline use and the Notion import.
   turn it off for someone who lost their phone.
 - Invitations by link (valid 7 days, optionally restricted to one email), admin / member roles, account disabling.
 - A private personal space for each user, and shared spaces with roles (owner, editor, commenter, viewer).
+- Pages move between spaces with their subpages (drag and drop in the sidebar, or "Move to…"): write a draft in
+  your personal space, then share it by moving it into a shared space.
 - Single sign-on with Microsoft Entra ID, Google, Okta, Keycloak or any OpenID Connect provider, and SCIM so that
   people who leave the company are disabled automatically. See [docs/SSO.md](docs/SSO.md).
 - "My account" page: name, email, password, profile picture, language, light / dark / system theme, imports, emptying a space and deleting the account with its data.
@@ -98,8 +104,9 @@ offline use and the Notion import.
 
 ### Databases
 
-- Databases: typed columns (text, number, currency amount, percent, date, select, multi-select, checkbox, link,
-  email, person, files, created time, last edited time, created by), table view (column order, width and visibility),
+- Databases: typed columns (text, number, currency amount, percent (optionally as a progress bar), date, select,
+  multi-select, status (options in To do / In progress / Done), checkbox, link, email, phone, person, files, ID
+  (numbered rows with an optional prefix), created time, last edited time, created by, last edited by), table view (column order, width and visibility),
   each row opens as a page with its properties. Rows have Notion's menu (right click or ⋮⋮: favorite, icon, open,
   copy link, duplicate, trash), a "+" to add one just below, and can be dragged to reorder them. A database can be
   a page of its own or embedded in a page
@@ -167,8 +174,9 @@ offline use and the Notion import.
 
 ### Import, export and backups
 
-- Import from Notion through its API: pages, databases with their columns, relations, rollups and formulas, files
-  and links between pages, with a report of what was imported differently. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#importing-from-notion).
+- Import from Notion through its API: pages, databases with their columns (status, IDs and phone numbers included),
+  relations, rollups and formulas, files and links between pages, with a report of what was imported differently.
+  Imported pages can then be moved to other spaces; importing again keeps updating them there. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#importing-from-notion).
 - Export a page or a space as Markdown (.zip: subpages, attached files, databases as CSV and JSON),
   export a database as CSV (or CSV for Excel) and JSON with computed formulas, import a CSV into a database
   (columns and options created as needed), full backup downloadable by the admin, and automatic backups every
