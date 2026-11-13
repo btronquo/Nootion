@@ -168,7 +168,7 @@ function PageView({ page }: { page: PageDetail }) {
             // On phones, only the parent page is shown, as a way back.
             <span key={b.id} className={`min-w-0 items-center gap-1 ${b === page.breadcrumb[page.breadcrumb.length - 1] ? "flex" : "hidden md:flex"}`}>
               <Link to={`/page/${b.id}`} className="truncate rounded px-1 hover:bg-neutral-100 dark:hover:bg-neutral-800">
-                {b.icon} {pageTitle(b.title)}
+                {pageIcon(b.icon)} {pageTitle(b.title)}
               </Link>
               <ChevronRight size={14} className="shrink-0" />
             </span>
