@@ -119,6 +119,8 @@ describe("Notion import", () => {
     expect(JSON.stringify(toggles[1])).toContain("Under the heading");
     const columns = doc.content!.find((n) => n.type === "columns")!;
     expect(columns.content!.map((c) => c.content![0]!.content![0]!.text)).toEqual(["Left", "Right"]);
+    // Their widths, as resized in Notion.
+    expect(columns.content!.map((c) => c.attrs?.width)).toEqual([0.3, 0.7]);
     expect(json).toContain("https://example.org/doc.pdf");
     // Callouts keep every block inside; one without an icon stays without one.
     const callouts = doc.content!.filter((n) => n.type === "callout");

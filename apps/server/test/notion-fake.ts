@@ -238,8 +238,8 @@ export function fakeNotion() {
     { ...block(IDS.notes, "child_page", { title: "Notes" }), has_children: true },
     { ...block(IDS.tasks, "child_database", { title: "Tasks" }), has_children: true },
     block("b13", "column_list", {}, [
-      block("c1", "column", {}, [block("c1p", "paragraph", { rich_text: [rt("Left")] })]),
-      block("c2", "column", {}, [block("c2p", "paragraph", { rich_text: [rt("Right")] })]),
+      block("c1", "column", { width_ratio: 0.3 }, [block("c1p", "paragraph", { rich_text: [rt("Left")] })]),
+      block("c2", "column", { width_ratio: 0.7 }, [block("c2p", "paragraph", { rich_text: [rt("Right")] })]),
     ]),
     block("b14", "table_of_contents", {}),
     block("b15", "file", { type: "external", external: { url: "https://example.org/doc.pdf" }, name: "doc.pdf" }),

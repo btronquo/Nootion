@@ -289,7 +289,9 @@ async function convertBlock(block: BlockTree, ctx: ConvertContext): Promise<Pros
     }
     case "column": {
       const nested = await children();
-      return [{ type: "column", content: nested.length ? nested : [paragraph()] }];
+      // Its width in the row, when it was resized in Notion: a share of the row (0 to 1).
+      const ratio = typeof data.width_ratio === "number" && data.width_ratio > 0 && data.width_ratio <= 1 ? data.width_ratio : null;
+      return [{ type: "column", ...(ratio ? { attrs: { width: Math.round(ratio * 10_000) / 10_000 } } : {}), content: nested.length ? nested : [paragraph()] }];
     }
     case "synced_block":
     case "template":

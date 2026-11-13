@@ -284,7 +284,7 @@ body {
   display: none;
 }
 .nootion-content .columns {
-  @apply my-2 grid gap-6;
+  @apply my-2 grid gap-10;
   grid-auto-columns: minmax(0, 1fr);
   grid-auto-flow: column;
 }
@@ -292,7 +292,30 @@ body {
   .nootion-content .columns {
     @apply gap-2;
     grid-auto-flow: row;
+    /* The widths chosen on a wide screen don't apply when the columns are one under the other. */
+    grid-template-columns: none !important;
   }
+}
+/* The bar between two columns that resizes them (columnResize.ts): a thin line in the middle of the gap. */
+.nt-column-resize {
+  position: fixed;
+  z-index: 40;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.nt-column-resize::after {
+  content: "";
+  @apply absolute inset-y-0 left-[3px] w-0.5 rounded-full bg-neutral-300 transition-colors dark:bg-neutral-600;
+}
+.nt-column-resize:hover::after,
+.nt-column-resize.is-active::after {
+  @apply bg-blue-500;
+}
+body.nt-resizing-columns,
+body.nt-resizing-columns * {
+  cursor: col-resize !important;
+  user-select: none !important;
 }
 .nootion-content .column > :first-child {
   @apply mt-0;

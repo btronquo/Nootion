@@ -27,6 +27,7 @@ import {
 import { pluginNodes } from "../plugins/nodes";
 import { BlockAttributes } from "./blockAttrs";
 import { HandleTargets } from "./handleTargets";
+import { ColumnResize } from "./columnResize";
 import { LinkClicks } from "./linkClicks";
 import { ImageViewer } from "./imageViewer";
 import { RepeatingTaskItem, TaskRepeatExtension } from "./taskRepeat";
@@ -78,6 +79,7 @@ export function baseExtensions(opts: {
     ...pluginNodes(opts.plugins, opts.publicToken ? null : (opts.pageId ?? null)),
     BlockAttributes,
     HandleTargets,
+    ColumnResize,
     // The read-only views keep the links' own behaviour (openOnClick above).
     ...(opts.collaborative ? [LinkClicks.configure({ navigate: opts.navigate ?? null })] : []),
     Placeholder.configure({

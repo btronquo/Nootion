@@ -10,6 +10,7 @@ import { ButtonBlockView } from "./ButtonBlockView";
 import { DrawingBlockView } from "./DrawingBlockView";
 import { VideoBlockView } from "./VideoBlockView";
 import { TableOfContentsView } from "./TableOfContentsView";
+import { columnsTemplate, validWidth } from "./columnResize";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { DatabaseRowsView, FavoritesListView, RecentPagesView, UpcomingEventsView } from "./HomeWidgets";
 import { ChartView } from "./widgets/Chart";
@@ -476,8 +477,36 @@ export const Columns = Node.create({
   parseHTML() {
     return [{ tag: "div[data-columns]" }];
   },
-  renderHTML({ HTMLAttributes }) {
-    return ["div", mergeAttributes(HTMLAttributes, { "data-columns": "", class: "columns" }), 0];
+  renderHTML({ node, HTMLAttributes }) {
+    const template = columnsTemplate(node);
+    return [
+      "div",
+      mergeAttributes(HTMLAttributes, { "data-columns": "", class: "columns" }, template ? { style: `grid-template-columns: ${template}` } : {}),
+      0,
+    ];
+  },
+  addNodeView() {
+    // The widths are kept on the columns; their parent lays them out, so it follows each change of its content. A
+    // column being resized gets its new width here straight away, without the editor reading the page back.
+    return ({ node, HTMLAttributes }) => {
+      let current = node;
+      const dom = document.createElement("div");
+      for (const [name, value] of Object.entries(mergeAttributes(HTMLAttributes, { "data-columns": "", class: "columns" })))
+        if (value !== null && value !== undefined && value !== false) dom.setAttribute(name, String(value));
+      const apply = () => (dom.style.gridTemplateColumns = columnsTemplate(current) ?? "");
+      apply();
+      return {
+        dom,
+        contentDOM: dom,
+        update(next) {
+          if (next.type !== current.type || !next.sameMarkup(current)) return false;
+          current = next;
+          apply();
+          return true;
+        },
+        ignoreMutation: (m) => m.type === "attributes" && m.target === dom && m.attributeName === "style",
+      };
+    };
   },
   addCommands() {
     return {
@@ -539,6 +568,16 @@ export const Column = Node.create({
   content: "block+",
   isolating: true,
   defining: true,
+  addAttributes() {
+    return {
+      // Share of the row's width (0 to 1), as Notion's width_ratio; none: an equal share.
+      width: {
+        default: null,
+        parseHTML: (el) => validWidth(el.getAttribute("data-width")),
+        renderHTML: (attrs) => (validWidth(attrs.width) ? { "data-width": String(attrs.width) } : {}),
+      },
+    };
+  },
   parseHTML() {
     return [{ tag: "div[data-column]" }];
   },
