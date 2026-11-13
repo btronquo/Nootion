@@ -238,6 +238,8 @@ export interface ViewConfig {
   timelineScale?: "day" | "week" | "month";
   /** Gallery: shows the row's cover or first image at the top of its card (default true). */
   showPreview?: boolean;
+  /** Gallery: how wide the cards are (default medium); there are as many in a row as fit. */
+  cardSize?: "small" | "medium" | "large";
 }
 
 export const viewConfigSchema = z
@@ -256,6 +258,7 @@ export const viewConfigSchema = z
     calendarMode: z.enum(["month", "week"]).optional(),
     timelineScale: z.enum(["day", "week", "month"]).optional(),
     showPreview: z.boolean().optional(),
+    cardSize: z.enum(["small", "medium", "large"]).optional(),
   })
   .passthrough();
 

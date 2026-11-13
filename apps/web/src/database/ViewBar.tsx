@@ -269,6 +269,28 @@ export function ViewBar({
               {t("view.showPreview")}
             </label>
           )}
+          {view.type === "gallery" && (
+            <div className="px-2 py-1.5">
+              <div className="mb-1 text-xs text-neutral-500">{t("view.cardSize")}</div>
+              <div className="flex rounded-md border border-neutral-200 p-0.5 dark:border-neutral-700" role="radiogroup" aria-label={t("view.cardSize")}>
+                {(["small", "medium", "large"] as const).map((size) => (
+                  <button
+                    key={size}
+                    role="radio"
+                    aria-checked={(config.cardSize ?? "medium") === size}
+                    onClick={() => save({ cardSize: size })}
+                    className={`flex-1 rounded px-2 py-1 text-xs ${
+                      (config.cardSize ?? "medium") === size
+                        ? "bg-neutral-100 font-medium text-neutral-900 dark:bg-neutral-700 dark:text-neutral-100"
+                        : "text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                    }`}
+                  >
+                    {t(size === "small" ? "view.cardSmall" : size === "medium" ? "view.cardMedium" : "view.cardLarge")}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="px-2 py-1 text-xs text-neutral-500">{t("view.shownProperties")}</div>
           <div className="max-h-80 overflow-y-auto">
             {orderedColumns(data.properties, config.columns)

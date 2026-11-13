@@ -5,6 +5,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+
+- Resizable columns: a bar shows in the gap between two columns side by side; drag it to share the width between
+  them, double-click it to give every column of the row the same width again. Widths are kept with the page, shared
+  with everyone editing it, and ignored on a phone, where columns are one under the other. Columns are a little
+  further apart, for the bar. The import from other tools keeps the widths of resized columns.
+- Gallery cards size: small, medium or large (in "Properties"). There are as many cards in a row as fit in the width
+  of the database, so a gallery in a narrow column shows fewer, smaller cards.
+
+### Changed
+
+- The gallery looks closer to what other tools show: wider covers, titles on up to two lines, softer cards, and a
+  "New page" card as tall as the others at the end.
+
 ## [3.6.0] - 2026-11-12
 
 ### Added
