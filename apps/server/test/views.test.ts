@@ -1,5 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { applyView, calendarDateProp, daysBetween, groupRows, initialValues, moveToGroup, rowDays, shiftDate, type DatabaseProperty, type DatabaseRow, type ViewContext } from "@nootion/shared";
+import {
+  applyView,
+  calendarDateProp,
+  daysBetween,
+  formatRelativePeriod,
+  parseRelativePeriod,
+  relativePeriodBounds,
+  groupRows,
+  initialValues,
+  moveToGroup,
+  rowDays,
+  shiftDate,
+  type DatabaseProperty,
+  type DatabaseRow,
+  type ViewContext,
+} from "@nootion/shared";
 import { setLocaleResolver } from "@nootion/shared";
 
 // These tests check French messages and formats.
@@ -86,6 +101,48 @@ describe("filters, sorts and groups", () => {
     expect(applyView(ctx, { filters: [{ propertyId: "gone", operator: "is_empty" }] })).toHaveLength(4);
     // An operator that doesn't fit the column (after a type change) is ignored.
     expect(applyView(ctx, { filters: [{ propertyId: "paid", operator: "gt", value: 1 }] })).toHaveLength(4);
+  });
+
+  it("filters dates between two days, in either order, relative dates included", () => {
+    const between = (value: string) => titles(applyView(ctx, { filters: [{ propertyId: "due", operator: "between", value }] }, now));
+    expect(between("2026-10-01/2026-10-30")).toEqual(["EDF", "Assurance"]);
+    expect(between("2026-10-30/2026-10-01")).toEqual(["EDF", "Assurance"]);
+    expect(between("today/one_week_from_now")).toEqual(["Free", "Assurance"]);
+    // A range without its end is not applied yet.
+    expect(applyView(ctx, { filters: [{ propertyId: "due", operator: "between", value: "2026-10-01/" }] }, now)).toHaveLength(4);
+  });
+
+  it("filters dates relative to today: this week, this month, the past or next days", () => {
+    const within = (value: string) => titles(applyView(ctx, { filters: [{ propertyId: "due", operator: "within", value }] }, now));
+    // Thursday 29 October 2026: the week runs from Monday 26 to Sunday 1 November.
+    expect(within("this:week")).toEqual(["Assurance"]);
+    expect(within("this:month")).toEqual(["EDF", "Assurance"]);
+    expect(within("this:year")).toEqual(["EDF", "Free", "Assurance"]);
+    expect(within("next:7:day")).toEqual(["Free", "Assurance"]);
+    expect(within("past:1:month")).toEqual(["EDF"]);
+    expect(within("past_month")).toEqual(["EDF"]);
+    expect(applyView(ctx, { filters: [{ propertyId: "due", operator: "within", value: "soon" }] }, now)).toHaveLength(4);
+    expect(relativePeriodBounds("this:week", new Date(2026, 10, 1))).toEqual(["2026-10-26", "2026-11-01"]);
+    expect(relativePeriodBounds("this:month", new Date(2026, 1, 10))).toEqual(["2026-02-01", "2026-02-28"]);
+    expect(parseRelativePeriod("next_week")).toEqual({ direction: "next", count: 1, unit: "week" });
+    expect(formatRelativePeriod({ direction: "past", count: 3, unit: "day" })).toBe("past:3:day");
+    expect(formatRelativePeriod({ direction: "this", count: 3, unit: "month" })).toBe("this:month");
+  });
+
+  it("applies simple filters on top of the advanced filter", () => {
+    const config = {
+      simpleFilters: [{ propertyId: "due", operator: "within" as const, value: "this:month" }],
+      filters: [
+        { propertyId: "status", operator: "is" as const, value: "s2" },
+        { propertyId: "amount", operator: "lt" as const, value: 50 },
+      ],
+      filterMode: "or" as const,
+    };
+    expect(titles(applyView(ctx, config, now))).toEqual(["EDF"]);
+    expect(titles(applyView(ctx, { simpleFilters: config.simpleFilters }, now))).toEqual(["EDF", "Assurance"]);
+    // New rows take the values of simple "is" filters, even when the advanced filter uses "or".
+    const withStatus = { ...config, simpleFilters: [{ propertyId: "status", operator: "is" as const, value: "s1" }] };
+    expect(initialValues(ctx, withStatus)).toEqual({ status: "s1" });
   });
 
   it("sorts on several columns, empty values last", () => {

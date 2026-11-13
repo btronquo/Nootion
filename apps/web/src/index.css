@@ -47,7 +47,13 @@ body {
 @keyframes nt-pop-in {
   from {
     opacity: 0;
-    transform: translateY(-4px) scale(0.98);
+    transform: translateY(-6px) scale(0.97);
+  }
+}
+@keyframes nt-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(var(--nt-slide, 8px));
   }
 }
 .nt-backdrop {
@@ -57,7 +63,12 @@ body {
   animation: nt-rise-in 220ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 .nt-pop {
-  animation: nt-pop-in 140ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  transform-origin: top left;
+  animation: nt-pop-in 180ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+/* A calendar month that slides in from the side it comes from. */
+.nt-slide {
+  animation: nt-slide-in 200ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 .nt-backdrop[data-closing] {
   animation: nt-fade-out 140ms ease-in forwards;
@@ -69,6 +80,7 @@ body {
   .nt-backdrop,
   .nt-dialog,
   .nt-pop,
+  .nt-slide,
   .nt-backdrop[data-closing],
   [data-closing] .nt-dialog {
     animation: none;

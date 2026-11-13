@@ -49,6 +49,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   (not only the first batch) and only the view shown, rows and blocks are not cut across two sheets, and the address
   of links is written after them. A new sheet can start before each heading 1, or each heading 1 and 2. The PDF is
   made by the browser ("Save as PDF" printer), so nothing more runs on the server.
+- Date range filters: "is between" picks a first and a last day on a calendar, and "is relative to today" follows
+  the current date (this week, this month, this year, the past 7 days, the next 2 months…). "Is", "is before",
+  "is after"… also show a calendar.
+- Simpler filters: "+ Filter" opens a searchable list of columns and adds a chip above the rows (Date: This week,
+  Amount: > 100…). Click a chip to change its condition and value, in a small panel that opens smoothly. Chips all
+  apply together; rules combined with "and" / "or" live in the advanced filter, at the bottom of the same list.
+  Filters made by earlier versions show up as the advanced filter.
 
 ### Changed
 

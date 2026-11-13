@@ -46,6 +46,7 @@ export const FILTER_OPERATORS = [
   "after",
   "on_or_before",
   "on_or_after",
+  "between",
   "within",
   "checked",
   "unchecked",
@@ -56,8 +57,51 @@ export type FilterOperator = (typeof FILTER_OPERATORS)[number];
 
 /** Relative dates a date filter can compare to (or an exact YYYY-MM-DD date). */
 export const RELATIVE_DATES = ["today", "tomorrow", "yesterday", "one_week_ago", "one_week_from_now", "one_month_ago", "one_month_from_now"] as const;
-/** Periods of the "within" date operator. */
+/** Periods of the "within" date operator, as saved by older versions (still understood). */
 export const DATE_PERIODS = ["past_week", "past_month", "past_year", "next_week", "next_month", "next_year"] as const;
+
+/**
+ * "Is relative to today" (operator "within"): a period that moves with the current date.
+ * Saved as "this:<unit>" (the current calendar week, month…), "past:<n>:<unit>" or "next:<n>:<unit>".
+ */
+export const RELATIVE_DIRECTIONS = ["this", "past", "next"] as const;
+export const RELATIVE_UNITS = ["day", "week", "month", "year"] as const;
+export type RelativeDirection = (typeof RELATIVE_DIRECTIONS)[number];
+export type RelativeUnit = (typeof RELATIVE_UNITS)[number];
+export interface RelativePeriod {
+  direction: RelativeDirection;
+  count: number;
+  unit: RelativeUnit;
+}
+
+/** Reads a "within" value, old periods ("past_week") included. */
+export function parseRelativePeriod(value: unknown): RelativePeriod | null {
+  if (typeof value !== "string") return null;
+  const legacy = /^(past|next)_(week|month|year)$/.exec(value);
+  if (legacy) return { direction: legacy[1] as RelativeDirection, count: 1, unit: legacy[2] as RelativeUnit };
+  const m = /^(this|past|next):(?:(\d{1,4}):)?(day|week|month|year)$/.exec(value);
+  if (!m) return null;
+  const direction = m[1] as RelativeDirection;
+  const count = direction === "this" ? 1 : Number(m[2] ?? 1);
+  if (!count) return null;
+  return { direction, count, unit: m[3] as RelativeUnit };
+}
+
+export function formatRelativePeriod(p: RelativePeriod): string {
+  return p.direction === "this" ? `this:${p.unit}` : `${p.direction}:${Math.max(1, Math.round(p.count))}:${p.unit}`;
+}
+
+/** "Is between": both ends of the range, "YYYY-MM-DD/YYYY-MM-DD" (relative dates allowed too). */
+export function parseDateRange(value: unknown): [string, string] | null {
+  if (typeof value !== "string") return null;
+  const parts = value.split("/");
+  if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
+  return [parts[0], parts[1]];
+}
+
+export function formatDateRange(start: string, end: string): string {
+  return start <= end ? `${start}/${end}` : `${end}/${start}`;
+}
 
 export interface ViewFilter {
   propertyId: string;
@@ -87,7 +131,7 @@ export type FilterKind = "text" | "number" | "date" | "checkbox" | "select" | "m
 export const FILTER_OPERATORS_BY_KIND: Record<FilterKind, FilterOperator[]> = {
   text: ["contains", "not_contains", "is", "is_not", "starts_with", "ends_with", "is_empty", "is_not_empty"],
   number: ["eq", "neq", "gt", "lt", "gte", "lte", "is_empty", "is_not_empty"],
-  date: ["is", "before", "after", "on_or_before", "on_or_after", "within", "is_empty", "is_not_empty"],
+  date: ["is", "before", "after", "on_or_before", "on_or_after", "between", "within", "is_empty", "is_not_empty"],
   checkbox: ["checked", "unchecked"],
   select: ["is", "is_not", "is_empty", "is_not_empty"],
   multi_select: ["contains", "not_contains", "is_empty", "is_not_empty"],
@@ -175,24 +219,39 @@ function resolveDate(value: string, now: Date): string {
   }
 }
 
-function periodBounds(period: string, now: Date): [string, string] | null {
+/** First and last day (YYYY-MM-DD) of a relative period. Weeks start on Monday. */
+export function relativePeriodBounds(value: unknown, now = new Date()): [string, string] | null {
+  const p = parseRelativePeriod(value);
+  if (!p) return null;
   const today = shiftDay(0, 0, 0, now);
-  switch (period) {
-    case "past_week":
-      return [shiftDay(-7, 0, 0, now), today];
-    case "past_month":
-      return [shiftDay(0, -1, 0, now), today];
-    case "past_year":
-      return [shiftDay(0, 0, -1, now), today];
-    case "next_week":
-      return [today, shiftDay(7, 0, 0, now)];
-    case "next_month":
-      return [today, shiftDay(0, 1, 0, now)];
-    case "next_year":
-      return [today, shiftDay(0, 0, 1, now)];
-    default:
-      return null;
+  if (p.direction === "this") {
+    const y = now.getFullYear();
+    const m = now.getMonth();
+    const d = now.getDate();
+    switch (p.unit) {
+      case "day":
+        return [today, today];
+      case "week": {
+        const fromMonday = (now.getDay() + 6) % 7;
+        return [localDay(new Date(y, m, d - fromMonday)), localDay(new Date(y, m, d - fromMonday + 6))];
+      }
+      case "month":
+        return [localDay(new Date(y, m, 1)), localDay(new Date(y, m + 1, 0))];
+      case "year":
+        return [`${y}-01-01`, `${y}-12-31`];
+    }
   }
+  const sign = p.direction === "past" ? -1 : 1;
+  const n = sign * p.count;
+  const other =
+    p.unit === "day"
+      ? shiftDay(n, 0, 0, now)
+      : p.unit === "week"
+        ? shiftDay(7 * n, 0, 0, now)
+        : p.unit === "month"
+          ? shiftDay(0, n, 0, now)
+          : shiftDay(0, 0, n, now);
+  return sign < 0 ? [other, today] : [today, other];
 }
 
 /** Plain text of a cell, for text filters, text sorts and groups. */
@@ -291,6 +350,8 @@ function comparable(prop: DatabaseProperty, kind: FilterKind, row: DatabaseRow, 
 export function isActiveFilter(f: ViewFilter, ctx: Pick<ViewContext, "properties" | "rows">): boolean {
   const prop = ctx.properties.find((p) => p.id === f.propertyId);
   if (!prop || !FILTER_OPERATORS_BY_KIND[filterKind(prop, ctx)].includes(f.operator)) return false;
+  if (f.operator === "between") return !!parseDateRange(f.value);
+  if (f.operator === "within") return !!parseRelativePeriod(f.value);
   return VALUELESS_OPERATORS.includes(f.operator) || (f.value !== null && f.value !== undefined && f.value !== "");
 }
 
@@ -347,8 +408,14 @@ export function matchesFilter(row: DatabaseRow, f: ViewFilter, ctx: ViewContext,
     case "date": {
       if (typeof v !== "string") return false;
       if (f.operator === "within") {
-        const b = periodBounds(String(target), now);
+        const b = relativePeriodBounds(target, now);
         return !!b && v >= b[0] && v <= b[1];
+      }
+      if (f.operator === "between") {
+        const range = parseDateRange(target);
+        if (!range) return true;
+        const [a, b] = range.map((d) => resolveDate(d, now)).sort() as [string, string];
+        return v >= a && v <= b;
       }
       const day = resolveDate(String(target), now);
       switch (f.operator) {
@@ -417,14 +484,16 @@ function sortKey(prop: DatabaseProperty, kind: FilterKind, row: DatabaseRow, ctx
   }
 }
 
-/** Rows of a view: filtered, then sorted (empty values last). */
+/** Rows of a view: filtered (simple filters, all of them, then the advanced filter), then sorted (empty values last). */
 export function applyView(
   ctx: ViewContext,
-  config: { filters?: ViewFilter[]; filterMode?: "and" | "or"; sorts?: ViewSort[] },
+  config: { filters?: ViewFilter[]; filterMode?: "and" | "or"; simpleFilters?: ViewFilter[]; sorts?: ViewSort[] },
   now = new Date(),
 ): DatabaseRow[] {
+  const simple = (config.simpleFilters ?? []).filter((f) => isActiveFilter(f, ctx));
   const filters = (config.filters ?? []).filter((f) => isActiveFilter(f, ctx));
   let rows = ctx.rows;
+  if (simple.length) rows = rows.filter((r) => simple.every((f) => matchesFilter(r, f, ctx, now)));
   if (filters.length) {
     const any = config.filterMode === "or";
     rows = rows.filter((r) => (any ? filters.some((f) => matchesFilter(r, f, ctx, now)) : filters.every((f) => matchesFilter(r, f, ctx, now))));
@@ -561,13 +630,15 @@ export function moveToGroup(prop: DatabaseProperty, value: CellValue, from: stri
 /** Values a new row gets so it shows up in the view: simple "is" filters, and the group it was added to. */
 export function initialValues(
   ctx: Pick<ViewContext, "properties" | "rows" | "me">,
-  config: { filters?: ViewFilter[]; filterMode?: "and" | "or" },
+  config: { filters?: ViewFilter[]; filterMode?: "and" | "or"; simpleFilters?: ViewFilter[] },
   group?: { prop: DatabaseProperty; key: string },
 ): Record<string, CellValue> {
   const values: Record<string, CellValue> = {};
-  const filters = (config.filters ?? []).filter((f) => isActiveFilter(f, ctx));
-  // With "or", a single matching filter is enough: don't guess which one.
-  if (config.filterMode !== "or" || filters.length === 1) {
+  const advanced = (config.filters ?? []).filter((f) => isActiveFilter(f, ctx));
+  const simple = (config.simpleFilters ?? []).filter((f) => isActiveFilter(f, ctx));
+  // With "or", a single matching filter is enough: don't guess which one. Simple filters always all apply.
+  const filters = config.filterMode !== "or" || advanced.length === 1 ? [...simple, ...advanced] : simple;
+  {
     for (const f of filters) {
       const prop = ctx.properties.find((p) => p.id === f.propertyId)!;
       if (isSingleOption(prop.type) && f.operator === "is") values[prop.id] = f.value as string;
