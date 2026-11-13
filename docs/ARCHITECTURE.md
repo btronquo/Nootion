@@ -1,7 +1,7 @@
 # How Nootion is built
 
-A map of the code for whoever wants to read it, fork it or write a plugin. For the original design and its
-reasons, see [PLAN.md](../PLAN.md); to run it, [DEPLOYMENT.md](DEPLOYMENT.md).
+A map of the code for whoever wants to read it, fork it or write a plugin. To run it, see
+[DEPLOYMENT.md](DEPLOYMENT.md).
 
 - [The three packages](#the-three-packages)
 - [A request, from the browser to the database](#a-request-from-the-browser-to-the-database)
