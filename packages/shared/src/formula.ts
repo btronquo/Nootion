@@ -1,4 +1,4 @@
-import { intlLocale, t, type MessageKey } from "./i18n/index.js";
+import { collator, dateTimeFormat, numberFormat, t, type MessageKey } from "./i18n/index.js";
 /**
  * Formula language of database columns, close to Notion's:
  *   prop("Price") * 1.2
@@ -343,15 +343,18 @@ export function makeDate(iso: string, end?: string | null): FDate | null {
 const pad = (n: number) => String(n).padStart(2, "0");
 const isoDay = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
+const DATE_TEXT: Intl.DateTimeFormatOptions = { day: "2-digit", month: "2-digit", year: "numeric" };
+const DATE_TIME_TEXT: Intl.DateTimeFormatOptions = { ...DATE_TEXT, hour: "2-digit", minute: "2-digit", hour12: false };
+
 function toText(v: FValue): string {
   if (v === null) return "";
   if (typeof v === "string") return v;
-  if (typeof v === "number") return new Intl.NumberFormat(intlLocale(), { maximumFractionDigits: 10, useGrouping: false }).format(v);
+  if (typeof v === "number") return numberFormat({ maximumFractionDigits: 10, useGrouping: false }).format(v);
   if (typeof v === "boolean") return v ? t("formula.true") : t("formula.false");
   if (Array.isArray(v)) return v.map(toText).join(", ");
   if (isPage(v)) return v.title;
   const d = v.date;
-  return new Intl.DateTimeFormat(intlLocale(), { day: "2-digit", month: "2-digit", year: "numeric", ...(v.time ? { hour: "2-digit", minute: "2-digit", hour12: false } : {}) })
+  return dateTimeFormat(v.time ? DATE_TIME_TEXT : DATE_TEXT)
     .format(d)
     .replace(",", "");
 }
@@ -427,7 +430,7 @@ function order(a: FValue, b: FValue): number {
   if (typeof a === "number" && typeof b === "number") return a - b;
   if (typeof a === "boolean" && typeof b === "boolean") return Number(a) - Number(b);
   if (isDate(a) && isDate(b)) return a.date.getTime() - b.date.getTime();
-  return toText(a).localeCompare(toText(b), intlLocale(), { numeric: true });
+  return collator({ numeric: true }).compare(toText(a), toText(b));
 }
 
 /** ISO 8601 week number (weeks start on Monday, week 1 holds the first Thursday). */
@@ -441,7 +444,7 @@ function compare(a: FValue, b: FValue, op: string): boolean {
   let x: number | string;
   let y: number | string;
   if (isDate(a) && isDate(b)) [x, y] = [a.date.getTime(), b.date.getTime()];
-  else if ((typeof a === "string" || isPage(a)) && (typeof b === "string" || isPage(b))) [x, y] = [toText(a).localeCompare(toText(b), intlLocale()), 0];
+  else if ((typeof a === "string" || isPage(a)) && (typeof b === "string" || isPage(b))) [x, y] = [collator().compare(toText(a), toText(b)), 0];
   else [x, y] = [num(a, op), num(b, op)];
   return op === ">" ? x > y : op === "<" ? x < y : op === ">=" ? x >= y : x <= y;
 }
@@ -489,10 +492,10 @@ function formatDate(d: FDate, pattern: string): string {
     switch (tok) {
       case "YYYY": return String(x.getFullYear());
       case "YY": return String(x.getFullYear()).slice(-2);
-      case "MMMM": return x.toLocaleString(intlLocale(), { month: "long" });
+      case "MMMM": return dateTimeFormat({ month: "long" }).format(x);
       case "MM": return pad(x.getMonth() + 1);
       case "M": return String(x.getMonth() + 1);
-      case "DDDD": return x.toLocaleString(intlLocale(), { weekday: "long" });
+      case "DDDD": return dateTimeFormat({ weekday: "long" }).format(x);
       case "DD": return pad(x.getDate());
       case "D": return String(x.getDate());
       case "HH": return pad(x.getHours());

@@ -48,6 +48,7 @@ import { usePluginPropertyTypes } from "../plugins/registry";
 import { pageIcon } from "../lib/icons";
 import { RowMenu } from "./RowMenu";
 import type { MenuAnchor } from "../components/PageMenu";
+import { countGroupRows, limitGroups, ShowMoreRows, useShownRows } from "./progressive";
 
 const DEFAULT_WIDTH = 180;
 const TITLE_WIDTH = 260;
@@ -141,6 +142,8 @@ export function TableView({
   // Empty groups are left out of tables (boards show them, to drop cards in).
   const groups = useMemo(() => (groupProp ? groupRows(groupProp, rows, ctx).filter((g) => g.rows.length) : null), [groupProp, rows, ctx]);
   const collapsed = new Set(view?.config.collapsedGroups ?? []);
+  // Thousands of rows: only the first ones are put on the page, the next ones come while scrolling.
+  const { limit, more } = useShownRows(`${data.id}|${view?.id}|${groupProp?.id}`);
   const toggleGroup = (key: string) => {
     if (!view || !actions) return;
     const next = collapsed.has(key) ? [...collapsed].filter((k) => k !== key) : [...collapsed, key];
@@ -169,6 +172,8 @@ export function TableView({
 
   /** The rows a menu acts on: the selection when the row is part of it, else the row alone. */
   const menuRows = (rowId: string) => (selected.has(rowId) && selected.size > 1 ? data.rows.filter((r) => selected.has(r.id)) : data.rows.filter((r) => r.id === rowId));
+  // Rows the open menu acts on, highlighted (worked out once, not for each row).
+  const menuTargets = rowMenu ? (selected.has(rowMenu.rowId) && selected.size > 1 ? selected : new Set([rowMenu.rowId])) : null;
 
   function openRowMenu(e: React.MouseEvent, rowId: string) {
     if (!actions) return;
@@ -271,7 +276,7 @@ export function TableView({
                 const r = e.currentTarget.getBoundingClientRect();
                 dropRow(row, e.clientY < r.top + r.height / 2);
               }}
-              className={`group relative flex border-b border-neutral-200 dark:border-neutral-800 ${rowMenu && menuRows(rowMenu.rowId).some((r) => r.id === row.id) ? "bg-blue-50/60 dark:bg-blue-950/30" : ""}`}
+              className={`group relative flex border-b border-neutral-200 dark:border-neutral-800 ${menuTargets?.has(row.id) ? "bg-blue-50/60 dark:bg-blue-950/30" : ""}`}
             >
               {dropAt?.rowId === row.id && <div className={`pointer-events-none absolute inset-x-0 z-10 h-0.5 bg-blue-500 ${dropAt.before ? "-top-px" : "-bottom-px"}`} />}
               {actions && (
@@ -507,8 +512,9 @@ export function TableView({
           </div>
 
           {groups ? (
-            groups.map((g) => {
+            limitGroups(groups, limit, (g) => !collapsed.has(g.key)).map(({ group: g, rows: shownRows }) => {
               const open = !collapsed.has(g.key);
+              const cut = shownRows.length < g.rows.length;
               return (
                 <Fragment key={g.key}>
                   <div role="row" aria-label={t("table.group", { name: g.label })} className="flex items-center gap-1.5 border-b border-neutral-200 py-1.5 pl-1 dark:border-neutral-800">
@@ -524,8 +530,9 @@ export function TableView({
                       <span className="text-xs text-neutral-400">{g.rows.length}</span>
                     </button>
                   </div>
-                  {open && g.rows.map(renderRow)}
-                  {open && editable && canMoveBetweenGroups(groupProp!.type) && (
+                  {open && shownRows.map(renderRow)}
+                  {open && cut && <ShowMoreRows shown={limit} total={countGroupRows(groups, (x) => !collapsed.has(x.key))} onMore={more} className="sticky left-0" />}
+                  {open && !cut && editable && canMoveBetweenGroups(groupProp!.type) && (
                     <button
                       onClick={() => addRow({ prop: groupProp!, key: g.key })}
                       className="sticky left-0 flex items-center gap-1.5 px-2 py-1 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
@@ -533,13 +540,14 @@ export function TableView({
                       <Plus size={14} /> {t("table.newRow")}
                     </button>
                   )}
-                  {open && renderCalcs(g.rows)}
+                  {open && !cut && renderCalcs(g.rows)}
                 </Fragment>
               );
             })
           ) : (
             <>
-              {rows.map(renderRow)}
+              {(rows.length > limit ? rows.slice(0, limit) : rows).map(renderRow)}
+              <ShowMoreRows shown={Math.min(limit, rows.length)} total={rows.length} onMore={more} className="sticky left-0" />
               {renderCalcs(rows)}
             </>
           )}
@@ -722,9 +730,20 @@ function calcType(data: DatabaseData, prop: DatabaseProperty): PropertyType {
   return columnValues(data, prop).type;
 }
 
+// Results by list of rows (a new list whenever the data, the filters or the sorts change), then by column and function:
+// a table re-renders on every hover or drag, and going through thousands of rows each time would show.
+const calcCache = new WeakMap<DatabaseRow[], Map<DatabaseProperty, Map<CalcFunction, ReturnType<typeof computeCalc> | null>>>();
+
 function calcColumn(data: DatabaseData, prop: DatabaseProperty, fn: CalcFunction, rows: DatabaseRow[]) {
+  let byProp = calcCache.get(rows);
+  if (!byProp) calcCache.set(rows, (byProp = new Map()));
+  let byFn = byProp.get(prop);
+  if (!byFn) byProp.set(prop, (byFn = new Map()));
+  if (byFn.has(fn)) return byFn.get(fn)!;
   const { values, type } = columnValues(data, prop, rows);
-  return calcFunctionsFor(type).includes(fn) ? computeCalc(fn, values, type) : null;
+  const result = calcFunctionsFor(type).includes(fn) ? computeCalc(fn, values, type) : null;
+  byFn.set(fn, result);
+  return result;
 }
 
 /** Property whose number format applies to a column's result (a rollup's target for rollups). */

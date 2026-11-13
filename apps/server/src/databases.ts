@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import {
   atLeast,
@@ -43,7 +43,7 @@ import { attachments, databaseProperties, databaseViews, pages, users } from "./
 import { HttpError } from "./http.js";
 import { getPageRole } from "./permissions.js";
 import type { PageMeta } from "./pages.js";
-import { t } from "@nootion/shared";
+import { currentLocale, t } from "@nootion/shared";
 
 export type PropertyRow = typeof databaseProperties.$inferSelect;
 
@@ -87,11 +87,19 @@ export function createDatabase(db: Db, input: { workspaceId: string; parentId: s
 
 type RowPage = Pick<typeof pages.$inferSelect, "id" | "title" | "icon" | "props" | "cover" | "coverPosition" | "createdAt" | "updatedAt" | "createdBy" | "updatedBy" | "position">;
 
+const rowPageColumns = { id: pages.id, title: pages.title, icon: pages.icon, props: pages.props, cover: pages.cover, coverPosition: pages.coverPosition, createdAt: pages.createdAt, updatedAt: pages.updatedAt, createdBy: pages.createdBy, updatedBy: pages.updatedBy, position: pages.position };
+const liveRowOf = (databaseId: string) => and(eq(pages.parentId, databaseId), eq(pages.kind, "row"), eq(pages.template, false), isNull(pages.deletedAt));
+
+/** One row of a database (not a template, not in the trash), without reading the others. */
+export function getRowPage(db: DbLike, databaseId: string, rowId: string): RowPage | undefined {
+  return db.select(rowPageColumns).from(pages).where(and(eq(pages.id, rowId), liveRowOf(databaseId))).get();
+}
+
 export function listRowPages(db: DbLike, databaseId: string): RowPage[] {
   return db
-    .select({ id: pages.id, title: pages.title, icon: pages.icon, props: pages.props, cover: pages.cover, coverPosition: pages.coverPosition, createdAt: pages.createdAt, updatedAt: pages.updatedAt, createdBy: pages.createdBy, updatedBy: pages.updatedBy, position: pages.position })
+    .select(rowPageColumns)
     .from(pages)
-    .where(and(eq(pages.parentId, databaseId), eq(pages.kind, "row"), eq(pages.template, false), isNull(pages.deletedAt)))
+    .where(liveRowOf(databaseId))
     .all()
     .sort((a, b) => a.position - b.position || a.createdAt.getTime() - b.createdAt.getTime());
 }
@@ -165,6 +173,48 @@ export function loadDatabase(db: Db, page: PageMeta, role: PageRole, canRead: Ca
   const templates = listRowTemplates(db, page.id);
   const defaultTemplateId = templates.some((t) => t.id === page.defaultTemplateId) ? page.defaultTemplateId : null;
   return { id: page.id, title: page.title, icon: page.icon, role, properties, views, rows, people, related, rollupTargets, templates, defaultTemplateId };
+}
+
+/** Formulas that read the clock give another result as time passes. */
+const READS_CLOCK = /\b(now|today)\s*\(/i;
+
+/**
+ * A short tag that changes whenever what loadDatabase answers may change: the database, its columns, views, rows and
+ * row templates, the databases its relations read, the names of people, the reader's access and language. Computed
+ * with a few aggregate queries (no row is loaded), so that the app's refresh every few seconds costs almost nothing
+ * when nothing changed, whatever the number of rows.
+ */
+export function databaseVersion(db: DbLike, page: Pick<PageMeta, "id">, role: PageRole, canRead: CanRead): string {
+  const parts: unknown[] = [role, currentLocale()];
+  const seen = new Set<string>();
+  let clock = false;
+  const visit = (databaseId: string, depth: number) => {
+    if (seen.has(databaseId)) return;
+    seen.add(databaseId);
+    parts.push(
+      databaseId,
+      db.get(sql`select sync_clock, updated_at, default_template_id, deleted_at from pages where id = ${databaseId}`),
+      // Rows (with row templates and rows in the trash): any change of a row moves its sync clock (SQLite trigger).
+      db.get(sql`select count(*), total(sync_clock), max(sync_clock), max(updated_at) from pages where parent_id = ${databaseId}`),
+      db.get(sql`select count(*), total(sync_clock), max(sync_clock) from database_views where database_id = ${databaseId}`),
+    );
+    const props = listProperties(db, databaseId);
+    parts.push(props);
+    for (const p of props) {
+      if (p.type === "formula" && READS_CLOCK.test(p.config.expression ?? "")) clock = true;
+      // Relations read the rows (and formulas) of another database, one level deep.
+      if (p.type === "relation" && p.config.databaseId && depth === 0) {
+        const readable = canRead(p.config.databaseId);
+        parts.push(p.config.databaseId, readable);
+        if (readable) visit(p.config.databaseId, depth + 1);
+      }
+    }
+  };
+  visit(page.id, 0);
+  parts.push(db.get(sql`select count(*), group_concat(id || ':' || name) from users`));
+  // Formulas reading now() or today(): a new answer every minute.
+  if (clock) parts.push(Math.floor(Date.now() / 60_000));
+  return `W/"${createHash("sha1").update(JSON.stringify(parts)).digest("base64url").slice(0, 22)}"`;
 }
 
 /** Row templates of a database, in the order they were made. */
@@ -701,7 +751,7 @@ export function evaluateExpression(db: Db, expression: string, row: { databaseId
     );
   }
   const properties = listProperties(db, row.databaseId);
-  const page = listRowPages(db, row.databaseId).find((r) => r.id === row.id);
+  const page = getRowPage(db, row.databaseId, row.id);
   if (!page) throw new FormulaError(t("button.noRow"));
   // A formula column for the time of the computation, filled like the others.
   const id = `expression-${randomUUID()}`;

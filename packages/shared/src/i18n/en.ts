@@ -1597,6 +1597,7 @@ export const en = {
   "view.name": "View name",
   "view.new": "New view",
   "view.noRows": "No rows",
+  "view.showMore": { one: "Show 1 more row", other: "Show more ({count} more rows)" },
   "view.showPreview": "Show the cover or first image",
   "view.cardSize": "Card size",
   "view.cardSmall": "Small",

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CellValue, DatabaseData, DatabaseProperty, DatabaseRow, DatabaseSummary, PropertyConfig, PropertyType, RelatedRow, ViewConfig, ViewType, DatabaseViewInfo } from "@nootion/shared";
-import { api } from "../lib/api";
+import { api, apiIfChanged } from "../lib/api";
 import { sendOrQueue, useOfflineQueue, withQueuedChanges } from "../lib/offline";
 
 export const dbKey = (id: string) => ["database", id] as const;
@@ -11,11 +11,25 @@ interface RowResponse {
   related: Record<string, RelatedRow>;
 }
 
+/**
+ * Server version of each database answer, by the answer itself: a copy changed here (a cell being edited) is not in
+ * the map, so it is always asked again in full.
+ */
+const versions = new WeakMap<DatabaseData, string>();
+
 export function useDatabase(id: string) {
   const { pending } = useOfflineQueue();
+  const qc = useQueryClient();
   return useQuery({
     queryKey: dbKey(id),
-    queryFn: async () => (await api<{ database: DatabaseData }>(`/databases/${id}`)).database,
+    queryFn: async () => {
+      const current = qc.getQueryData<DatabaseData>(dbKey(id));
+      const res = await apiIfChanged<{ database: DatabaseData }>(`/databases/${id}`, current && versions.get(current));
+      // Unchanged: the same object, so nothing renders again.
+      if (!res.data) return current!;
+      if (res.etag) versions.set(res.data.database, res.etag);
+      return res.data.database;
+    },
     // Cells changed offline show their new value until the server has them.
     select: pending ? withQueuedChanges : undefined,
     enabled: !!id,

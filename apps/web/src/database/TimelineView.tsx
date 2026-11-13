@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { calendarDateProp, daysBetween, intlLocale, localDay, rowDays, shiftDate, t, type DatabaseRow, type DateValue } from "@nootion/shared";
 import { RowTitle, type MoreViewProps } from "./MoreViews";
+import { ShowMoreRows, useShownRows } from "./progressive";
 
 type Scale = "day" | "week" | "month";
 
@@ -24,8 +25,11 @@ type Drag = { rowId: string; kind: "move" | "start" | "end"; x: number; delta: n
  * change the start or the end; a row without a date gets one by clicking on its line.
  */
 export function TimelineView(props: MoreViewProps) {
-  const { data, actions, view, rows, editable, rowHref } = props;
+  const { data, actions, view, rows: allRows, editable, rowHref } = props;
   const navigate = useNavigate();
+  // A line per row: thousands of rows are shown a batch at a time.
+  const { limit, more } = useShownRows(`${data.id}|${view.id}`);
+  const rows = allRows.length > limit ? allRows.slice(0, limit) : allRows;
   const prop = calendarDateProp(data.properties, view.config.dateProperty);
   const [localScale, setLocalScale] = useState<Scale>("week");
   const scale = actions ? (view.config.timelineScale ?? "week") : localScale;
@@ -252,6 +256,7 @@ export function TimelineView(props: MoreViewProps) {
               </div>
             );
           })}
+          <ShowMoreRows shown={rows.length} total={allRows.length} onMore={more} className="sticky left-0" />
           {!rows.length && <p className="px-2 py-3 text-neutral-400">{t("view.noRows")}</p>}
         </div>
       </div>

@@ -11,7 +11,7 @@ import type {
   SelectOption,
 } from "./databases.js";
 import type { FormulaResult } from "./formula.js";
-import { intlLocale, t } from "./i18n/index.js";
+import { dateTimeFormat, intlLocale, t } from "./i18n/index.js";
 
 // Kept here, not imported from databases.ts, which imports this module.
 const hasOptions = (type: PropertyType) => type === "select" || type === "multi_select" || type === "status";
@@ -467,7 +467,7 @@ export interface RowGroup {
   rows: DatabaseRow[];
 }
 
-const monthLabel = (d: Date) => d.toLocaleDateString(intlLocale(), { month: "long", year: "numeric" });
+const monthLabel = (d: Date) => dateTimeFormat({ month: "long", year: "numeric" }).format(d);
 
 /** Keys (and labels) of the groups a row belongs to; a row can be in several groups (multi-select, people). */
 function groupKeysOf(prop: DatabaseProperty, row: DatabaseRow, ctx: ViewContext): { key: string; label: string }[] {
