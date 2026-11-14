@@ -21,6 +21,7 @@ import { Avatar } from "../components/Avatar";
 import { Button, ErrorText, Field, LanguageSelect, Rich, Select } from "../components/ui";
 import { setLocale } from "../lib/i18n";
 import { NotionImport } from "../components/NotionImport";
+import { FileImportSection } from "../components/FileImport";
 import { AgentActivityList, ApiTokens, McpConnect } from "../components/ApiTokens";
 import { ConnectedServices, useConnectedServices } from "../components/ConnectedServices";
 import { clearOfflineData } from "../lib/offline";
@@ -595,13 +596,16 @@ function ImportSection() {
     <Section title={t("account.import")} id="import">
       <p className="mb-2 text-sm text-neutral-600 dark:text-neutral-400">{t("account.importIntro")}</p>
       <ul className="mb-5 list-disc space-y-1 pl-5 text-sm text-neutral-600 dark:text-neutral-400">
-        {(["account.importNotion", "account.importCsv", "account.importBackup"] as const).map((k) => (
+        {(["account.importFiles", "account.importNotion", "account.importCsv", "account.importBackup"] as const).map((k) => (
           <li key={k}>
             <Rich text={t(k)} />
           </li>
         ))}
       </ul>
-      <NotionImport />
+      <div className="space-y-6">
+        <FileImportSection />
+        <NotionImport />
+      </div>
     </Section>
   );
 }

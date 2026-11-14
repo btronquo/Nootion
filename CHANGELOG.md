@@ -11,6 +11,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   with the nine colours blocks already have, for the text and for a highlight behind it. Ctrl+Shift+H highlights in
   yellow. Colours show on public pages and in the history, go through the API, and the import from other tools keeps
   the colours of text it used to drop. In Markdown, highlights are written between `==`.
+- Import from files, in "My account › Import", from the import button of a space or from a page's menu ("Import
+  files"): drop Markdown, HTML, Word (.docx), text or CSV files, or a zip of them (a folder of notes, an export from
+  another tool). Folders become pages with their subpages ("Page.md" beside a "Page/" folder, or "Folder/Folder.md",
+  is that folder's page), a CSV becomes a database whose rows get the pages found beside it, images and files are
+  copied, and relative links and `[[wiki links]]` between the files become links between the pages. Markdown keeps
+  its front matter (title, icon, tags), callouts (`> [!note]`), toggles and underlines; the editor's own export reads
+  back as it was. The import runs in the background with its progress, lists what it imported differently, and can
+  be undone as a whole: everything it made goes to the trash. Archives are unpacked with size limits and no path
+  leaving them (`IMPORT_MAX_MB`, 500 MB by default).
 - Resizable columns: a bar shows in the gap between two columns side by side; drag it to share the width between
   them, double-click it to give every column of the row the same width again. Widths are kept with the page, shared
   with everyone editing it, and ignored on a phone, where columns are one under the other. Columns are a little

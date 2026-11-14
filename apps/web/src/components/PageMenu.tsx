@@ -2,7 +2,8 @@ import { useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { Copy, CornerUpRight, Database, ExternalLink, FileText, Link2, Pencil, Star, Trash2 } from "lucide-react";
+import { Copy, CornerUpRight, Database, ExternalLink, FileText, FileUp, Link2, Pencil, Star, Trash2 } from "lucide-react";
+import { FileImportDialog } from "./FileImport";
 import { t, type PageSummary } from "@nootion/shared";
 import { api } from "../lib/api";
 import { copyText } from "../lib/browser";
@@ -63,6 +64,7 @@ export function PageMenu({
   const refresh = useRefreshPages();
   const favorites = useFavorites();
   const [moving, setMoving] = useState(false);
+  const [importing, setImporting] = useState(false);
   const starred = !!favorites.data?.some((p) => p.id === page.id);
   const element = useMemo(() => toElement(anchor), [anchor]);
 
@@ -91,6 +93,7 @@ export function PageMenu({
 
   // Out of the sidebar, whose drawer would hold a fixed dialog inside it.
   if (moving) return createPortal(<MoveDialog page={page} all={all} onClose={onClose} />, document.body);
+  if (importing) return createPortal(<FileImportDialog workspaceId={page.workspaceId} parent={{ id: page.id, title: page.title }} onClose={onClose} />, document.body);
   return (
     <Popover anchor={element} onClose={onClose} width={260}>
       <div role="menu" aria-label={t("page.options")} data-page-menu>
@@ -112,6 +115,11 @@ export function PageMenu({
             <Item icon={<CornerUpRight size={15} />} onClick={() => setMoving(true)}>
               {t("page.moveTo")}
             </Item>
+            {page.kind === "page" && (
+              <Item icon={<FileUp size={15} />} onClick={() => setImporting(true)}>
+                {t("fileImport.menu")}
+              </Item>
+            )}
             <Item icon={<Trash2 size={15} />} onClick={run(trash)} danger>
               {t("page.trash")}
             </Item>

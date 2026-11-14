@@ -29,7 +29,10 @@ import {
   Library,
   Waypoints,
   RefreshCw,
+  FileUp,
 } from "lucide-react";
+import { createPortal } from "react-dom";
+import { FileImportDialog } from "./FileImport";
 import {
   disablePush,
   useReminderNotifications,
@@ -323,6 +326,7 @@ function WorkspaceSection({ workspace }: { workspace: WorkspaceSummary }) {
   // A page dropped on the space's name goes to its top level, at the end; from another space, once confirmed.
   const [dropping, setDropping] = useState(false);
   const [pending, setPending] = useState<PendingSpaceMove | null>(null);
+  const [importing, setImporting] = useState(false);
 
   async function onDrop(e: React.DragEvent) {
     e.preventDefault();
@@ -390,6 +394,11 @@ function WorkspaceSection({ workspace }: { workspace: WorkspaceSummary }) {
           <Download size={13} />
         </a>
         {canEdit && (
+          <button onClick={() => setImporting(true)} className={iconBtn} title={t("fileImport.menu")} aria-label={t("fileImport.menu")} data-space-import>
+            <FileUp size={13} />
+          </button>
+        )}
+        {canEdit && (
           <button onClick={addPage} className={iconBtn} title={t("page.new")}>
             <Plus size={14} />
           </button>
@@ -397,6 +406,7 @@ function WorkspaceSection({ workspace }: { workspace: WorkspaceSummary }) {
       </SectionHeader>
       </div>
       {pending && <PendingSpaceMoveDialog move={pending} onClose={() => setPending(null)} />}
+      {importing && createPortal(<FileImportDialog workspaceId={workspace.id} onClose={() => setImporting(false)} />, document.body)}
       {pages.data && (
         <PageTree
           nodes={buildTree(pages.data)}

@@ -39,6 +39,7 @@ They go to:
 | `TZ` | no | Time zone (e.g. `Europe/Paris`). |
 | `PORT` | no | Port the server listens on inside the container (default `3000`). To change the port on the host, change `ports:` instead. |
 | `MAX_UPLOAD_MB` | no | Maximum size of an attached file, in MB (default `50`). |
+| `IMPORT_MAX_MB` | no | Maximum size of an import from files (all the files sent at once, archives included), in MB (default `500`). Once uncompressed, archives may hold up to four times as much. |
 | `DEMO_PAGE` | no | `false` to stop giving new users a demo page on their first visit (default: given). |
 | `UPDATE_CHECK` | no | `false` to stop looking for new releases (default: the server asks GitHub twice a day, sending nothing about your server, and tells administrators). |
 | `OCR_LANGS` | no | Languages read in images and scanned PDFs, joined by `+` (default `fra+eng`). The image ships French and English; other languages need their `tesseract-ocr-<lang>` package. |
@@ -141,7 +142,7 @@ server {
     listen 443 ssl;
     server_name notes.example.com;
     # ssl_certificate and ssl_certificate_key here
-    client_max_body_size 50m;                  # MAX_UPLOAD_MB
+    client_max_body_size 500m;                 # IMPORT_MAX_MB (attached files: MAX_UPLOAD_MB)
 
     location / {
         proxy_pass http://127.0.0.1:3000;
