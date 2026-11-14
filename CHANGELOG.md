@@ -62,6 +62,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - The gallery looks closer to what other tools show: wider covers, titles on up to two lines, softer cards, and a
   "New page" card as tall as the others at the end.
 
+### Fixed
+
+- In a subpage, the breadcrumb showed the internal code of a parent page's uploaded image icon instead of the image.
+
 ## [3.6.0] - 2026-11-12
 
 ### Added
