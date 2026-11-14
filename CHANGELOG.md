@@ -33,6 +33,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   further apart, for the bar. The import from other tools keeps the widths of resized columns.
 - Gallery cards size: small, medium or large (in "Properties"). There are as many cards in a row as fit in the width
   of the database, so a gallery in a narrow column shows fewer, smaller cards.
+- Command palette: Ctrl+K (⌘K) still finds pages, and the same box now lists actions too, with their shortcut:
+  new page or database (in the open page's space, or another one), quick capture, a subpage, go to Home,
+  Notifications, All pages, Graph, Trash, My account or Administration, theme and language, and the open page's own
+  actions (share, favorite, comments, history, full width, duplicate, move to, copy link, export). Typing ">" first
+  lists actions only; matching ignores accents, and the most recently used actions come first.
 
 - Code blocks are coloured by their language: choose it from the menu above the block (searchable, about 35
   languages), or leave it on "Auto" and the language is guessed as you type. "Plain text" turns colours off. A copy

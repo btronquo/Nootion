@@ -60,6 +60,7 @@ import { Avatar } from "./Avatar";
 import { Button, CancelButton, ErrorText, Field, Modal } from "./ui";
 import { usePlugins } from "../plugins/registry";
 import { SearchDialog, useSearchShortcut } from "./SearchDialog";
+import { useAppActions } from "./appActions";
 import {
   captureShortcutLabel,
   QuickCaptureDialog,
@@ -124,6 +125,7 @@ export function AppShell() {
 
   const syncLinks = useDesktopSync().data;
   const syncError = syncLinks?.find((l) => l.lastError)?.lastError;
+  useAppActions({ capture: () => setCapturing(true), newSpace: () => setCreatingWorkspace(true), hasSync: !!syncLinks });
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-2 rounded-md px-2 py-1.5 text-sm ${isActive ? "bg-neutral-200/70 font-medium dark:bg-neutral-800" : "hover:bg-neutral-200/50 dark:hover:bg-neutral-800/60"}`;

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bookmark, BookmarkPlus, ChevronDown, Database, FileText, Paperclip, Rows3, Search, X } from "lucide-react";
+import { Bookmark, BookmarkPlus, ChevronDown, ChevronRight, Database, FileText, Paperclip, Rows3, Search, X } from "lucide-react";
 import {
   EDITED_SINCE_PRESETS,
   SEARCH_KINDS,
@@ -17,8 +17,9 @@ import { useClosing } from "./ui";
 import { pageIcon } from "../lib/icons";
 import { useUserDirectory, useWorkspaces } from "../lib/queries";
 import { useSession } from "../lib/session";
+import { currentActions, matchActions, recentActions, runAction, type Action } from "../lib/actions";
 
-/** Opens the search dialog with Ctrl+K (Cmd+K on a Mac). */
+/** Opens the command palette (search and actions) with Ctrl+K (Cmd+K on a Mac). */
 export function useSearchShortcut(open: () => void) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -50,7 +51,7 @@ function Snippet({ text }: { text: string }) {
   );
 }
 
-/** What the dialog opens with: a saved search, or words and filters (the command palette can pass one). */
+/** What the palette opens with: words and filters, for example those of a saved search. */
 export interface SearchStart {
   query?: string;
   filters?: SearchFilters;
@@ -72,7 +73,17 @@ export function searchParams(query: string, filters: SearchFilters, limit?: numb
 }
 
 /** A filter as a small menu: highlighted while it is set. */
-function FilterSelect({ label, value, onChange, children }: { label: string; value: string | undefined; onChange: (v: string | undefined) => void; children: React.ReactNode }) {
+function FilterSelect({
+  label,
+  value,
+  onChange,
+  children,
+}: {
+  label: string;
+  value: string | undefined;
+  onChange: (v: string | undefined) => void;
+  children: React.ReactNode;
+}) {
   return (
     <span className="relative inline-flex shrink-0">
       <select
@@ -101,6 +112,17 @@ function ResultIcon({ r }: { r: SearchResult }) {
   return <FileText size={16} className="inline text-neutral-400" />;
 }
 
+/** Actions listed with nothing typed, or above the pages found. */
+const IDLE_ACTIONS = 6;
+const ACTIONS_ABOVE_PAGES = 5;
+
+type Item = { kind: "action"; action: Action } | { kind: "saved"; search: SavedSearch } | { kind: "page"; result: SearchResult };
+
+/**
+ * The command palette: typing finds pages (with filters, and searches that can be saved), and the actions of the
+ * screen that match (new page, go to…, the open page's own…), the most recently used first. Typing ">" first lists
+ * actions only. With nothing typed, it lists the actions used last and the saved searches.
+ */
 export function SearchDialog({ onClose, initial }: { onClose: () => void; initial?: SearchStart }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -112,14 +134,20 @@ export function SearchDialog({ onClose, initial }: { onClose: () => void; initia
   const [saveName, setSaveName] = useState<string | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Read once: what can be done when the palette opened.
+  const [actions] = useState(currentActions);
+  const [recent] = useState(recentActions);
+
+  const actionsOnly = input.trimStart().startsWith(">");
+  const typed = actionsOnly ? input.trimStart().slice(1).trim() : input.trim();
 
   useEffect(() => {
-    const t = setTimeout(() => setQuery(input.trim()), 150);
+    const t = setTimeout(() => setQuery(actionsOnly ? "" : input.trim()), 150);
     return () => clearTimeout(t);
-  }, [input]);
+  }, [input, actionsOnly]);
 
   const filtered = hasSearchFilters(filters);
-  const searching = query.length > 0 || filtered;
+  const searching = !actionsOnly && (query.length > 0 || filtered);
   const search = useQuery({
     queryKey: ["search", query, filters],
     queryFn: () => api<{ results: SearchResult[] }>(`/search?${searchParams(query, filters)}`),
@@ -157,11 +185,24 @@ export function SearchDialog({ onClose, initial }: { onClose: () => void; initia
   const { closing, close } = useClosing(onClose);
 
   // Without words or filters, the saved searches are listed instead of results.
-  const showSaved = !searching;
-  const savedList = saved.data ?? [];
-  const count = showSaved ? savedList.length : results.length;
+  const showSaved = !searching && !actionsOnly;
+  const savedList = showSaved ? (saved.data ?? []) : [];
 
-  useEffect(() => setActive(0), [query, filters, showSaved]);
+  // Filters narrow a search of the content: actions are listed without them.
+  const matched = useMemo(() => {
+    if (filtered && !actionsOnly) return [];
+    const found = matchActions(actions, typed, recent);
+    if (actionsOnly) return found;
+    return found.slice(0, typed ? ACTIONS_ABOVE_PAGES : IDLE_ACTIONS);
+  }, [actions, typed, recent, actionsOnly, filtered]);
+
+  const items: Item[] = [
+    ...matched.map((action) => ({ kind: "action" as const, action })),
+    ...savedList.map((search) => ({ kind: "saved" as const, search })),
+    ...results.map((result) => ({ kind: "page" as const, result })),
+  ];
+
+  useEffect(() => setActive(0), [typed, actionsOnly, query, filters, showSaved]);
   useEffect(() => {
     listRef.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: "nearest" });
   }, [active]);
@@ -170,7 +211,8 @@ export function SearchDialog({ onClose, initial }: { onClose: () => void; initia
     setFilters((f) => {
       const next = { ...f, [key]: value };
       // A database of another space no longer applies.
-      if (key === "workspaceId" && value && next.databaseId && databases.data?.find((d) => d.id === next.databaseId)?.workspaceId !== value) delete next.databaseId;
+      if (key === "workspaceId" && value && next.databaseId && databases.data?.find((d) => d.id === next.databaseId)?.workspaceId !== value)
+        delete next.databaseId;
       for (const k of Object.keys(next) as (keyof SearchFilters)[]) if (next[k] === undefined) delete next[k];
       return next;
     });
@@ -183,46 +225,59 @@ export function SearchDialog({ onClose, initial }: { onClose: () => void; initia
     inputRef.current?.focus();
   }
 
-  function open(result: SearchResult | undefined) {
-    if (!result) return;
+  function choose(item: Item | undefined) {
+    if (!item) return;
+    if (item.kind === "saved") return apply(item.search);
     onClose();
-    navigate(`/page/${result.id}`);
+    if (item.kind === "action") runAction(item.action);
+    else navigate(`/page/${item.result.id}`);
   }
 
   function onKeyDown(e: React.KeyboardEvent) {
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setActive((i) => Math.min(count - 1, i + 1));
+      setActive((i) => Math.min(items.length - 1, i + 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setActive((i) => Math.max(0, i - 1));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      if (showSaved) apply(savedList[active]);
-      else open(results[active]);
+      choose(items[active]);
     } else if (e.key === "Escape") close();
   }
 
   const me = user?.id;
+  const row = (i: number) => `flex cursor-pointer gap-3 rounded-lg px-3 py-2 ${i === active ? "bg-neutral-100 dark:bg-neutral-800" : ""}`;
+  const heading = "px-3 pb-1 pt-2 text-xs font-medium text-neutral-500";
+  const loading = search.isFetching || query !== input.trim();
 
   return (
-    <div className="nt-backdrop fixed inset-0 z-50 flex items-start justify-center bg-black/30 px-4 pt-[12vh]" data-closing={closing || undefined} onMouseDown={close}>
+    <div
+      className="nt-backdrop fixed inset-0 z-50 flex items-start justify-center bg-black/30 px-4 pt-[12vh]"
+      data-closing={closing || undefined}
+      onMouseDown={close}
+    >
       <div
         role="dialog"
-        aria-label={t("search.title")}
+        aria-label={t("palette.label")}
         className="nt-dialog w-full max-w-xl overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-800 dark:bg-neutral-900"
         onMouseDown={(e) => e.stopPropagation()}
+        data-command-palette
       >
         <div className="flex items-center gap-2 border-b border-neutral-200 px-4 dark:border-neutral-800">
-          <Search size={18} className="shrink-0 text-neutral-400" />
+          {actionsOnly ? <ChevronRight size={18} className="shrink-0 text-neutral-400" /> : <Search size={18} className="shrink-0 text-neutral-400" />}
           <input
             ref={inputRef}
             autoFocus
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder={t("search.placeholder")}
-            aria-label={t("search.label")}
+            placeholder={t("palette.placeholder")}
+            aria-label={t("palette.label")}
+            role="combobox"
+            aria-expanded={items.length > 0}
+            aria-controls="nt-palette-list"
+            aria-activedescendant={items.length ? `nt-palette-${active}` : undefined}
             className="w-full bg-transparent py-3.5 text-base outline-none placeholder:text-neutral-400"
           />
           {searching && saveName === null && (
@@ -238,7 +293,7 @@ export function SearchDialog({ onClose, initial }: { onClose: () => void; initia
             </button>
           )}
         </div>
-        {saveName === null ? (
+        {actionsOnly ? null : saveName === null ? (
           <div className="flex flex-wrap items-center gap-1.5 border-b border-neutral-200 px-3 py-2 dark:border-neutral-800" data-search-filters>
             {(workspaces.data?.length ?? 0) > 1 && (
               <FilterSelect label={t("search.filterSpace")} value={filters.workspaceId} onChange={(v) => setFilter("workspaceId", v)}>
@@ -286,7 +341,9 @@ export function SearchDialog({ onClose, initial }: { onClose: () => void; initia
                   {t(`search.edited.${p}`)}
                 </option>
               ))}
-              {filters.editedSince && !(EDITED_SINCE_PRESETS as readonly string[]).includes(filters.editedSince) && <option value={filters.editedSince}>{filters.editedSince}</option>}
+              {filters.editedSince && !(EDITED_SINCE_PRESETS as readonly string[]).includes(filters.editedSince) && (
+                <option value={filters.editedSince}>{filters.editedSince}</option>
+              )}
             </FilterSelect>
             {filtered && (
               <button
@@ -333,62 +390,103 @@ export function SearchDialog({ onClose, initial }: { onClose: () => void; initia
             >
               {t("search.saveConfirm")}
             </button>
-            <button type="button" onClick={() => setSaveName(null)} aria-label={t("common.cancel")} className="rounded p-1 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800">
+            <button
+              type="button"
+              onClick={() => setSaveName(null)}
+              aria-label={t("common.cancel")}
+              className="rounded p-1 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            >
               <X size={14} />
             </button>
             {save.error && <span className="text-xs text-red-600">{save.error.message}</span>}
           </form>
         )}
-        {showSaved ? (
-          <div className="max-h-[55vh] overflow-y-auto p-1.5">
-            <div className="px-3 pt-1 pb-1.5 text-xs font-medium text-neutral-500">{t("search.saved")}</div>
-            {savedList.length === 0 ? (
-              <p className="px-3 pb-3 text-sm text-neutral-500">{t("search.noSaved")}</p>
-            ) : (
-              <ul ref={listRef} role="listbox" aria-label={t("search.saved")}>
-                {savedList.map((s, i) => (
-                  <li
-                    key={s.id}
-                    data-index={i}
-                    role="option"
-                    aria-selected={i === active}
-                    onMouseMove={() => setActive(i)}
-                    onClick={() => apply(s)}
-                    className={`group flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 ${i === active ? "bg-neutral-100 dark:bg-neutral-800" : ""}`}
-                  >
-                    <Bookmark size={16} className="shrink-0 text-neutral-400" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">{s.name}</span>
-                      <span className="block truncate text-xs text-neutral-500">{describeSearch(s, { workspaces: workspaces.data ?? [], databases: databases.data ?? [], people: people.data ?? [], me })}</span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        remove.mutate(s.id);
-                      }}
-                      title={t("search.deleteSaved")}
-                      aria-label={t("search.deleteSaved")}
-                      className="rounded p-1 text-neutral-400 opacity-0 group-hover:opacity-100 hover:bg-neutral-200 hover:text-neutral-700 focus:opacity-100 max-sm:opacity-100 dark:hover:bg-neutral-700"
-                    >
-                      <X size={14} />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        ) : (
-          <ul ref={listRef} role="listbox" className="max-h-[55vh] overflow-y-auto p-1.5">
-            {results.map((r, i) => (
+        <ul ref={listRef} id="nt-palette-list" role="listbox" className="max-h-[55vh] overflow-y-auto p-1.5 empty:hidden">
+          {matched.length > 0 && (
+            <li role="presentation" className={heading}>
+              {t("palette.actions")}
+            </li>
+          )}
+          {matched.map((action, i) => (
+            <li
+              key={action.id}
+              id={`nt-palette-${i}`}
+              data-index={i}
+              data-action={action.id}
+              role="option"
+              aria-selected={i === active}
+              onMouseMove={() => setActive(i)}
+              onClick={() => choose(items[i])}
+              className={`${row(i)} items-center`}
+            >
+              <span className="flex w-5 shrink-0 justify-center text-neutral-500">{action.icon}</span>
+              <span className="min-w-0 flex-1 truncate text-sm">{action.title()}</span>
+              {action.shortcut && (
+                <kbd className="shrink-0 rounded border border-neutral-300 px-1 font-sans text-[10px] text-neutral-400 dark:border-neutral-700">
+                  {action.shortcut}
+                </kbd>
+              )}
+            </li>
+          ))}
+          {actionsOnly && matched.length === 0 && <li className="px-3 py-6 text-center text-sm text-neutral-500">{t("palette.noActions")}</li>}
+          {showSaved && (
+            <li role="presentation" className={heading}>
+              {t("search.saved")}
+            </li>
+          )}
+          {showSaved && savedList.length === 0 && <li className="px-3 pb-3 text-sm text-neutral-500">{t("search.noSaved")}</li>}
+          {savedList.map((s, j) => {
+            const i = matched.length + j;
+            return (
               <li
-                key={`${r.id}:${r.file?.id ?? ""}`}
+                key={s.id}
+                id={`nt-palette-${i}`}
                 data-index={i}
                 role="option"
                 aria-selected={i === active}
                 onMouseMove={() => setActive(i)}
-                onClick={() => open(r)}
-                className={`flex cursor-pointer gap-3 rounded-lg px-3 py-2 ${i === active ? "bg-neutral-100 dark:bg-neutral-800" : ""}`}
+                onClick={() => choose(items[i])}
+                className={`group ${row(i)} items-center`}
+              >
+                <Bookmark size={16} className="shrink-0 text-neutral-400" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">{s.name}</span>
+                  <span className="block truncate text-xs text-neutral-500">
+                    {describeSearch(s, { workspaces: workspaces.data ?? [], databases: databases.data ?? [], people: people.data ?? [], me })}
+                  </span>
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    remove.mutate(s.id);
+                  }}
+                  title={t("search.deleteSaved")}
+                  aria-label={t("search.deleteSaved")}
+                  className="rounded p-1 text-neutral-400 opacity-0 group-hover:opacity-100 hover:bg-neutral-200 hover:text-neutral-700 focus:opacity-100 max-sm:opacity-100 dark:hover:bg-neutral-700"
+                >
+                  <X size={14} />
+                </button>
+              </li>
+            );
+          })}
+          {results.length > 0 && matched.length > 0 && (
+            <li role="presentation" className={heading}>
+              {t("palette.pages")}
+            </li>
+          )}
+          {results.map((r, j) => {
+            const i = matched.length + j;
+            return (
+              <li
+                key={`${r.id}:${r.file?.id ?? ""}`}
+                id={`nt-palette-${i}`}
+                data-index={i}
+                role="option"
+                aria-selected={i === active}
+                onMouseMove={() => setActive(i)}
+                onClick={() => choose(items[i])}
+                className={row(i)}
               >
                 <span className="mt-0.5 w-5 shrink-0 text-center">
                   <ResultIcon r={r} />
@@ -416,14 +514,17 @@ export function SearchDialog({ onClose, initial }: { onClose: () => void; initia
                   )}
                 </span>
               </li>
-            ))}
-            {!search.isFetching && results.length === 0 && <li className="px-3 py-6 text-center text-sm text-neutral-500">{t("search.noResults")}</li>}
-          </ul>
-        )}
-        <div className="flex gap-4 border-t border-neutral-200 px-4 py-2 text-xs text-neutral-500 dark:border-neutral-800">
+            );
+          })}
+          {searching && !loading && results.length === 0 && matched.length === 0 && (
+            <li className="px-3 py-6 text-center text-sm text-neutral-500">{t("search.noResults")}</li>
+          )}
+        </ul>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-neutral-200 px-4 py-2 text-xs text-neutral-500 dark:border-neutral-800">
           <span>{t("search.hintChoose")}</span>
-          <span>{t("search.hintOpen")}</span>
-          <span>{t("search.hintClose")}</span>
+          <span>{t("palette.hintRun")}</span>
+          <span>{t("palette.hintActions")}</span>
+          <span className="max-sm:hidden">{t("search.hintClose")}</span>
         </div>
       </div>
     </div>
@@ -442,6 +543,11 @@ export function describeSearch(
   if (f.kind) parts.push(t(`search.kind.${f.kind}`));
   if (f.databaseId) parts.push(ctx.databases.find((d) => d.id === f.databaseId)?.title || t("search.filterDatabase"));
   if (f.authorId) parts.push(f.authorId === ctx.me ? t("search.authorMe") : (ctx.people.find((p) => p.id === f.authorId)?.name ?? t("search.filterAuthor")));
-  if (f.editedSince) parts.push((EDITED_SINCE_PRESETS as readonly string[]).includes(f.editedSince) ? t(`search.edited.${f.editedSince as (typeof EDITED_SINCE_PRESETS)[number]}`) : f.editedSince);
+  if (f.editedSince)
+    parts.push(
+      (EDITED_SINCE_PRESETS as readonly string[]).includes(f.editedSince)
+        ? t(`search.edited.${f.editedSince as (typeof EDITED_SINCE_PRESETS)[number]}`)
+        : f.editedSince,
+    );
   return parts.join(" · ");
 }
