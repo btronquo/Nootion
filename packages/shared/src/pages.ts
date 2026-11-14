@@ -148,6 +148,72 @@ export interface SearchResult {
   snippet: string;
   /** Set when the match is in a file attached to the page (its name or its text). */
   file?: { id: string; name: string };
+  /** Where the words were found: the title, the content, or (rows) the values of the cells. */
+  match?: "title" | "content" | "cells";
+  /** When the page last changed (ISO). */
+  updatedAt?: string;
+}
+
+/** What a search can be narrowed to: pages, databases, database rows, attached files. */
+export const SEARCH_KINDS = ["page", "database", "row", "file"] as const;
+export type SearchKind = (typeof SEARCH_KINDS)[number];
+
+/** Relative periods offered for "edited since" ("7d": the last 7 days); a date (YYYY-MM-DD) works too. */
+export const EDITED_SINCE_PRESETS = ["1d", "7d", "30d", "365d"] as const;
+const EDITED_SINCE = /^(\d{1,4}d|\d{4}-\d{2}-\d{2})$/;
+
+/** Filters of a search, as query parameters of GET /api/search and in saved searches. */
+export const searchFiltersSchema = z.object({
+  /** A space. */
+  workspaceId: z.string().min(1).max(100).optional(),
+  kind: z.enum(SEARCH_KINDS).optional(),
+  /** Rows of one database. */
+  databaseId: z.string().min(1).max(100).optional(),
+  /** Pages created by this person. */
+  authorId: z.string().min(1).max(100).optional(),
+  /** Pages changed since: a number of days ("7d") or a date ("2026-01-31"). */
+  editedSince: z.string().regex(EDITED_SINCE).optional(),
+});
+export type SearchFilters = z.infer<typeof searchFiltersSchema>;
+
+/** The time (ms) an "edited since" filter starts from, or null when it is not valid. */
+export function editedSinceTime(value: string, now = Date.now()): number | null {
+  if (!EDITED_SINCE.test(value)) return null;
+  if (value.endsWith("d")) return now - Number(value.slice(0, -1)) * 86_400_000;
+  const time = new Date(`${value}T00:00:00`).getTime();
+  return Number.isNaN(time) ? null : time;
+}
+
+/** True when at least one filter is set. */
+export const hasSearchFilters = (f: SearchFilters) => Object.values(f).some((v) => v !== undefined && v !== "");
+
+export const savedSearchInput = z.object({
+  name: z.string().trim().min(1).max(100),
+  query: z.string().max(200).default(""),
+  filters: searchFiltersSchema.default({}),
+});
+
+export const updateSavedSearchInput = z.object({
+  name: z.string().trim().min(1).max(100).optional(),
+  query: z.string().max(200).optional(),
+  filters: searchFiltersSchema.optional(),
+});
+
+/** A search with its filters that a user saved under a name. */
+export interface SavedSearch {
+  id: string;
+  name: string;
+  query: string;
+  filters: SearchFilters;
+  createdAt: string;
+}
+
+/** A database the user can read, for the search's database filter. */
+export interface SearchDatabase {
+  id: string;
+  title: string;
+  icon: string | null;
+  workspaceId: string;
 }
 
 /** New order of the user's favorites: every favorite page id, in order. */

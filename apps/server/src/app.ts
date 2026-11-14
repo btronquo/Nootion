@@ -1,3 +1,4 @@
+import { createSearchIndexer } from "./search-index.js";
 import fs from "node:fs";
 import path from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
@@ -158,6 +159,10 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
   app.decorate("extractor", extractor);
   app.addHook("onReady", async () => extractor.wake());
   app.addHook("onClose", async () => extractor.stop());
+  // Indexes the values of database rows for search, as rows and columns change.
+  const searchIndexer = createSearchIndexer(opts.db, app.log);
+  app.addHook("onReady", async () => searchIndexer.wake());
+  app.addHook("onClose", async () => searchIndexer.stop());
   // Sends reminders to the devices of their users as they fall due.
   // E-mail, once administrators set a provider.
   const mailer = createMailer({ db: opts.db, appSecret: opts.config.appSecret, appUrl: opts.config.appUrl, log: app.log, sender: opts.mailSender });

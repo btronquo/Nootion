@@ -238,8 +238,25 @@ app's Notifications, and on their devices when they turned notifications on). No
 
 ## Search
 
-`GET /api/search?q=words&limit=20` searches titles, content and attached files (PDFs, scans) of the token's
-spaces: `{ "results": [{ "id", "title", "kind", "path", "snippet", "file"? }] }`.
+`GET /api/search?q=words&limit=20` searches titles, content, the values of database rows and attached files (PDFs,
+scans) of the token's spaces: `{ "results": [{ "id", "title", "kind", "path", "snippet", "match"?, "updatedAt", "file"? }] }`.
+A row is found by its cells as well as its title: searching `dupont` finds the invoice whose "Customer" is Dupont, with
+the snippet `Customer: Dupont · Status: Paid` and `"match": "cells"`. Text, number, select, status, person, link,
+e-mail, phone, file and ID columns are searched; computed ones (formulas, rollups) are not.
+
+Filters, as more parameters (each optional; with filters and no `q`, the most recently changed pages that match):
+
+| Parameter     | Keeps                                                                 |
+| ------------- | --------------------------------------------------------------------- |
+| `workspaceId` | pages of this space                                                   |
+| `kind`        | `page`, `database`, `row` (database rows) or `file` (attached files)   |
+| `databaseId`  | rows of this database (`GET /api/search/databases` lists them)        |
+| `authorId`    | pages created (files: added) by this person                           |
+| `editedSince` | pages changed since a number of days (`7d`) or a date (`2026-01-31`)  |
+
+Saved searches, the user's own: `GET /api/search/saved`, `POST /api/search/saved` with
+`{ "name", "query", "filters": { …the parameters above } }` (the same name replaces it), `PATCH` and `DELETE
+/api/search/saved/:id`.
 
 ## Examples
 

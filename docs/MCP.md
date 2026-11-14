@@ -50,7 +50,7 @@ Agents that only know OAuth connect as Claude does above.
 
 | Tool | What it does |
 | --- | --- |
-| `search` | Searches titles, content and attached files (PDFs, scans). |
+| `search` | Searches titles, content, values of database rows and attached files (PDFs, scans); filters: space, kind, database, author, edited since. |
 | `list_spaces`, `list_pages` | The spaces it can reach, and the tree of pages and databases of one. |
 | `read_page` | A page as Markdown, with its place in the tree; for a database row, its cell values too. |
 | `list_databases`, `get_database` | Databases, and a database's columns, select options and views. |

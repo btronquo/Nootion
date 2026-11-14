@@ -20,6 +20,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   back as it was. The import runs in the background with its progress, lists what it imported differently, and can
   be undone as a whole: everything it made goes to the trash. Archives are unpacked with size limits and no path
   leaving them (`IMPORT_MAX_MB`, 500 MB by default).
+- Search in database values: searching "Dupont" also finds the invoice whose "Customer" cell says Dupont, shown as
+  "Invoices › INV-12" with "Customer: Dupont · Status: Paid" under it. Text, number, select, status, person, link,
+  e-mail, phone, file and ID columns are searched; renaming an option or a column is followed. Filters under the search
+  box narrow the results: space, type (pages, databases, database rows, files), a database, author, edited since; with
+  filters and no words, the latest changed pages that match are listed. A search with its filters can be saved under a
+  name: saved searches are listed when the search box is empty. The API and the MCP server's search take the same
+  filters.
 - Resizable columns: a bar shows in the gap between two columns side by side; drag it to share the width between
   them, double-click it to give every column of the row the same width again. Widths are kept with the page, shared
   with everyone editing it, and ignored on a phone, where columns are one under the other. Columns are a little
