@@ -44,6 +44,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   button and a "Wrap lines" switch sit next to it; long lines otherwise scroll sideways. Each language is downloaded
   the first time a block uses it, so pages without code load nothing more. Tab indents inside a code block. Public
   pages show the colours too, and blocks imported from other tools or from Markdown keep their language.
+- Mermaid diagrams: `/mermaid` adds a diagram, and any code block set to "Mermaid" (or imported with that language,
+  from Markdown fences or other tools) draws it under its source. The source shows while the cursor is in the block
+  and hides when you leave it, leaving the diagram alone; click the diagram or "Edit" to change it. The drawing
+  follows typing, keeps the last good one while the source has a mistake, and says on which line the mistake is.
+  Flowcharts, sequence, class, state, Gantt, pie and the other Mermaid diagrams work, in the light and dark themes.
+  Public pages show the diagram only, and printing puts the diagram on paper instead of its source. The library is
+  downloaded the first time a page shows a diagram, and runs in strict mode (no HTML nor scripts in labels).
 - Print and save as PDF, from the page menu ("…") or with Ctrl+P (⌘P): only the page is printed, without the
   sidebar, buttons or handles, on white even with the dark theme. Toggles are open, databases show all their rows
   (not only the first batch) and only the view shown, rows and blocks are not cut across two sheets, and the address

@@ -1,16 +1,45 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { NodeViewContent, NodeViewWrapper, type NodeViewProps } from "@tiptap/react";
-import { Check, ChevronDown, Copy, WrapText } from "lucide-react";
+import { Check, ChevronDown, Copy, Pencil, WrapText } from "lucide-react";
 import { t } from "@nootion/shared";
 import { Popover } from "../database/Popover";
 import { copyText } from "../lib/browser";
-import { CODE_LANGUAGES, PLAIN_TEXT, languageLabel, resolveLanguage } from "./codeLanguages";
+import { CODE_LANGUAGES, MERMAID, PLAIN_TEXT, isMermaid, languageLabel, resolveLanguage } from "./codeLanguages";
+import { MermaidPreview } from "./MermaidPreview";
 
 const barButton =
   "flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-neutral-500 hover:bg-neutral-200 hover:text-neutral-800 dark:text-neutral-400 dark:hover:bg-neutral-700 dark:hover:text-neutral-100";
 
-/** A code block: its language (chosen or guessed), a copy button and line wrapping above the code. */
-export function CodeBlockView({ node, updateAttributes, editor, decorations }: NodeViewProps) {
+/** Whether the cursor of a focused editor is in this block: a diagram's source shows only then. */
+function useCaretInside(editor: NodeViewProps["editor"], getPos: NodeViewProps["getPos"], active: boolean) {
+  const [inside, setInside] = useState(false);
+  useEffect(() => {
+    if (!active) return;
+    const update = () => {
+      const pos = getPos();
+      if (typeof pos !== "number") return;
+      // The block's size from the document itself: this runs before the view gets the block as it is now.
+      const size = editor.state.doc.nodeAt(pos)?.nodeSize ?? 0;
+      const { from, to } = editor.state.selection;
+      setInside(editor.isFocused && from > pos && to < pos + size);
+    };
+    update();
+    // Not on blur: opening the language menu would hide the source under the cursor.
+    editor.on("selectionUpdate", update);
+    editor.on("focus", update);
+    return () => {
+      editor.off("selectionUpdate", update);
+      editor.off("focus", update);
+    };
+  }, [editor, getPos, active]);
+  return active && inside;
+}
+
+/**
+ * A code block: its language (chosen or guessed), a copy button and line wrapping above the code. A Mermaid block
+ * draws its diagram under the source, and hides the source while the cursor is elsewhere.
+ */
+export function CodeBlockView({ node, updateAttributes, editor, decorations, getPos }: NodeViewProps) {
   const language = node.attrs.language as string | null;
   const wrap = node.attrs.wrap === true;
   const detected = decorations.map((d) => (d as { spec?: { detectedLanguage?: string } }).spec?.detectedLanguage).find(Boolean) ?? null;
@@ -18,6 +47,22 @@ export function CodeBlockView({ node, updateAttributes, editor, decorations }: N
   const [copied, setCopied] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
   const editable = editor.isEditable;
+  const diagram = isMermaid(language);
+  const source = node.textContent;
+  const caretInside = useCaretInside(editor, getPos, diagram && editable);
+  // Read-only pages show the diagram only; an empty or new diagram shows its source to write in.
+  const showSource = !diagram || (editable && (caretInside || !source.trim()));
+
+  /** Puts the cursor at the end of the diagram's source, which shows it. */
+  const editSource = () => {
+    const pos = getPos();
+    if (typeof pos === "number")
+      editor
+        .chain()
+        .focus()
+        .setTextSelection(pos + 1 + node.content.size)
+        .run();
+  };
 
   const label =
     language === null
@@ -35,7 +80,13 @@ export function CodeBlockView({ node, updateAttributes, editor, decorations }: N
   };
 
   return (
-    <NodeViewWrapper className="code-block group relative" data-language={language ?? undefined} data-wrap={wrap ? "" : undefined}>
+    <NodeViewWrapper
+      className="code-block group relative"
+      data-language={language ?? undefined}
+      data-wrap={wrap ? "" : undefined}
+      data-diagram={diagram ? "" : undefined}
+      data-source-hidden={showSource ? undefined : ""}
+    >
       <div className="code-block-bar" contentEditable={false}>
         {editable ? (
           <button
@@ -54,7 +105,13 @@ export function CodeBlockView({ node, updateAttributes, editor, decorations }: N
           <span className="px-1.5 py-0.5 text-xs text-neutral-500 dark:text-neutral-400">{language === null && !detected ? "" : label}</span>
         )}
         <span className="code-block-actions ml-auto flex items-center gap-0.5">
-          {editable && (
+          {diagram && editable && !showSource && (
+            <button type="button" className={barButton} onClick={editSource} title={t("mermaid.edit")} aria-label={t("mermaid.edit")}>
+              <Pencil size={14} />
+              <span>{t("mermaid.edit")}</span>
+            </button>
+          )}
+          {editable && (diagram ? showSource : true) && (
             <button
               type="button"
               className={`${barButton} ${wrap ? "text-blue-600 dark:text-blue-400" : ""}`}
@@ -75,6 +132,7 @@ export function CodeBlockView({ node, updateAttributes, editor, decorations }: N
       <pre spellCheck={false}>
         <NodeViewContent<"code"> as="code" />
       </pre>
+      {diagram && <MermaidPreview source={source} onEdit={editable ? editSource : undefined} />}
       {menu && (
         <LanguageMenu
           anchor={button.current}
@@ -111,7 +169,9 @@ function LanguageMenu({
     const all: Choice[] = [
       { id: null, label: t("codeBlock.auto") },
       { id: PLAIN_TEXT, label: t("codeBlock.plainText") },
-      ...CODE_LANGUAGES.map((l) => ({ id: l.id, label: l.label })),
+      ...[...CODE_LANGUAGES.map((l) => ({ id: l.id, label: l.label })), { id: MERMAID, label: languageLabel(MERMAID) }].sort((a, b) =>
+        a.label.localeCompare(b.label),
+      ),
     ];
     // A language from an import that we don't colour stays listed, so that the menu shows what the block has.
     if (current && !resolved) all.splice(2, 0, { id: current, label: current });

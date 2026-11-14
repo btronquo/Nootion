@@ -245,6 +245,51 @@ body {
     display: none;
   }
 }
+/* Mermaid diagrams: drawn under their source, which hides while the cursor is elsewhere. */
+.nootion-content .code-block[data-source-hidden] pre {
+  display: none;
+}
+.mermaid-preview {
+  @apply px-4 pb-4 select-none;
+}
+.code-block[data-source-hidden] .mermaid-preview {
+  @apply pt-1;
+}
+.mermaid-diagram {
+  @apply overflow-x-auto transition-opacity;
+}
+.mermaid-diagram svg {
+  @apply mx-auto block h-auto max-w-full;
+}
+.dark .mermaid-diagram .mermaid-light,
+.mermaid-diagram .mermaid-dark {
+  display: none;
+}
+.dark .mermaid-diagram .mermaid-dark {
+  display: block;
+}
+.mermaid-message {
+  @apply text-xs text-neutral-500 dark:text-neutral-400;
+}
+.mermaid-error {
+  @apply mt-2 text-red-600 dark:text-red-400;
+}
+.mermaid-empty {
+  @apply text-xs text-neutral-500 italic dark:text-neutral-400;
+}
+@media print {
+  /* On paper, a drawn diagram stands for its source. */
+  .nootion-content .code-block[data-diagram] pre,
+  .mermaid-empty,
+  .mermaid-message {
+    display: none;
+  }
+  /* A diagram is never cut between two sheets. */
+  .mermaid-diagram {
+    break-inside: avoid;
+    overflow: visible;
+  }
+}
 /* Colours of the code, after GitHub's light and dark themes. */
 .nootion-content pre {
   --hl-keyword: #cf222e;

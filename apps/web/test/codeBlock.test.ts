@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Schema } from "@tiptap/pm/model";
-import { languageLabel, loadLanguage, resolveLanguage, DETECTED } from "../src/editor/codeLanguages";
+import { isMermaid, languageLabel, loadLanguage, resolveLanguage, DETECTED } from "../src/editor/codeLanguages";
 import { highlightBlock } from "../src/editor/codeBlock";
 
 // Just enough of the editor's schema for a code block.
@@ -27,9 +27,18 @@ describe("code block languages", () => {
   });
 
   it("keeps a language it doesn't colour as it is", () => {
-    expect(resolveLanguage("mermaid")).toBeNull();
-    expect(languageLabel("mermaid")).toBe("mermaid");
+    expect(resolveLanguage("brainfuck")).toBeNull();
+    expect(languageLabel("brainfuck")).toBe("brainfuck");
     expect(languageLabel("ts")).toBe("TypeScript");
+  });
+
+  it("knows Mermaid diagrams, whatever the case the import gave", () => {
+    expect(resolveLanguage("Mermaid")).toBe("mermaid");
+    expect(resolveLanguage("mmd")).toBe("mermaid");
+    expect(languageLabel("mermaid")).toBe("Mermaid");
+    expect(isMermaid("mermaid")).toBe(true);
+    expect(isMermaid("markdown")).toBe(false);
+    expect(isMermaid(null)).toBe(false);
   });
 });
 

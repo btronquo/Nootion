@@ -50,6 +50,9 @@ export const CODE_LANGUAGES: readonly CodeLanguage[] = [
 /** A block that is plain text on purpose: never coloured nor guessed. */
 export const PLAIN_TEXT = "plaintext";
 
+/** A Mermaid diagram: its source isn't coloured, the block draws the diagram under it instead. */
+export const MERMAID = "mermaid";
+
 /** Languages tried when a block has none: the most common ones, so that guessing stays fast and sensible. */
 export const DETECTED = [
   "javascript",
@@ -119,6 +122,7 @@ const ALIASES: Record<string, string> = {
   txt: PLAIN_TEXT,
   plain: PLAIN_TEXT,
   "plain text": PLAIN_TEXT,
+  mmd: MERMAID,
 };
 
 const BY_ID = new Map(CODE_LANGUAGES.map((l) => [l.id, l]));
@@ -128,12 +132,16 @@ export function resolveLanguage(name: string | null | undefined): string | null 
   if (!name) return null;
   const key = name.trim().toLowerCase();
   const id = ALIASES[key] ?? key;
-  return id === PLAIN_TEXT || BY_ID.has(id) ? id : null;
+  return id === PLAIN_TEXT || id === MERMAID || BY_ID.has(id) ? id : null;
 }
+
+/** Whether a block's language makes it a diagram. */
+export const isMermaid = (name: string | null | undefined) => resolveLanguage(name) === MERMAID;
 
 /** The name shown for a language id, or the name itself when it is one we don't know (kept from an import). */
 export function languageLabel(name: string): string {
   const id = resolveLanguage(name);
+  if (id === MERMAID) return "Mermaid";
   return (id && BY_ID.get(id)?.label) || name;
 }
 
