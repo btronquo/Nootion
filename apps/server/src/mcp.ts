@@ -105,13 +105,13 @@ const filterSchema = z.object({
   operator: z
     .string()
     .describe(
-      "text: contains, not_contains, is, is_not, starts_with, ends_with; number: eq, neq, gt, lt, gte, lte; date: is, before, after, on_or_before, on_or_after, within; checkbox: checked, unchecked; select: is, is_not; multi-select, person, relation: contains, not_contains; any: is_empty, is_not_empty.",
+      "text: contains, not_contains, is, is_not, starts_with, ends_with; number: eq, neq, gt, lt, gte, lte; date: is, before, after, on_or_before, on_or_after, between, within; checkbox: checked, unchecked; select: is, is_not; multi-select, person, relation: contains, not_contains; any: is_empty, is_not_empty.",
     ),
   value: z
     .unknown()
     .optional()
     .describe(
-      "Text, number, option name, a date (2026-11-15, today, tomorrow, one_week_ago…), within: past_week, next_week, next_month…; person: a user id or me.",
+      "Text, number, option name, a date (2026-11-15, today, tomorrow, one_week_ago…), between: 2026-11-01/2026-11-30; within (relative to today): this:week, this:month, past:7:day, next:2:week…; person: a user id or me.",
     ),
 });
 

@@ -217,7 +217,13 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     const all = listRowPages(db, page.id).map((r) => toRow(r, properties));
     const { related, rollupTargets } = enrichRows(db, properties, all, canRead);
     const people = collectPeople(db, properties, all, rollupTargets);
-    const rows = applyView({ properties, rows: all, people, related, rollupTargets, me: user.id }, { filters, filterMode: input.filterMode ?? view?.config.filterMode, sorts });
+    const rows = applyView({ properties, rows: all, people, related, rollupTargets, me: user.id }, {
+      filters,
+      filterMode: input.filterMode ?? view?.config.filterMode,
+      // Filters sent with the query replace the view's, chips included.
+      simpleFilters: input.filters ? undefined : view?.config.simpleFilters,
+      sorts,
+    });
     const start = Number(input.cursor ?? 0);
     const slice = rows.slice(start, start + input.limit);
     const next = start + input.limit < rows.length ? String(start + input.limit) : null;

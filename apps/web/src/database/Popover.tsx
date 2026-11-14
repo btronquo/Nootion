@@ -17,11 +17,19 @@ export function Popover({ anchor, onClose, children, width: wanted = 260 }: { an
   }, [anchor, width]);
 
   useEffect(() => {
+    // A popover opened from this one (a menu inside a filter) sits later in the page: it is not "outside",
+    // and it closes first on Escape.
+    const openedLater = (el: Element | null) =>
+      !!el && !!ref.current && el !== ref.current && !!(ref.current.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING);
     const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node) && !anchor?.contains(e.target as Node)) onClose();
+      const target = e.target as Node;
+      if (target instanceof Element && openedLater(target.closest(".nt-pop"))) return;
+      if (ref.current && !ref.current.contains(target) && !anchor?.contains(target)) onClose();
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
+      const pops = document.querySelectorAll(".nt-pop");
+      if (openedLater(pops[pops.length - 1] ?? null)) return;
       // Only this popover closes, not a dialog it sits in.
       e.preventDefault();
       onClose();

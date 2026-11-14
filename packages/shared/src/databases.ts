@@ -224,6 +224,8 @@ export interface ViewConfig {
   filters?: ViewFilter[];
   /** "and" (default): rows match every filter. "or": rows match at least one. */
   filterMode?: "and" | "or";
+  /** Filters shown as chips above the rows, one per column: rows match all of them, and the (advanced) filters above. */
+  simpleFilters?: ViewFilter[];
   /** Applied in order: the first sort decides, the next ones break ties. */
   sorts?: ViewSort[];
   /** Property whose values split the rows into groups (board columns). */
@@ -251,6 +253,7 @@ export const viewConfigSchema = z
     calculations: z.record(z.string(), z.enum(CALC_FUNCTIONS)).optional(),
     filters: z.array(viewFilterSchema).max(50).optional(),
     filterMode: z.enum(["and", "or"]).optional(),
+    simpleFilters: z.array(viewFilterSchema).max(50).optional(),
     sorts: z.array(viewSortSchema).max(20).optional(),
     groupBy: z.string().min(1).max(64).nullable().optional(),
     collapsedGroups: z.array(z.string().max(500)).max(500).optional(),
