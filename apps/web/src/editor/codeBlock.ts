@@ -3,7 +3,7 @@ import { ReactNodeViewRenderer } from "@tiptap/react";
 import type { Node as PMNode } from "@tiptap/pm/model";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
-import { DETECTED, PLAIN_TEXT, isLoaded, loadLanguage, lowlight, resolveLanguage } from "./codeLanguages";
+import { DETECTED, MERMAID, PLAIN_TEXT, isLoaded, loadLanguage, lowlight, resolveLanguage } from "./codeLanguages";
 import { CodeBlockView } from "./CodeBlockView";
 
 /** Past this size a block stays plain: colouring it would slow typing down. */
@@ -52,7 +52,7 @@ export function highlightBlock(node: PMNode): Highlight {
     let tree: ReturnType<typeof lowlight.highlight> | null = null;
     if (name) {
       const id = resolveLanguage(name);
-      if (id && id !== PLAIN_TEXT) {
+      if (id && id !== PLAIN_TEXT && id !== MERMAID) {
         if (isLoaded(id)) tree = lowlight.highlight(id, text);
         else request([id]);
       }

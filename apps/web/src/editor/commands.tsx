@@ -39,6 +39,7 @@ import {
   MessageSquareQuote,
   Brush,
   Film,
+  Workflow,
 } from "lucide-react";
 import { currentLocale, parseNaturalDate, pluginNodeName, type ClientPluginInfo, type PageSummary, type UserDirectoryEntry } from "@nootion/shared";
 import { formatMentionDate } from "../lib/reminders";
@@ -88,6 +89,13 @@ export function slashItems(ctx: CommandContext) {
     item("2 columns", t("command.columns2"), <Columns2 size={16} />, (e, r) => del(e, r).insertColumns(2).run(), "columns side layout"),
     item("3 columns", t("command.columns3"), <Columns3 size={16} />, (e, r) => del(e, r).insertColumns(3).run(), "columns side layout"),
     item("Code", t("command.code"), <Code size={16} />, (e, r) => del(e, r).toggleCodeBlock().run(), "codeblock"),
+    item(
+      "Mermaid",
+      t("command.mermaid"),
+      <Workflow size={16} />,
+      (e, r) => del(e, r).setCodeBlock({ language: "mermaid" }).insertContent({ type: "text", text: t("mermaid.sample") }).run(),
+      "diagram flowchart chart sequence graph gantt schema",
+    ),
     item("Table", t("command.table"), <Table size={16} />, (e, r) => del(e, r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(), "grid"),
     item("Divider", t("command.divider"), <Minus size={16} />, (e, r) => del(e, r).setHorizontalRule().run(), "hr separator"),
     item(
