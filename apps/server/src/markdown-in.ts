@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { ProseMirrorNode } from "./collab.js";
+import { OPTION_COLORS } from "@nootion/shared";
 
 type Mark = { type: string; attrs?: Record<string, unknown> };
 
@@ -196,7 +197,10 @@ const NODES = new Set([
   "recentPages", "favoritesList", "upcomingEvents", "databaseRows", "buttonBlock", "chart", "progressBar", "countdown", "pomodoro",
   "habitTracker", "clock", "weather", "quoteOfDay", "imageCarousel", "drawing", "video",
 ]);
-const MARKS = new Set(["bold", "italic", "strike", "underline", "code", "link"]);
+const MARKS = new Set(["bold", "italic", "strike", "underline", "code", "link", "textColor", "highlight"]);
+/** Marks whose only attribute is one of the blocks' colors, never a free CSS value. */
+const COLOR_MARKS = new Set(["textColor", "highlight"]);
+const isOptionColor = (c: unknown) => typeof c === "string" && (OPTION_COLORS as readonly string[]).includes(c);
 
 export class ContentError extends Error {}
 
@@ -215,11 +219,14 @@ export function checkContent(json: unknown, userId: string, maxNodes = 20_000): 
     if (n.type === "text") {
       if (typeof n.text !== "string" || !n.text) throw new ContentError("empty text");
       const marks = (Array.isArray(n.marks) ? n.marks : []).filter(
-        (m) => MARKS.has(m?.type) && (m.type !== "link" || SAFE_URL.test(String(m.attrs?.href ?? ""))),
+        (m) =>
+          MARKS.has(m?.type) &&
+          (m.type !== "link" || SAFE_URL.test(String(m.attrs?.href ?? ""))) &&
+          (!COLOR_MARKS.has(m.type) || isOptionColor(m.attrs?.color)),
       );
-      return marks.length
-        ? { type: "text", text: n.text, marks: marks.map((m) => ({ type: m.type, ...(m.attrs ? { attrs: { ...m.attrs } } : {}) })) }
-        : { type: "text", text: n.text };
+      const copy = (m: (typeof marks)[number]) =>
+        COLOR_MARKS.has(m.type) ? { type: m.type, attrs: { color: m.attrs!.color } } : { type: m.type, ...(m.attrs ? { attrs: { ...m.attrs } } : {}) };
+      return marks.length ? { type: "text", text: n.text, marks: marks.map(copy) } : { type: "text", text: n.text };
     }
     let attrs = n.attrs && typeof n.attrs === "object" ? { ...n.attrs } : undefined;
     if (attrs) {

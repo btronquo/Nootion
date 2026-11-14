@@ -7,6 +7,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Text colour and highlight on a selection: the selection toolbar (and the editing bar on a phone) has an "A" button
+  with the nine colours blocks already have, for the text and for a highlight behind it. Ctrl+Shift+H highlights in
+  yellow. Colours show on public pages and in the history, go through the API, and the import from other tools keeps
+  the colours of text it used to drop. In Markdown, highlights are written between `==`.
 - Resizable columns: a bar shows in the gap between two columns side by side; drag it to share the width between
   them, double-click it to give every column of the row the same width again. Widths are kept with the page, shared
   with everyone editing it, and ignored on a phone, where columns are one under the other. Columns are a little

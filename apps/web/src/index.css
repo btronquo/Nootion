@@ -537,6 +537,13 @@ body.nt-resizing-columns * {
 .nootion-content [data-color$="-bg"] {
   border-radius: 3px;
 }
+/* Highlighted text: the block colors' backgrounds, without the browser's yellow. */
+.nootion-content mark.nt-highlight {
+  color: inherit;
+  padding: 0 1px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
 /* A block reached by its link: shown for a moment. */
 @keyframes nt-block-flash {
   from {

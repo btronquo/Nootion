@@ -30,6 +30,7 @@ import { HandleTargets } from "./handleTargets";
 import { ColumnResize } from "./columnResize";
 import { LinkClicks } from "./linkClicks";
 import { ImageViewer } from "./imageViewer";
+import { Highlight, TextColor } from "./textColors";
 import { RepeatingTaskItem, TaskRepeatExtension } from "./taskRepeat";
 import { t } from "@nootion/shared";
 
@@ -51,6 +52,8 @@ export function baseExtensions(opts: {
       link: { openOnClick: !opts.collaborative, autolink: true, HTMLAttributes: { rel: "noopener noreferrer nofollow", target: "_blank" } },
       heading: { levels: [1, 2, 3] },
     }),
+    TextColor,
+    Highlight,
     TaskList,
     RepeatingTaskItem.configure({ nested: true }),
     TaskRepeatExtension,
