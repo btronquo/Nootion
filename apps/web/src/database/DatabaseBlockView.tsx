@@ -63,7 +63,7 @@ function EditableHeading({ data }: { data: DatabaseData }) {
         aria-label={t("database.titleLabel")}
         className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-neutral-400"
       />
-      <Link to={`/page/${data.id}`} title={t("database.openFull")} className="rounded p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800">
+      <Link data-print-hide to={`/page/${data.id}`} title={t("database.openFull")} className="rounded p-1 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800">
         <ExternalLink size={16} />
       </Link>
     </div>

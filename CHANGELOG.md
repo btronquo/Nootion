@@ -36,14 +36,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Command palette: Ctrl+K (⌘K) still finds pages, and the same box now lists actions too, with their shortcut:
   new page or database (in the open page's space, or another one), quick capture, a subpage, go to Home,
   Notifications, All pages, Graph, Trash, My account or Administration, theme and language, and the open page's own
-  actions (share, favorite, comments, history, full width, duplicate, move to, copy link, export). Typing ">" first
-  lists actions only; matching ignores accents, and the most recently used actions come first.
-
+  actions (share, favorite, comments, history, full width, duplicate, move to, copy link, export, print). Typing ">" first
+  lists actions only; matching ignores accents, and the most recently used actions come first. With nothing typed,
+  the saved searches are listed under the actions.
 - Code blocks are coloured by their language: choose it from the menu above the block (searchable, about 35
   languages), or leave it on "Auto" and the language is guessed as you type. "Plain text" turns colours off. A copy
   button and a "Wrap lines" switch sit next to it; long lines otherwise scroll sideways. Each language is downloaded
   the first time a block uses it, so pages without code load nothing more. Tab indents inside a code block. Public
   pages show the colours too, and blocks imported from other tools or from Markdown keep their language.
+- Print and save as PDF, from the page menu ("…") or with Ctrl+P (⌘P): only the page is printed, without the
+  sidebar, buttons or handles, on white even with the dark theme. Toggles are open, databases show all their rows
+  (not only the first batch) and only the view shown, rows and blocks are not cut across two sheets, and the address
+  of links is written after them. A new sheet can start before each heading 1, or each heading 1 and 2. The PDF is
+  made by the browser ("Save as PDF" printer), so nothing more runs on the server.
 
 ### Changed
 

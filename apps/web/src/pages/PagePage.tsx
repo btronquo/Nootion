@@ -14,6 +14,7 @@ import {
   MessageSquare,
   MoreHorizontal,
   MoveHorizontal,
+  Printer,
   Repeat,
   Share2,
   Star,
@@ -32,6 +33,7 @@ import { Button } from "../components/ui";
 import { ShareDialog } from "../components/ShareDialog";
 import { EditedAt } from "../components/EditedAt";
 import { HistoryDialog } from "../components/HistoryDialog";
+import { PrintDialog } from "../components/PrintDialog";
 import { Backlinks } from "../components/Backlinks";
 import { IconPicker } from "../components/IconPicker";
 import { AddCoverButton, PageCover } from "../components/PageCover";
@@ -41,6 +43,7 @@ import { RowProperties } from "../database/RowProperties";
 import { dbKey } from "../database/hooks";
 import { Popover } from "../database/Popover";
 import { MenuButton } from "../components/SidebarLayout";
+import { isMac } from "../components/QuickCapture";
 import { SyncStatus } from "../components/SyncStatus";
 import { useSession } from "../lib/session";
 import { CommentsPanel, type DraftAnchor } from "../comments/CommentsPanel";
@@ -78,6 +81,7 @@ function PageView({ page }: { page: PageDetail }) {
   const [title, setTitle] = useState(page.title);
   const [sharing, setSharing] = useState(false);
   const [history, setHistory] = useState(false);
+  const [printing, setPrinting] = useState(false);
   const [menu, setMenu] = useState<HTMLElement | null>(null);
   const [moving, setMoving] = useState(false);
   const qc = useQueryClient();
@@ -152,11 +156,12 @@ function PageView({ page }: { page: PageDetail }) {
     comments: () => setCommentsOpen(true),
     fullWidth: (on) => save({ fullWidth: on }),
     move: () => setMoving(true),
+    print: () => setPrinting(true),
   });
 
   return (
     <div>
-      <header className="flex items-center justify-between gap-2 px-3 py-1.5 text-sm max-md:sticky max-md:top-0 max-md:z-30 max-md:border-b max-md:border-neutral-200 max-md:bg-white/95 max-md:backdrop-blur sm:gap-4 md:px-4 md:py-2 dark:max-md:border-neutral-800 dark:max-md:bg-neutral-900/95">
+      <header className="print:hidden flex items-center justify-between gap-2 px-3 py-1.5 text-sm max-md:sticky max-md:top-0 max-md:z-30 max-md:border-b max-md:border-neutral-200 max-md:bg-white/95 max-md:backdrop-blur sm:gap-4 md:px-4 md:py-2 dark:max-md:border-neutral-800 dark:max-md:bg-neutral-900/95">
         <nav className="flex min-w-0 items-center gap-1 text-neutral-500">
           <MenuButton />
           {page.breadcrumb.map((b) => (
@@ -288,7 +293,7 @@ function PageView({ page }: { page: PageDetail }) {
       </div>
 
       {menu && (
-        <Popover anchor={menu} onClose={() => setMenu(null)} width={240}>
+        <Popover anchor={menu} onClose={() => setMenu(null)} width={290}>
           {canEdit && (
             <label className="flex cursor-pointer items-center justify-between gap-2 rounded px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800">
               {t("page.fullWidth")}
@@ -324,6 +329,20 @@ function PageView({ page }: { page: PageDetail }) {
           >
             {t("page.exportMarkdown")}
           </a>
+          <button
+            type="button"
+            onClick={() => {
+              setMenu(null);
+              setPrinting(true);
+            }}
+            className="flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            data-print-page
+          >
+            <span className="flex items-center gap-2">
+              <Printer size={15} className="text-neutral-500" /> {t("page.print")}
+            </span>
+            <kbd className="text-xs text-neutral-400">{isMac() ? "⌘P" : "Ctrl+P"}</kbd>
+          </button>
         </Popover>
       )}
       {hasComments && commentsOpen && (
@@ -343,6 +362,7 @@ function PageView({ page }: { page: PageDetail }) {
       {sharing && <ShareDialog page={page} onClose={() => setSharing(false)} />}
       {history && <HistoryDialog page={page} onClose={() => setHistory(false)} />}
       {moving && <PageMove page={page} onClose={() => setMoving(false)} />}
+      {printing && <PrintDialog onClose={() => setPrinting(false)} />}
     </div>
   );
 }
@@ -365,6 +385,7 @@ function usePalette(
     comments: () => void;
     fullWidth: (on: boolean) => Promise<unknown>;
     move: () => void;
+    print: () => void;
   },
 ) {
   const actions = usePageActions(page);
@@ -449,6 +470,7 @@ function usePalette(
       icon: <Download size={16} />,
       run: actions.exportMarkdown,
     },
+    { id: "page:print", title: () => t("page.print"), keywords: () => "pdf print imprimer", section: "page", icon: <Printer size={16} />, run: ui.print },
   ]);
 }
 

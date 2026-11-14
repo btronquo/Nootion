@@ -679,3 +679,108 @@ body.nt-resizing-columns * {
   border-radius: 3px;
   animation: nt-block-flash 2.5s ease-out;
 }
+
+/*
+ * Printing, and "Save as PDF" (lib/print.ts): only the page, on white, over as many sheets as it takes. Toggles are
+ * open, rows of tables and cards are not cut across two sheets, links say where they lead, and a new sheet can start
+ * before headings (chosen in the print dialog, as attributes of <html>).
+ */
+@media print {
+  @page {
+    margin: 16mm 14mm;
+  }
+  html,
+  body,
+  #root {
+    height: auto !important;
+    overflow: visible !important;
+  }
+  body {
+    background: white !important;
+    color: black !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  /* What is there to act, not to read. */
+  .nt-backdrop,
+  [data-block-handle],
+  .nt-column-resize,
+  [data-show-more],
+  [data-print-hide],
+  [role="tablist"] > [role="tab"][aria-selected="false"],
+  .nootion-content .button-block,
+  [role="toolbar"],
+  [role="status"],
+  [data-comments-panel],
+  .nootion-content .ProseMirror-gapcursor {
+    display: none !important;
+  }
+  /* The page itself fills the sheet: no margins of the screen, no width limit. */
+  main > div > div.mx-auto {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  /* Toggles: their arrow pointing down (opened in the base layer below). */
+  .nootion-content [data-type="details"] > button::before {
+    rotate: 90deg;
+  }
+
+  /* Blocks that make no sense split across two sheets. */
+  .nootion-content pre,
+  .nootion-content blockquote,
+  .nootion-content .callout,
+  .nootion-content img,
+  .nootion-content figure,
+  .nootion-content tr,
+  [role="row"],
+  [role="listitem"],
+  [data-card] {
+    break-inside: avoid;
+  }
+  .nootion-content h1,
+  .nootion-content h2,
+  .nootion-content h3 {
+    break-after: avoid;
+  }
+  .nootion-content thead {
+    display: table-header-group;
+  }
+  img {
+    max-width: 100% !important;
+  }
+
+  /* Wide things (tables, boards, timelines) are not scrolled on paper: shown as far as the sheet goes. */
+  main .overflow-x-auto,
+  main .overflow-auto,
+  main .overflow-y-auto {
+    overflow: visible !important;
+  }
+  main .sticky {
+    position: static !important;
+  }
+
+  /* Where links lead, after them (not for links inside the workspace, nor mentions). */
+  html[data-print-links] .nootion-content a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.8em;
+    color: #525252;
+    word-break: break-all;
+  }
+
+  /* A new sheet before headings, if asked. */
+  html[data-print-breaks] .nootion-content > h1:not(:first-child),
+  html[data-print-breaks="h2"] .nootion-content > h2:not(:first-child) {
+    break-before: page;
+  }
+}
+
+/* Toggles open on paper. In the base layer: Tailwind's `[hidden] { display: none !important }` lives there, and an
+   important rule of an earlier layer wins over any later one. */
+@layer base {
+  @media print {
+    .nootion-content [data-type="detailsContent"][hidden] {
+      display: block !important;
+    }
+  }
+}

@@ -120,6 +120,7 @@ export function ViewBar({
         ))}
         {editable && (
           <button
+            data-print-hide
             aria-label={t("view.add")}
             onClick={(e) => setMenu({ kind: "add", anchor: e.currentTarget })}
             className="rounded p-1 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
@@ -129,7 +130,7 @@ export function ViewBar({
         )}
       </div>
       {actions && (
-        <div className="ml-auto flex items-center gap-0.5">
+        <div className="ml-auto flex items-center gap-0.5" data-print-hide>
           {editable && (
             <>
               <button className={tool(activeFilters > 0)} onClick={(e) => setMenu({ kind: "filter", anchor: e.currentTarget })}>

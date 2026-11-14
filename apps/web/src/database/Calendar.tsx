@@ -141,8 +141,10 @@ export function CalendarGrid({
         <h3 className="mr-auto font-medium first-letter:uppercase" aria-live="polite">
           {title}
         </h3>
-        {tools}
-        <div className="flex overflow-hidden rounded border border-neutral-200 text-xs dark:border-neutral-700">
+        <span className="contents" data-print-hide>
+          {tools}
+        </span>
+        <div className="flex overflow-hidden rounded border border-neutral-200 text-xs dark:border-neutral-700" data-print-hide>
           <button className={seg(mode === "month")} onClick={() => onMode("month")}>
             {t("calendar.month")}
           </button>
@@ -150,16 +152,17 @@ export function CalendarGrid({
             {t("calendar.week")}
           </button>
         </div>
-        <button className={btn} onClick={() => move(-1)} aria-label={t("calendar.previous")}>
+        <button data-print-hide className={btn} onClick={() => move(-1)} aria-label={t("calendar.previous")}>
           <ChevronLeft size={16} />
         </button>
         <button
+          data-print-hide
           className="rounded px-2 py-0.5 text-xs text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
           onClick={() => setAnchor(today)}
         >
           {t("calendar.today")}
         </button>
-        <button className={btn} onClick={() => move(1)} aria-label={t("calendar.next")}>
+        <button data-print-hide className={btn} onClick={() => move(1)} aria-label={t("calendar.next")}>
           <ChevronRight size={16} />
         </button>
       </div>

@@ -465,6 +465,7 @@ export function TableView({
                 <input
                   type="checkbox"
                   aria-label={t("table.selectAll")}
+                  data-print-hide
                   className="h-3.5 w-3.5 accent-blue-600 opacity-40 hover:opacity-100 checked:opacity-100"
                   checked={allSelected}
                   onChange={() => setSelected(allSelected ? new Set() : new Set(rows.map((r) => r.id)))}
@@ -500,7 +501,7 @@ export function TableView({
               </div>
             ))}
             {editable && (
-              <button aria-label={t("table.addProperty")} onClick={(e) => setAdding(e.currentTarget)} className="flex w-10 shrink-0 items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800">
+              <button data-print-hide aria-label={t("table.addProperty")} onClick={(e) => setAdding(e.currentTarget)} className="flex w-10 shrink-0 items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800">
                 <Plus size={16} />
               </button>
             )}
@@ -534,6 +535,7 @@ export function TableView({
                   {open && cut && <ShowMoreRows shown={limit} total={countGroupRows(groups, (x) => !collapsed.has(x.key))} onMore={more} className="sticky left-0" />}
                   {open && !cut && editable && canMoveBetweenGroups(groupProp!.type) && (
                     <button
+                      data-print-hide
                       onClick={() => addRow({ prop: groupProp!, key: g.key })}
                       className="sticky left-0 flex items-center gap-1.5 px-2 py-1 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
                     >
@@ -557,6 +559,7 @@ export function TableView({
       </div>
       {editable && !(groups && canMoveBetweenGroups(groupProp!.type)) && (
         <button
+          data-print-hide
           onClick={() => addRow()}
           className="flex w-full items-center gap-1.5 px-2 py-1.5 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
         >
