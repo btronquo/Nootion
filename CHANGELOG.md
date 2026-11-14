@@ -27,6 +27,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Gallery cards size: small, medium or large (in "Properties"). There are as many cards in a row as fit in the width
   of the database, so a gallery in a narrow column shows fewer, smaller cards.
 
+- Code blocks are coloured by their language: choose it from the menu above the block (searchable, about 35
+  languages), or leave it on "Auto" and the language is guessed as you type. "Plain text" turns colours off. A copy
+  button and a "Wrap lines" switch sit next to it; long lines otherwise scroll sideways. Each language is downloaded
+  the first time a block uses it, so pages without code load nothing more. Tab indents inside a code block. Public
+  pages show the colours too, and blocks imported from other tools or from Markdown keep their language.
+
 ### Changed
 
 - The gallery looks closer to what other tools show: wider covers, titles on up to two lines, softer cards, and a

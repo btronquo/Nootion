@@ -205,6 +205,128 @@ body {
 .nootion-content pre code {
   @apply bg-transparent p-0 text-inherit;
 }
+/* Code blocks: language, wrapping and copy above the code, shown on hover (always on touch screens). */
+.nootion-content .code-block {
+  @apply my-2 rounded-lg bg-neutral-100 dark:bg-neutral-800;
+}
+.nootion-content .code-block pre {
+  @apply my-0 rounded-t-none bg-transparent pt-1;
+  /* Long lines scroll sideways, unless the block wraps them. */
+  white-space: pre;
+  tab-size: 2;
+}
+/* The editor writes pre-wrap on the code itself. */
+.nootion-content .code-block pre > code {
+  white-space: inherit !important;
+}
+.nootion-content .code-block[data-wrap] pre {
+  @apply break-words whitespace-pre-wrap;
+}
+.code-block-bar {
+  @apply flex min-h-7 items-center gap-1 px-2 pt-1 select-none;
+}
+.code-block-bar .code-block-actions {
+  @apply opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 touch:opacity-100;
+}
+@media print {
+  .code-block-bar .code-block-actions {
+    display: none;
+  }
+}
+/* Colours of the code, after GitHub's light and dark themes. */
+.nootion-content pre {
+  --hl-keyword: #cf222e;
+  --hl-string: #0a3069;
+  --hl-number: #0550ae;
+  --hl-comment: #6e7781;
+  --hl-function: #8250df;
+  --hl-type: #953800;
+  --hl-tag: #116329;
+  --hl-attr: #0550ae;
+  --hl-addition-bg: #dafbe1;
+  --hl-deletion-bg: #ffebe9;
+}
+.dark .nootion-content pre {
+  --hl-keyword: #ff7b72;
+  --hl-string: #a5d6ff;
+  --hl-number: #79c0ff;
+  --hl-comment: #8b949e;
+  --hl-function: #d2a8ff;
+  --hl-type: #ffa657;
+  --hl-tag: #7ee787;
+  --hl-attr: #79c0ff;
+  --hl-addition-bg: #033a16;
+  --hl-deletion-bg: #67060c;
+}
+.hljs-keyword,
+.hljs-doctag,
+.hljs-meta .hljs-keyword,
+.hljs-template-tag,
+.hljs-template-variable,
+.hljs-variable.language_,
+.hljs-type {
+  color: var(--hl-keyword);
+}
+.hljs-title,
+.hljs-title.function_,
+.hljs-title.class_ {
+  color: var(--hl-function);
+}
+.hljs-attr,
+.hljs-attribute,
+.hljs-literal,
+.hljs-meta,
+.hljs-number,
+.hljs-operator,
+.hljs-variable,
+.hljs-selector-attr,
+.hljs-selector-class,
+.hljs-selector-id {
+  color: var(--hl-number);
+}
+.hljs-regexp,
+.hljs-string,
+.hljs-meta .hljs-string {
+  color: var(--hl-string);
+}
+.hljs-built_in,
+.hljs-symbol,
+.hljs-params {
+  color: var(--hl-type);
+}
+.hljs-comment,
+.hljs-code,
+.hljs-formula {
+  color: var(--hl-comment);
+  font-style: italic;
+}
+.hljs-name,
+.hljs-quote,
+.hljs-selector-tag,
+.hljs-selector-pseudo {
+  color: var(--hl-tag);
+}
+.hljs-section {
+  color: var(--hl-number);
+  font-weight: 600;
+}
+.hljs-bullet {
+  color: var(--hl-type);
+}
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: 600;
+}
+.hljs-addition {
+  color: var(--hl-tag);
+  background-color: var(--hl-addition-bg);
+}
+.hljs-deletion {
+  color: var(--hl-keyword);
+  background-color: var(--hl-deletion-bg);
+}
 .nootion-content hr {
   @apply my-6 border-neutral-200 dark:border-neutral-700;
 }

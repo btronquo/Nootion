@@ -170,7 +170,8 @@ async function convertBlock(block: BlockTree, ctx: ConvertContext): Promise<Pros
     }
     case "code": {
       const code = plainText(data.rich_text);
-      const language = typeof data.language === "string" && data.language !== "plain text" ? data.language : null;
+      // "Plain text" stays plain: a block without a language gets one guessed by the editor.
+      const language = typeof data.language === "string" && data.language ? (data.language === "plain text" ? "plaintext" : data.language) : null;
       return [{ type: "codeBlock", attrs: { language }, ...(code ? { content: [text(code)] } : {}) }];
     }
     case "equation": {
