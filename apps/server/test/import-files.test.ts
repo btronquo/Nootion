@@ -117,7 +117,10 @@ describe("import from files", () => {
       .get()!;
     expect(file).toMatchObject({ pageId: home.id, filename: "photo.png", mimeType: "image/png" });
     expect(find(doc, "callout")[0]).toMatchObject({ attrs: { emoji: "⚠️" } });
-    expect(JSON.stringify(doc)).toContain("Un surligné et  texte.");
+    // ==text== is a highlight (text colours), %%comments%% are dropped.
+    const last = doc.content!.at(-1)!;
+    expect(last.content!.map((n) => n.text).join("")).toBe("Un surligné et  texte.");
+    expect(last.content!.find((n) => n.text === "surligné")!.marks).toEqual([{ type: "highlight", attrs: { color: "yellow" } }]);
 
     expect(find(contentOf(plan.id), "pageLink")[0]!.attrs!.pageId).toBe(home.id);
     expect(find(contentOf(plan.id), "taskItem").map((n) => n.attrs!.checked)).toEqual([false, true]);
