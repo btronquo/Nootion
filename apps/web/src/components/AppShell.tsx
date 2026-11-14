@@ -29,7 +29,10 @@ import {
   Library,
   Waypoints,
   RefreshCw,
+  FileUp,
 } from "lucide-react";
+import { createPortal } from "react-dom";
+import { FileImportDialog } from "./FileImport";
 import {
   disablePush,
   useReminderNotifications,
@@ -57,6 +60,7 @@ import { Avatar } from "./Avatar";
 import { Button, CancelButton, ErrorText, Field, Modal } from "./ui";
 import { usePlugins } from "../plugins/registry";
 import { SearchDialog, useSearchShortcut } from "./SearchDialog";
+import { useAppActions } from "./appActions";
 import {
   captureShortcutLabel,
   QuickCaptureDialog,
@@ -121,6 +125,7 @@ export function AppShell() {
 
   const syncLinks = useDesktopSync().data;
   const syncError = syncLinks?.find((l) => l.lastError)?.lastError;
+  useAppActions({ capture: () => setCapturing(true), newSpace: () => setCreatingWorkspace(true), hasSync: !!syncLinks });
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-2 rounded-md px-2 py-1.5 text-sm ${isActive ? "bg-neutral-200/70 font-medium dark:bg-neutral-800" : "hover:bg-neutral-200/50 dark:hover:bg-neutral-800/60"}`;
@@ -323,6 +328,7 @@ function WorkspaceSection({ workspace }: { workspace: WorkspaceSummary }) {
   // A page dropped on the space's name goes to its top level, at the end; from another space, once confirmed.
   const [dropping, setDropping] = useState(false);
   const [pending, setPending] = useState<PendingSpaceMove | null>(null);
+  const [importing, setImporting] = useState(false);
 
   async function onDrop(e: React.DragEvent) {
     e.preventDefault();
@@ -390,6 +396,11 @@ function WorkspaceSection({ workspace }: { workspace: WorkspaceSummary }) {
           <Download size={13} />
         </a>
         {canEdit && (
+          <button onClick={() => setImporting(true)} className={iconBtn} title={t("fileImport.menu")} aria-label={t("fileImport.menu")} data-space-import>
+            <FileUp size={13} />
+          </button>
+        )}
+        {canEdit && (
           <button onClick={addPage} className={iconBtn} title={t("page.new")}>
             <Plus size={14} />
           </button>
@@ -397,6 +408,7 @@ function WorkspaceSection({ workspace }: { workspace: WorkspaceSummary }) {
       </SectionHeader>
       </div>
       {pending && <PendingSpaceMoveDialog move={pending} onClose={() => setPending(null)} />}
+      {importing && createPortal(<FileImportDialog workspaceId={workspace.id} onClose={() => setImporting(false)} />, document.body)}
       {pages.data && (
         <PageTree
           nodes={buildTree(pages.data)}

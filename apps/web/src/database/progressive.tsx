@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { t } from "@nootion/shared";
+import { usePrinting } from "../lib/print";
 
 /**
  * Rows are shown a batch at a time: a database of thousands of rows only puts on the page what is close to the screen,
@@ -17,7 +18,9 @@ export function useShownRows(reset: unknown, batch = ROWS_BATCH) {
     setState(current);
   }
   const more = () => setState((s) => ({ ...s, limit: s.limit + batch }));
-  return { limit: current.limit, more };
+  // On paper there is no scrolling down for the next batch: every row is printed.
+  const printing = usePrinting();
+  return { limit: printing ? Infinity : current.limit, more };
 }
 
 /** Shows the first `limit` rows of groups, in order: later groups wait until earlier ones are shown in full. */

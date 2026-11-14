@@ -89,6 +89,10 @@ offline use and the Notion import.
 - Notion-like page editor ("/" commands, to-do lists, tables, callouts, toggles, columns, images and attached files,
   links between pages with "@", people mentions, table of contents), with real-time collaborative editing.
 - Repeating to-dos: checked, their date moves on to the next day, week, month or chosen days, reminder included.
+- Text colour and highlight on a selection (Ctrl+Shift+H for yellow), on the computer and on the phone.
+- Code blocks coloured by their language (about 35, chosen or guessed), with a copy button and line wrapping.
+- Print a page or save it as PDF (Ctrl+P): only the page, toggles open, every row of its databases, optional new
+  sheet before headings. See [docs/EDITOR.md](docs/EDITOR.md).
 - Images open full screen when clicked, to go through a page's images.
 - Videos (`/video`): YouTube, Vimeo, Dailymotion, Loom, PeerTube, Twitch or Google Drive links, or video files.
 - Drawing block (`/drawing`): pen, highlighter, shapes, arrows and text boxes, saved with the page, with a
@@ -152,6 +156,10 @@ offline use and the Notion import.
 
 - Full-text search in page titles and content (Ctrl+K or ⌘K), accent-insensitive, limited to the pages the user can read.
 - Search inside attached files: PDFs, images and scans (OCR), text files.
+- Search inside database values ("Dupont" finds the invoice whose customer is Dupont), with filters (space, type,
+  database, author, edited since) and searches saved under a name.
+- Command palette: the same Ctrl+K box lists actions too (new page, go to…, theme, the open page's share, history,
+  move, print…); type ">" for actions only. See [docs/EDITOR.md](docs/EDITOR.md).
 
 ### Integrations and extensions
 
@@ -174,6 +182,9 @@ offline use and the Notion import.
 
 ### Import, export and backups
 
+- Import from files: Markdown, HTML, Word (.docx), text or CSV files, or a zip of them (a folder of notes, an export
+  from another tool). Folders become pages with subpages, CSV files databases, links and `[[wiki links]]` links
+  between pages; the import can be undone as a whole. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#importing-from-files).
 - Import from Notion through its API: pages, databases with their columns (status, IDs and phone numbers included),
   relations, rollups and formulas, files and links between pages, with a report of what was imported differently.
   Imported pages can then be moved to other spaces; importing again keeps updating them there. See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md#importing-from-notion).
@@ -234,7 +245,7 @@ apps/web         React + Vite + Tailwind interface
 apps/desktop     Desktop app for Windows, macOS and Linux (Tauri), see docs/DESKTOP.md
 packages/shared  Types, validation, formulas, views and translations shared by both
 docker/          Dockerfile
-docs/            Documentation (deployment, architecture, API, SSO, plugins…)
+docs/            Documentation (deployment, editor and search, architecture, API, SSO, plugins…)
 ```
 
 ## Contributing

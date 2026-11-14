@@ -37,7 +37,9 @@ export function Widget({ icon, title, tools, children, name }: { icon: ReactNode
       <div className="mb-2 flex items-center gap-1.5 text-sm font-medium text-neutral-500">
         {icon}
         <span className="min-w-0 truncate">{title}</span>
-        <span className="ml-auto flex items-center gap-1">{tools}</span>
+        <span className="ml-auto flex items-center gap-1" data-print-hide>
+          {tools}
+        </span>
       </div>
       {children}
     </NodeViewWrapper>

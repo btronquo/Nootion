@@ -7,12 +7,48 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Text colour and highlight on a selection: the selection toolbar (and the editing bar on a phone) has an "A" button
+  with the nine colours blocks already have, for the text and for a highlight behind it. Ctrl+Shift+H highlights in
+  yellow. Colours show on public pages and in the history, go through the API, and the import from other tools keeps
+  the colours of text it used to drop. In Markdown, highlights are written between `==`.
+- Import from files, in "My account › Import", from the import button of a space or from a page's menu ("Import
+  files"): drop Markdown, HTML, Word (.docx), text or CSV files, or a zip of them (a folder of notes, an export from
+  another tool). Folders become pages with their subpages ("Page.md" beside a "Page/" folder, or "Folder/Folder.md",
+  is that folder's page), a CSV becomes a database whose rows get the pages found beside it, images and files are
+  copied, and relative links and `[[wiki links]]` between the files become links between the pages. Markdown keeps
+  its front matter (title, icon, tags), callouts (`> [!note]`), toggles and underlines; the editor's own export reads
+  back as it was. The import runs in the background with its progress, lists what it imported differently, and can
+  be undone as a whole: everything it made goes to the trash. Archives are unpacked with size limits and no path
+  leaving them (`IMPORT_MAX_MB`, 500 MB by default).
+- Search in database values: searching "Dupont" also finds the invoice whose "Customer" cell says Dupont, shown as
+  "Invoices › INV-12" with "Customer: Dupont · Status: Paid" under it. Text, number, select, status, person, link,
+  e-mail, phone, file and ID columns are searched; renaming an option or a column is followed. Filters under the search
+  box narrow the results: space, type (pages, databases, database rows, files), a database, author, edited since; with
+  filters and no words, the latest changed pages that match are listed. A search with its filters can be saved under a
+  name: saved searches are listed when the search box is empty. The API and the MCP server's search take the same
+  filters.
 - Resizable columns: a bar shows in the gap between two columns side by side; drag it to share the width between
   them, double-click it to give every column of the row the same width again. Widths are kept with the page, shared
   with everyone editing it, and ignored on a phone, where columns are one under the other. Columns are a little
   further apart, for the bar. The import from other tools keeps the widths of resized columns.
 - Gallery cards size: small, medium or large (in "Properties"). There are as many cards in a row as fit in the width
   of the database, so a gallery in a narrow column shows fewer, smaller cards.
+- Command palette: Ctrl+K (⌘K) still finds pages, and the same box now lists actions too, with their shortcut:
+  new page or database (in the open page's space, or another one), quick capture, a subpage, go to Home,
+  Notifications, All pages, Graph, Trash, My account or Administration, theme and language, and the open page's own
+  actions (share, favorite, comments, history, full width, duplicate, move to, copy link, export, print). Typing ">" first
+  lists actions only; matching ignores accents, and the most recently used actions come first. With nothing typed,
+  the saved searches are listed under the actions.
+- Code blocks are coloured by their language: choose it from the menu above the block (searchable, about 35
+  languages), or leave it on "Auto" and the language is guessed as you type. "Plain text" turns colours off. A copy
+  button and a "Wrap lines" switch sit next to it; long lines otherwise scroll sideways. Each language is downloaded
+  the first time a block uses it, so pages without code load nothing more. Tab indents inside a code block. Public
+  pages show the colours too, and blocks imported from other tools or from Markdown keep their language.
+- Print and save as PDF, from the page menu ("…") or with Ctrl+P (⌘P): only the page is printed, without the
+  sidebar, buttons or handles, on white even with the dark theme. Toggles are open, databases show all their rows
+  (not only the first batch) and only the view shown, rows and blocks are not cut across two sheets, and the address
+  of links is written after them. A new sheet can start before each heading 1, or each heading 1 and 2. The PDF is
+  made by the browser ("Save as PDF" printer), so nothing more runs on the server.
 
 ### Changed
 

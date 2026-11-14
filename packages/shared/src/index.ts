@@ -13,6 +13,7 @@ export * from "./api.js";
 export * from "./buttons.js";
 export * from "./plugins.js";
 export * from "./notion.js";
+export * from "./import-files.js";
 export * from "./comments.js";
 export * from "./automations.js";
 export * from "./recurrence.js";

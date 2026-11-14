@@ -1,17 +1,39 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, History, LayoutTemplate, Lock, MessageSquare, MoreHorizontal, Repeat, Share2, Star, Trash2 } from "lucide-react";
+import {
+  ChevronRight,
+  Copy,
+  CornerUpRight,
+  Download,
+  FilePlus,
+  History,
+  LayoutTemplate,
+  Link2,
+  Lock,
+  MessageSquare,
+  MoreHorizontal,
+  MoveHorizontal,
+  Printer,
+  Repeat,
+  Share2,
+  Star,
+  Trash2,
+} from "lucide-react";
 import { atLeast, t, type PageDetail, type PageSummary } from "@nootion/shared";
 import { api } from "../lib/api";
 import { sendOrQueue } from "../lib/offline";
-import { keys, useFavorites, usePage, useRefreshPages } from "../lib/queries";
+import { keys, usePage, useRefreshPages, useWorkspacePages } from "../lib/queries";
+import { useRegisterActions } from "../lib/actions";
+import { usePageActions } from "../lib/pageActions";
+import { MoveDialog } from "../components/PageMenu";
 import { pageRoleLabel } from "../lib/labels";
 import { pageTitle } from "../lib/tree";
 import { Button } from "../components/ui";
 import { ShareDialog } from "../components/ShareDialog";
 import { EditedAt } from "../components/EditedAt";
 import { HistoryDialog } from "../components/HistoryDialog";
+import { PrintDialog } from "../components/PrintDialog";
 import { Backlinks } from "../components/Backlinks";
 import { IconPicker } from "../components/IconPicker";
 import { AddCoverButton, PageCover } from "../components/PageCover";
@@ -21,6 +43,7 @@ import { RowProperties } from "../database/RowProperties";
 import { dbKey } from "../database/hooks";
 import { Popover } from "../database/Popover";
 import { MenuButton } from "../components/SidebarLayout";
+import { isMac } from "../components/QuickCapture";
 import { SyncStatus } from "../components/SyncStatus";
 import { useSession } from "../lib/session";
 import { CommentsPanel, type DraftAnchor } from "../comments/CommentsPanel";
@@ -58,7 +81,9 @@ function PageView({ page }: { page: PageDetail }) {
   const [title, setTitle] = useState(page.title);
   const [sharing, setSharing] = useState(false);
   const [history, setHistory] = useState(false);
+  const [printing, setPrinting] = useState(false);
   const [menu, setMenu] = useState<HTMLElement | null>(null);
+  const [moving, setMoving] = useState(false);
   const qc = useQueryClient();
   const refresh = useRefreshPages();
   const navigate = useNavigate();
@@ -122,9 +147,21 @@ function PageView({ page }: { page: PageDetail }) {
     navigate("/");
   }
 
+  usePalette(page, {
+    canEdit,
+    canManage,
+    hasComments,
+    share: () => setSharing(true),
+    history: () => setHistory(true),
+    comments: () => setCommentsOpen(true),
+    fullWidth: (on) => save({ fullWidth: on }),
+    move: () => setMoving(true),
+    print: () => setPrinting(true),
+  });
+
   return (
     <div>
-      <header className="flex items-center justify-between gap-2 px-3 py-1.5 text-sm max-md:sticky max-md:top-0 max-md:z-30 max-md:border-b max-md:border-neutral-200 max-md:bg-white/95 max-md:backdrop-blur sm:gap-4 md:px-4 md:py-2 dark:max-md:border-neutral-800 dark:max-md:bg-neutral-900/95">
+      <header className="print:hidden flex items-center justify-between gap-2 px-3 py-1.5 text-sm max-md:sticky max-md:top-0 max-md:z-30 max-md:border-b max-md:border-neutral-200 max-md:bg-white/95 max-md:backdrop-blur sm:gap-4 md:px-4 md:py-2 dark:max-md:border-neutral-800 dark:max-md:bg-neutral-900/95">
         <nav className="flex min-w-0 items-center gap-1 text-neutral-500">
           <MenuButton />
           {page.breadcrumb.map((b) => (
@@ -256,7 +293,7 @@ function PageView({ page }: { page: PageDetail }) {
       </div>
 
       {menu && (
-        <Popover anchor={menu} onClose={() => setMenu(null)} width={240}>
+        <Popover anchor={menu} onClose={() => setMenu(null)} width={290}>
           {canEdit && (
             <label className="flex cursor-pointer items-center justify-between gap-2 rounded px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800">
               {t("page.fullWidth")}
@@ -292,6 +329,20 @@ function PageView({ page }: { page: PageDetail }) {
           >
             {t("page.exportMarkdown")}
           </a>
+          <button
+            type="button"
+            onClick={() => {
+              setMenu(null);
+              setPrinting(true);
+            }}
+            className="flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800"
+            data-print-page
+          >
+            <span className="flex items-center gap-2">
+              <Printer size={15} className="text-neutral-500" /> {t("page.print")}
+            </span>
+            <kbd className="text-xs text-neutral-400">{isMac() ? "⌘P" : "Ctrl+P"}</kbd>
+          </button>
         </Popover>
       )}
       {hasComments && commentsOpen && (
@@ -310,24 +361,124 @@ function PageView({ page }: { page: PageDetail }) {
       )}
       {sharing && <ShareDialog page={page} onClose={() => setSharing(false)} />}
       {history && <HistoryDialog page={page} onClose={() => setHistory(false)} />}
+      {moving && <PageMove page={page} onClose={() => setMoving(false)} />}
+      {printing && <PrintDialog onClose={() => setPrinting(false)} />}
     </div>
   );
 }
 
+/** "Move to…" from the palette: chooses among the pages of the page's space, as from the sidebar. */
+function PageMove({ page, onClose }: { page: PageDetail; onClose: () => void }) {
+  const all = useWorkspacePages(page.workspaceId).data;
+  return all ? <MoveDialog page={page} all={all} onClose={onClose} /> : null;
+}
+
+/** The open page's actions in the command palette (Ctrl+K). */
+function usePalette(
+  page: PageDetail,
+  ui: {
+    canEdit: boolean;
+    canManage: boolean;
+    hasComments: boolean;
+    share: () => void;
+    history: () => void;
+    comments: () => void;
+    fullWidth: (on: boolean) => Promise<unknown>;
+    move: () => void;
+    print: () => void;
+  },
+) {
+  const actions = usePageActions(page);
+  const refresh = useRefreshPages();
+  const navigate = useNavigate();
+  const organisable = ui.canEdit && page.kind !== "row" && !page.home;
+  useRegisterActions(() => [
+    {
+      id: "page:subpage",
+      title: () => t("tree.addSubpage"),
+      keywords: () => `${t("palette.kwCreate")} ${t("page.new")}`,
+      section: "page",
+      icon: <FilePlus size={16} />,
+      when: () => ui.canEdit && page.kind === "page",
+      run: async () => {
+        const res = await api<{ page: PageSummary }>("/pages", { method: "POST", body: { workspaceId: page.workspaceId, parentId: page.id, title: "" } });
+        await refresh();
+        navigate(`/page/${res.page.id}`);
+      },
+    },
+    {
+      id: "page:share",
+      title: () => t("share.button"),
+      keywords: () => t("palette.kwShare"),
+      section: "page",
+      icon: <Share2 size={16} />,
+      when: () => ui.canManage && !page.home,
+      run: ui.share,
+    },
+    {
+      id: "page:favorite",
+      title: () => (actions.starred ? t("favorites.remove") : t("favorites.add")),
+      keywords: () => "favorite favori star",
+      section: "page",
+      icon: <Star size={16} />,
+      when: () => !page.home,
+      run: actions.toggleFavorite,
+    },
+    {
+      id: "page:comments",
+      title: () => t("palette.comments"),
+      keywords: () => t("comments.title"),
+      section: "page",
+      icon: <MessageSquare size={16} />,
+      when: () => ui.hasComments,
+      run: ui.comments,
+    },
+    {
+      id: "page:history",
+      title: () => t("history.title"),
+      keywords: () => t("palette.kwHistory"),
+      section: "page",
+      icon: <History size={16} />,
+      when: () => page.kind !== "database",
+      run: ui.history,
+    },
+    {
+      id: "page:full-width",
+      title: () => (page.fullWidth ? t("palette.fullWidthOff") : t("palette.fullWidthOn")),
+      keywords: () => t("page.fullWidth"),
+      section: "page",
+      icon: <MoveHorizontal size={16} />,
+      when: () => ui.canEdit,
+      run: () => ui.fullWidth(!page.fullWidth),
+    },
+    {
+      id: "page:duplicate",
+      title: () => t("page.duplicate"),
+      keywords: () => "copy copie",
+      section: "page",
+      icon: <Copy size={16} />,
+      when: () => organisable,
+      run: actions.duplicate,
+    },
+    { id: "page:move", title: () => t("page.moveTo"), section: "page", icon: <CornerUpRight size={16} />, when: () => organisable, run: ui.move },
+    { id: "page:copy-link", title: () => t("page.copyLink"), keywords: () => "url", section: "page", icon: <Link2 size={16} />, run: actions.copyLink },
+    {
+      id: "page:export",
+      title: () => t("page.exportMarkdown"),
+      keywords: () => "download télécharger zip",
+      section: "page",
+      icon: <Download size={16} />,
+      run: actions.exportMarkdown,
+    },
+    { id: "page:print", title: () => t("page.print"), keywords: () => "pdf print imprimer", section: "page", icon: <Printer size={16} />, run: ui.print },
+  ]);
+}
+
 function FavoriteButton({ page }: { page: PageDetail }) {
-  const favorites = useFavorites();
-  const qc = useQueryClient();
-  const starred = !!favorites.data?.some((p) => p.id === page.id);
+  const { starred, toggleFavorite } = usePageActions(page);
   const label = starred ? t("favorites.remove") : t("favorites.add");
-
-  async function toggle() {
-    qc.setQueryData<PageSummary[]>(keys.favorites, (old = []) => (starred ? old.filter((p) => p.id !== page.id) : [...old, page]));
-    await api(`/favorites/${page.id}`, { method: starred ? "DELETE" : "PUT" }).catch(() => {});
-    await qc.invalidateQueries({ queryKey: keys.favorites });
-  }
-
   return (
-    <Button variant="ghost" onClick={toggle} title={label} aria-label={label} aria-pressed={starred}>
+    <Button variant="ghost" onClick={toggleFavorite} title={label} aria-label={label} aria-pressed={starred}>
       <Star size={16} className={starred ? "fill-amber-400 text-amber-400" : ""} />
     </Button>
   );

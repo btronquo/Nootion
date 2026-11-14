@@ -24,6 +24,7 @@ import { usePlugins } from "../plugins/registry";
 import type { ClientPluginInfo } from "@nootion/shared";
 import { t } from "@nootion/shared";
 import { MobileToolbar } from "./MobileToolbar";
+import { TextColorButton } from "./TextColorMenu";
 import { BlockHandle } from "./BlockHandle";
 import { BlockShortcuts } from "./blockActions";
 import { BlockFlash, EditTracking, findBlockById, flashBlock } from "./blockAttrs";
@@ -379,6 +380,7 @@ function FormatMenu({ editor, onComment }: { editor: Editor; onComment?: () => v
       <button className={btn(state.code)} onClick={() => editor.chain().focus().toggleCode().run()} title={t("editor.code")}>
         <Code size={15} />
       </button>
+      <TextColorButton editor={editor} />
       <button
         className={btn(state.link)}
         title={t("editor.link")}

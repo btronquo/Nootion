@@ -205,6 +205,128 @@ body {
 .nootion-content pre code {
   @apply bg-transparent p-0 text-inherit;
 }
+/* Code blocks: language, wrapping and copy above the code, shown on hover (always on touch screens). */
+.nootion-content .code-block {
+  @apply my-2 rounded-lg bg-neutral-100 dark:bg-neutral-800;
+}
+.nootion-content .code-block pre {
+  @apply my-0 rounded-t-none bg-transparent pt-1;
+  /* Long lines scroll sideways, unless the block wraps them. */
+  white-space: pre;
+  tab-size: 2;
+}
+/* The editor writes pre-wrap on the code itself. */
+.nootion-content .code-block pre > code {
+  white-space: inherit !important;
+}
+.nootion-content .code-block[data-wrap] pre {
+  @apply break-words whitespace-pre-wrap;
+}
+.code-block-bar {
+  @apply flex min-h-7 items-center gap-1 px-2 pt-1 select-none;
+}
+.code-block-bar .code-block-actions {
+  @apply opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 touch:opacity-100;
+}
+@media print {
+  .code-block-bar .code-block-actions {
+    display: none;
+  }
+}
+/* Colours of the code, after GitHub's light and dark themes. */
+.nootion-content pre {
+  --hl-keyword: #cf222e;
+  --hl-string: #0a3069;
+  --hl-number: #0550ae;
+  --hl-comment: #6e7781;
+  --hl-function: #8250df;
+  --hl-type: #953800;
+  --hl-tag: #116329;
+  --hl-attr: #0550ae;
+  --hl-addition-bg: #dafbe1;
+  --hl-deletion-bg: #ffebe9;
+}
+.dark .nootion-content pre {
+  --hl-keyword: #ff7b72;
+  --hl-string: #a5d6ff;
+  --hl-number: #79c0ff;
+  --hl-comment: #8b949e;
+  --hl-function: #d2a8ff;
+  --hl-type: #ffa657;
+  --hl-tag: #7ee787;
+  --hl-attr: #79c0ff;
+  --hl-addition-bg: #033a16;
+  --hl-deletion-bg: #67060c;
+}
+.hljs-keyword,
+.hljs-doctag,
+.hljs-meta .hljs-keyword,
+.hljs-template-tag,
+.hljs-template-variable,
+.hljs-variable.language_,
+.hljs-type {
+  color: var(--hl-keyword);
+}
+.hljs-title,
+.hljs-title.function_,
+.hljs-title.class_ {
+  color: var(--hl-function);
+}
+.hljs-attr,
+.hljs-attribute,
+.hljs-literal,
+.hljs-meta,
+.hljs-number,
+.hljs-operator,
+.hljs-variable,
+.hljs-selector-attr,
+.hljs-selector-class,
+.hljs-selector-id {
+  color: var(--hl-number);
+}
+.hljs-regexp,
+.hljs-string,
+.hljs-meta .hljs-string {
+  color: var(--hl-string);
+}
+.hljs-built_in,
+.hljs-symbol,
+.hljs-params {
+  color: var(--hl-type);
+}
+.hljs-comment,
+.hljs-code,
+.hljs-formula {
+  color: var(--hl-comment);
+  font-style: italic;
+}
+.hljs-name,
+.hljs-quote,
+.hljs-selector-tag,
+.hljs-selector-pseudo {
+  color: var(--hl-tag);
+}
+.hljs-section {
+  color: var(--hl-number);
+  font-weight: 600;
+}
+.hljs-bullet {
+  color: var(--hl-type);
+}
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: 600;
+}
+.hljs-addition {
+  color: var(--hl-tag);
+  background-color: var(--hl-addition-bg);
+}
+.hljs-deletion {
+  color: var(--hl-keyword);
+  background-color: var(--hl-deletion-bg);
+}
 .nootion-content hr {
   @apply my-6 border-neutral-200 dark:border-neutral-700;
 }
@@ -537,6 +659,13 @@ body.nt-resizing-columns * {
 .nootion-content [data-color$="-bg"] {
   border-radius: 3px;
 }
+/* Highlighted text: the block colors' backgrounds, without the browser's yellow. */
+.nootion-content mark.nt-highlight {
+  color: inherit;
+  padding: 0 1px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
 /* A block reached by its link: shown for a moment. */
 @keyframes nt-block-flash {
   from {
@@ -549,4 +678,109 @@ body.nt-resizing-columns * {
 .nootion-content .nt-block-flash {
   border-radius: 3px;
   animation: nt-block-flash 2.5s ease-out;
+}
+
+/*
+ * Printing, and "Save as PDF" (lib/print.ts): only the page, on white, over as many sheets as it takes. Toggles are
+ * open, rows of tables and cards are not cut across two sheets, links say where they lead, and a new sheet can start
+ * before headings (chosen in the print dialog, as attributes of <html>).
+ */
+@media print {
+  @page {
+    margin: 16mm 14mm;
+  }
+  html,
+  body,
+  #root {
+    height: auto !important;
+    overflow: visible !important;
+  }
+  body {
+    background: white !important;
+    color: black !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  /* What is there to act, not to read. */
+  .nt-backdrop,
+  [data-block-handle],
+  .nt-column-resize,
+  [data-show-more],
+  [data-print-hide],
+  [role="tablist"] > [role="tab"][aria-selected="false"],
+  .nootion-content .button-block,
+  [role="toolbar"],
+  [role="status"],
+  [data-comments-panel],
+  .nootion-content .ProseMirror-gapcursor {
+    display: none !important;
+  }
+  /* The page itself fills the sheet: no margins of the screen, no width limit. */
+  main > div > div.mx-auto {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  /* Toggles: their arrow pointing down (opened in the base layer below). */
+  .nootion-content [data-type="details"] > button::before {
+    rotate: 90deg;
+  }
+
+  /* Blocks that make no sense split across two sheets. */
+  .nootion-content pre,
+  .nootion-content blockquote,
+  .nootion-content .callout,
+  .nootion-content img,
+  .nootion-content figure,
+  .nootion-content tr,
+  [role="row"],
+  [role="listitem"],
+  [data-card] {
+    break-inside: avoid;
+  }
+  .nootion-content h1,
+  .nootion-content h2,
+  .nootion-content h3 {
+    break-after: avoid;
+  }
+  .nootion-content thead {
+    display: table-header-group;
+  }
+  img {
+    max-width: 100% !important;
+  }
+
+  /* Wide things (tables, boards, timelines) are not scrolled on paper: shown as far as the sheet goes. */
+  main .overflow-x-auto,
+  main .overflow-auto,
+  main .overflow-y-auto {
+    overflow: visible !important;
+  }
+  main .sticky {
+    position: static !important;
+  }
+
+  /* Where links lead, after them (not for links inside the workspace, nor mentions). */
+  html[data-print-links] .nootion-content a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.8em;
+    color: #525252;
+    word-break: break-all;
+  }
+
+  /* A new sheet before headings, if asked. */
+  html[data-print-breaks] .nootion-content > h1:not(:first-child),
+  html[data-print-breaks="h2"] .nootion-content > h2:not(:first-child) {
+    break-before: page;
+  }
+}
+
+/* Toggles open on paper. In the base layer: Tailwind's `[hidden] { display: none !important }` lives there, and an
+   important rule of an earlier layer wins over any later one. */
+@layer base {
+  @media print {
+    .nootion-content [data-type="detailsContent"][hidden] {
+      display: block !important;
+    }
+  }
 }

@@ -22,6 +22,7 @@ import { pageTitle } from "../lib/tree";
 import { t } from "@nootion/shared";
 import { pageIcon } from "../lib/icons";
 import { ShowMoreRows } from "./progressive";
+import { usePrinting } from "../lib/print";
 
 /** Cards shown at first in each column, and added each time it is scrolled to the bottom. */
 const CARDS_BATCH = 50;
@@ -64,7 +65,8 @@ export function BoardView({
   // Cards shown per column (by group key), so that a column of thousands of rows stays light.
   const [shown, setShown] = useState<{ view: string; counts: Record<string, number> }>({ view: view.id, counts: {} });
   const counts = shown.view === view.id ? shown.counts : {};
-  const limitOf = (key: string) => counts[key] ?? CARDS_BATCH;
+  const printing = usePrinting();
+  const limitOf = (key: string) => (printing ? Infinity : (counts[key] ?? CARDS_BATCH));
   const showMore = (key: string) => setShown({ view: view.id, counts: { ...counts, [key]: limitOf(key) + CARDS_BATCH } });
   const cardProps = orderedColumns(data.properties, view.config.columns).filter(
     (c) => !c.col.hidden && c.prop.type !== "title" && c.prop.id !== prop?.id,

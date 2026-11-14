@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { ProseMirrorNode } from "../collab.js";
 import type { NotionBlock, NotionFile, RichText } from "./api.js";
-import { videoSource } from "@nootion/shared";
+import { OPTION_COLORS, videoSource } from "@nootion/shared";
 
 /** A Notion block with its children already loaded. */
 export type BlockTree = NotionBlock & { children?: BlockTree[] };
@@ -33,6 +33,10 @@ export function richText(items: RichText[] | undefined, ctx: Pick<ConvertContext
     if (a.strikethrough) marks.push({ type: "strike" });
     if (a.underline) marks.push({ type: "underline" });
     if (a.code) marks.push({ type: "code" });
+    // Notion's text colors ("red") and highlights ("red_background") are the nine colors Nootion has.
+    const color = /^([a-z]+?)(_background)?$/.exec(a.color ?? "");
+    if (color && (OPTION_COLORS as readonly string[]).includes(color[1]!))
+      marks.push({ type: color[2] ? "highlight" : "textColor", attrs: { color: color[1] } });
     const href = item.type === "text" ? item.text?.link?.url : item.href;
     if (item.type === "mention" && (item.mention?.type === "page" || item.mention?.type === "database")) {
       const id = item.mention.page?.id ?? item.mention.database?.id ?? "";
@@ -166,7 +170,8 @@ async function convertBlock(block: BlockTree, ctx: ConvertContext): Promise<Pros
     }
     case "code": {
       const code = plainText(data.rich_text);
-      const language = typeof data.language === "string" && data.language !== "plain text" ? data.language : null;
+      // "Plain text" stays plain: a block without a language gets one guessed by the editor.
+      const language = typeof data.language === "string" && data.language ? (data.language === "plain text" ? "plaintext" : data.language) : null;
       return [{ type: "codeBlock", attrs: { language }, ...(code ? { content: [text(code)] } : {}) }];
     }
     case "equation": {

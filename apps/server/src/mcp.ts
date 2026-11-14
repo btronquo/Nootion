@@ -4,7 +4,7 @@ import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { CallToolResult, ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
-import { OPTION_COLORS, uniqueIdText, type CellValue, type DatabaseProperty, type RelatedRow, type WorkspaceSummary } from "@nootion/shared";
+import { OPTION_COLORS, SEARCH_KINDS, uniqueIdText, type CellValue, type DatabaseProperty, type RelatedRow, type WorkspaceSummary } from "@nootion/shared";
 import { findTokenUser, type TokenScope } from "./api-tokens.js";
 
 const VERSION = "1.2.0";
@@ -138,11 +138,30 @@ function buildServer(call: Call, scope: TokenScope): McpServer {
     "search",
     {
       title: "Search",
-      description: "Searches page titles, page content and attached files (PDFs, scans) in the spaces this connection can reach.",
-      inputSchema: { query: z.string().min(1).max(200), limit: z.number().int().min(1).max(50).optional() },
+      description:
+        "Searches page titles, page content, the values of database rows (\"Customer: Dupont\") and attached files (PDFs, scans) in the spaces this connection can reach. " +
+        "Filters narrow the results; with filters and no query, lists the most recently changed pages that match them.",
+      inputSchema: {
+        query: z.string().max(200).optional().describe("Words to find; every word must appear, the last one may be unfinished."),
+        space_id: z.string().optional().describe("Only in this space (see list_spaces)."),
+        kind: z.enum(SEARCH_KINDS).optional().describe("Only pages, databases, database rows or attached files."),
+        database_id: z.string().optional().describe("Only rows of this database."),
+        author_id: z.string().optional().describe("Only pages created (files: added) by this person."),
+        edited_since: z
+          .string()
+          .regex(/^(\d{1,4}d|\d{4}-\d{2}-\d{2})$/)
+          .optional()
+          .describe('Only pages changed since a number of days ("7d") or a date ("2026-01-31").'),
+        limit: z.number().int().min(1).max(50).optional(),
+      },
       annotations: read,
     },
-    async ({ query, limit }) => json((await call<{ results: unknown[] }>("GET", `/search?q=${encodeURIComponent(query)}&limit=${limit ?? 20}`)).results),
+    async ({ query, space_id, kind, database_id, author_id, edited_since, limit }) => {
+      const params = new URLSearchParams({ q: query ?? "", limit: String(limit ?? 20) });
+      const filters = { workspaceId: space_id, kind, databaseId: database_id, authorId: author_id, editedSince: edited_since };
+      for (const [key, value] of Object.entries(filters)) if (value) params.set(key, value);
+      return json((await call<{ results: unknown[] }>("GET", `/search?${params}`)).results);
+    },
   );
 
   tool(

@@ -39,6 +39,7 @@ They go to:
 | `TZ` | no | Time zone (e.g. `Europe/Paris`). |
 | `PORT` | no | Port the server listens on inside the container (default `3000`). To change the port on the host, change `ports:` instead. |
 | `MAX_UPLOAD_MB` | no | Maximum size of an attached file, in MB (default `50`). |
+| `IMPORT_MAX_MB` | no | Maximum size of an import from files (all the files sent at once, archives included), in MB (default `500`). Once uncompressed, archives may hold up to four times as much. |
 | `DEMO_PAGE` | no | `false` to stop giving new users a demo page on their first visit (default: given). |
 | `UPDATE_CHECK` | no | `false` to stop looking for new releases (default: the server asks GitHub twice a day, sending nothing about your server, and tells administrators). |
 | `OCR_LANGS` | no | Languages read in images and scanned PDFs, joined by `+` (default `fra+eng`). The image ships French and English; other languages need their `tesseract-ocr-<lang>` package. |
@@ -141,7 +142,7 @@ server {
     listen 443 ssl;
     server_name notes.example.com;
     # ssl_certificate and ssl_certificate_key here
-    client_max_body_size 50m;                  # MAX_UPLOAD_MB
+    client_max_body_size 500m;                 # IMPORT_MAX_MB (attached files: MAX_UPLOAD_MB)
 
     location / {
         proxy_pass http://127.0.0.1:3000;
@@ -243,6 +244,41 @@ notifications on this device*. This uses Web Push, which also needs **HTTPS**; o
 be added to the home screen (iOS 16.4 or later). The server makes its push keys on first use and keeps them in
 `/data/vapid.json` (part of the backup): if that file is lost, each device has to turn notifications on again.
 The server must be able to reach the browsers' push services (Google, Mozilla, Apple) over HTTPS.
+
+## Importing from files
+
+Markdown, HTML, Word (.docx), text and CSV files, or a .zip holding them (a folder of notes, or an export from
+another tool), can be imported as pages. Open the import from:
+
+- *My account › Import*, choosing the space;
+- the import button next to a space's name in the sidebar;
+- a page's menu in the sidebar (**…** › *Import files*): what is imported goes under that page.
+
+Drop the files or the .zip, or choose them, then *Import*. The import runs on the server with its progress: you can
+leave the page, it carries on.
+
+How files become pages:
+
+- Each file is a page, each folder a page with its subpages. A `Page.md` beside a `Page/` folder, or
+  `Folder/Folder.md`, is the page of that folder.
+- A CSV becomes a database (comma, semicolon or tab separated); pages found beside it become the content of its
+  rows.
+- Images and attached files are copied into the pages that use them. Relative links and `[[wiki links]]` between the
+  files become links between the pages.
+- Markdown keeps its front matter (title, icon, tags), callouts (`> [!note]`), toggles, underlines, highlights
+  (`==text==`) and the language of code blocks; `%%comments%%` are left out. A space or page exported from Nootion as
+  Markdown reads back as it was.
+- HTML and Word keep headings, lists, tables, images, links, bold and italic; formatting the editor doesn't
+  have is left out.
+
+The report at the end counts the pages, databases, rows, files and links made, and lists what was **imported
+differently** (embedded content kept as a link, forms or navigation menus left out, files too large…): open a line
+to see the files concerned. **Undo the import** moves everything it made to the trash, from where it can still be
+restored.
+
+Limits: `IMPORT_MAX_MB` (500 MB by default) for the files sent at once; once uncompressed, archives may hold up to
+four times as much. Paths leaving the archive are refused. Views, comments and history of other tools are not
+imported. Behind a reverse proxy, raise its body size limit to `IMPORT_MAX_MB` (see the Nginx example above).
 
 ## Importing from Notion
 

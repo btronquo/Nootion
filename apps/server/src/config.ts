@@ -10,6 +10,8 @@ export interface Config {
   webDir: string | null;
   isProduction: boolean;
   maxUploadMb: number;
+  /** Largest import from files (all the files sent together, archives included), in MB. */
+  importMaxMb: number;
   /** Notion's API, for imports. Changed in tests only. */
   notionApiUrl: string;
   /** Pause between two requests to Notion (it allows about 3 per second). */
@@ -67,6 +69,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     webDir: env.WEB_DIR ? path.resolve(env.WEB_DIR) : null,
     isProduction,
     maxUploadMb: Number(env.MAX_UPLOAD_MB ?? 50),
+    importMaxMb: Number(env.IMPORT_MAX_MB ?? 500),
     notionRequestInterval: Number(env.NOTION_REQUEST_INTERVAL ?? 340),
     demoPage: env.DEMO_PAGE !== "false",
     updateCheck: env.UPDATE_CHECK !== "false",

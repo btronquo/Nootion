@@ -152,6 +152,8 @@ export const pages = sqliteTable(
     // Derived from contentState on every save: ProseMirror JSON (exports, public pages) and plain text (search).
     contentJson: text("content_json", { mode: "json" }),
     contentText: text("content_text"),
+    // Rows only: their cell values as plain text ("Customer: Dupont · Status: Paid"), for search (search-index.ts).
+    cellsText: text("cells_text"),
     // Rows only: cell values by property id.
     props: text("props", { mode: "json" }).$type<Record<string, unknown>>(),
     // Sync with another Nootion (desktop app, sync.ts): when the page last changed (ms), and when each of its fields
@@ -785,3 +787,24 @@ export const syncLinks = sqliteTable("sync_links", {
   lastError: text("last_error"),
   createdAt: createdAt(),
 });
+
+/** Rows whose cells_text must be computed again (their cells or their database's columns changed): filled by triggers. */
+export const searchStale = sqliteTable("search_stale", {
+  pageId: text("page_id").primaryKey(),
+});
+
+/** A search with its filters, saved under a name by a user. */
+export const savedSearches = sqliteTable(
+  "saved_searches",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    query: text("query").notNull().default(""),
+    filters: text("filters", { mode: "json" }).$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: createdAt(),
+  },
+  (t) => [index("saved_searches_user_idx").on(t.userId)],
+);

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { ProseMirrorNode } from "./collab.js";
+import { OPTION_COLORS } from "@nootion/shared";
 
 type Mark = { type: string; attrs?: Record<string, unknown> };
 
@@ -8,8 +9,49 @@ const SAFE_URL = /^(https?:\/\/|mailto:|\/api\/attachments\/)/i;
 
 const text = (value: string, marks: Mark[]): ProseMirrorNode => (marks.length ? { type: "text", text: value, marks } : { type: "text", text: value });
 
+/** A file of an import, once copied to the server. */
+export interface ImportedFile {
+  url: string;
+  name: string;
+  size: number;
+  mimeType: string;
+}
+
+/**
+ * Links between the files of an import: relative paths ("Other page.md", "images/a.png") and wiki links ("[[Other page]]").
+ * Each returns null for a target outside the import (the importer notes it).
+ */
+export interface MarkdownLinks {
+  page(target: string, wiki: boolean): { id: string; title: string } | null;
+  file(target: string, wiki: boolean): ImportedFile | null;
+}
+
+/**
+ * Markdown written by other tools, read by the import from files: wiki links and embeds ("[[Page]]", "![[image.png]]"),
+ * callouts ("> [!note]", or a quote starting with an emoji, as Nootion exports them), "==highlight==", "<u>underline</u>",
+ * "<details>" toggles, "%%comments%%", and links between the imported files. Left out, Markdown is read as before (API).
+ */
+export interface MarkdownInOptions {
+  links?: MarkdownLinks;
+}
+
+type Opts = MarkdownInOptions & { extended: boolean };
+const BASIC: Opts = { extended: false };
+const opts = (o?: MarkdownInOptions): Opts => (o ? { ...o, extended: true } : BASIC);
+
+const linkMark = (href: string): Mark => ({ type: "link", attrs: { href, target: "_blank", rel: "noopener noreferrer nofollow", class: null } });
+const IMAGE_TYPES = /^image\/(png|jpeg|gif|webp|avif|svg\+xml)$/;
+
+/** A link's target as written: "<a b.md>" or "a%20b.md", with its title ("a.md \"Title\"") left out. */
+const linkTarget = (raw: string) => raw.trim().replace(/^<(.*)>$/, "$1").replace(/\s+"[^"]*"$/, "");
+
 /** Inline Markdown: **bold**, *italic*, ~~strike~~, `code`, [links](https://…), and line breaks. */
-export function parseInline(src: string, marks: Mark[] = []): ProseMirrorNode[] {
+export function parseInline(src: string, marks: Mark[] = [], options?: MarkdownInOptions): ProseMirrorNode[] {
+  return inlineNodes(src, marks, opts(options));
+}
+
+function inlineNodes(src: string, marks: Mark[], o: Opts): ProseMirrorNode[] {
+  const parseInline = (s: string, m: Mark[]) => inlineNodes(s, m, o);
   const out: ProseMirrorNode[] = [];
   let plain = "";
   const flush = () => {
@@ -27,15 +69,47 @@ export function parseInline(src: string, marks: Mark[] = []): ProseMirrorNode[] 
       flush();
       out.push(text(m[1]!, [...marks, { type: "code" }]));
       i += m[0].length;
-    } else if ((m = rest.match(/^\[([^\]]+)\]\(([^)\s]+)\)/))) {
+    } else if (o.extended && (m = rest.match(/^!?\[\[([^\]|#\n]+)(?:#[^\]|\n]*)?(?:\|([^\]\n]+))?\]\]/))) {
+      // [[Page]], [[Page|shown text]], [[Page#Heading]], ![[file.png]] in a line.
       flush();
-      const href = m[2]!;
-      out.push(
-        ...parseInline(
-          m[1]!,
-          SAFE_URL.test(href) ? [...marks, { type: "link", attrs: { href, target: "_blank", rel: "noopener noreferrer nofollow", class: null } }] : marks,
-        ),
-      );
+      const target = m[1]!.trim();
+      const label = (m[2] ?? target.split("/").pop()!.replace(/\.md$/i, "")).trim();
+      const page = o.links?.page(target, true);
+      const file = page ? null : o.links?.file(target, true);
+      if (page) out.push({ type: "pageLink", attrs: { pageId: page.id, title: page.title } });
+      else if (file) out.push(text(label, [...marks, linkMark(file.url)]));
+      else if (label) out.push(text(label, marks));
+      i += m[0].length;
+    } else if (o.extended && rest.startsWith("%%") && rest.indexOf("%%", 2) > 0) {
+      // Obsidian's comments are not shown.
+      flush();
+      i += rest.indexOf("%%", 2) + 2;
+    } else if (o.extended && (m = rest.match(/^==(?=\S)([\s\S]*?\S)==/))) {
+      // Highlighted text: in yellow once the editor has the highlight mark; until then, the text alone.
+      flush();
+      out.push(...parseInline(m[1]!, MARKS.has("highlight") ? [...marks, { type: "highlight", attrs: { color: "yellow" } }] : marks));
+      i += m[0].length;
+    } else if (o.extended && (m = rest.match(/^<u>([\s\S]*?)<\/u>/i))) {
+      flush();
+      out.push(...parseInline(m[1]!, [...marks, { type: "underline" }]));
+      i += m[0].length;
+    } else if (o.extended && (m = rest.match(/^<br\s*\/?>/i))) {
+      flush();
+      out.push({ type: "hardBreak" });
+      i += m[0].length;
+    } else if ((m = o.extended ? rest.match(/^!?\[((?:[^\]\\]|\\.)*)\]\((<[^>]*>|[^)\s]+(?:\s+"[^"]*")?)\)/) : rest.match(/^\[([^\]]+)\]\(([^)\s]+)\)/))) {
+      flush();
+      const href = o.extended ? linkTarget(m[2]!) : m[2]!;
+      const label = m[1]!;
+      if (SAFE_URL.test(href)) out.push(...parseInline(label, [...marks, linkMark(href)]));
+      else {
+        // A link to another file of the import.
+        const page = o.links?.page(href, false);
+        const file = page ? null : o.links?.file(href, false);
+        if (page) out.push({ type: "pageLink", attrs: { pageId: page.id, title: page.title } });
+        else if (file) out.push(...parseInline(label || file.name, [...marks, linkMark(file.url)]));
+        else if (label) out.push(...parseInline(label, marks));
+      }
       i += m[0].length;
     } else if ((m = rest.match(/^(\*\*|__)(?=\S)([\s\S]*?\S)\1/))) {
       flush();
@@ -62,19 +136,42 @@ export function parseInline(src: string, marks: Mark[] = []): ProseMirrorNode[] 
   return out;
 }
 
-const paragraph = (src: string): ProseMirrorNode => {
-  const content = parseInline(src.trim());
+const paragraph = (src: string, o: Opts = BASIC): ProseMirrorNode => {
+  const content = inlineNodes(src.trim(), [], o);
   return content.length ? { type: "paragraph", content } : { type: "paragraph" };
 };
 
 const LIST_ITEM = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/;
 
 /** Blocks of Markdown: headings, paragraphs, lists and to-do lists, quotes, code, tables, images, dividers. */
-export function parseMarkdown(markdown: string): ProseMirrorNode {
-  return { type: "doc", content: parseBlocks(markdown.replace(/\r\n?/g, "\n").split("\n")) };
+export function parseMarkdown(markdown: string, options?: MarkdownInOptions): ProseMirrorNode {
+  return { type: "doc", content: parseBlocks(markdown.replace(/\r\n?/g, "\n").split("\n"), opts(options)) };
 }
 
-function parseBlocks(lines: string[]): ProseMirrorNode[] {
+/** Emoji of Obsidian's (and GitHub's) callout types. */
+const CALLOUTS: Record<string, string> = {
+  note: "📝", abstract: "📄", summary: "📄", tldr: "📄", info: "ℹ️", todo: "☑️", tip: "💡", hint: "💡", important: "❗",
+  success: "✅", check: "✅", done: "✅", question: "❓", help: "❓", faq: "❓", warning: "⚠️", caution: "⚠️", attention: "⚠️",
+  failure: "❌", fail: "❌", missing: "❌", danger: "🚫", error: "🚫", bug: "🐛", example: "📋", quote: "💬", cite: "💬",
+};
+const LEADING_EMOJI = /^(\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic}|\p{Emoji_Modifier})*)\s+/u;
+
+function parseBlocks(lines: string[], o: Opts = BASIC): ProseMirrorNode[] {
+  const parseInline = (s: string) => inlineNodes(s, [], o);
+  const paragraph_ = (s: string) => paragraph(s, o);
+  /** An imported file shown as a block (an image, or the file), or a page linked on its own line; null when it is neither. */
+  const embedded = (target: string, wiki: boolean, label: string, image: boolean): ProseMirrorNode | null => {
+    const raw = wiki ? target : linkTarget(target);
+    if (!o.links || SAFE_URL.test(raw)) return null;
+    const file = o.links.file(raw, wiki);
+    if (file) {
+      if (IMAGE_TYPES.test(file.mimeType)) return { type: "image", attrs: { src: file.url, alt: (image ? label : "") || null } };
+      return { type: "fileAttachment", attrs: { url: file.url, name: file.name, size: file.size, mimeType: file.mimeType } };
+    }
+    if (!image && !wiki) return null; // a link to a page alone on its line stays a paragraph with that link
+    const page = o.links.page(raw, wiki);
+    return page ? { type: "paragraph", content: [{ type: "pageLink", attrs: { pageId: page.id, title: page.title } }] } : null;
+  };
   const out: ProseMirrorNode[] = [];
   let i = 0;
   while (i < lines.length) {
@@ -100,11 +197,56 @@ function parseBlocks(lines: string[]): ProseMirrorNode[] {
     } else if ((m = line.match(/^\s*!\[([^\]]*)\]\(([^)\s]+)\)\s*$/)) && SAFE_URL.test(m[2]!)) {
       out.push({ type: "image", attrs: { src: m[2], alt: m[1] || null } });
       i++;
+    } else if (o.extended && (m = line.match(/^\s*(!?)\[((?:[^\]\\]|\\.)*)\]\((<[^>]*>|[^)\s]+(?:\s+"[^"]*")?)\)\s*$/)) && embedded(m[3]!, false, m[2]!, !!m[1])) {
+      // An image, or a link alone on its line to a file of the import: the image, or the file as a block.
+      out.push(embedded(m[3]!, false, m[2]!, !!m[1])!);
+      i++;
+    } else if (o.extended && (m = line.match(/^\s*!\[\[([^\]|#\n]+)(?:#[^\]|\n]*)?(?:\|([^\]\n]*))?\]\]\s*$/))) {
+      // ![[image.png]], ![[document.pdf]], ![[Other note]] on its own line.
+      const block = embedded(m[1]!.trim(), true, m[2]?.trim() ?? "", true);
+      out.push(block ?? paragraph_(line));
+      i++;
+    } else if (o.extended && /^\s*<details>\s*$/i.test(line)) {
+      // <details><summary>…</summary> … </details>: a toggle, as Nootion exports them.
+      let depth = 0;
+      let end = i;
+      for (; end < lines.length; end++) {
+        if (/^\s*<details>\s*$/i.test(lines[end]!)) depth++;
+        else if (/^\s*<\/details>\s*$/i.test(lines[end]!) && --depth === 0) break;
+      }
+      const inner = lines.slice(i + 1, end);
+      const summaryAt = inner.findIndex((l) => l.trim());
+      const summary = summaryAt >= 0 ? inner[summaryAt]!.match(/^\s*<summary>(.*)<\/summary>\s*$/i) : null;
+      const content = parseBlocks(summary ? inner.slice(summaryAt + 1) : inner, o);
+      const title = summary ? parseInline(summary[1]!) : [];
+      out.push({
+        type: "details",
+        content: [
+          { type: "detailsSummary", ...(title.length ? { content: title } : {}) },
+          { type: "detailsContent", content: content.length ? content : [{ type: "paragraph" }] },
+        ],
+      });
+      i = end + 1;
     } else if (/^\s*>/.test(line)) {
       const body: string[] = [];
       while (i < lines.length && /^\s*>/.test(lines[i]!)) body.push(lines[i++]!.replace(/^\s*> ?/, ""));
-      const content = parseBlocks(body);
-      out.push({ type: "blockquote", content: content.length ? content : [{ type: "paragraph" }] });
+      const callout = o.extended ? body[0]!.match(/^\s*\[!(\w+)\][+-]?\s*(.*)$/) : null;
+      const emoji = o.extended && !callout ? body[0]!.match(LEADING_EMOJI) : null;
+      if (callout) {
+        // > [!warning] Title, then its text.
+        const title = callout[2]!.trim();
+        const content = parseBlocks(body.slice(1), o);
+        const head = title ? [{ type: "paragraph", content: inlineNodes(title, [{ type: "bold" }], o) }] : [];
+        const blocks = [...head, ...content];
+        out.push({ type: "callout", attrs: { emoji: CALLOUTS[callout[1]!.toLowerCase()] ?? "💡" }, content: blocks.length ? blocks : [{ type: "paragraph" }] });
+      } else if (emoji) {
+        // > 💡 Text: a callout as Nootion exports them.
+        const content = parseBlocks([body[0]!.slice(emoji[0].length), ...body.slice(1)], o);
+        out.push({ type: "callout", attrs: { emoji: emoji[1] }, content: content.length ? content : [{ type: "paragraph" }] });
+      } else {
+        const content = parseBlocks(body, o);
+        out.push({ type: "blockquote", content: content.length ? content : [{ type: "paragraph" }] });
+      }
     } else if (/^\s*\|.*\|\s*$/.test(line) && /^\s*\|?\s*:?-{3,}/.test(lines[i + 1] ?? "")) {
       const cells = (l: string) =>
         l
@@ -123,12 +265,12 @@ function parseBlocks(lines: string[]): ProseMirrorNode[] {
           content: header.map((_, ci) => ({
             type: ri === 0 ? "tableHeader" : "tableCell",
             attrs: { colspan: 1, rowspan: 1, colwidth: null },
-            content: [paragraph(r[ci] ?? "")],
+            content: [paragraph_(r[ci] ?? "")],
           })),
         })),
       });
     } else if ((m = line.match(LIST_ITEM))) {
-      const { node, next } = parseList(lines, i, m[1]!.length);
+      const { node, next } = parseList(lines, i, m[1]!.length, o);
       out.push(node);
       i = next;
     } else {
@@ -138,7 +280,7 @@ function parseBlocks(lines: string[]): ProseMirrorNode[] {
         body.push(lines[i++]!.trimStart());
       // Two spaces or a backslash at the end of a line: a line break; otherwise lines join with a space.
       out.push(
-        paragraph(body.map((l, k) => (k === body.length - 1 ? l : /( {2,}|\\)$/.test(l) ? l.replace(/( {2,}|\\)$/, "\n") : `${l.trimEnd()} `)).join("")),
+        paragraph_(body.map((l, k) => (k === body.length - 1 ? l : /( {2,}|\\)$/.test(l) ? l.replace(/( {2,}|\\)$/, "\n") : `${l.trimEnd()} `)).join("")),
       );
     }
   }
@@ -146,7 +288,7 @@ function parseBlocks(lines: string[]): ProseMirrorNode[] {
 }
 
 /** A list starting at line `start`, with its nested lists: bullets, numbers or to-dos ("- [ ]", "- [x]"). */
-function parseList(lines: string[], start: number, indent: number): { node: ProseMirrorNode; next: number } {
+function parseList(lines: string[], start: number, indent: number, o: Opts = BASIC): { node: ProseMirrorNode; next: number } {
   const first = lines[start]!.match(LIST_ITEM)!;
   const ordered = /\d/.test(first[2]!);
   const task = /^\[[ xX]\]\s/.test(first[3]!);
@@ -161,18 +303,18 @@ function parseList(lines: string[], start: number, indent: number): { node: Pros
       if (!/^\[[ xX]\]\s/.test(body)) break;
       body = body.slice(4);
     }
-    const content: ProseMirrorNode[] = [paragraph(body)];
+    const content: ProseMirrorNode[] = [paragraph(body, o)];
     i++;
     // Lines indented under the item: more text, or a nested list.
     while (i < lines.length) {
       const l = lines[i]!;
       const nested = l.match(LIST_ITEM);
       if (nested && nested[1]!.length > indent) {
-        const sub = parseList(lines, i, nested[1]!.length);
+        const sub = parseList(lines, i, nested[1]!.length, o);
         content.push(sub.node);
         i = sub.next;
       } else if (l.trim() && !nested && /^\s+/.test(l) && l.match(/^\s*/)![0].length > indent) {
-        content.push(paragraph(l));
+        content.push(paragraph(l, o));
         i++;
       } else break;
     }
@@ -196,7 +338,10 @@ const NODES = new Set([
   "recentPages", "favoritesList", "upcomingEvents", "databaseRows", "buttonBlock", "chart", "progressBar", "countdown", "pomodoro",
   "habitTracker", "clock", "weather", "quoteOfDay", "imageCarousel", "drawing", "video",
 ]);
-const MARKS = new Set(["bold", "italic", "strike", "underline", "code", "link"]);
+const MARKS = new Set(["bold", "italic", "strike", "underline", "code", "link", "textColor", "highlight"]);
+/** Marks whose only attribute is one of the blocks' colors, never a free CSS value. */
+const COLOR_MARKS = new Set(["textColor", "highlight"]);
+const isOptionColor = (c: unknown) => typeof c === "string" && (OPTION_COLORS as readonly string[]).includes(c);
 
 export class ContentError extends Error {}
 
@@ -215,11 +360,14 @@ export function checkContent(json: unknown, userId: string, maxNodes = 20_000): 
     if (n.type === "text") {
       if (typeof n.text !== "string" || !n.text) throw new ContentError("empty text");
       const marks = (Array.isArray(n.marks) ? n.marks : []).filter(
-        (m) => MARKS.has(m?.type) && (m.type !== "link" || SAFE_URL.test(String(m.attrs?.href ?? ""))),
+        (m) =>
+          MARKS.has(m?.type) &&
+          (m.type !== "link" || SAFE_URL.test(String(m.attrs?.href ?? ""))) &&
+          (!COLOR_MARKS.has(m.type) || isOptionColor(m.attrs?.color)),
       );
-      return marks.length
-        ? { type: "text", text: n.text, marks: marks.map((m) => ({ type: m.type, ...(m.attrs ? { attrs: { ...m.attrs } } : {}) })) }
-        : { type: "text", text: n.text };
+      const copy = (m: (typeof marks)[number]) =>
+        COLOR_MARKS.has(m.type) ? { type: m.type, attrs: { color: m.attrs!.color } } : { type: m.type, ...(m.attrs ? { attrs: { ...m.attrs } } : {}) };
+      return marks.length ? { type: "text", text: n.text, marks: marks.map(copy) } : { type: "text", text: n.text };
     }
     let attrs = n.attrs && typeof n.attrs === "object" ? { ...n.attrs } : undefined;
     if (attrs) {
@@ -237,4 +385,52 @@ export function checkContent(json: unknown, userId: string, maxNodes = 20_000): 
   const doc = walk(json, 0);
   if (doc.type !== "doc") throw new ContentError("the content must be a doc");
   return doc;
+}
+
+/**
+ * Front matter of a Markdown file ("---" lines at the top, in YAML): simple values, quoted strings, [lists] and "- item"
+ * lists, which is what other tools write there. Anything else is kept as text.
+ */
+export function splitFrontMatter(markdown: string): { data: Record<string, string | string[]>; body: string } {
+  const src = markdown.replace(/^﻿/, "");
+  const m = /^---[ \t]*\r?\n([\s\S]*?)\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/.exec(src);
+  if (!m) return { data: {}, body: src };
+  const data: Record<string, string | string[]> = {};
+  const unquote = (v: string) => {
+    const s = v.trim();
+    if (/^"(?:[^"\\]|\\.)*"$/.test(s)) {
+      try {
+        return JSON.parse(s) as string;
+      } catch {
+        return s.slice(1, -1);
+      }
+    }
+    if (/^'.*'$/.test(s)) return s.slice(1, -1).replace(/''/g, "'");
+    return s;
+  };
+  let listKey: string | null = null;
+  for (const line of m[1]!.split(/\r?\n/)) {
+    const item = /^\s+-\s+(.*)$/.exec(line) ?? (listKey ? /^-\s+(.*)$/.exec(line) : null);
+    if (item && listKey) {
+      const list = data[listKey];
+      data[listKey] = [...(Array.isArray(list) ? list : []), unquote(item[1]!)];
+      continue;
+    }
+    const kv = /^("(?:[^"\\]|\\.)*"|[^:#\s][^:]*?)\s*:(?:\s+(.*))?$/.exec(line);
+    if (!kv) continue;
+    const key = unquote(kv[1]!);
+    const value = (kv[2] ?? "").replace(/\s+#.*$/, "").trim();
+    listKey = null;
+    if (!value) {
+      listKey = key;
+      data[key] = [];
+    } else if (/^\[.*\]$/.test(value)) {
+      data[key] = value
+        .slice(1, -1)
+        .split(",")
+        .map(unquote)
+        .filter(Boolean);
+    } else data[key] = unquote(value);
+  }
+  return { data, body: src.slice(m[0].length) };
 }

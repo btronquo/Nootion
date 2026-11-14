@@ -96,6 +96,7 @@ export function RowCards({
 
   const newButton = (group?: { prop: DatabaseProperty; key: string }) => (
     <button
+      data-print-hide
       onClick={() => void addRow(group)}
       disabled={actions?.addRow.isPending}
       className="flex w-full items-center gap-1.5 rounded-lg px-2 py-2 text-neutral-500 active:bg-neutral-100 dark:active:bg-neutral-800"

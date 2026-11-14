@@ -5,6 +5,7 @@ import { TextSelection } from "@tiptap/pm/state";
 import {
   ArrowDown,
   ArrowUp,
+  Baseline,
   Bold,
   ChevronDown,
   Heading2,
@@ -19,6 +20,8 @@ import {
   Undo2,
 } from "lucide-react";
 import { t } from "@nootion/shared";
+import { TextColorPanel } from "./TextColorMenu";
+import { selectionColors } from "./textColors";
 
 const LIST_ITEMS = ["listItem", "taskItem"];
 
@@ -94,10 +97,12 @@ export function MobileToolbar({ editor }: { editor: Editor }) {
       inList: e.isActive("listItem") || e.isActive("taskItem"),
       canUndo: e.can().undo?.() ?? false,
       canRedo: e.can().redo?.() ?? false,
+      colored: Object.values(selectionColors(e)).some(Boolean),
     }),
   });
   // Tapping a button blurs the editor for a moment: wait before hiding the bar.
   const [focused, setFocused] = useState(editor.isFocused);
+  const [colors, setColors] = useState(false);
   useEffect(() => {
     let timer: number | undefined;
     const onFocus = () => {
@@ -115,6 +120,10 @@ export function MobileToolbar({ editor }: { editor: Editor }) {
       editor.off("blur", onBlur);
     };
   }, [editor]);
+  // The colors close with the bar.
+  useEffect(() => {
+    if (!focused) setColors(false);
+  }, [focused]);
   if (!focused) return null;
 
   const listItem = editor.isActive("taskItem") ? "taskItem" : "listItem";
@@ -128,6 +137,15 @@ export function MobileToolbar({ editor }: { editor: Editor }) {
       // Keeps the keyboard open: the editor stays focused while a button is tapped.
       onMouseDown={(e) => e.preventDefault()}
     >
+      {/* Fixed, so the bar's scrolling doesn't cut it. */}
+      {colors && (
+        <div
+          style={{ bottom: inset + 52 }}
+          className="fixed left-2 z-40 rounded-lg border border-neutral-200 bg-white shadow-lg dark:border-neutral-700 dark:bg-neutral-900"
+        >
+          <TextColorPanel editor={editor} onPicked={() => setColors(false)} />
+        </div>
+      )}
       <ToolButton label={t("toolbar.insert")} onClick={run(() => openBlockMenu(editor))}>
         <Plus size={20} />
       </ToolButton>
@@ -153,6 +171,9 @@ export function MobileToolbar({ editor }: { editor: Editor }) {
         })}
       >
         <LinkIcon size={18} />
+      </ToolButton>
+      <ToolButton label={t("editor.textColor")} active={colors || state.colored} onClick={() => setColors((o) => !o)}>
+        <Baseline size={18} />
       </ToolButton>
       <ToolButton label={t("toolbar.heading")} active={state.heading} onClick={run(() => editor.chain().focus().toggleHeading({ level: 2 }).run())}>
         <Heading2 size={18} />
