@@ -19,6 +19,7 @@ import { PublicFormPage } from "./pages/PublicFormPage";
 import { t } from "@nootion/shared";
 import { LibraryPage } from "./pages/LibraryPage";
 import { SyncPage } from "./pages/SyncPage";
+import { TasksPage } from "./tasks/TasksPage";
 import { lazy, Suspense } from "react";
 
 // The graph (and its layout code) loads only when opened.
@@ -90,6 +91,7 @@ function PrivateApp() {
           }
         />
         <Route path="/reminders" element={<RemindersPage />} />
+        <Route path="/tasks" element={<TasksPage />} />
         <Route path="/capture" element={<CapturePage />} />
         <Route path="/account" element={<AccountPage />} />
         <Route path="/sync" element={<SyncPage />} />

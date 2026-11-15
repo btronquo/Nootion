@@ -1,6 +1,24 @@
 import { useMatch, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { Bell, Database, FilePlus, Globe, Home, Inbox, Library, Monitor, Moon, Plus, RefreshCw, Settings, Sun, Trash2, User, Waypoints } from "lucide-react";
+import {
+  Bell,
+  Database,
+  FilePlus,
+  Globe,
+  Home,
+  Inbox,
+  Library,
+  ListChecks,
+  Monitor,
+  Moon,
+  Plus,
+  RefreshCw,
+  Settings,
+  Sun,
+  Trash2,
+  User,
+  Waypoints,
+} from "lucide-react";
 import { LOCALE_NAMES, LOCALES, currentLocale, t, type Locale, type PageDetail, type PageSummary, type WorkspaceSummary } from "@nootion/shared";
 import { api } from "../lib/api";
 import { useRegisterActions, type Action } from "../lib/actions";
@@ -96,6 +114,7 @@ export function useAppActions({ capture, newSpace, hasSync }: { capture: () => v
     actions.push(
       go("home", "/", () => t("home.title"), <Home size={16} />),
       go("reminders", "/reminders", () => t("reminders.title"), <Bell size={16} />),
+      go("tasks", "/tasks", () => t("tasks.title"), <ListChecks size={16} />),
       go("library", "/pages", () => t("library.title"), <Library size={16} />),
       go("graph", "/graph", () => t("graph.title"), <Waypoints size={16} />),
       go("trash", "/trash", () => t("trash.title"), <Trash2 size={16} />),

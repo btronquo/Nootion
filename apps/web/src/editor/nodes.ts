@@ -13,6 +13,7 @@ import { TableOfContentsView } from "./TableOfContentsView";
 import { columnsTemplate, validWidth } from "./columnResize";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { DatabaseRowsView, FavoritesListView, RecentPagesView, UpcomingEventsView } from "./HomeWidgets";
+import { TasksListView } from "../tasks/TasksWidget";
 import { ChartView } from "./widgets/Chart";
 import { ClockView, CountdownView, PomodoroView, ProgressView } from "./widgets/Time";
 import { CarouselView, HabitView, QuoteView, WeatherView } from "./widgets/Extra";
@@ -285,6 +286,7 @@ export const CalendarBlock = Node.create<{ pageId: string | null; publicToken: s
 export type WidgetName =
   | "recentPages"
   | "favoritesList"
+  | "tasksList"
   | "upcomingEvents"
   | "databaseRows"
   | "chart"
@@ -346,6 +348,7 @@ function widget(name: WidgetName, view: Parameters<typeof ReactNodeViewRenderer>
 
 export const RecentPages = widget("recentPages", RecentPagesView);
 export const FavoritesList = widget("favoritesList", FavoritesListView);
+export const TasksList = widget("tasksList", TasksListView, { limit: 5 });
 export const UpcomingEvents = widget("upcomingEvents", UpcomingEventsView, { sources: [], days: 14 });
 export const DatabaseRows = widget("databaseRows", DatabaseRowsView, { databaseId: null, viewId: null, limit: 5 });
 export const Chart = widget("chart", ChartView, { databaseId: null, viewId: null, kind: "bar", groupBy: null, measure: "count" });
@@ -369,6 +372,7 @@ export const ImageCarousel = widget("imageCarousel", CarouselView, { images: [],
 export const WIDGETS = [
   RecentPages,
   FavoritesList,
+  TasksList,
   UpcomingEvents,
   DatabaseRows,
   Chart,

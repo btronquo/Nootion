@@ -160,23 +160,23 @@ body {
     center / contain no-repeat;
 }
 /* To-do boxes as in Notion: a bit bigger, blue when checked, with a check that pops in. */
-.nootion-content ul[data-type="taskList"] input[type="checkbox"] {
+:is(.nootion-content ul[data-type="taskList"], .nt-tasks) input[type="checkbox"] {
   @apply relative m-0 h-[18px] w-[18px] shrink-0 cursor-pointer appearance-none rounded-[4px] border-[1.5px] border-neutral-400 bg-transparent dark:border-neutral-500;
   transition:
     background-color 150ms ease,
     border-color 150ms ease,
     transform 100ms ease;
 }
-.nootion-content ul[data-type="taskList"] input[type="checkbox"]:hover {
+:is(.nootion-content ul[data-type="taskList"], .nt-tasks) input[type="checkbox"]:hover {
   @apply bg-neutral-100 dark:bg-neutral-800;
 }
-.nootion-content ul[data-type="taskList"] input[type="checkbox"]:active {
+:is(.nootion-content ul[data-type="taskList"], .nt-tasks) input[type="checkbox"]:active {
   transform: scale(0.9);
 }
-.nootion-content ul[data-type="taskList"] input[type="checkbox"]:focus-visible {
+:is(.nootion-content ul[data-type="taskList"], .nt-tasks) input[type="checkbox"]:focus-visible {
   @apply outline-2 outline-offset-2 outline-blue-500;
 }
-.nootion-content ul[data-type="taskList"] input[type="checkbox"]::after {
+:is(.nootion-content ul[data-type="taskList"], .nt-tasks) input[type="checkbox"]::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -189,18 +189,18 @@ body {
     opacity 150ms ease,
     transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.nootion-content ul[data-type="taskList"] input[type="checkbox"]:checked {
+:is(.nootion-content ul[data-type="taskList"], .nt-tasks) input[type="checkbox"]:checked {
   @apply border-[#2383e2] bg-[#2383e2];
 }
-.nootion-content ul[data-type="taskList"] input[type="checkbox"]:checked::after {
+:is(.nootion-content ul[data-type="taskList"], .nt-tasks) input[type="checkbox"]:checked::after {
   opacity: 1;
   transform: scale(1);
 }
 @media (prefers-reduced-motion: reduce) {
   .nootion-content ul[data-type="taskList"] li > div,
   .nootion-content ul[data-type="taskList"] li[data-checked="true"] > div,
-  .nootion-content ul[data-type="taskList"] input[type="checkbox"],
-  .nootion-content ul[data-type="taskList"] input[type="checkbox"]::after {
+  :is(.nootion-content ul[data-type="taskList"], .nt-tasks) input[type="checkbox"],
+  :is(.nootion-content ul[data-type="taskList"], .nt-tasks) input[type="checkbox"]::after {
     transition: none;
     animation: none;
   }

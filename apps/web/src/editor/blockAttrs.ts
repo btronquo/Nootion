@@ -92,6 +92,17 @@ export function findBlockById(doc: Node, id: string): number | null {
   return found;
 }
 
+/** The position of the page's to-do of this rank (0 for the first), in the order "Tasks" counts them. */
+export function findTaskByRank(doc: Node, rank: number): number | null {
+  let found: number | null = null;
+  let n = 0;
+  doc.descendants((node, pos) => {
+    if (found !== null) return false;
+    if (node.type.name === "taskItem" && n++ === rank) found = pos;
+  });
+  return found;
+}
+
 /** Who last edited the block (or the text inside it, for lists and callouts), and when. */
 export function lastEdit(node: Node): { by: string | null; name: string; at: number } | null {
   let best: { by: string | null; name: string; at: number } | null = null;

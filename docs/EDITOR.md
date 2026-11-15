@@ -1,8 +1,8 @@
 # Writing, finding and printing
 
 This page explains, for everyday users, the editor and search features that are not obvious at first sight: text
-colours, code blocks, the command palette, search filters and saved searches, and printing a page or saving it as
-PDF. Importing Markdown, HTML, Word or CSV files is described in
+colours, code blocks, the list of all your to-dos, the command palette, search filters and saved searches, and
+printing a page or saving it as PDF. Importing Markdown, HTML, Word or CSV files is described in
 [DEPLOYMENT.md](DEPLOYMENT.md#importing-from-files).
 
 ## Text colour and highlight
@@ -27,13 +27,33 @@ Type ` ``` ` or choose *Code* in the "/" menu. The menu above the block picks th
 Each language is downloaded the first time a block uses it, so pages without code load nothing more. Public pages
 show the colours too. Code blocks imported from Markdown (` ```python `) or from other tools keep their language.
 
+## Tasks: all your to-dos in one list
+
+**Tasks**, in the sidebar under *Notifications*, lists every to-do still unchecked in the pages you can read, in all
+your spaces and in the pages shared with you. To-dos are the checkboxes of the editor (type `[]` or choose *To-do
+list* in the "/" menu); database rows keep their own filtered views.
+
+- **By page** (the default) shows the to-dos page by page, the pages changed last first, in the order of each page.
+- **By date** sorts them by the first date written in their line (`@friday`, `@2026-12-01`): *Overdue* (in red),
+  *Today*, *Next 7 days*, *Later* and *No date*. Each to-do then says which page it is in.
+- Filters: a **space**, **Mentioning me** (to-dos with your `@name`) and **With a date**.
+- **Check a box** in the list and it is checked in its page, for everyone who has it open, and kept in the page's
+  history. A repeating to-do behaves as in its page: it unchecks by itself on its next day, with its date moved.
+- **Click the text** to open the page at that to-do: the page scrolls to it and shows it for a moment.
+- **Done lately**, at the bottom, lists what was checked in the last 7 days, here or in the pages: uncheck one to put
+  it back on the list.
+
+You can only check the to-dos of pages you may edit; the others show a box you can't click. To-dos of templates and
+of pages in the trash are not listed. The home page has a **Tasks** widget with the first to-dos (the dated ones
+first) and a link to the whole list; add it to any page with *Tasks* in the "/" menu.
+
 ## Command palette (Ctrl+K)
 
 **Ctrl+K** (⌘K on a Mac), or *Search* in the sidebar, opens one box for both finding pages and doing things.
 
 - With nothing typed, it lists the actions you used last, then your **saved searches**.
 - Typing finds pages (see below) and, above them, the **actions** whose name matches: new page or database (in the
-  open page's space or another one), quick capture, add a subpage, go to Home, Notifications, All pages, Graph,
+  open page's space or another one), quick capture, add a subpage, go to Home, Notifications, Tasks, All pages, Graph,
   Trash, My account or Administration, change the theme or the language, and the open page's own actions (share,
   favorite, comments, history, full width, duplicate, move to, copy link, export, print).
 - Start with **>** to list actions only.

@@ -808,3 +808,35 @@ export const savedSearches = sqliteTable(
   },
   (t) => [index("saved_searches_user_idx").on(t.userId)],
 );
+
+/**
+ * The to-dos written in pages, one row per to-do in the order of its page ("Tasks"). Derived from the content: rebuilt
+ * for a page each time its content changes (see tasks.ts), except `checkedAt`, carried over from the previous rows.
+ */
+export const pageTasks = sqliteTable(
+  "page_tasks",
+  {
+    pageId: text("page_id")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    // Its rank among the to-dos of the page.
+    position: integer("position").notNull(),
+    blockId: text("block_id"),
+    // Its line, without its date.
+    text: text("text").notNull().default(""),
+    checked: integer("checked", { mode: "boolean" }).notNull().default(false),
+    // The first date written in its line.
+    date: text("date"),
+    // The people it mentions.
+    mentions: text("mentions", { mode: "json" }).$type<string[]>().notNull().default([]),
+    repeat: text("repeat"),
+    // When it was seen checked (null when it was already checked when first seen).
+    checkedAt: integer("checked_at", { mode: "timestamp_ms" }),
+  },
+  (t) => [primaryKey({ columns: [t.pageId, t.position] }), index("page_tasks_checked_idx").on(t.checked, t.checkedAt)],
+);
+
+/** Pages whose to-dos must be read again (their content changed): filled by triggers. */
+export const pageTasksStale = sqliteTable("page_tasks_stale", {
+  pageId: text("page_id").primaryKey(),
+});
