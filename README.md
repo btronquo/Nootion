@@ -89,6 +89,8 @@ offline use and the Notion import.
 - Notion-like page editor ("/" commands, to-do lists, tables, callouts, toggles, columns, images and attached files,
   links between pages with "@", people mentions, table of contents), with real-time collaborative editing.
 - Repeating to-dos: checked, their date moves on to the next day, week, month or chosen days, reminder included.
+- Tasks: every to-do of every page you can read in one list, by page or by date (overdue, today, this week…), checked
+  from there, with a home page widget. See [docs/EDITOR.md](docs/EDITOR.md#tasks-all-your-to-dos-in-one-list).
 - Text colour and highlight on a selection (Ctrl+Shift+H for yellow), on the computer and on the phone.
 - Code blocks coloured by their language (about 35, chosen or guessed), with a copy button and line wrapping.
 - Print a page or save it as PDF (Ctrl+P): only the page, toggles open, every row of its databases, optional new
@@ -134,7 +136,7 @@ offline use and the Notion import.
 
 ### Home page and widgets
 
-- A personal home page with widgets: recently visited pages, favorites, upcoming events, the first rows of a
+- A personal home page with widgets: recently visited pages, your to-dos, favorites, upcoming events, the first rows of a
   database view (e.g. the open to-dos), arranged by each user.
 - Widgets for any page, from the "/" menu: charts of a database (bars, columns, line, donut), progress bars (of the
   year, of a goal, of the rows checked), countdown, Pomodoro timer, habit tracker, clock, weather, quote of the day and

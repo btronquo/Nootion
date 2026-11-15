@@ -18,6 +18,7 @@ export * from "./comments.js";
 export * from "./automations.js";
 export * from "./recurrence.js";
 export * from "./taskRepeat.js";
+export * from "./tasks.js";
 export * from "./video.js";
 export * from "./inbox.js";
 export * from "./backups.js";

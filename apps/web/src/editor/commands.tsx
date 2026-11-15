@@ -172,6 +172,7 @@ export function slashItems(ctx: CommandContext) {
     item("Calendar", t("command.calendar"), <CalendarDays size={16} />, (e, r) => del(e, r).insertCalendar().run(), "agenda events dates ical"),
     item("Recent pages", t("command.recentPages"), <Clock size={16} />, (e, r) => del(e, r).insertWidget("recentPages").run(), "widget visited history home"),
     item("Favorites", t("command.favoritesList"), <Star size={16} />, (e, r) => del(e, r).insertWidget("favoritesList").run(), "widget starred home"),
+    item("Tasks", t("command.tasksList"), <ListChecks size={16} />, (e, r) => del(e, r).insertWidget("tasksList").run(), "widget to-do todo checklist tâches home"),
     item(
       "Upcoming events",
       t("command.upcomingEvents"),

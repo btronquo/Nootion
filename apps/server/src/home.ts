@@ -11,7 +11,13 @@ import { getPageMeta, toSummary } from "./pages.js";
 /** Widgets of a new home page; users then arrange it like any page. */
 const DEFAULT_HOME: ProseMirrorNode = {
   type: "doc",
-  content: [{ type: "recentPages" }, { type: "upcomingEvents", attrs: { sources: [], days: 14 } }, { type: "favoritesList" }, { type: "paragraph" }],
+  content: [
+    { type: "recentPages" },
+    { type: "tasksList", attrs: { limit: 5 } },
+    { type: "upcomingEvents", attrs: { sources: [], days: 14 } },
+    { type: "favoritesList" },
+    { type: "paragraph" },
+  ],
 };
 
 /** Id of the user's home page, created (or created again, if it was deleted) in their personal workspace. */

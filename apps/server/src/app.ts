@@ -57,6 +57,8 @@ import { exportRoutes } from "./routes/export.js";
 import { fileImportRoutes } from "./routes/import-files.js";
 import { notionRoutes } from "./routes/notion.js";
 import { searchRoutes } from "./routes/search.js";
+import { taskRoutes } from "./routes/tasks.js";
+import { createTaskIndexer } from "./tasks.js";
 import { builtinPluginsDir, PluginManager } from "./plugins.js";
 import { createExtractor, type Extractor } from "./extract.js";
 import { createNotifier, type Notifier, type PushSender } from "./reminders.js";
@@ -163,6 +165,10 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
   const searchIndexer = createSearchIndexer(opts.db, app.log);
   app.addHook("onReady", async () => searchIndexer.wake());
   app.addHook("onClose", async () => searchIndexer.stop());
+  // Reads the to-dos of pages for "Tasks", as their content changes.
+  const taskIndexer = createTaskIndexer(opts.db, app.log);
+  app.addHook("onReady", async () => taskIndexer.wake());
+  app.addHook("onClose", async () => taskIndexer.stop());
   // Sends reminders to the devices of their users as they fall due.
   // E-mail, once administrators set a provider.
   const mailer = createMailer({ db: opts.db, appSecret: opts.config.appSecret, appUrl: opts.config.appUrl, log: app.log, sender: opts.mailSender });
@@ -345,6 +351,7 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
   await app.register(icalRoutes, { prefix: "/api/ical" });
   await app.register(homeRoutes, { prefix: "/api" });
   await app.register(inboxRoutes, { prefix: "/api" });
+  await app.register(taskRoutes, { prefix: "/api" });
   await app.register(liveEventRoutes, { prefix: "/api" });
   await app.register(iconRoutes, { prefix: "/api/icons" });
   await app.register(reminderRoutes, { prefix: "/api/reminders" });

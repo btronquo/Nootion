@@ -7,6 +7,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Tasks: one list of every to-do still unchecked in the pages you can read ("Tasks" in the sidebar, under
+  Notifications). Grouped by page, or by date (overdue, today, next 7 days, later, no date) from the first date
+  written in each to-do; filters for a space, the to-dos mentioning you and those with a date. Checking a box in the
+  list checks it in its page, live for everyone who has it open (a repeating to-do moves on as in its page); clicking
+  the text opens the page at that to-do. "Done lately" lists what was checked in the last 7 days, to undo a mistake.
+  A "Tasks" widget shows the first ones on the home page (new home pages get it) or in any page. To-dos are read
+  from the pages as they are saved; existing pages are read once after the upgrade.
 - Text colour and highlight on a selection: the selection toolbar (and the editing bar on a phone) has an "A" button
   with the nine colours blocks already have, for the text and for a highlight behind it. Ctrl+Shift+H highlights in
   yellow. Colours show on public pages and in the history, go through the API, and the import from other tools keeps

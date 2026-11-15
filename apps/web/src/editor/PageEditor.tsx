@@ -27,7 +27,7 @@ import { MobileToolbar } from "./MobileToolbar";
 import { TextColorButton } from "./TextColorMenu";
 import { BlockHandle } from "./BlockHandle";
 import { BlockShortcuts } from "./blockActions";
-import { BlockFlash, EditTracking, findBlockById, flashBlock } from "./blockAttrs";
+import { BlockFlash, EditTracking, findBlockById, findTaskByRank, flashBlock } from "./blockAttrs";
 import { useIsTouch } from "../lib/mobile";
 import type { CommentThread } from "@nootion/shared";
 import { CommentHighlights, selectionAnchor, setCommentHighlights } from "../comments/highlights";
@@ -258,12 +258,14 @@ function CollabEditor({
     if (active) document.querySelector(`.nootion-content [data-comment-thread="${active}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [active]);
 
-  // A link to a block ("#block-…"): the page scrolls to it once the server's copy is in, and shows it for a moment.
+  // A link to a block ("#block-…", or "#task-3" for the fourth to-do, from "Tasks"): the page scrolls to it once the
+  // server's copy is in, and shows it for a moment.
   const { hash } = useLocation();
   useEffect(() => {
     const id = /^#block-([\w-]+)$/.exec(hash)?.[1];
-    if (!editor || !synced || !id) return;
-    const pos = findBlockById(editor.state.doc, id);
+    const task = /^#task-(\d+)$/.exec(hash)?.[1];
+    if (!editor || !synced || (!id && task === undefined)) return;
+    const pos = id ? findBlockById(editor.state.doc, id) : findTaskByRank(editor.state.doc, Number(task));
     if (pos !== null) return flashBlock(editor, pos);
   }, [editor, synced, hash]);
 

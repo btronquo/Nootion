@@ -27,6 +27,7 @@ import {
   Bell,
   Inbox,
   Library,
+  ListChecks,
   Waypoints,
   RefreshCw,
   FileUp,
@@ -191,6 +192,7 @@ export function AppShell() {
       </NavLink>
       {(
         [
+          ["/tasks", <ListChecks size={16} key="i" />, t("tasks.title")],
           ["/pages", <Library size={16} key="i" />, t("library.title")],
           ["/graph", <Waypoints size={16} key="i" />, t("graph.title")],
         ] as const
