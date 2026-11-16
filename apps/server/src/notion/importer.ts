@@ -25,7 +25,7 @@ import type { Db } from "../db/index.js";
 import { attachments, customIcons, databaseProperties, databaseViews, notionLinks, notionPropertyLinks, pages, users } from "../db/schema.js";
 import { imageExtension } from "../images.js";
 import { iconsDir } from "../routes/icons.js";
-import { attachmentPath, uploadsDir } from "../attachments.js";
+import { fileStore } from "../files.js";
 import { writeContent, type Collab, type ProseMirrorNode } from "../collab.js";
 import { assignUniqueIds, checkFormula, listProperties } from "../databases.js";
 import { nextPosition } from "../pages.js";
@@ -318,7 +318,11 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
     const link = links.get(id);
     if (link) {
       const changed = !!o.refresh || link.editedAt !== editedAt(item);
-      if (changed) db.update(pages).set({ title, icon, updatedAt: new Date(), updatedBy: lastEditor(item) }).where(eq(pages.id, link.pageId)).run();
+      if (changed)
+        db.update(pages)
+          .set({ title, icon, updatedAt: new Date(), updatedBy: lastEditor(item) })
+          .where(eq(pages.id, link.pageId))
+          .run();
       target.set(id, { id: link.pageId, title, isNew: false, changed });
       report[changed ? "updated" : "unchanged"]++;
     } else {
@@ -350,7 +354,10 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
           .run();
       }
       // Linked at once, as not finished: an import that stops halfway picks these pages up again instead of duplicating them.
-      db.insert(notionLinks).values({ workspaceId: o.workspaceId, notionId: id, pageId, notionEditedAt: null }).onConflictDoUpdate({ target: [notionLinks.workspaceId, notionLinks.notionId], set: { pageId, notionEditedAt: null } }).run();
+      db.insert(notionLinks)
+        .values({ workspaceId: o.workspaceId, notionId: id, pageId, notionEditedAt: null })
+        .onConflictDoUpdate({ target: [notionLinks.workspaceId, notionLinks.notionId], set: { pageId, notionEditedAt: null } })
+        .run();
       target.set(id, { id: pageId, title, isNew: true, changed: true });
       report[item.kind === "database" ? "databases" : item.kind === "row" ? "rows" : "pages"]++;
     }
@@ -520,7 +527,7 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
     // Formulas may use each other: added in rounds, each one once the columns it uses exist.
     let pending = schemaOf(database).filter((p) => p.type === "formula");
     const reasons = new Map<string, string>();
-    for (let progress = true; pending.length && progress; ) {
+    for (let progress = true; pending.length && progress;) {
       progress = false;
       for (const p of [...pending]) {
         try {
@@ -606,8 +613,7 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
     const file = await client.download(url, o.maxFileBytes);
     if (!file) return null;
     const id = randomUUID();
-    fs.mkdirSync(uploadsDir(o.dataDir), { recursive: true });
-    fs.writeFileSync(attachmentPath(o.dataDir, id), file.data);
+    await fileStore(o.dataDir).putBuffer(id, file.data, file.type);
     const filename = name.replace(/[\\/\r\n]/g, "_").slice(0, 255) || "file";
     db.insert(attachments).values({ id, pageId, filename, mimeType: file.type, size: file.data.length, createdBy: o.userId }).run();
     report.files++;
@@ -687,7 +693,11 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
   const synced = new Map<string, { id: string; made: boolean; fallback?: { hostId: string; content: ProseMirrorNode[] } }>();
   const placeSynced = async (key: string, entry: { id: string }, hostId: string, content: ProseMirrorNode[]) => {
     const host = db.select({ workspaceId: pages.workspaceId }).from(pages).where(eq(pages.id, hostId)).get()!;
-    const exists = db.select({ id: pages.id }).from(pages).where(and(eq(pages.id, entry.id), eq(pages.kind, "block"))).get();
+    const exists = db
+      .select({ id: pages.id })
+      .from(pages)
+      .where(and(eq(pages.id, entry.id), eq(pages.kind, "block")))
+      .get();
     if (exists) db.update(pages).set({ parentId: hostId, workspaceId: host.workspaceId, deletedAt: null }).where(eq(pages.id, entry.id)).run();
     else db.insert(pages).values({ id: entry.id, workspaceId: host.workspaceId, parentId: hostId, kind: "block", title: "", createdBy: o.userId }).run();
     await writeContent(o.collab, db, entry.id, { type: "doc", content: content.length ? content : [{ type: "paragraph" }] });
@@ -891,4 +901,3 @@ async function cellValue(schema: NotionPropertySchema, v: NotionPropertyValue, p
       return null;
   }
 }
-

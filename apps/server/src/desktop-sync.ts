@@ -6,7 +6,6 @@
  * limited to those spaces. Each space is created here with the same id, then kept in sync every few seconds:
  * pull what changed on the server, push what changed here.
  */
-import fs from "node:fs";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import type { Collab } from "./collab.js";
@@ -16,7 +15,7 @@ import { isLocale, t as translate } from "@nootion/shared";
 import { syncChanges, syncLinks, users, workspaceMembers, workspaces } from "./db/schema.js";
 import { withLocale } from "./i18n.js";
 import { decryptSecret, encryptSecret, secretKey } from "./secrets.js";
-import { attachmentPath } from "./attachments.js";
+import { fileStore } from "./files.js";
 import { applyChanges, changesSince, currentSeq, renameUser, type SyncChange, type SyncUser } from "./sync.js";
 
 /** How often linked spaces are synced, and how often changes made here are looked for. */
@@ -169,9 +168,12 @@ export function createDesktopSync(opts: { db: Db; collab: Collab; config: Config
         // Files go first: the server adds an attachment only once it has its file.
         for (const c of changes) {
           if (c.entity !== "attachment" || c.deleted) continue;
-          const file = attachmentPath(config.dataDir, c.id);
-          if (!fs.existsSync(file)) continue;
-          const r = await request(link, `/api/sync/${workspaceId}/attachments/${c.id}`, { method: "PUT", body: fs.readFileSync(file) });
+          const data = await fileStore(config.dataDir).read(c.id);
+          if (!data) continue;
+          const r = await request(link, `/api/sync/${workspaceId}/attachments/${c.id}`, {
+            method: "PUT",
+            body: new Uint8Array(data.buffer, data.byteOffset, data.length) as Uint8Array<ArrayBuffer>,
+          });
           link = r.link;
           if (!r.res.ok) throw new SyncError("server_refused", `The server refused a file (${r.res.status}).`);
         }

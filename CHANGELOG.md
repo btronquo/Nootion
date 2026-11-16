@@ -7,6 +7,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Attached files in S3-compatible storage (AWS S3, MinIO, Garage, Backblaze B2, Cloudflare R2…), for larger
+  instances: set `FILES_S3_BUCKET`, the keys and, outside AWS, `FILES_S3_ENDPOINT`. The data folder stays the default
+  and nothing changes for people: uploads, downloads with byte ranges (videos), copies of pages and templates,
+  exports, imports, search in files and sync all go through the bucket, and access is still checked by Nootion.
+  `FILES_S3_REDIRECT=true` sends browsers to a link signed for 5 minutes instead of streaming through the server;
+  `FILES_S3_PREFIX` lets several instances share a bucket. `node dist/files-move.js to-bucket` (or `to-folder`)
+  moves existing files, and can be run again. Backups then hold everything but the files, with a note saying which
+  bucket has them. See "Attached files in S3-compatible storage" in docs/DEPLOYMENT.md.
 - Synced blocks: the same content in several pages, edited from any of them and updated live in all. "Turn into
   synced block" in a block's menu, then "Copy synced block" and paste it elsewhere; or "/synced" to make a new one or
   show one already used. A thin frame and "Synced in 3 pages" show on hover, with the list of those pages. Removing a

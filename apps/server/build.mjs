@@ -1,12 +1,13 @@
 import { build } from "esbuild";
 
 await build({
-  entryPoints: ["src/index.ts"],
+  // The server, and the command that moves attached files between the data folder and a bucket.
+  entryPoints: ["src/index.ts", "src/files-move.ts"],
   bundle: true,
   platform: "node",
   target: "node22",
   format: "esm",
-  outfile: "dist/index.js",
+  outdir: "dist",
   // Native modules and fastify plugins stay in node_modules.
   packages: "external",
   // Workspace packages are TypeScript sources: bundle them.

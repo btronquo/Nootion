@@ -1,4 +1,4 @@
-import fs from "node:fs";
+import { Readable } from "node:stream";
 import path from "node:path";
 import { inArray } from "drizzle-orm";
 import yazl from "yazl";
@@ -16,7 +16,7 @@ import {
   type FormulaResult,
   type RollupValue,
 } from "@nootion/shared";
-import { attachmentPath } from "./attachments.js";
+import { fileStore } from "./files.js";
 import type { ProseMirrorNode } from "./collab.js";
 import { canReadAs, loadDatabase } from "./databases.js";
 import type { Db } from "./db/index.js";
@@ -191,9 +191,10 @@ export function exportPagesZip(db: Db, dataDir: string, userId: string, roots: P
   const files = ids.length ? db.select().from(attachments).where(inArray(attachments.pageId, ids)).all() : [];
   const filePaths = new Map(files.map((f) => [f.id, `${t("export.filesFolder")}/${f.id.slice(0, 8)}-${safeName(f.filename, t("export.file"))}`]));
   const content = new Map(
-    (ids.length ? db.select({ id: pages.id, json: pages.contentJson, props: pages.props }).from(pages).where(inArray(pages.id, ids)).all() : []).map(
-      (r) => [r.id, r],
-    ),
+    (ids.length ? db.select({ id: pages.id, json: pages.contentJson, props: pages.props }).from(pages).where(inArray(pages.id, ids)).all() : []).map((r) => [
+      r.id,
+      r,
+    ]),
   );
 
   const zip = new yazl.ZipFile();
@@ -238,9 +239,16 @@ export function exportPagesZip(db: Db, dataDir: string, userId: string, roots: P
     const body = toMarkdown(json ? inlineSyncedBlocks(db, json, canReadSynced(db, userId)) : null, links);
     zip.addBuffer(Buffer.from(`${frontMatter(meta)}\n# ${p.title || t("common.untitled")}\n\n${body}\n`), file);
   }
+  // Read one after the other while the zip is written, from the data folder or the bucket. A file gone missing is
+  // left empty.
+  const store = fileStore(dataDir);
   for (const f of files) {
-    const source = attachmentPath(dataDir, f.id);
-    if (fs.existsSync(source)) zip.addFile(source, filePaths.get(f.id)!);
+    zip.addReadStreamLazy(filePaths.get(f.id)!, (cb) => {
+      store.open(f.id).then(
+        (opened) => cb(null, opened?.stream ?? Readable.from([])),
+        (err) => cb(err, Readable.from([])),
+      );
+    });
   }
   zip.end();
   return zip;
