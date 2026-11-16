@@ -252,7 +252,7 @@ export function CalendarView(props: MoreViewProps) {
   const [localMode, setLocalMode] = useState<CalendarMode>("month");
   const mode = actions ? (view.config.calendarMode ?? "month") : localMode;
   const setMode = (m: CalendarMode) =>
-    actions && editable ? actions.updateView.mutate({ viewId: view.id, config: { ...view.config, calendarMode: m } }) : setLocalMode(m);
+    actions && editable && !data.locked ? actions.updateView.mutate({ viewId: view.id, config: { ...view.config, calendarMode: m } }) : setLocalMode(m);
   const movable = editable && prop?.type === "date";
 
   const entries = useMemo(() => {

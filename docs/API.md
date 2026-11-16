@@ -66,7 +66,7 @@ Ids are UUIDs. Dates are ISO 8601.
 | `GET /api/workspaces/:id/pages` | Every page and database of a space (`id`, `parentId`, `kind`, `title`, `icon`, `position`…). Database rows are not listed: query their database. |
 | `GET /api/pages/:id` | A page's details: title, icon, cover, `kind` (`page`, `database` or `row`), your role, breadcrumb. |
 | `POST /api/pages` | Creates a page: `{ "workspaceId", "parentId": null, "title", "icon"?, "markdown"? }` (or `content`, see below). A subpage gets a link at the end of its parent, unless `"linkInParent": false`. |
-| `PATCH /api/pages/:id` | Changes `title`, `icon`, `cover` (`https://…` image), `fullWidth`. |
+| `PATCH /api/pages/:id` | Changes `title`, `icon`, `cover` (`https://…` image), `fullWidth`, `locked`. While a page is locked, changes to its content, title, icon or cover (and, for a database, to its columns, views and templates) answer `423 Locked`. |
 | `POST /api/pages/:id/move` | Moves it: `{ "parentId": "…" or null, "index"?, "workspaceId"? }`. A line holding only a link to it moves with it, from the old parent to the end of the new one. With `workspaceId`, it goes to another space with all its subpages (owners and editors of both spaces only; `parentId` must then be a page of that space, or null). |
 | `DELETE /api/pages/:id` | Moves it to the trash, with its subpages. |
 | `POST /api/pages/:id/restore` | Takes it out of the trash. |

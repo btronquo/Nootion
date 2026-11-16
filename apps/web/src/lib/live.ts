@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { keys } from "./queries";
 
-type LiveEvent = { type: "pages"; workspaceId: string } | { type: "access" };
+type LiveEvent = { type: "pages"; workspaceId: string } | { type: "access" } | { type: "page"; pageId: string };
 
 /**
  * Listens to the server for changes made by others (a page added to a shared space, a new share…) and refetches
@@ -31,6 +31,9 @@ export function useLiveEvents(signedIn: boolean) {
     source.onmessage = (e) => {
       const event = JSON.parse(e.data) as LiveEvent;
       if (event.type === "pages") void refreshTree(event.workspaceId);
+      // Locked or unlocked elsewhere: the page (or database) shows read-only, or editable again, at once.
+      else if (event.type === "page")
+        void Promise.all([qc.invalidateQueries({ queryKey: keys.page(event.pageId) }), qc.invalidateQueries({ queryKey: ["database", event.pageId] })]);
       else void Promise.all([qc.invalidateQueries({ queryKey: keys.workspaces }), refreshTree()]);
     };
     return () => source.close();

@@ -6,10 +6,11 @@ import { requireUser } from "./http.js";
 /**
  * What the open tabs are told, so that they refetch it:
  * - "pages": the page tree of a space changed (a page added, renamed, moved, trashed…);
- * - "access": the spaces or the pages shared with you changed.
+ * - "access": the spaces or the pages shared with you changed;
+ * - "page": a page was locked or unlocked, so that open tabs show it read-only (or editable) at once.
  * Only the fact that something changed is sent, never what: the tab asks for it with its usual access checks.
  */
-export type LiveEvent = { type: "pages"; workspaceId: string } | { type: "access" };
+export type LiveEvent = { type: "pages"; workspaceId: string } | { type: "access" } | { type: "page"; pageId: string };
 
 /**
  * Tells the people concerned when the page tree changes. The changes are caught by triggers of the database itself,
@@ -21,14 +22,17 @@ export function createLiveEvents(db: Db) {
   const changedSpaces = new Set<string>();
   const changedUsers = new Set<string>();
   const renamedSpaces = new Set<string>();
+  const changedPages = new Set<string>();
   let timer: NodeJS.Timeout | null = null;
 
   const flush = () => {
     timer = null;
     const spaces = [...changedSpaces];
     const renamed = [...renamedSpaces];
+    const lockedPages = [...changedPages];
     changedSpaces.clear();
     renamedSpaces.clear();
+    changedPages.clear();
     if (!clients.size) return changedUsers.clear();
     const audience = sqlite.prepare(
       `SELECT user_id AS userId FROM workspace_members WHERE workspace_id = ?
@@ -42,11 +46,17 @@ export function createLiveEvents(db: Db) {
       for (const { userId } of audience.all(workspaceId, workspaceId) as { userId: string }[]) send(userId, { type: "pages", workspaceId });
     }
     for (const userId of users) send(userId, { type: "access" });
+    const spaceOf = sqlite.prepare("SELECT workspace_id AS workspaceId FROM pages WHERE id = ?");
+    for (const pageId of lockedPages) {
+      const row = spaceOf.get(pageId) as { workspaceId: string } | undefined;
+      if (!row) continue;
+      for (const { userId } of audience.all(row.workspaceId, row.workspaceId) as { userId: string }[]) send(userId, { type: "page", pageId });
+    }
   };
 
   const changed = (kind: string, id: string | null) => {
     if (!id) return null;
-    (kind === "space" ? changedSpaces : kind === "renamed" ? renamedSpaces : changedUsers).add(id);
+    (kind === "space" ? changedSpaces : kind === "renamed" ? renamedSpaces : kind === "page" ? changedPages : changedUsers).add(id);
     // A burst of changes (an import, a copied template) makes one message.
     timer ??= setTimeout(flush, 150);
     return null;
@@ -63,6 +73,8 @@ export function createLiveEvents(db: Db) {
       BEGIN SELECT nootion_changed('space', OLD.workspace_id), nootion_changed('space', NEW.workspace_id); END;
     CREATE TEMP TRIGGER IF NOT EXISTS live_page_delete AFTER DELETE ON main.pages WHEN OLD.kind <> 'row'
       BEGIN SELECT nootion_changed('space', OLD.workspace_id); END;
+    CREATE TEMP TRIGGER IF NOT EXISTS live_page_lock AFTER UPDATE OF locked ON main.pages WHEN OLD.locked IS NOT NEW.locked
+      BEGIN SELECT nootion_changed('page', NEW.id); END;
     CREATE TEMP TRIGGER IF NOT EXISTS live_space_rename AFTER UPDATE OF name ON main.workspaces
       BEGIN SELECT nootion_changed('renamed', NEW.id); END;
     CREATE TEMP TRIGGER IF NOT EXISTS live_member_insert AFTER INSERT ON main.workspace_members

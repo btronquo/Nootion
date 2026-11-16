@@ -11,6 +11,7 @@ import {
   LayoutTemplate,
   Link2,
   Lock,
+  LockOpen,
   MessageSquare,
   MoreHorizontal,
   MoveHorizontal,
@@ -76,7 +77,9 @@ function greeting(name: string) {
 
 function PageView({ page }: { page: PageDetail }) {
   const { user } = useSession();
-  const canEdit = atLeast(page.role, "editor");
+  // Who can edit may lock the page; while it is locked, nobody changes its content, title, icon or cover.
+  const canWrite = atLeast(page.role, "editor");
+  const canEdit = canWrite && !page.locked;
   const canManage = page.role === "full";
   const [title, setTitle] = useState(page.title);
   const [sharing, setSharing] = useState(false);
@@ -125,7 +128,15 @@ function PageView({ page }: { page: PageDetail }) {
     }
   }, [title]);
 
-  async function save(patch: { title?: string; icon?: string | null; fullWidth?: boolean; cover?: string | null; coverPosition?: number; template?: boolean }) {
+  async function save(patch: {
+    title?: string;
+    icon?: string | null;
+    fullWidth?: boolean;
+    cover?: string | null;
+    coverPosition?: number;
+    template?: boolean;
+    locked?: boolean;
+  }) {
     // Kept for later when the server can't be reached.
     await sendOrQueue(`/pages/${page.id}`, patch);
     qc.setQueryData(keys.page(page.id), { ...page, ...patch });
@@ -147,9 +158,12 @@ function PageView({ page }: { page: PageDetail }) {
     navigate("/");
   }
 
+  const toggleLock = () => save({ locked: !page.locked });
+
   usePalette(page, {
-    canEdit,
+    canEdit: canWrite,
     canManage,
+    lock: toggleLock,
     hasComments,
     share: () => setSharing(true),
     history: () => setHistory(true),
@@ -202,6 +216,19 @@ function PageView({ page }: { page: PageDetail }) {
           <Button variant="ghost" onClick={(e) => setMenu(e.currentTarget)} title={t("page.options")} aria-label={t("page.options")}>
             <MoreHorizontal size={16} />
           </Button>
+          {page.locked && (
+            <button
+              type="button"
+              disabled={!canWrite}
+              onClick={toggleLock}
+              title={canWrite ? t("lock.unlockHint") : t(page.kind === "database" ? "lock.databaseHint" : "lock.pageHint")}
+              aria-label={canWrite ? t(page.kind === "database" ? "lock.unlockDatabase" : "lock.unlockPage") : t("lock.badge")}
+              data-page-locked
+              className="flex items-center gap-1 rounded bg-amber-50 px-2 py-1 text-xs text-amber-800 enabled:hover:bg-amber-100 dark:bg-amber-950/60 dark:text-amber-300 dark:enabled:hover:bg-amber-900/60"
+            >
+              <Lock size={12} /> <span className="hidden sm:inline">{t("lock.badge")}</span>
+            </button>
+          )}
           {!canManage && (
             <span
               title={pageRoleLabel(page.role)}
@@ -255,7 +282,7 @@ function PageView({ page }: { page: PageDetail }) {
           />
         )}
         {page.template && <TemplateBanner page={page} canEdit={canEdit} />}
-        {page.kind === "row" && page.parentId && <RowProperties databaseId={page.parentId} rowId={page.id} />}
+        {page.kind === "row" && page.parentId && <RowProperties databaseId={page.parentId} rowId={page.id} locked={page.locked} />}
         {offerTemplates && empty && <TemplatePicker page={page} />}
         <div className="mt-4">
           {page.kind === "database" ? (
@@ -294,7 +321,19 @@ function PageView({ page }: { page: PageDetail }) {
 
       {menu && (
         <Popover anchor={menu} onClose={() => setMenu(null)} width={290}>
-          {canEdit && (
+          {canWrite && !page.home && (
+            <label
+              className="flex cursor-pointer items-center justify-between gap-2 rounded px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+              title={t(page.kind === "database" ? "lock.databaseHint" : "lock.pageHint")}
+              data-lock-toggle
+            >
+              <span className="flex items-center gap-2">
+                <Lock size={15} className="text-neutral-500" /> {t(page.kind === "database" ? "lock.lockDatabase" : "lock.lockPage")}
+              </span>
+              <input type="checkbox" role="switch" className="h-4 w-4 accent-blue-600" checked={page.locked} onChange={toggleLock} />
+            </label>
+          )}
+          {canWrite && (
             <label className="flex cursor-pointer items-center justify-between gap-2 rounded px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800">
               {t("page.fullWidth")}
               <input
@@ -306,7 +345,7 @@ function PageView({ page }: { page: PageDetail }) {
               />
             </label>
           )}
-          {canEdit && page.kind === "page" && !page.home && (
+          {canWrite && page.kind === "page" && !page.home && (
             <label className="flex cursor-pointer items-center justify-between gap-2 rounded px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800">
               {t("template.pageToggle")}
               <input
@@ -379,6 +418,7 @@ function usePalette(
   ui: {
     canEdit: boolean;
     canManage: boolean;
+    lock: () => Promise<unknown>;
     hasComments: boolean;
     share: () => void;
     history: () => void;
@@ -441,6 +481,16 @@ function usePalette(
       icon: <History size={16} />,
       when: () => page.kind !== "database",
       run: ui.history,
+    },
+    {
+      id: "page:lock",
+      title: () =>
+        page.kind === "database" ? t(page.locked ? "lock.unlockDatabase" : "lock.lockDatabase") : t(page.locked ? "lock.unlockPage" : "lock.lockPage"),
+      keywords: () => t("lock.keywords"),
+      section: "page",
+      icon: page.locked ? <LockOpen size={16} /> : <Lock size={16} />,
+      when: () => ui.canEdit && !page.home,
+      run: ui.lock,
     },
     {
       id: "page:full-width",

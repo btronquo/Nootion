@@ -1,8 +1,9 @@
 # Writing, finding and printing
 
 This page explains, for everyday users, the editor and search features that are not obvious at first sight: text
-colours, code blocks, equations, the list of all your to-dos, the command palette, search filters and saved searches, and
-printing a page or saving it as PDF. Importing Markdown, HTML, Word or CSV files is described in
+colours, code blocks, equations, the list of all your to-dos, locking a page or a database, the command palette,
+search filters and saved searches, and printing a page or saving it as PDF. Importing Markdown, HTML, Word or CSV
+files is described in
 [DEPLOYMENT.md](DEPLOYMENT.md#importing-from-files).
 
 ## Text colour and highlight
@@ -70,6 +71,26 @@ list* in the "/" menu); database rows keep their own filtered views.
 You can only check the to-dos of pages you may edit; the others show a box you can't click. To-dos of templates and
 of pages in the trash are not listed. The home page has a **Tasks** widget with the first to-dos (the dated ones
 first) and a link to the whole list; add it to any page with *Tasks* in the "/" menu.
+
+## Locking a page or a database
+
+A reference page (a procedure, a contract, a checklist used by everyone) can be changed by accident. Lock it: in the
+page's **⋯** menu, turn on **Lock page** (or *Lock database*), or type "lock" in the command palette.
+
+- A locked page shows a **Locked** padlock at the top. Its content, title, icon and cover are read-only for
+  everyone, you included, until someone unlocks it.
+- Anyone who can edit the page can unlock it: click the padlock, or turn the switch off in the menu. The lock
+  prevents mistakes; it is not a permission (sharing decides who can edit).
+- A **locked database** keeps its columns, views (filters, sorts, groups, widths) and row templates as they are,
+  and shows the padlock beside its view tabs, also where it is shown inside another page. Its rows can still be
+  added, filled in and deleted; only existing options can be picked in a select column.
+- A row opened as a page can be locked on its own: its cells and content are then read-only.
+- Comments, favourites, sharing, moving and exporting still work on a locked page. Its to-dos show in **Tasks** but
+  can't be checked from there. A version from the history is restored once the page is unlocked.
+- People who have the page open see it switch to read-only (or back) at once.
+
+The server refuses the changes too, not only the interface: the API answers `423 Locked`, and the live editor opens
+the page read-only. The lock travels with the desktop app's sync like the page's other settings.
 
 ## Command palette (Ctrl+K)
 

@@ -78,12 +78,14 @@ export function DatabaseViews(props: ViewProps) {
   const { data, actions } = props;
   const [view, select] = useActiveView(data.id, data.views);
   const editable = !!actions && (data.role === "editor" || data.role === "full");
+  // A locked database keeps its columns and views: its rows can still be filled in.
+  const structure = editable && !data.locked;
   const me = useSession().user?.id ?? null;
   const ctx: ViewContext = useMemo(() => ({ ...data, me }), [data, me]);
   const rows = useMemo(() => applyView(ctx, view?.config ?? {}), [ctx, view?.config]);
   return (
     <div>
-      {view && <ViewBar data={data} view={view} onSelect={select} actions={actions} editable={editable} />}
+      {view && <ViewBar data={data} view={view} onSelect={select} actions={actions} editable={structure} rowsEditable={editable} />}
       {view?.type === "board" ? (
         <div className="pt-2">
           <BoardView {...props} view={view} ctx={ctx} rows={rows} editable={editable} />
@@ -138,6 +140,7 @@ export function TableView({
   rows,
 }: ViewProps & { view: DatabaseViewInfo | undefined; ctx: ViewContext; rows: DatabaseRow[] }) {
   const editable = !!actions && (data.role === "editor" || data.role === "full");
+  const structure = editable && !data.locked;
   const groupProp = data.properties.find((p) => p.id === view?.config.groupBy && canGroupBy(p.type));
   // Empty groups are left out of tables (boards show them, to drop cards in).
   const groups = useMemo(() => (groupProp ? groupRows(groupProp, rows, ctx).filter((g) => g.rows.length) : null), [groupProp, rows, ctx]);
@@ -145,7 +148,7 @@ export function TableView({
   // Thousands of rows: only the first ones are put on the page, the next ones come while scrolling.
   const { limit, more } = useShownRows(`${data.id}|${view?.id}|${groupProp?.id}`);
   const toggleGroup = (key: string) => {
-    if (!view || !actions) return;
+    if (!view || !actions || !structure) return;
     const next = collapsed.has(key) ? [...collapsed].filter((k) => k !== key) : [...collapsed, key];
     actions.updateView.mutate({ viewId: view.id, config: { ...view.config, collapsedGroups: next } });
   };
@@ -214,7 +217,7 @@ export function TableView({
   const widthOf = (c: { prop: DatabaseProperty; col: ViewColumn }) => widths[c.prop.id] ?? c.col.width ?? (c.prop.type === "title" ? TITLE_WIDTH : DEFAULT_WIDTH);
 
   function saveColumns(next: ViewColumn[]) {
-    if (view && actions) actions.updateView.mutate({ viewId: view.id, config: { ...view.config, columns: next } });
+    if (view && actions && structure) actions.updateView.mutate({ viewId: view.id, config: { ...view.config, columns: next } });
   }
   const currentColumns = () => columns.map((c) => ({ ...c.col, width: widths[c.prop.id] ?? c.col.width }));
   const setColumn = (propId: string, patch: Partial<ViewColumn>) => saveColumns(currentColumns().map((c) => (c.propertyId === propId ? { ...c, ...patch } : c)));
@@ -355,7 +358,7 @@ export function TableView({
                         rollupTarget={data.rollupTargets[c.prop.id]}
                         rowHref={(id) => rowHref({ id } as DatabaseRow)}
                         onChange={(value: CellValue) => actions?.updateCell.mutate({ rowId: row.id, propId: c.prop.id, value })}
-                        onCreateOption={createOption(c.prop)}
+                        onCreateOption={structure ? createOption(c.prop) : undefined}
                       />
                       </div>
                     </div>
@@ -372,7 +375,7 @@ export function TableView({
                       rollupTarget={data.rollupTargets[c.prop.id]}
                       rowHref={(id) => rowHref({ id } as DatabaseRow)}
                       onChange={(value: CellValue) => actions?.updateCell.mutate({ rowId: row.id, propId: c.prop.id, value })}
-                      onCreateOption={createOption(c.prop)}
+                      onCreateOption={structure ? createOption(c.prop) : undefined}
                     />
                   )}
                   {c.prop.type === "title" && (
@@ -391,7 +394,7 @@ export function TableView({
   );
 
   const renderCalcs = (calcRows: DatabaseRow[]) =>
-    (editable || Object.keys(view?.config.calculations ?? {}).length > 0) && (
+    (structure || Object.keys(view?.config.calculations ?? {}).length > 0) && (
             <div role="row" aria-label={t("table.calculations")} className="group/calc flex">
               <div className={gutter} />
               {visible.map((c) => {
@@ -401,7 +404,7 @@ export function TableView({
                   <button
                     key={c.prop.id}
                     style={{ width: widthOf(c) }}
-                    disabled={!editable}
+                    disabled={!structure}
                     aria-label={t("table.calcOf", { name: c.prop.name })}
                     onClick={(e) => setCalcMenu({ propId: c.prop.id, anchor: e.currentTarget })}
                     className="flex shrink-0 items-center justify-end gap-1 truncate px-2 py-1.5 text-xs text-neutral-500 enabled:hover:bg-neutral-100 dark:enabled:hover:bg-neutral-800"
@@ -477,22 +480,22 @@ export function TableView({
                 key={c.prop.id}
                 role="columnheader"
                 style={{ width: widthOf(c) }}
-                draggable={editable && c.prop.type !== "title"}
+                draggable={structure && c.prop.type !== "title"}
                 onDragStart={() => (drag.current = c.prop.id)}
-                onDragOver={(e) => editable && drag.current && c.prop.type !== "title" && e.preventDefault()}
+                onDragOver={(e) => structure && drag.current && c.prop.type !== "title" && e.preventDefault()}
                 onDrop={() => drag.current && move(drag.current, c.prop.id)}
                 onDragEnd={() => (drag.current = null)}
                 className="relative shrink-0 border-r border-neutral-200 dark:border-neutral-800"
               >
                 <button
-                  disabled={!editable}
+                  disabled={!structure}
                   onClick={(e) => setMenu({ propId: c.prop.id, anchor: e.currentTarget })}
                   className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left enabled:hover:bg-neutral-100 dark:enabled:hover:bg-neutral-800"
                 >
                   <PropertyIcon type={c.prop.type} size={14} />
                   <span className="truncate">{c.prop.name}</span>
                 </button>
-                {editable && (
+                {structure && (
                   <div
                     onPointerDown={(e) => startResize(e, c.prop.id, widthOf(c))}
                     className="absolute -right-1 top-0 z-10 h-full w-2 cursor-col-resize hover:bg-blue-400/40"
@@ -500,7 +503,7 @@ export function TableView({
                 )}
               </div>
             ))}
-            {editable && (
+            {structure && (
               <button data-print-hide aria-label={t("table.addProperty")} onClick={(e) => setAdding(e.currentTarget)} className="flex w-10 shrink-0 items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800">
                 <Plus size={16} />
               </button>
@@ -694,7 +697,7 @@ export function TableView({
           {hidden.map((c) => (
             <button
               key={c.prop.id}
-              disabled={!editable}
+              disabled={!structure}
               onClick={() => {
                 setColumn(c.prop.id, { hidden: false });
                 if (hidden.length === 1) setShowHidden(null);
@@ -702,7 +705,7 @@ export function TableView({
               className="flex w-full items-center gap-2 rounded px-2 py-1.5 enabled:hover:bg-neutral-100 dark:enabled:hover:bg-neutral-800"
             >
               <PropertyIcon type={c.prop.type} size={14} /> <span className="truncate">{c.prop.name}</span>
-              {editable && <span className="ml-auto text-xs text-blue-600">{t("common.show")}</span>}
+              {structure && <span className="ml-auto text-xs text-blue-600">{t("common.show")}</span>}
             </button>
           ))}
         </Popover>

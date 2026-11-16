@@ -219,10 +219,11 @@ export function listTasks(db: Db, userId: string, filters: { workspaceId?: strin
     icon: pages.icon,
     workspaceId: pages.workspaceId,
     updatedAt: pages.updatedAt,
+    locked: pages.locked,
   };
   const inReach = (ids: string[], column: typeof pages.workspaceId | typeof pages.id) => (ids.length ? inArray(column, ids) : undefined);
   const read = (cond: SQL | undefined) => {
-    const out: { task: TaskRow; title: string; icon: string | null; workspaceId: string; updatedAt: Date }[] = [];
+    const out: { task: TaskRow; title: string; icon: string | null; workspaceId: string; updatedAt: Date; locked: boolean }[] = [];
     for (const reach of [inReach(spaces, pages.workspaceId), inReach(sharedIds, pages.id)]) {
       if (!reach) continue;
       out.push(
@@ -286,7 +287,8 @@ export function listTasks(db: Db, userId: string, filters: { workspaceId?: strin
         mentionsMe,
         repeat: r.task.repeat,
         checkedAt: r.task.checkedAt?.toISOString() ?? null,
-        canEdit: atLeast(role, "editor"),
+        // A locked page's to-dos are shown, but are checked only once it is unlocked.
+        canEdit: atLeast(role, "editor") && !r.locked,
         updatedAt: r.updatedAt.getTime(),
         position: r.task.position,
       });

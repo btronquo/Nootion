@@ -7,6 +7,7 @@ import {
   LayoutTemplate,
   EyeOff,
   ListFilter,
+  Lock,
   MoreHorizontal,
   Plus,
   Rows3,
@@ -68,12 +69,16 @@ export function ViewBar({
   onSelect,
   actions,
   editable,
+  rowsEditable = editable,
 }: {
   data: DatabaseData;
   view: DatabaseViewInfo;
   onSelect: (viewId: string) => void;
   actions?: Actions;
+  /** The views, columns and templates can be changed (not when the database is locked). */
   editable: boolean;
+  /** The rows can be changed (still true when the database is locked). */
+  rowsEditable?: boolean;
 }) {
   const [menu, setMenu] = useState<{ kind: "view" | "add" | "filter" | "sort" | "group" | "date" | "props" | "more" | "templates"; anchor: HTMLElement } | null>(null);
   const close = () => setMenu(null);
@@ -121,8 +126,22 @@ export function ViewBar({
           </button>
         )}
       </div>
+      {data.locked && (
+        <span
+          title={t("lock.databaseHint")}
+          data-database-locked
+          className="ml-1 flex items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-xs text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+        >
+          <Lock size={12} /> {t("lock.badge")}
+        </span>
+      )}
       {actions && (
         <div className="ml-auto flex items-center gap-0.5" data-print-hide>
+          {!editable && rowsEditable && (
+            <button className={tool(false)} onClick={() => setAutomations(true)} data-automations-button>
+              <Zap size={14} /> {t("automation.button")}
+            </button>
+          )}
           {editable && (
             <>
               <button className={tool(activeFilters > 0)} onClick={(e) => setMenu({ kind: "filter", anchor: e.currentTarget })}>

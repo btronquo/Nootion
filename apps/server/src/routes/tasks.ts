@@ -3,6 +3,7 @@ import { checkTaskInput, t } from "@nootion/shared";
 import { HttpError, parseBody, requireUser } from "../http.js";
 import { requirePageRole } from "../permissions.js";
 import { editContent, readContent } from "../collab.js";
+import { assertUnlocked } from "../locks.js";
 import { findTaskByKey, findTasks, listTasks, noteTaskChecked, setTaskChecked } from "../tasks.js";
 
 /** "Tasks": the to-dos of every page one can read, checked from the list. */
@@ -23,7 +24,8 @@ export const taskRoutes: FastifyPluginAsync = async (app) => {
   app.post("/tasks/check", async (req) => {
     const user = requireUser(req);
     const input = parseBody(checkTaskInput, req.body);
-    requirePageRole(db, user.id, input.pageId, "editor");
+    const { page } = requirePageRole(db, user.id, input.pageId, "editor");
+    assertUnlocked(page);
     const task = findTaskByKey(findTasks(readContent(app.collab, db, input.pageId)), input.key);
     // The page changed since the list was shown: nothing is checked by mistake.
     if (!task || task.text !== input.text) throw new HttpError(409, "task_changed", t("tasks.changed"));

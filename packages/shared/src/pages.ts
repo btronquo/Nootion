@@ -55,6 +55,8 @@ export interface PageDetail extends PageSummary {
   home: boolean;
   /** A page template, or (for a row) a row template of its database. */
   template: boolean;
+  /** Locked: the content is read-only for everyone until someone who can edit unlocks it (for a database: its columns and views). */
+  locked: boolean;
 }
 
 /** A page the user opened lately, for "Recently visited". */
@@ -122,6 +124,8 @@ export const updatePageInput = z.object({
   coverPosition: z.number().int().min(0).max(100).optional(),
   /** Pages only: offered as a template when starting an empty page. */
   template: z.boolean().optional(),
+  /** Locks or unlocks the content (for a database: its columns and views). */
+  locked: z.boolean().optional(),
 });
 
 export const movePageInput = z.object({

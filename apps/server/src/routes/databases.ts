@@ -58,15 +58,18 @@ import { databaseCsv, databaseJson, safeName } from "../export.js";
 import { IMPORT_MAX_ROWS, parseCsv, planImport } from "../import.js";
 import { t } from "@nootion/shared";
 import { fromAutomation, rowSnapshot } from "../automations.js";
+import { assertUnlocked } from "../locks.js";
 
 /** Content-Disposition header of a download, with a non-ASCII-safe file name. */
 export function attachmentHeader(filename: string) {
   return `attachment; filename="${filename.replace(/[^\x20-\x7e]|"/g, "_")}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
 }
 
-function requireDatabase(db: Db, userId: string, id: string, min: PageRole) {
+function requireDatabase(db: Db, userId: string, id: string, min: PageRole, opts: { structure?: boolean } = {}) {
   const access = requirePageRole(db, userId, id, min);
   if (access.page.kind !== "database") throw notFound();
+  // Columns, views and row templates of a locked database stay as they are (its rows can still be filled in).
+  if (opts.structure) assertUnlocked(access.page);
   return access;
 }
 
@@ -235,7 +238,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
   app.post<{ Params: { id: string } }>("/:id/properties", async (req) => {
     const user = requireUser(req);
     const input = parseBody(createPropertyInput, req.body);
-    const { page: database } = requireDatabase(db, user.id, req.params.id, "editor");
+    const { page: database } = requireDatabase(db, user.id, req.params.id, "editor", { structure: true });
     const config: PropertyConfig = {
       ...defaultConfig(input.type),
       ...input.config,
@@ -246,7 +249,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     if (input.type === "relation") {
       if (!config.databaseId) throw new HttpError(400, "relation_target", t("error.relationTarget"));
       // Linking needs to see the other database; a two-way link also adds a column there.
-      requireDatabase(db, user.id, config.databaseId, input.twoWay ? "editor" : "viewer");
+      requireDatabase(db, user.id, config.databaseId, input.twoWay ? "editor" : "viewer", { structure: input.twoWay });
       if (input.twoWay) twin = { databaseId: config.databaseId, id: randomUUID() };
     } else {
       delete config.databaseId;
@@ -298,7 +301,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
   app.patch<{ Params: { id: string; propId: string } }>("/:id/properties/:propId", async (req) => {
     const user = requireUser(req);
     const input = parseBody(updatePropertyInput, req.body);
-    requireDatabase(db, user.id, req.params.id, "editor");
+    requireDatabase(db, user.id, req.params.id, "editor", { structure: true });
     const properties = listProperties(db, req.params.id);
     const prop = properties.find((p) => p.id === req.params.propId);
     if (!prop) throw notFound();
@@ -380,7 +383,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
 
   app.delete<{ Params: { id: string; propId: string } }>("/:id/properties/:propId", async (req) => {
     const user = requireUser(req);
-    requireDatabase(db, user.id, req.params.id, "editor");
+    requireDatabase(db, user.id, req.params.id, "editor", { structure: true });
     const prop = listProperties(db, req.params.id).find((p) => p.id === req.params.propId);
     if (!prop) throw notFound();
     if (prop.type === "title") throw new HttpError(400, "title_delete", t("error.titleDelete"));
@@ -491,7 +494,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
   // A new, empty template; it is then edited like a row.
   app.post<{ Params: { id: string } }>("/:id/templates", async (req) => {
     const user = requireUser(req);
-    const { page: database } = requireDatabase(db, user.id, req.params.id, "editor");
+    const { page: database } = requireDatabase(db, user.id, req.params.id, "editor", { structure: true });
     const id = randomUUID();
     db.insert(pages)
       .values({ id, kind: "row", template: true, workspaceId: database.workspaceId, parentId: database.id, title: "", props: {}, createdBy: user.id })
@@ -502,7 +505,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
   app.put<{ Params: { id: string } }>("/:id/default-template", async (req) => {
     const user = requireUser(req);
     const { templateId } = parseBody(z.object({ templateId: z.string().min(1).nullable() }), req.body);
-    requireDatabase(db, user.id, req.params.id, "editor");
+    requireDatabase(db, user.id, req.params.id, "editor", { structure: true });
     if (templateId && !listRowTemplates(db, req.params.id).some((tpl) => tpl.id === templateId)) throw notFound();
     db.update(pages).set({ defaultTemplateId: templateId }).where(eq(pages.id, req.params.id)).run();
     return { ok: true };
@@ -529,7 +532,9 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
   app.patch<{ Params: { id: string; rowId: string } }>("/:id/rows/:rowId", async (req) => {
     const user = requireUser(req);
     const input = parseBody(rowInput, req.body);
-    requireRow(db, user.id, req.params.id, req.params.rowId, "editor");
+    const { page: row } = requireRow(db, user.id, req.params.id, req.params.rowId, "editor");
+    // A row locked on its own keeps its cells too.
+    assertUnlocked(row);
     const properties = listProperties(db, req.params.id);
     input.values = valuesByIds(properties, input.values);
     checkRelationAccess(user.id, properties, input.values);
@@ -624,7 +629,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
   app.patch<{ Params: { id: string; viewId: string } }>("/:id/views/:viewId", async (req) => {
     const user = requireUser(req);
     const input = parseBody(updateViewInput, req.body);
-    requireDatabase(db, user.id, req.params.id, "editor");
+    requireDatabase(db, user.id, req.params.id, "editor", { structure: true });
     const view = db
       .select()
       .from(databaseViews)
@@ -646,7 +651,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
   app.post<{ Params: { id: string } }>("/:id/views", async (req) => {
     const user = requireUser(req);
     const input = parseBody(createViewInput, req.body);
-    requireDatabase(db, user.id, req.params.id, "editor");
+    requireDatabase(db, user.id, req.params.id, "editor", { structure: true });
     let config: Record<string, unknown> = {};
     if (input.duplicateOf) {
       const source = db
@@ -665,7 +670,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
 
   app.delete<{ Params: { id: string; viewId: string } }>("/:id/views/:viewId", async (req) => {
     const user = requireUser(req);
-    requireDatabase(db, user.id, req.params.id, "editor");
+    requireDatabase(db, user.id, req.params.id, "editor", { structure: true });
     const views = db.select({ id: databaseViews.id }).from(databaseViews).where(eq(databaseViews.databaseId, req.params.id)).all();
     if (!views.some((v) => v.id === req.params.viewId)) throw notFound();
     if (views.length === 1) throw new HttpError(400, "last_view", t("error.lastView"));
@@ -695,7 +700,8 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
   app.post<{ Params: { id: string } }>("/:id/import", async (req) => {
     const user = requireUser(req);
     const input = parseBody(z.object({ csv: z.string().min(1), createColumns: z.boolean().default(true) }), req.body);
-    const { page: database } = requireDatabase(db, user.id, req.params.id, "editor");
+    // An import may add columns and options: not into a locked database.
+    const { page: database } = requireDatabase(db, user.id, req.params.id, "editor", { structure: true });
     const csv = parseCsv(input.csv);
     if (csv.length < 2) throw new HttpError(400, "empty_csv", t("error.emptyCsv"));
     if (csv.length - 1 > IMPORT_MAX_ROWS) throw new HttpError(400, "too_many_rows", t("error.tooManyRows", { max: IMPORT_MAX_ROWS }));

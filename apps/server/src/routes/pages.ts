@@ -37,6 +37,7 @@ import { appendContent, hasLinkLine, linkChildPage, unlinkChildPage, readContent
 import { toMarkdown } from "../markdown.js";
 import { fromAutomation, rowSnapshot } from "../automations.js";
 import { checkContent, parseMarkdown } from "../markdown-in.js";
+import { assertUnlocked, lockedError } from "../locks.js";
 
 const contentBody = z.object({ markdown: z.string().max(2_000_000).optional(), content: z.unknown().optional() }).passthrough();
 
@@ -107,6 +108,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     const user = requireUser(req);
     const { page } = requirePageRole(db, user.id, req.params.id, "editor");
     if (page.kind === "database") throw new HttpError(400, "not_a_page", t("error.notAPage"));
+    assertUnlocked(page);
     const doc = contentInput(req.body, user.id)!;
     recordSnapshot(db, page.id, { content: readContent(app.collab, db, page.id), force: true });
     await writeContent(app.collab, db, page.id, doc);
@@ -119,6 +121,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     const user = requireUser(req);
     const { page } = requirePageRole(db, user.id, req.params.id, "editor");
     if (page.kind === "database") throw new HttpError(400, "not_a_page", t("error.notAPage"));
+    assertUnlocked(page);
     const doc = contentInput(req.body, user.id)!;
     await appendContent(app.collab, db, page.id, doc.content ?? []);
     recordAgentVersion(db, page.id, readContent(app.collab, db, page.id), user.id);
@@ -180,6 +183,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     if (page.kind !== "page" || !template.template || template.kind !== "page" || chain.some((c) => c.id === template.id)) {
       throw new HttpError(400, "bad_template", t("error.badTemplate"));
     }
+    assertUnlocked(page);
     await copyTree(
       db,
       app.collab,
@@ -251,6 +255,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     const user = requireUser(req);
     const { page } = requirePageRole(db, user.id, req.params.id, "editor");
     if (page.kind === "database") throw notFound();
+    assertUnlocked(page);
     const snapshot = getSnapshot(db, req.params.id, req.params.versionId);
     if (!snapshot) throw notFound();
     const current = db.select({ content: pages.contentJson }).from(pages).where(eq(pages.id, page.id)).get();
@@ -288,6 +293,9 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     const input = parseBody(updatePageInput, req.body);
     const { page: current } = requirePageRole(db, user.id, req.params.id, "editor");
     if (input.template !== undefined && current.kind !== "page") throw new HttpError(400, "not_a_page", t("error.templateKind"));
+    // A locked page keeps its title, icon and cover; the same request may unlock it first.
+    const touchesContent = input.title !== undefined || input.icon !== undefined || input.cover !== undefined || input.coverPosition !== undefined;
+    if (current.locked && input.locked !== false && touchesContent) throw lockedError(current.kind);
     // An uploaded cover must be a file of this page: its access follows the page's.
     const coverFile = input.cover?.match(/^\/api\/attachments\/(.+)$/)?.[1];
     if (coverFile && db.select({ pageId: attachments.pageId }).from(attachments).where(eq(attachments.id, coverFile)).get()?.pageId !== req.params.id) {
@@ -301,6 +309,8 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
       .where(eq(pages.id, req.params.id))
       .returning(pageMeta)
       .get();
+    // Open editors of the page reconnect, and open it read-only (or editable again).
+    if (input.locked !== undefined && input.locked !== current.locked) app.collab.closeConnections(page.id);
     // A template's dates remind nobody; they come back when it is a page again.
     if (input.template !== undefined) {
       syncReminders(db, page.id, db.select({ json: pages.contentJson }).from(pages).where(eq(pages.id, page.id)).get()?.json as ProseMirrorNode | null);

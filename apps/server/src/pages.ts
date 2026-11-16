@@ -22,6 +22,7 @@ export function toDetail(p: PageMeta, role: PageRole, breadcrumb: PageDetail["br
     updatedAt: p.updatedAt.toISOString(),
     home,
     template: p.template,
+    locked: p.locked,
   };
 }
 
@@ -73,6 +74,7 @@ export const pageMeta = {
   deletedBy: pages.deletedBy,
   template: pages.template,
   defaultTemplateId: pages.defaultTemplateId,
+  locked: pages.locked,
 };
 export type PageMeta = Omit<PageRow, "contentState" | "contentJson" | "contentText" | "cellsText" | "props" | "syncClock" | "fieldClock" | "updatedBy">;
 

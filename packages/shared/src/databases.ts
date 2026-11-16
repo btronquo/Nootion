@@ -292,6 +292,8 @@ export interface DatabaseData {
   title: string;
   icon: string | null;
   role: PageRole;
+  /** Columns and views can't be changed (rows still can). */
+  locked: boolean;
   properties: DatabaseProperty[];
   views: DatabaseViewInfo[];
   rows: DatabaseRow[];
