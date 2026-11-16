@@ -55,7 +55,9 @@ cover it.
 Three things sit beside it:
 
 - **Public links and public forms** (`routes/public.ts`, `routes/buttons.ts`) serve people without an account, and
-  only what the link names.
+  only what the link names. Their password and end date are checked in `public-access.ts`, on every request: the
+  password is exchanged for a cookie limited to the link's addresses and signed with the link's token and password
+  hash, so a new password invalidates it.
 - **Tokens** narrow a user's rights to some spaces, read-only or not. They never widen them.
 - **The people directory** (`users.ts`) only lists those who share a space or a page with you; administrators see
   everyone.

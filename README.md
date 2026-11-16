@@ -22,7 +22,7 @@ the freedom of an open-source app you host yourself, and the databases that make
   formulas, status columns, files and links between pages, and can run again to fetch what changed. Then sort the
   pages into private and shared spaces by dragging them in the sidebar.
 - **Write together.** Real-time collaborative editing, comments and @mentions, shared spaces with roles, page
-  sharing and read-only public links, with every access checked on the server.
+  sharing and read-only public links (with an optional password and end date), with every access checked on the server.
 - **Let it run by itself.** Database automations, recurring templates, buttons, and automatic backups to a NAS or
   Nextcloud.
 - **On the phone and the desktop, even offline.** Installs as an app on phones; a desktop app for Windows, macOS and
@@ -84,7 +84,7 @@ offline use and the Notion import.
 ### Pages and editor
 
 - Page tree (subpages, drag and drop, icons), cover images, trash with restore, favorites at the top of the sidebar.
-- Pages are private by default: share a page with a user (inherited by subpages), or through a revocable read-only public link.
+- Pages are private by default: share a page with a user (inherited by subpages), or through a revocable read-only public link, optionally protected by a password and an end date.
   Every access check is done on the server (`apps/server/src/permissions.ts`) and covered by tests.
 - Notion-like page editor ("/" commands, to-do lists, tables, callouts, toggles, columns, images and attached files,
   links between pages with "@", people mentions, table of contents), with real-time collaborative editing.

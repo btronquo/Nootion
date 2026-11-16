@@ -180,7 +180,7 @@ settings (see [SSO.md](SSO.md#linking-existing-accounts)).
 - A **member** sees the pages of their spaces and those shared with them, and, in the people lists, only those they
   work with. They can create shared spaces, API tokens for their own spaces, and public links to pages they can edit.
 - A **public link** shows a page (and its subpages if chosen) read-only to anyone who has the address; a **public
-  form** lets them add rows. Both are revoked from where they were made.
+  form** lets them add rows. Both are revoked from where they were made, and can ask for a password or stop on a date.
 - The step of a **button** runs with the rights of the person who clicks it, not of who wrote it: look at what a
   button does before clicking one in a page someone else edits.
 

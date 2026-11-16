@@ -165,3 +165,22 @@ printed: no sidebar, buttons or handles, on white even with the dark theme.
 
 To get a PDF, choose **Save as PDF** as the printer in the browser's print window. The PDF is made by the browser,
 so nothing more runs on the server.
+
+## Public links: password and end date
+
+**Share** › **Public link** gives an address anyone can open without an account, read-only. Under the address, two
+options protect it:
+
+- **Ask for a password**: type a password (at least 4 characters) and save. Visitors first see a small page asking
+  for it; once typed, their browser remembers it for 12 hours, for this link only (the page, its subpages, its files
+  and its databases). Changing the password asks every visitor again; unticking the box opens the link to anyone
+  who has the address. The password is never shown again, only that there is one.
+- **Stops working**: never, after 1, 7 or 30 days, or on a date (the end of that day). After the end, the address
+  shows "This link has expired" and nothing of the page. In the share window the address is greyed and struck
+  through, with **Extend by 7 days**; any other choice in the list works too. The address stays the same, so it
+  works again as soon as it is extended.
+
+Wrong passwords are limited to 10 a minute for each link, whoever types them. The answers of a protected link are not
+kept in the browser's offline copy.
+
+Public forms of buttons have the same two options, under their address (see [BUTTONS.md](BUTTONS.md#public-link)).

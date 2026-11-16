@@ -1,5 +1,5 @@
 import { Link, useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Database, FileText } from "lucide-react";
 import type { CellValue, DatabaseProperty, PageSummary, RelatedRow } from "@nootion/shared";
 import { api } from "../lib/api";
@@ -13,11 +13,13 @@ import { t } from "@nootion/shared";
 import { MobileBar, SidebarLayout } from "../components/SidebarLayout";
 import { CoverBanner } from "../components/PageCover";
 import { pageIcon } from "../lib/icons";
+import { lockOf, PublicLock } from "./PublicLock";
 
 /** Read-only view of a page published with a public link. Works without an account. */
 export function PublicPage() {
   const { token = "", pageId } = useParams();
-  const site = useQuery({ queryKey: ["public", token], queryFn: () => api<{ root: PageSummary; pages: PageSummary[] }>(`/public/${token}`) });
+  const qc = useQueryClient();
+  const site = useQuery({ queryKey: ["public", token], queryFn: () => api<{ root: PageSummary; pages: PageSummary[] }>(`/public/${token}`), retry: false });
   const currentId = pageId ?? site.data?.root.id;
   const page = useQuery({
     queryKey: ["public", token, currentId],
@@ -26,6 +28,9 @@ export function PublicPage() {
   });
 
   if (site.isLoading) return null;
+  const lock = lockOf(site.error);
+  if (lock)
+    return <PublicLock lock={lock} unlockPath={`/public/${token}/unlock`} onUnlocked={() => void qc.invalidateQueries({ queryKey: ["public", token] })} />;
   if (site.isError) {
     return (
       <div className="flex h-full items-center justify-center p-8 text-center text-neutral-500">

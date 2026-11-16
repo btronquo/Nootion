@@ -1,23 +1,46 @@
-import type { FastifyPluginAsync } from "fastify";
+import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import { eq, inArray } from "drizzle-orm";
 import { attachments, pages, publicLinks } from "../db/schema.js";
 import { sendAttachment } from "../attachments.js";
 import type { ProseMirrorNode } from "../collab.js";
-import { notFound } from "../http.js";
+import { HttpError, notFound, parseBody } from "../http.js";
+import { verifyPassword } from "../auth/password.js";
+import { isExpired, requireOpen, setUnlockCookie, tooManyAttempts, unlockLimiter } from "../public-access.js";
 import { getChain, isTrashed } from "../permissions.js";
 import { getPageMeta, listDescendants, notRow, toSummary } from "../pages.js";
 import { enrichRows, listProperties, listViews, loadDatabase, toRow } from "../databases.js";
-import { calendarSources, t } from "@nootion/shared";
+import { calendarSources, publicLinkUnlockInput, t } from "@nootion/shared";
 
 /** Read-only access through a public link. No account needed. */
 export const publicRoutes: FastifyPluginAsync = async (app) => {
   const db = app.db;
 
-  const resolve = (token: string) => {
+  const find = (token: string) => {
     const link = db.select().from(publicLinks).where(eq(publicLinks.token, token)).get();
     if (!link || isTrashed(getChain(db, link.pageId))) throw notFound();
     return link;
   };
+
+  /** The link, once it is known to be open to this visitor: not expired, and its password typed if it has one. */
+  const resolve = (req: FastifyRequest<{ Params: { token: string } }>, reply: FastifyReply) => {
+    const link = find(req.params.token);
+    requireOpen(app, req, reply, "page", link);
+    return link;
+  };
+
+  const attempts = unlockLimiter();
+
+  // The visitor types the link's password; the right one is remembered by a cookie for this link only.
+  app.post<{ Params: { token: string } }>("/:token/unlock", { config: { rateLimit: { max: 30, timeWindow: "1 minute" } } }, async (req, reply) => {
+    const link = find(req.params.token);
+    const { password } = parseBody(publicLinkUnlockInput, req.body);
+    if (isExpired(link)) return requireOpen(app, req, reply, "page", link);
+    if (!link.passwordHash) return { ok: true };
+    if (!attempts(link.token)) throw tooManyAttempts();
+    if (!(await verifyPassword(link.passwordHash, password))) throw new HttpError(403, "bad_password", t("public.badPassword"));
+    setUnlockCookie(app, reply, "page", link);
+    return { ok: true };
+  });
 
   /**
    * True if the page is reachable through this link: the root, a live subpage when allowed, or a
@@ -113,15 +136,15 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
     };
   };
 
-  app.get<{ Params: { token: string } }>("/:token", async (req) => {
-    const link = resolve(req.params.token);
+  app.get<{ Params: { token: string } }>("/:token", async (req, reply) => {
+    const link = resolve(req, reply);
     const root = getPageMeta(db, link.pageId)!;
     const subpages = link.includeSubpages ? listDescendants(db, root.id).filter(notRow).map(toSummary) : [];
     return { root: { ...toSummary(root), parentId: null }, pages: subpages };
   });
 
-  app.get<{ Params: { token: string; pageId: string } }>("/:token/pages/:pageId", async (req) => {
-    const link = resolve(req.params.token);
+  app.get<{ Params: { token: string; pageId: string } }>("/:token/pages/:pageId", async (req, reply) => {
+    const link = resolve(req, reply);
     if (!inScope(link, req.params.pageId)) throw notFound();
     const page = db.select().from(pages).where(eq(pages.id, req.params.pageId)).get();
     if (!page) throw notFound();
@@ -130,8 +153,8 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
 
   // Read-only database. Names of people are not published.
   // `page` and `block`: shown in a linked view, with that block's views (the database's own until it has some).
-  app.get<{ Params: { token: string; id: string }; Querystring: { page?: string; block?: string } }>("/:token/databases/:id", async (req) => {
-    const link = resolve(req.params.token);
+  app.get<{ Params: { token: string; id: string }; Querystring: { page?: string; block?: string } }>("/:token/databases/:id", async (req, reply) => {
+    const link = resolve(req, reply);
     if (!inScope(link, req.params.id)) throw notFound();
     const meta = getPageMeta(db, req.params.id);
     if (!meta || meta.kind !== "database") throw notFound();
@@ -144,7 +167,7 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
   });
 
   app.get<{ Params: { token: string; id: string } }>("/:token/attachments/:id", async (req, reply) => {
-    const link = resolve(req.params.token);
+    const link = resolve(req, reply);
     const a = db.select().from(attachments).where(eq(attachments.id, req.params.id)).get();
     if (!a || !inScope(link, a.pageId)) throw notFound();
     return sendAttachment(reply, app.config.dataDir, a, false, req.headers.range);

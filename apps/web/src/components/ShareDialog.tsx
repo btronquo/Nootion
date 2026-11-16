@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, Globe, X } from "lucide-react";
-import { PAGE_ROLES, type PageDetail, type PageRole, type PageShare, type PublicLinkInfo } from "@nootion/shared";
+import { PAGE_ROLES, type PageDetail, type PageRole, type PageShare, type PublicLinkInfo, type PublicLinkProtectionInput } from "@nootion/shared";
+import { LinkProtection } from "./LinkProtection";
 import { PersonChooser } from "./PersonChooser";
 import { api } from "../lib/api";
 import { useUserDirectory } from "../lib/queries";
@@ -40,6 +41,10 @@ export function ShareDialog({ page, onClose }: { page: PageDetail; onClose: () =
     mutationFn: (includeSubpages: boolean) => api(`/pages/${page.id}/public-link`, { method: "PUT", body: { includeSubpages } }),
     onSuccess: invalidate,
   });
+  const protect = async (input: PublicLinkProtectionInput) => {
+    const res = await api<{ link: PublicLinkInfo }>(`/pages/${page.id}/public-link`, { method: "PUT", body: input });
+    qc.setQueryData(["public-link", page.id], res.link);
+  };
   const removeLink = useMutation({ mutationFn: () => api(`/pages/${page.id}/public-link`, { method: "DELETE" }), onSuccess: invalidate });
 
   const sharedIds = new Set(shares.data?.filter((s) => !s.inheritedFrom).map((s) => s.userId));
@@ -113,8 +118,11 @@ export function ShareDialog({ page, onClose }: { page: PageDetail; onClose: () =
         </div>
         {link.data && (
           <div className="mt-3 space-y-2">
-            <div className="flex items-center gap-2 rounded-md bg-neutral-100 p-2 text-sm dark:bg-neutral-800">
-              <code className="flex-1 break-all">{link.data.url}</code>
+            <div
+              className={`flex items-center gap-2 rounded-md bg-neutral-100 p-2 text-sm dark:bg-neutral-800 ${link.data.expired ? "opacity-50" : ""}`}
+              data-public-link-url
+            >
+              <code className={`flex-1 break-all ${link.data.expired ? "line-through" : ""}`}>{link.data.url}</code>
               <Button
                 variant="ghost"
                 onClick={async () => {
@@ -129,6 +137,7 @@ export function ShareDialog({ page, onClose }: { page: PageDetail; onClose: () =
               <input type="checkbox" checked={link.data.includeSubpages} onChange={(e) => setLink.mutate(e.target.checked)} />
               {t("share.includeSubpages")}
             </label>
+            <LinkProtection value={link.data} onChange={protect} />
             <p className="text-xs text-neutral-500">{t("share.publicHelp")}</p>
           </div>
         )}
