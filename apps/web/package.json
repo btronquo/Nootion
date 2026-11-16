@@ -37,6 +37,7 @@
     "d3-force": "3.0.0",
     "emojibase-data": "16.0.3",
     "highlight.js": "11.11.1",
+    "katex": "0.18.10",
     "lowlight": "3.3.0",
     "lucide-react": "^0.548.0",
     "mermaid": "12.2.0",

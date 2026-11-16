@@ -37,13 +37,20 @@ function inline(nodes: ProseMirrorNode[] | undefined, links: MarkdownLinks): str
       }
       if (n.type === "dateMention") return escapeText(String(n.attrs?.date ?? "").replace("T", " "));
       if (n.type === "userMention") return escapeText(`@${String(n.attrs?.name ?? "")}`);
+      if (n.type === "mathInline")
+        return n.attrs?.latex
+          ? `$${String(n.attrs.latex)
+              .replace(/\s*\n\s*/g, " ")
+              .trim()}$`
+          : "";
       if (n.type === "image") return `![${escapeText(String(n.attrs?.alt ?? ""))}](${dest(fileUrl(n.attrs?.src, links))})`;
       if (n.type !== "text") return inline(n.content, links);
       const marks = n.marks ?? [];
       const has = (t: string) => marks.find((m) => m.type === t);
       let t = n.text ?? "";
       if (has("code")) t = t.includes("`") ? `\`\` ${t} \`\`` : `\`${t}\``;
-      else t = escapeText(t);
+      // Two "$" in a text would read back as an equation: they are escaped.
+      else t = escapeText(t).replace(/\$/g, (d) => ((n.text ?? "").split("$").length > 2 ? "\\$" : d));
       // Keep spaces outside the markers: "** gras**" is not bold in Markdown.
       const wrap = (open: string, close = open) => {
         const m = /^(\s*)([\s\S]*?)(\s*)$/.exec(t)!;
@@ -119,6 +126,8 @@ function block(n: ProseMirrorNode, links: MarkdownLinks): string {
       const fence = code.includes("```") ? "~~~~" : "```";
       return `${fence}${n.attrs?.language ?? ""}\n${code}\n${fence}`;
     }
+    case "mathBlock":
+      return n.attrs?.latex ? `$$\n${String(n.attrs.latex).trim()}\n$$` : "";
     case "horizontalRule":
       return "---";
     case "image":

@@ -113,6 +113,7 @@ export function prosemirrorToText(node: ProseMirrorNode): string {
   if (node.type === "dateMention") return String(node.attrs?.date ?? "").replace("T", " ");
   if (node.type === "userMention") return `@${String(node.attrs?.name ?? "")}`;
   if (node.type === "drawing") return drawingText(node.attrs?.strokes);
+  if (node.type === "mathInline" || node.type === "mathBlock") return String(node.attrs?.latex ?? "");
   if (node.type === "buttonBlock") return String((node.attrs?.config as { label?: string } | undefined)?.label ?? "");
   const inner = (node.content ?? []).map(prosemirrorToText).join(BLOCK_TYPES.has(node.type) ? "" : "\n");
   return inner.replace(/\n{2,}/g, "\n");

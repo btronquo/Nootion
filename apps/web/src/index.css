@@ -290,6 +290,47 @@ body {
     overflow: visible;
   }
 }
+/* Equations (KaTeX): in a line, or a block of their own, centred. */
+.math-inline {
+  @apply rounded-sm px-0.5 transition-colors;
+}
+.math-block {
+  @apply my-1 block overflow-x-auto overflow-y-hidden rounded px-2 py-2 text-center transition-colors;
+}
+.math-inline.cursor-pointer:hover,
+.math-block.cursor-pointer:hover {
+  @apply bg-neutral-100 dark:bg-neutral-800;
+}
+.math-selected {
+  @apply bg-blue-100 dark:bg-blue-900/40;
+}
+.math-block .katex-display {
+  @apply m-0;
+}
+.math-source {
+  @apply font-mono text-[0.85em] text-neutral-600 dark:text-neutral-300;
+}
+.math-has-error .math-source {
+  @apply text-red-600 underline decoration-wavy decoration-red-400 dark:text-red-400;
+}
+.math-placeholder {
+  @apply text-sm text-neutral-400 italic;
+}
+.math-preview {
+  @apply min-h-8 overflow-x-auto rounded bg-neutral-50 px-2 py-1.5 dark:bg-neutral-800/60;
+}
+@media print {
+  .math-placeholder {
+    display: none;
+  }
+  .math-block {
+    break-inside: avoid;
+    overflow: visible;
+  }
+  .math-selected {
+    background: none;
+  }
+}
 /* Colours of the code, after GitHub's light and dark themes. */
 .nootion-content pre {
   --hl-keyword: #cf222e;

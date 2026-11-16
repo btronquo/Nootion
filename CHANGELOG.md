@@ -7,6 +7,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Equations in LaTeX: `/equation` (or `$$` and a space on an empty line) adds a centred block, and `$…$` typed in a
+  line becomes an inline equation when the closing `$` is typed ("$5 and $10" stays text). Click an equation, or
+  select it and press Enter, to edit its LaTeX with a live preview that explains mistakes. Equations show on public
+  pages, in print, in the history and in the dark theme, and search finds them by their LaTeX. Markdown export writes
+  `$…$` and `$$…$$`, and the import reads them back, as well as ` ```math ` blocks; the import from other tools now
+  keeps their equations (it used to turn them into LaTeX code blocks), from their API and from their HTML exports.
+  The drawing library (KaTeX) is downloaded the first time a page shows an equation, and runs without `trust`: no
+  links nor HTML from an equation.
 - Tasks: one list of every to-do still unchecked in the pages you can read ("Tasks" in the sidebar, under
   Notifications). Grouped by page, or by date (overdue, today, next 7 days, later, no date) from the first date
   written in each to-do; filters for a space, the to-dos mentioning you and those with a date. Checking a box in the

@@ -62,8 +62,34 @@ describe("Notion blocks imported differently", () => {
     expect(notes).toEqual([
       ["unsupported", { blockId: "b1", info: "ai_block" }],
       ["fileMissing", { blockId: "b2", info: "photo 1.png" }],
-      ["equation", { blockId: "b3", info: "e=mc^2" }],
     ]);
+  });
+});
+
+describe("Notion equations", () => {
+  it("become equation blocks and equations in the line, not notes", async () => {
+    const { blocksToDoc, richText } = await import("../src/notion/blocks.js");
+    const notes: unknown[] = [];
+    const block = (id: string, type: string, data: Record<string, unknown>) => ({ object: "block", id, type, has_children: false, [type]: data }) as never;
+    const doc = await blocksToDoc([block("b1", "equation", { expression: "e=mc^2" }), block("b2", "equation", { expression: "" })], {
+      pageFor: () => null,
+      saveFile: async () => null,
+      note: (what) => notes.push(what),
+    });
+    expect(doc.content).toEqual([{ type: "mathBlock", attrs: { latex: "e=mc^2" } }]);
+    const ann = { bold: false, italic: false, strikethrough: false, underline: false, code: false, color: "default" };
+    const inline = richText(
+      [
+        { type: "text", plain_text: "Area ", href: null, annotations: ann, text: { content: "Area " } },
+        { type: "equation", plain_text: "\\pi r^2", href: null, annotations: ann, equation: { expression: "\\pi r^2" } },
+      ] as never,
+      { pageFor: () => null, note: (what) => notes.push(what) },
+    );
+    expect(inline).toEqual([
+      { type: "text", text: "Area " },
+      { type: "mathInline", attrs: { latex: "\\pi r^2" } },
+    ]);
+    expect(notes).toEqual([]);
   });
 });
 

@@ -10,10 +10,20 @@ export function Popover({ anchor, onClose, children, width: wanted = 260 }: { an
 
   useLayoutEffect(() => {
     if (!anchor) return;
-    const r = anchor.getBoundingClientRect();
-    const height = ref.current?.offsetHeight ?? 200;
-    const top = r.bottom + 4 + height > window.innerHeight ? Math.max(8, r.top - height - 4) : r.bottom + 4;
-    setPos({ left: Math.max(8, Math.min(r.left, window.innerWidth - width - 8)), top });
+    const place = () => {
+      const r = anchor.getBoundingClientRect();
+      const height = ref.current?.offsetHeight ?? 200;
+      const top = r.bottom + 4 + height > window.innerHeight ? Math.max(8, r.top - height - 4) : r.bottom + 4;
+      setPos((p) => {
+        const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8));
+        return p && p.left === left && p.top === top ? p : { left, top };
+      });
+    };
+    place();
+    // The anchor can grow while the panel is open (an equation drawn as it is typed): the panel follows it.
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(place);
+    observer?.observe(anchor);
+    return () => observer?.disconnect();
   }, [anchor, width]);
 
   useEffect(() => {
