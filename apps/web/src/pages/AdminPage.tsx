@@ -11,6 +11,7 @@ import {
   UserPlus,
   UserRound,
   Users,
+  UsersRound,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -29,12 +30,14 @@ import { MailAdmin } from "./MailAdmin";
 import { SsoAdmin } from "./SsoAdmin";
 import { SecurityAdmin } from "./SecurityAdmin";
 import { GuestsAdmin } from "./GuestsAdmin";
+import { GroupsAdmin } from "./GroupsAdmin";
 import { copyText } from "../lib/browser";
 import { UpdateBanner, VersionLine } from "../components/UpdateNotice";
 
 /** The page's sections, in order: the menu on the left and the cards share these ids. */
 const SECTIONS: { id: string; icon: LucideIcon; label: () => string }[] = [
   { id: "users", icon: Users, label: () => t("admin.nav.users") },
+  { id: "groups", icon: UsersRound, label: () => t("admin.nav.groups") },
   { id: "guests", icon: UserRound, label: () => t("admin.nav.guests") },
   { id: "invite", icon: UserPlus, label: () => t("admin.nav.invite") },
   { id: "backups", icon: DatabaseBackup, label: () => t("admin.nav.backups") },
@@ -356,6 +359,10 @@ export function AdminPage() {
                 </table>
               </div>
             </section>
+          </AdminCard>
+
+          <AdminCard id="groups">
+            <GroupsAdmin />
           </AdminCard>
 
           <AdminCard id="guests">

@@ -7,9 +7,11 @@ import {
   isLocale,
   movePageInput,
   publicLinkInput,
+  sharePageGroupInput,
   sharePageInput,
   updatePageInput,
   type Locale,
+  type PageGroupShare,
   type PageShare,
   type PendingGuest,
   type PageSummary,
@@ -22,7 +24,8 @@ import { hashToken, newToken } from "../auth/tokens.js";
 import { guestsAllowed, guestsOff, isGuest } from "../guests.js";
 import { INVITATION_TTL_MS } from "./admin.js";
 import { protectionInfo, protectionUpdate } from "../public-access.js";
-import { attachments, invitations, pagePermissions, pages, publicLinks, users, workspaceMembers } from "../db/schema.js";
+import { attachments, effectivePagePermissions, groups, invitations, pageGroupPermissions, pagePermissions, pages, publicLinks, users } from "../db/schema.js";
+import { memberCounts, requireGroup } from "../groups.js";
 import { HttpError, notFound, parseBody, requireUser } from "../http.js";
 import {
   CAN_CREATE_ROOT_PAGES,
@@ -30,6 +33,7 @@ import {
   getPageRole,
   getWorkspaceRole,
   isTrashed,
+  memberWorkspaceIds,
   requirePageRole,
   requireWorkspaceRole,
 } from "../permissions.js";
@@ -148,14 +152,13 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
    */
   app.get("/shared", async (req) => {
     const user = requireUser(req);
-    const memberOf = new Set(
-      db.select({ id: workspaceMembers.workspaceId }).from(workspaceMembers).where(eq(workspaceMembers.userId, user.id)).all().map((r) => r.id),
-    );
+    // Spaces and pages shared with one of the user's groups count as shared with them.
+    const memberOf = new Set(memberWorkspaceIds(db, user.id));
     const grants = db
-      .select({ pageId: pagePermissions.pageId, workspaceId: pages.workspaceId })
-      .from(pagePermissions)
-      .innerJoin(pages, eq(pages.id, pagePermissions.pageId))
-      .where(eq(pagePermissions.userId, user.id))
+      .selectDistinct({ pageId: effectivePagePermissions.pageId, workspaceId: pages.workspaceId })
+      .from(effectivePagePermissions)
+      .innerJoin(pages, eq(pages.id, effectivePagePermissions.pageId))
+      .where(eq(effectivePagePermissions.userId, user.id))
       .all()
       .filter((g) => !memberOf.has(g.workspaceId));
     const grantedIds = new Set(grants.map((g) => g.pageId));
@@ -287,9 +290,9 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     if (!isMember) {
       const shared = new Set(
         db
-          .select({ id: pagePermissions.pageId })
-          .from(pagePermissions)
-          .where(and(eq(pagePermissions.userId, user.id), inArray(pagePermissions.pageId, chain.map((c) => c.id))))
+          .select({ id: effectivePagePermissions.pageId })
+          .from(effectivePagePermissions)
+          .where(and(eq(effectivePagePermissions.userId, user.id), inArray(effectivePagePermissions.pageId, chain.map((c) => c.id))))
           .all()
           .map((r) => r.id),
       );
@@ -456,7 +459,56 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
             .all()
             .map(toPendingGuest)
         : [];
-    return { shares, pendingGuests, guestsAllowed: guestsAllowed(db) };
+    // Groups the page is shared with, the closest grant first as for people.
+    const groupRows = db
+      .select({ pageId: pageGroupPermissions.pageId, groupId: groups.id, name: groups.name, role: pageGroupPermissions.role })
+      .from(pageGroupPermissions)
+      .innerJoin(groups, eq(groups.id, pageGroupPermissions.groupId))
+      .where(inArray(pageGroupPermissions.pageId, chain.map((c) => c.id)))
+      .all()
+      .sort((a, b) => depth.get(a.pageId)! - depth.get(b.pageId)!);
+    const counts = memberCounts(
+      db,
+      groupRows.map((r) => r.groupId),
+    );
+    const seenGroups = new Set<string>();
+    const groupShares: PageGroupShare[] = [];
+    for (const r of groupRows) {
+      if (seenGroups.has(r.groupId)) continue;
+      seenGroups.add(r.groupId);
+      const from = chain[depth.get(r.pageId)!];
+      groupShares.push({
+        groupId: r.groupId,
+        name: r.name,
+        memberCount: counts.get(r.groupId) ?? 0,
+        role: r.role,
+        inheritedFrom: from.id === req.params.id ? null : { id: from.id, title: from.title },
+      });
+    }
+    // A guest sees who else is on the page, not the groups of the team.
+    return { shares, groupShares: isGuest(user) ? [] : groupShares, pendingGuests, guestsAllowed: guestsAllowed(db) };
+  });
+
+  // Shares the page (and its subpages) with a group, or changes its access.
+  app.put<{ Params: { id: string } }>("/:id/group-shares", async (req) => {
+    const user = requireUser(req);
+    const input = parseBody(sharePageGroupInput, req.body);
+    requirePageRole(db, user.id, req.params.id, "full");
+    requireGroup(db, input.groupId);
+    db.insert(pageGroupPermissions)
+      .values({ pageId: req.params.id, groupId: input.groupId, role: input.role, grantedBy: user.id })
+      .onConflictDoUpdate({ target: [pageGroupPermissions.pageId, pageGroupPermissions.groupId], set: { role: input.role, grantedBy: user.id } })
+      .run();
+    return { ok: true };
+  });
+
+  app.delete<{ Params: { id: string; groupId: string } }>("/:id/group-shares/:groupId", async (req) => {
+    const user = requireUser(req);
+    requirePageRole(db, user.id, req.params.id, "full");
+    db.delete(pageGroupPermissions)
+      .where(and(eq(pageGroupPermissions.pageId, req.params.id), eq(pageGroupPermissions.groupId, req.params.groupId)))
+      .run();
+    return { ok: true };
   });
 
   app.put<{ Params: { id: string } }>("/:id/shares", async (req) => {

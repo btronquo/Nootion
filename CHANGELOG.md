@@ -14,6 +14,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   two-factor authentication, and the password still works beside it. Passkeys need HTTPS and the address set in
   `APP_URL`: elsewhere the button doesn't show and My account says why. Disabled accounts, forbidden guests and
   SSO-only rules apply as for a password; each challenge works once and for 5 minutes.
+- Groups of people: in Administration › Groups, administrators make groups (Marketing, Accounting…) and choose who is
+  in them. A shared space is opened to a group from its members list (as editor, commenter or viewer, never owner),
+  and a page is shared with a group from the share window, with its subpages, as with a person. Everyone in the group
+  gets that access at once, and loses it when taken out; someone's access is the best of their own and their
+  groups'. Typing `@` and a group's name in a page tells everyone in it who can read the page, and a to-do with
+  `@group` shows in their tasks. With SCIM, the company's directory makes and fills groups itself (`/Groups`), marked
+  "From the directory". Guests are never in a group and don't see groups. Migration 0047 adds the tables and two
+  views, `effective_workspace_members` and `effective_page_permissions`, which the permission checks read.
 - Synced blocks: the same content in several pages, edited from any of them and updated live in all. "Turn into
   synced block" in a block's menu, then "Copy synced block" and paste it elsewhere; or "/synced" to make a new one or
   show one already used. A thin frame and "Synced in 3 pages" show on hover, with the list of those pages. Removing a

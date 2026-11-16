@@ -50,7 +50,7 @@ export async function createUser(
 
 /**
  * Who a user sees in the directory: the people they work with, not every account of the server. That is the members
- * of the shared spaces they belong to, the people their pages are shared with, and, for pages shared with them, the
+ * of the shared spaces they belong to (groups counted), the people of their groups, the people their pages are shared with, and, for pages shared with them, the
  * people of those pages (their space's members and the others they are shared with). Administrators see everyone (null).
  */
 export function knownUserIds(db: Db, user: Pick<UserRow, "id" | "role">): Set<string> | null {
@@ -60,9 +60,20 @@ export function knownUserIds(db: Db, user: Pick<UserRow, "id" | "role">): Set<st
   const known = new Set<string>([user.id]);
   const add = (list: string[]) => list.forEach((id) => known.add(id));
   // Spaces the user belongs to, and those of the pages shared with them.
-  const mine = ids(db.all<{ id: string }>(sql`SELECT workspace_id AS id FROM workspace_members WHERE user_id = ${user.id}`));
+  // Counting groups: a space or a page shared with a group counts for everyone in it.
+  const mine = ids(db.all<{ id: string }>(sql`SELECT DISTINCT workspace_id AS id FROM effective_workspace_members WHERE user_id = ${user.id}`));
   const guestOf = ids(
-    db.all<{ id: string }>(sql`SELECT DISTINCT p.workspace_id AS id FROM page_permissions pp JOIN pages p ON p.id = pp.page_id WHERE pp.user_id = ${user.id}`),
+    db.all<{ id: string }>(
+      sql`SELECT DISTINCT p.workspace_id AS id FROM effective_page_permissions pp JOIN pages p ON p.id = pp.page_id WHERE pp.user_id = ${user.id}`,
+    ),
+  );
+  // The people of the user's groups.
+  add(
+    ids(
+      db.all<{ id: string }>(
+        sql`SELECT DISTINCT o.user_id AS id FROM group_members g JOIN group_members o ON o.group_id = g.group_id WHERE g.user_id = ${user.id}`,
+      ),
+    ),
   );
   const spaces = [...new Set([...mine, ...guestOf])];
   if (!spaces.length) return known;
@@ -70,7 +81,13 @@ export function knownUserIds(db: Db, user: Pick<UserRow, "id" | "role">): Set<st
     spaces.map((id) => sql`${id}`),
     sql`, `,
   );
-  add(ids(db.all<{ id: string }>(sql`SELECT DISTINCT user_id AS id FROM workspace_members WHERE workspace_id IN (${list})`)));
-  add(ids(db.all<{ id: string }>(sql`SELECT DISTINCT pp.user_id AS id FROM page_permissions pp JOIN pages p ON p.id = pp.page_id WHERE p.workspace_id IN (${list})`)));
+  add(ids(db.all<{ id: string }>(sql`SELECT DISTINCT user_id AS id FROM effective_workspace_members WHERE workspace_id IN (${list})`)));
+  add(
+    ids(
+      db.all<{ id: string }>(
+        sql`SELECT DISTINCT pp.user_id AS id FROM effective_page_permissions pp JOIN pages p ON p.id = pp.page_id WHERE p.workspace_id IN (${list})`,
+      ),
+    ),
+  );
   return known;
 }

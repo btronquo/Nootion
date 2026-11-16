@@ -1,15 +1,19 @@
 import { useState } from "react";
-import { t, type UserDirectoryEntry } from "@nootion/shared";
+import { t, type GroupSummary, type UserDirectoryEntry } from "@nootion/shared";
 import { api } from "../lib/api";
 import { Button, Select } from "./ui";
 
 const BY_EMAIL = "__email__";
+/** A group picked: its value is "group:<id>". */
+export const GROUP_PREFIX = "group:";
+export const pickedGroup = (value: string) => (value.startsWith(GROUP_PREFIX) ? value.slice(GROUP_PREFIX.length) : null);
 const input =
   "min-w-0 flex-1 rounded-md border border-neutral-300 bg-white px-3 py-1.5 text-sm outline-none focus:border-blue-500 dark:border-neutral-700 dark:bg-neutral-900";
 
 /**
  * Picks someone to share with: one of the people the user already works with, or anyone else with an account,
- * found by their exact e-mail address (the directory doesn't list every account of the server).
+ * found by their exact e-mail address (the directory doesn't list every account of the server). With `groups`, a group
+ * can be picked too: the value is then "group:<id>" (see pickedGroup).
  */
 export function PersonChooser({
   candidates,
@@ -17,6 +21,7 @@ export function PersonChooser({
   onChange,
   placeholder,
   excluded,
+  groups,
 }: {
   candidates: UserDirectoryEntry[];
   value: string;
@@ -24,6 +29,8 @@ export function PersonChooser({
   placeholder: string;
   /** People who can't be picked (already there). */
   excluded?: Set<string>;
+  /** Groups that can be picked. */
+  groups?: GroupSummary[];
 }) {
   const [found, setFound] = useState<UserDirectoryEntry[]>([]);
   const [typing, setTyping] = useState(false);
@@ -93,12 +100,34 @@ export function PersonChooser({
       }}
     >
       <option value="">{placeholder}</option>
-      {options.map((u) => (
-        <option key={u.id} value={u.id}>
-          {u.name} ({u.email})
-        </option>
-      ))}
-      <option value={BY_EMAIL}>{t("share.byEmail")}</option>
+      {groups?.length ? (
+        <>
+          <optgroup label={t("editor.people")}>
+            {options.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name} ({u.email})
+              </option>
+            ))}
+            <option value={BY_EMAIL}>{t("share.byEmail")}</option>
+          </optgroup>
+          <optgroup label={t("group.label")}>
+            {groups.map((g) => (
+              <option key={g.id} value={GROUP_PREFIX + g.id}>
+                {g.name} ({t("group.memberCount", { count: g.memberCount })})
+              </option>
+            ))}
+          </optgroup>
+        </>
+      ) : (
+        <>
+          {options.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.name} ({u.email})
+            </option>
+          ))}
+          <option value={BY_EMAIL}>{t("share.byEmail")}</option>
+        </>
+      )}
     </Select>
   );
 }

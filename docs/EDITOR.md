@@ -217,6 +217,30 @@ gives the person a personal space and lets them be added to spaces; the pages sh
 section has **Allow guests**: turned off, nobody can invite a guest, pending invitations stop working and guests can't
 sign in, until it is turned on again.
 
+## Groups of people
+
+A group is a set of people (*Marketing*, *Accounting*, *Team A*…) to share with all at once. Groups are made by
+administrators in **Administration › Groups**: type a name, **Create the group**, then open it to add people with
+**Add someone…** or take them out with ✕. The same place renames or deletes a group and shows what it opens (its
+spaces and pages, with the access). Guests are never in a group.
+
+- **A shared space**: in the space's settings, the list under **Members** offers the groups after the people. A
+  group is given the role *Editor*, *Commenter* or *Viewer*, never *Owner* (owners are named one by one). Everyone in
+  the group then sees the space in their sidebar, with that role.
+- **A page**: in **Share**, pick the group in the same list as people and choose the access. Its subpages are shared
+  too, as for a person; the group shows with its number of members.
+- **Mentions**: type `@` and the group's name in a page; everyone in the group who can read the page gets a
+  notification (*Boris mentioned Marketing in…*), and a to-do with `@Marketing` shows in their **Tasks** when they
+  filter on those mentioning them.
+
+Someone's access is the best of their own and their groups': in a space as *Viewer* and in a group that edits it,
+they edit. Someone added to a group later gets its access at once; someone taken out loses it (unless the space or
+page is shared with them otherwise). Deleting a group closes what it opened, nothing else. Someone in a space only
+through a group leaves it by leaving the group, so **Leave the space** asks an administrator to do it.
+
+With SCIM (see [SSO.md](SSO.md)), the company's directory can make and fill groups itself; they are marked *From the
+directory* in Administration.
+
 ## Public links: password and end date
 
 **Share** › **Public link** gives an address anyone can open without an account, read-only. Under the address, two

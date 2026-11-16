@@ -3,10 +3,10 @@ import path from "node:path";
 import { randomBytes } from "node:crypto";
 import type { FastifyPluginAsync } from "fastify";
 import { AVATAR_MAX_BYTES, deleteMeInput, loginInput, t, updateMeInput } from "@nootion/shared";
-import { and, count, eq, inArray, ne } from "drizzle-orm";
+import { and, count, countDistinct, eq, inArray, ne } from "drizzle-orm";
 import { burnPasswordCheck, hashPassword, verifyPassword } from "../auth/password.js";
 import { deleteSession, deleteUserSessions, SESSION_COOKIE } from "../auth/sessions.js";
-import { users, workspaceMembers, workspaces } from "../db/schema.js";
+import { effectiveWorkspaceMembers, users, workspaceMembers, workspaces } from "../db/schema.js";
 import { HttpError, parseBody, requireUser } from "../http.js";
 import { avatarsDir, toPublicUser } from "../users.js";
 import { imageExtension } from "../images.js";
@@ -136,11 +136,18 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       .innerJoin(workspaces, eq(workspaces.id, workspaceMembers.workspaceId))
       .where(eq(workspaceMembers.userId, user.id))
       .all();
+    // Others in the space, by themselves or through a group.
     const members = (workspaceId: string, role?: "owner") =>
       db
-        .select({ n: count() })
-        .from(workspaceMembers)
-        .where(and(eq(workspaceMembers.workspaceId, workspaceId), ne(workspaceMembers.userId, user.id), ...(role ? [eq(workspaceMembers.role, role)] : [])))
+        .select({ n: countDistinct(effectiveWorkspaceMembers.userId) })
+        .from(effectiveWorkspaceMembers)
+        .where(
+          and(
+            eq(effectiveWorkspaceMembers.workspaceId, workspaceId),
+            ne(effectiveWorkspaceMembers.userId, user.id),
+            ...(role ? [eq(effectiveWorkspaceMembers.role, role)] : []),
+          ),
+        )
         .get()?.n ?? 0;
     const toDelete: string[] = [];
     const blocking: string[] = [];

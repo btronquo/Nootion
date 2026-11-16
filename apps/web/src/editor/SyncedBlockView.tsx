@@ -8,7 +8,7 @@ import { IndexeddbPersistence } from "y-indexeddb";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { Copy, ExternalLink, Plus, RefreshCw, Unlink } from "lucide-react";
-import { atLeast, t, type ClientPluginInfo, type PageSummary, type SyncedBlockInfo, type SyncedBlockSummary, type UserDirectoryEntry } from "@nootion/shared";
+import { atLeast, t, type ClientPluginInfo, type PageSummary, type SyncedBlockInfo, type SyncedBlockSummary, type UserDirectoryEntry, type GroupSummary } from "@nootion/shared";
 import { api, ApiError } from "../lib/api";
 import { PAGE_DB_PREFIX } from "../lib/offline";
 import { useSession } from "../lib/session";
@@ -221,6 +221,7 @@ function InnerEditor({
       plugins,
       userId: user?.id ?? null,
       people: () => qc.getQueryData<UserDirectoryEntry[]>(keys.users) ?? [],
+      groups: () => qc.getQueryData<GroupSummary[]>(keys.groups) ?? [],
       onPageCreated: () => void refreshPages(),
       linkablePages: () => {
         const seen = new Map<string, PageSummary>();

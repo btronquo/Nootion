@@ -2,7 +2,8 @@ import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { atLeast, iconText, tIn, type CommentNotification, type Locale } from "@nootion/shared";
-import { pageMentions, pages, users } from "./db/schema.js";
+import { groups, pageMentions, pages, users } from "./db/schema.js";
+import { groupMemberIds } from "./groups.js";
 import type { Db } from "./db/index.js";
 import { prosemirrorToText, type ProseMirrorNode } from "./collab.js";
 import { getPageRole } from "./permissions.js";
@@ -11,22 +12,29 @@ const EXCERPT = 200;
 
 interface Found {
   mentionId: string;
-  userId: string;
+  /** Someone mentioned, or… */
+  userId: string | null;
+  /** …a group: everyone in it is told. */
+  groupId: string | null;
   by: string | null;
   excerpt: string;
 }
 
-/** People mentioned in a page's content, each with the line they are in. */
+/** People and groups mentioned in a page's content, each with the line they are in. */
 export function findMentions(content: ProseMirrorNode | null | undefined): Found[] {
   const out: Found[] = [];
+  const str = (v: unknown) => (typeof v === "string" && v ? v : null);
   const walk = (node: ProseMirrorNode, block: ProseMirrorNode) => {
     if (node.type === "userMention") {
       const a = node.attrs ?? {};
-      if (typeof a.id === "string" && a.id && typeof a.userId === "string" && a.userId)
+      const userId = str(a.userId);
+      const groupId = userId ? null : str(a.groupId);
+      if (str(a.id) && (userId || groupId))
         out.push({
-          mentionId: a.id,
-          userId: a.userId,
-          by: typeof a.by === "string" ? a.by : null,
+          mentionId: a.id as string,
+          userId,
+          groupId,
+          by: str(a.by),
           excerpt: prosemirrorToText(block).replace(/\s+/g, " ").trim().slice(0, EXCERPT),
         });
       return;
@@ -39,7 +47,8 @@ export function findMentions(content: ProseMirrorNode | null | undefined): Found
 }
 
 /**
- * Tells people newly mentioned in a page (once per mention) that can read it, unless they mentioned themselves.
+ * Tells people newly mentioned in a page (once per mention) that can read it, unless they mentioned themselves. A
+ * group mentioned tells everyone in it who can read the page, once.
  * Templates tell nobody: the pages made from them do.
  */
 export async function syncMentions(app: FastifyInstance, pageId: string, content: ProseMirrorNode | null | undefined) {
@@ -69,30 +78,36 @@ export async function syncMentions(app: FastifyInstance, pageId: string, content
     known.add(f.mentionId);
     // Only someone who can write here can have written the mention.
     const actorId = f.by && atLeast(getPageRole(db, f.by, pageId), "editor") ? f.by : null;
-    const target = db.select({ locale: users.locale, disabled: users.disabled }).from(users).where(eq(users.id, f.userId)).get();
-    if (!target || target.disabled || actorId === f.userId || !atLeast(getPageRole(db, f.userId, pageId), "viewer")) continue;
-    const inserted = db
-      .insert(pageMentions)
-      .values({ id: randomUUID(), pageId, mentionId: f.mentionId, userId: f.userId, actorId, excerpt: f.excerpt })
-      .onConflictDoNothing()
-      .returning({ id: pageMentions.id })
-      .get();
-    if (!inserted) continue;
-    const locale = target.locale as Locale;
-    const actor = actorId ? db.select({ name: users.name }).from(users).where(eq(users.id, actorId)).get()?.name : null;
-    await app.notifier.push(
-      f.userId,
-      {
-        title: tIn(locale, "mentions.push", {
-          name: actor ?? tIn(locale, "mentions.someone"),
-          page: `${iconText(page.icon)}${page.title || tIn(locale, "common.untitled")}`,
-        }),
-        body: f.excerpt,
-        url: `/page/${pageId}`,
-        tag: inserted.id,
-      },
-      "mentions",
-    );
+    const group = f.groupId ? db.select({ name: groups.name }).from(groups).where(eq(groups.id, f.groupId)).get() : undefined;
+    if (f.groupId && !group) continue;
+    const targets = f.userId ? [f.userId] : groupMemberIds(db, f.groupId!);
+    for (const userId of targets) {
+      const target = db.select({ locale: users.locale, disabled: users.disabled }).from(users).where(eq(users.id, userId)).get();
+      if (!target || target.disabled || actorId === userId || !atLeast(getPageRole(db, userId, pageId), "viewer")) continue;
+      const inserted = db
+        .insert(pageMentions)
+        .values({ id: randomUUID(), pageId, mentionId: f.mentionId, userId, actorId, excerpt: f.excerpt })
+        .onConflictDoNothing()
+        .returning({ id: pageMentions.id })
+        .get();
+      if (!inserted) continue;
+      const locale = target.locale as Locale;
+      const actor = actorId ? db.select({ name: users.name }).from(users).where(eq(users.id, actorId)).get()?.name : null;
+      const vars = {
+        name: actor ?? tIn(locale, "mentions.someone"),
+        page: `${iconText(page.icon)}${page.title || tIn(locale, "common.untitled")}`,
+      };
+      await app.notifier.push(
+        userId,
+        {
+          title: group ? tIn(locale, "mentions.pushGroup", { ...vars, group: group.name }) : tIn(locale, "mentions.push", vars),
+          body: f.excerpt,
+          url: `/page/${pageId}`,
+          tag: inserted.id,
+        },
+        "mentions",
+      );
+    }
   }
 }
 

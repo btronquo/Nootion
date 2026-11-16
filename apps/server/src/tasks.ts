@@ -2,9 +2,9 @@ import * as Y from "yjs";
 import { and, eq, gte, inArray, type SQL } from "drizzle-orm";
 import { atLeast, dayString, nextTaskDay, parseTaskRepeat, TASKS_DONE_DAYS, type PageRole, type TaskEntry, type TasksResponse } from "@nootion/shared";
 import type { Db } from "./db/index.js";
-import { pagePermissions, pages, pageTasks, workspaceMembers } from "./db/schema.js";
+import { pages, pageTasks } from "./db/schema.js";
 import { CONTENT_FIELD, prosemirrorToText, type ProseMirrorNode } from "./collab.js";
-import { getChain, isTrashed, roleFromChain } from "./permissions.js";
+import { getChain, groupIdsOf, isTrashed, memberWorkspaceIds, roleFromChain, sharedPageIdsOf } from "./permissions.js";
 import { scopeAllows } from "./api-tokens.js";
 
 export interface FoundTask {
@@ -36,6 +36,9 @@ export function findTasks(content: ProseMirrorNode | null | undefined): FoundTas
         if (c.type === "dateMention" && !date && typeof c.attrs?.date === "string" && DATE.test(c.attrs.date)) date = c.attrs.date;
         if (c.type === "userMention" && typeof c.attrs?.userId === "string" && c.attrs.userId && !mentions.includes(c.attrs.userId))
           mentions.push(c.attrs.userId);
+        // A group mentioned: "group:<id>", for everyone in it.
+        if (c.type === "userMention" && typeof c.attrs?.groupId === "string" && c.attrs.groupId && !mentions.includes(`group:${c.attrs.groupId}`))
+          mentions.push(`group:${c.attrs.groupId}`);
       }
       const text = line
         ? prosemirrorToText({ ...line, content: inline.filter((c) => c.type !== "dateMention") })
@@ -174,9 +177,8 @@ export function createTaskIndexer(db: Db, log?: { error: (obj: unknown, msg?: st
 
 /** The pages a user may be able to read: those of their spaces, and those shared with them with their subpages. */
 function sharedPageIds(db: Db, userId: string): string[] {
-  const grants = db.select({ pageId: pagePermissions.pageId }).from(pagePermissions).where(eq(pagePermissions.userId, userId)).all();
   const ids = new Set<string>();
-  for (const { pageId } of grants) {
+  for (const pageId of sharedPageIdsOf(db, userId)) {
     ids.add(pageId);
     const sub = db.$client
       .prepare(
@@ -203,14 +205,9 @@ export function listTasks(db: Db, userId: string, filters: { workspaceId?: strin
   // Pages changed since the last reading first: the list is always up to date.
   while (refreshPageTasks(db, 500) === 500);
 
-  const spaces = db
-    .select({ id: workspaceMembers.workspaceId })
-    .from(workspaceMembers)
-    .where(eq(workspaceMembers.userId, userId))
-    .all()
-    .map((w) => w.id)
-    .filter((id) => !filters.workspaceId || id === filters.workspaceId);
+  const spaces = memberWorkspaceIds(db, userId).filter((id) => !filters.workspaceId || id === filters.workspaceId);
   const sharedIds = sharedPageIds(db, userId);
+  const myGroups = new Set(groupIdsOf(db, userId));
 
   const since = new Date(now.getTime() - TASKS_DONE_DAYS * 86_400_000);
   const select = {
@@ -270,7 +267,7 @@ export function listTasks(db: Db, userId: string, filters: { workspaceId?: strin
       if (seen.has(id)) continue;
       seen.add(id);
       if (filters.workspaceId && r.workspaceId !== filters.workspaceId) continue;
-      const mentionsMe = (r.task.mentions ?? []).includes(userId);
+      const mentionsMe = (r.task.mentions ?? []).some((m) => m === userId || (m.startsWith("group:") && myGroups.has(m.slice(6))));
       if (filters.mine && !mentionsMe) continue;
       if (filters.dated && !r.task.date) continue;
       const role = roleOf(r.task.pageId);

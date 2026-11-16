@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import type { PageDetail, PageSummary, UserDirectoryEntry, WorkspaceSummary } from "@nootion/shared";
+import type { GroupSummary, PageDetail, PageSummary, UserDirectoryEntry, WorkspaceSummary } from "@nootion/shared";
 import { api } from "./api";
 import { useOfflineQueue, withQueuedPage, withQueuedPages } from "./offline";
 
@@ -9,6 +9,7 @@ export const keys = {
   shared: ["shared"] as const,
   page: (id: string) => ["page", id] as const,
   users: ["users"] as const,
+  groups: ["groups"] as const,
   favorites: ["favorites"] as const,
 };
 
@@ -52,6 +53,11 @@ export function useFavorites() {
 
 export function useUserDirectory() {
   return useQuery({ queryKey: keys.users, queryFn: async () => (await api<{ users: UserDirectoryEntry[] }>("/users")).users });
+}
+
+/** The groups of people, to share with or mention (not for guests, who don't see them). */
+export function useGroups(enabled = true) {
+  return useQuery({ queryKey: keys.groups, queryFn: async () => (await api<{ groups: GroupSummary[] }>("/groups")).groups, enabled });
 }
 
 /** Refreshes everything that shows page lists (sidebar trees, shared section, open pages). */

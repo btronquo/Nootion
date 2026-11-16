@@ -35,10 +35,10 @@ export function createLiveEvents(db: Db) {
     changedPages.clear();
     if (!clients.size) return changedUsers.clear();
     const audience = sqlite.prepare(
-      `SELECT user_id AS userId FROM workspace_members WHERE workspace_id = ?
-       UNION SELECT pp.user_id FROM page_permissions pp JOIN pages p ON p.id = pp.page_id WHERE p.workspace_id = ?`,
+      `SELECT user_id AS userId FROM effective_workspace_members WHERE workspace_id = ?
+       UNION SELECT pp.user_id FROM effective_page_permissions pp JOIN pages p ON p.id = pp.page_id WHERE p.workspace_id = ?`,
     );
-    const members = sqlite.prepare("SELECT user_id AS userId FROM workspace_members WHERE workspace_id = ?");
+    const members = sqlite.prepare("SELECT DISTINCT user_id AS userId FROM effective_workspace_members WHERE workspace_id = ?");
     for (const id of renamed) for (const { userId } of members.all(id) as { userId: string }[]) changedUsers.add(userId);
     const users = [...changedUsers];
     changedUsers.clear();
@@ -89,6 +89,18 @@ export function createLiveEvents(db: Db) {
       BEGIN SELECT nootion_changed('user', NEW.user_id); END;
     CREATE TEMP TRIGGER IF NOT EXISTS live_share_delete AFTER DELETE ON main.page_permissions
       BEGIN SELECT nootion_changed('user', OLD.user_id); END;
+    CREATE TEMP TRIGGER IF NOT EXISTS live_group_member_insert AFTER INSERT ON main.group_members
+      BEGIN SELECT nootion_changed('user', NEW.user_id); END;
+    CREATE TEMP TRIGGER IF NOT EXISTS live_group_member_delete AFTER DELETE ON main.group_members
+      BEGIN SELECT nootion_changed('user', OLD.user_id); END;
+    ${["workspace_group_members", "page_group_permissions"]
+      .flatMap((table) =>
+        (["INSERT", "UPDATE", "DELETE"] as const).map(
+          (op) => `CREATE TEMP TRIGGER IF NOT EXISTS live_${table}_${op.toLowerCase()} AFTER ${op} ON main.${table}
+      BEGIN SELECT nootion_changed('user', user_id) FROM main.group_members WHERE group_id = ${op === "DELETE" ? "OLD" : "NEW"}.group_id; END;`,
+        ),
+      )
+      .join("\n    ")}
   `);
 
   function send(userId: string, event: LiveEvent) {

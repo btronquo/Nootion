@@ -21,8 +21,8 @@ export const guestsAllowed = (db: Db) => getInstanceSettings(db).allowGuests;
 
 /**
  * What a guest may not do, by method and path: create a space, have a home page or an inbox (they live in a space of
- * one's own), make API tokens or connect apps, look people up, share a page or publish it, invite other guests,
- * import files.
+ * one's own), make API tokens or connect apps, look people up or list groups, share a page or publish it, invite other
+ * guests, import files.
  */
 const GUEST_DENIED: { methods: string[] | "*"; path: RegExp }[] = [
   { methods: ["POST"], path: /^\/api\/workspaces\/?$/ },
@@ -31,7 +31,8 @@ const GUEST_DENIED: { methods: string[] | "*"; path: RegExp }[] = [
   { methods: ["POST"], path: /^\/api\/oauth\/authorize\/?$/ },
   { methods: ["POST"], path: /^\/api\/desktop\/sync\/link\/?$/ },
   { methods: "*", path: /^\/api\/users\/lookup\/?$/ },
-  { methods: ["PUT", "DELETE"], path: /^\/api\/pages\/[^/]+\/(shares|public-link)(\/|$)/ },
+  { methods: "*", path: /^\/api\/groups(\/|$)/ },
+  { methods: ["PUT", "DELETE"], path: /^\/api\/pages\/[^/]+\/(shares|group-shares|public-link)(\/|$)/ },
   { methods: "*", path: /^\/api\/pages\/[^/]+\/guests(\/|$)/ },
   { methods: "*", path: /^\/api\/import\// },
 ];

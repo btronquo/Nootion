@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { blob, index, type AnySQLiteColumn, integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { blob, index, type AnySQLiteColumn, integer, primaryKey, sqliteTable, sqliteView, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 const createdAt = () =>
   integer("created_at", { mode: "timestamp_ms" })
@@ -244,6 +244,86 @@ export const pagePermissions = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.pageId, t.userId] }), index("page_permissions_user_idx").on(t.userId)],
 );
+
+/**
+ * Groups of people, made by administrators (or by the company's directory through SCIM). A space or a page is shared
+ * with a group as with a person: everyone in it gets that access, and permissions.ts takes the best of the person's
+ * own access and that of their groups. Guests are never in a group.
+ */
+export const groups = sqliteTable("groups", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  // The group's id in the company's directory, when SCIM made it.
+  scimExternalId: text("scim_external_id"),
+  // Made through SCIM: its members follow the directory.
+  scim: integer("scim", { mode: "boolean" }).notNull().default(false),
+  createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: createdAt(),
+});
+
+export const groupMembers = sqliteTable(
+  "group_members",
+  {
+    groupId: text("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.groupId, t.userId] }), index("group_members_user_idx").on(t.userId)],
+);
+
+/** A shared space opened to a group. Never "owner": the people who manage a space are named one by one. */
+export const workspaceGroupMembers = sqliteTable(
+  "workspace_group_members",
+  {
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    groupId: text("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "cascade" }),
+    role: text("role", { enum: ["editor", "commenter", "viewer"] }).notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.workspaceId, t.groupId] }), index("workspace_group_members_group_idx").on(t.groupId)],
+);
+
+/** A page shared with a group (and its subpages, as for a person). */
+export const pageGroupPermissions = sqliteTable(
+  "page_group_permissions",
+  {
+    pageId: text("page_id")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    groupId: text("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "cascade" }),
+    role: text("role", { enum: ["full", "editor", "commenter", "viewer"] }).notNull(),
+    grantedBy: text("granted_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.pageId, t.groupId] }), index("page_group_permissions_group_idx").on(t.groupId)],
+);
+
+/**
+ * Who is in a space, and who a page is shared with, counting groups: one row per person and way in (someone in a space
+ * directly and through a group has two rows; take the best role). Views made by migration 0047.
+ */
+export const effectiveWorkspaceMembers = sqliteView("effective_workspace_members", {
+  workspaceId: text("workspace_id").notNull(),
+  userId: text("user_id").notNull(),
+  role: text("role", { enum: ["owner", "editor", "commenter", "viewer"] }).notNull(),
+}).existing();
+
+export const effectivePagePermissions = sqliteView("effective_page_permissions", {
+  pageId: text("page_id").notNull(),
+  userId: text("user_id").notNull(),
+  role: text("role", { enum: ["full", "editor", "commenter", "viewer"] }).notNull(),
+}).existing();
 
 export const publicLinks = sqliteTable("public_links", {
   // One public link per page; the token is random and unguessable.
@@ -715,7 +795,7 @@ export const pageMentions = sqliteTable(
     readAt: integer("read_at", { mode: "timestamp_ms" }),
     createdAt: createdAt(),
   },
-  (t) => [index("page_mentions_user_idx").on(t.userId, t.createdAt), uniqueIndex("page_mentions_unique").on(t.pageId, t.mentionId)],
+  (t) => [index("page_mentions_user_idx").on(t.userId, t.createdAt), uniqueIndex("page_mentions_unique").on(t.pageId, t.mentionId, t.userId)],
 );
 
 /** The schedule of automatic backups (one row, "default"), and how the last one went. */
