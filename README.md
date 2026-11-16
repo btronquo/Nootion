@@ -73,6 +73,8 @@ offline use and the Notion import.
 - Two-factor authentication with an authenticator app (6-digit codes), with recovery codes; administrators can
   turn it off for someone who lost their phone.
 - Invitations by link (valid 7 days, optionally restricted to one email), admin / member roles, account disabling.
+- Guests: people from outside invited on one page from its share window, who only see the pages shared with them
+  (no spaces, no people directory, no API tokens); administrators list them apart, make them members or forbid them.
 - A private personal space for each user, and shared spaces with roles (owner, editor, commenter, viewer).
 - Pages move between spaces with their subpages (drag and drop in the sidebar, or "Move to…"): write a draft in
   your personal space, then share it by moving it into a shared space.

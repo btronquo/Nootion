@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   Trash2,
   UserPlus,
+  UserRound,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -17,7 +18,7 @@ import {
   t,
   type InvitationInfo,
   type PublicUser,
-  type UserRole,
+  type MemberRole,
 } from "@nootion/shared";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
@@ -27,12 +28,14 @@ import { BackupsAdmin } from "./BackupsAdmin";
 import { MailAdmin } from "./MailAdmin";
 import { SsoAdmin } from "./SsoAdmin";
 import { SecurityAdmin } from "./SecurityAdmin";
+import { GuestsAdmin } from "./GuestsAdmin";
 import { copyText } from "../lib/browser";
 import { UpdateBanner, VersionLine } from "../components/UpdateNotice";
 
 /** The page's sections, in order: the menu on the left and the cards share these ids. */
 const SECTIONS: { id: string; icon: LucideIcon; label: () => string }[] = [
   { id: "users", icon: Users, label: () => t("admin.nav.users") },
+  { id: "guests", icon: UserRound, label: () => t("admin.nav.guests") },
   { id: "invite", icon: UserPlus, label: () => t("admin.nav.invite") },
   { id: "backups", icon: DatabaseBackup, label: () => t("admin.nav.backups") },
   { id: "mail", icon: Mail, label: () => t("admin.nav.mail") },
@@ -195,7 +198,7 @@ export function AdminPage() {
     queryFn: () => api<{ invitations: InvitationInfo[] }>("/admin/invitations"),
   });
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<UserRole>("member");
+  const [inviteRole, setInviteRole] = useState<MemberRole>("member");
   const [lastLink, setLastLink] = useState<string | null>(null);
   const [emailedTo, setEmailedTo] = useState<string | null>(null);
   const content = useRef<HTMLDivElement>(null);
@@ -215,7 +218,7 @@ export function AdminPage() {
       patch,
     }: {
       id: string;
-      patch: { role?: UserRole; disabled?: boolean };
+      patch: { role?: MemberRole; disabled?: boolean };
     }) => api(`/admin/users/${id}`, { method: "PATCH", body: patch }),
     onSettled: () => qc.invalidateQueries({ queryKey: ["admin", "users"] }),
   });
@@ -273,7 +276,8 @@ export function AdminPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {users.data?.users.map((u) => (
+                    {/* Guests have their own list, below. */}
+                    {users.data?.users.filter((u) => u.role !== "guest").map((u) => (
                       <tr
                         key={u.id}
                         className="border-t border-neutral-200 dark:border-neutral-800"
@@ -299,7 +303,7 @@ export function AdminPage() {
                             onChange={(e) =>
                               updateUser.mutate({
                                 id: u.id,
-                                patch: { role: e.target.value as UserRole },
+                                patch: { role: e.target.value as MemberRole },
                               })
                             }
                           >
@@ -354,6 +358,10 @@ export function AdminPage() {
             </section>
           </AdminCard>
 
+          <AdminCard id="guests">
+            <GuestsAdmin />
+          </AdminCard>
+
           <AdminCard id="invite">
             <section>
               <h2 className="mb-1 text-lg font-semibold">
@@ -380,7 +388,7 @@ export function AdminPage() {
                 <select
                   className="rounded-md border border-neutral-300 bg-transparent px-3 py-2 text-sm dark:border-neutral-700"
                   value={inviteRole}
-                  onChange={(e) => setInviteRole(e.target.value as UserRole)}
+                  onChange={(e) => setInviteRole(e.target.value as MemberRole)}
                 >
                   <option value="member">{t("admin.member")}</option>
                   <option value="admin">{t("admin.admin")}</option>
@@ -418,7 +426,9 @@ export function AdminPage() {
                         {i.email ?? t("admin.openLink")} ·{" "}
                         {i.role === "admin"
                           ? t("admin.admin")
-                          : t("admin.member")}{" "}
+                          : i.role === "guest"
+                            ? t("guest.invitedOn", { title: i.page?.title || t("common.untitled") })
+                            : t("admin.member")}{" "}
                         ·{" "}
                         {t("admin.expiresOn", {
                           date: dateFmt().format(new Date(i.expiresAt)),

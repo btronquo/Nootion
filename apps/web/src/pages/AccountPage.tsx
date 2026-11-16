@@ -58,22 +58,27 @@ export function AccountPage() {
       <LanguageSection user={user} />
       <ThemeSection />
       <EmailPrefsSection />
-      <ImportSection />
-      <DemoSection />
-      {!!services.data?.length && (
-        <Section title={t("services.title")} id="services">
-          <ConnectedServices accounts={services.data} />
-        </Section>
+      {/* A guest has no space to import into, and no tokens nor connected apps. */}
+      {user.role !== "guest" && (
+        <>
+          <ImportSection />
+          <DemoSection />
+          {!!services.data?.length && (
+            <Section title={t("services.title")} id="services">
+              <ConnectedServices accounts={services.data} />
+            </Section>
+          )}
+          <Section title={t("mcp.title")} id="mcp">
+            <McpConnect />
+          </Section>
+          <Section title={t("tokens.title")} id="api">
+            <div className="space-y-6">
+              <ApiTokens />
+              <AgentActivityList />
+            </div>
+          </Section>
+        </>
       )}
-      <Section title={t("mcp.title")} id="mcp">
-        <McpConnect />
-      </Section>
-      <Section title={t("tokens.title")} id="api">
-        <div className="space-y-6">
-          <ApiTokens />
-          <AgentActivityList />
-        </div>
-      </Section>
       <DeleteSection />
     </div>
   );

@@ -16,6 +16,7 @@ interface Form {
   clientId: string;
   clientSecret: string;
   signup: SsoSignup;
+  signupRole: "member" | "guest";
   domains: string;
   passwordLogin: boolean;
   linkByEmail: boolean;
@@ -28,6 +29,7 @@ const toForm = (s: SsoSettings | null): Form => ({
   clientId: s?.clientId ?? "",
   clientSecret: "",
   signup: s?.signup ?? "invited",
+  signupRole: s?.signupRole ?? "member",
   domains: s?.domains.join(", ") ?? "",
   passwordLogin: s?.passwordLogin ?? true,
   linkByEmail: s?.linkByEmail ?? true,
@@ -237,6 +239,20 @@ export function SsoAdmin() {
                 placeholder="example.com, example.fr"
                 onChange={(e) => set({ domains: e.target.value })}
               />,
+            )}
+          {form.signup !== "invited" &&
+            field(
+              t("sso.signupRole"),
+              <Select
+                className="w-full py-2"
+                value={form.signupRole}
+                onChange={(e) => set({ signupRole: e.target.value as Form["signupRole"] })}
+                data-sso-signup-role
+              >
+                <option value="member">{t("admin.member")}</option>
+                <option value="guest">{t("guest.badge")}</option>
+              </Select>,
+              t("sso.signupRoleHelp"),
             )}
         </div>
         <div className="grid gap-3 sm:grid-cols-2">

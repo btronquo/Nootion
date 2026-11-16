@@ -123,7 +123,7 @@ describe("buttons", () => {
       expect(refused.statusCode).toBe(400);
       expect(refused.json().message).toContain("réseau local");
       expect(received).toHaveLength(0);
-      expect((await boris.put("/api/admin/settings", { webhookPrivateNetworks: true })).json().settings).toEqual({ webhookPrivateNetworks: true });
+      expect((await boris.put("/api/admin/settings", { webhookPrivateNetworks: true })).json().settings).toEqual({ webhookPrivateNetworks: true, allowGuests: true });
       expect((await boris.get("/api/buttons/webhook-policy")).json()).toEqual({ privateNetworks: true });
 
       const notes = await boris.createPage(team, "Notes");

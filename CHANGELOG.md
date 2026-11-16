@@ -15,6 +15,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   offline use and the desktop sync work as for any page. Search and backlinks lead to the page where it lives;
   exports, public pages and the Markdown of the API write its content out; the import from other tools keeps synced
   blocks synced instead of copying their content.
+- Guests: people from outside invited on one page. In the share window, "Invite a guest" takes an e-mail address and
+  an access (can view, comment or edit); the person gets a link by e-mail (or the link to send another way), creates
+  a guest account and sees only that page and its subpages, under "Shared with me", which is their home. Guests have
+  no space of their own, can't be added to a space, see in the people lists only those the page is shared with, and
+  can't make API tokens, connect apps, import, share or publish pages; the server refuses all of it. Pending
+  invitations are listed in the share window and can be cancelled. Administration has a "Guests" list, with the pages
+  each one sees, "Make a member" (they get a personal space and keep their shares) and a setting to forbid guests
+  (pending invitations stop working and guests are signed out until it is on again). With SSO, people without an
+  invitation can arrive as guests instead of members.
 - Public links with a password and an end date: under the address in the share window, "Ask for a password" and
   "Stops working" (never, after 1, 7 or 30 days, or on a date). Visitors type the password once per browser, for that
   link only (the page, its subpages, its files and databases); changing it asks them again. After the end date the

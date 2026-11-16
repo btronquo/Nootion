@@ -5,7 +5,7 @@ import { ForgotPasswordPage, ResetPasswordPage } from "./pages/PasswordPages";
 import { LoginPage } from "./pages/LoginPage";
 import { InvitePage } from "./pages/InvitePage";
 import { AppShell } from "./components/AppShell";
-import { HomePage } from "./pages/HomePage";
+import { GuestHomePage, HomePage } from "./pages/HomePage";
 import { AdminPage } from "./pages/AdminPage";
 import { PagePage } from "./pages/PagePage";
 import { WorkspacePage } from "./pages/WorkspacePage";
@@ -77,7 +77,7 @@ function PrivateApp() {
     <Routes>
       <Route path="/oauth/authorize" element={<OauthAuthorizePage />} />
       <Route element={<AppShell />}>
-        <Route index element={<HomePage />} />
+        <Route index element={user.role === "guest" ? <GuestHomePage /> : <HomePage />} />
         <Route path="/page/:id" element={<PagePage />} />
         <Route path="/workspace/:id" element={<WorkspacePage />} />
         <Route path="/trash" element={<TrashPage />} />

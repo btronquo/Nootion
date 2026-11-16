@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { blob, index, integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { blob, index, type AnySQLiteColumn, integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 const createdAt = () =>
   integer("created_at", { mode: "timestamp_ms" })
@@ -13,7 +13,8 @@ export const users = sqliteTable(
     email: text("email").notNull(),
     name: text("name").notNull(),
     passwordHash: text("password_hash").notNull(),
-    role: text("role", { enum: ["admin", "member"] })
+    // "guest": someone from outside, who only sees the pages shared with them (see guests.ts).
+    role: text("role", { enum: ["admin", "member", "guest"] })
       .notNull()
       .default("member"),
     disabled: integer("disabled", { mode: "boolean" }).notNull().default(false),
@@ -81,12 +82,15 @@ export const invitations = sqliteTable("invitations", {
   id: text("id").primaryKey(),
   tokenHash: text("token_hash").notNull().unique(),
   email: text("email"),
-  role: text("role", { enum: ["admin", "member"] })
+  role: text("role", { enum: ["admin", "member", "guest"] })
     .notNull()
     .default("member"),
   createdBy: text("created_by")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
+  // A guest's invitation: the page shared with them, and how, once their account exists.
+  pageId: text("page_id").references((): AnySQLiteColumn => pages.id, { onDelete: "cascade" }),
+  pageRole: text("page_role", { enum: ["viewer", "commenter", "editor"] }),
   expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
   usedAt: integer("used_at", { mode: "timestamp_ms" }),
   usedBy: text("used_by").references(() => users.id, { onDelete: "set null" }),

@@ -89,7 +89,9 @@ export function useAppActions({ capture, newSpace, hasSync }: { capture: () => v
         run: () => newDatabase(w),
       });
     });
-    actions.push(
+    // A guest has no space of their own, nor an inbox: only the pages shared with them.
+    const guest = user?.role === "guest";
+    if (!guest) actions.push(
       {
         id: "capture",
         title: () => t("inbox.capture"),
@@ -114,10 +116,10 @@ export function useAppActions({ capture, newSpace, hasSync }: { capture: () => v
     actions.push(
       go("home", "/", () => t("home.title"), <Home size={16} />),
       go("reminders", "/reminders", () => t("reminders.title"), <Bell size={16} />),
-      go("tasks", "/tasks", () => t("tasks.title"), <ListChecks size={16} />),
-      go("library", "/pages", () => t("library.title"), <Library size={16} />),
-      go("graph", "/graph", () => t("graph.title"), <Waypoints size={16} />),
-      go("trash", "/trash", () => t("trash.title"), <Trash2 size={16} />),
+      go("tasks", "/tasks", () => t("tasks.title"), <ListChecks size={16} />, () => !guest),
+      go("library", "/pages", () => t("library.title"), <Library size={16} />, () => !guest),
+      go("graph", "/graph", () => t("graph.title"), <Waypoints size={16} />, () => !guest),
+      go("trash", "/trash", () => t("trash.title"), <Trash2 size={16} />, () => !guest),
       go(
         "sync",
         "/sync",

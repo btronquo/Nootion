@@ -7,6 +7,7 @@ import { atLeast, drawingText } from "@nootion/shared";
 import type { Db } from "./db/index.js";
 import { pages } from "./db/schema.js";
 import { findSessionUser, SESSION_COOKIE } from "./auth/sessions.js";
+import { guestsAllowed, isGuest } from "./guests.js";
 import { getPageRole } from "./permissions.js";
 import { recordSnapshot } from "./history.js";
 import { syncReminders } from "./reminders.js";
@@ -207,7 +208,8 @@ export async function registerCollabRoute(app: FastifyInstance, collab: Collab) 
     const origin = req.headers.origin;
     const allowed = [app.config.appUrl, `${req.protocol}://${req.host}`];
     const token = req.cookies[SESSION_COOKIE];
-    const user = token ? findSessionUser(app.db, token) : null;
+    let user = token ? findSessionUser(app.db, token) : null;
+    if (isGuest(user) && !guestsAllowed(app.db)) user = null;
     if ((origin && !allowed.includes(origin)) || !user) {
       socket.close(4401, "unauthorized");
       return;

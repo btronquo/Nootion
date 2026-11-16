@@ -75,6 +75,8 @@ export interface PageShare {
   name: string;
   email: string;
   role: PageRole;
+  /** The person is a guest of the server (see USER_ROLES). */
+  guest: boolean;
   /** Set when the share comes from an ancestor page. */
   inheritedFrom: { id: string; title: string } | null;
 }
@@ -164,6 +166,25 @@ export const movePageInput = z.object({
 });
 
 export const sharePageInput = z.object({ userId: z.string().min(1), role: z.enum(PAGE_ROLES) });
+
+/** What a guest can be given on a page: everything but managing it (sharing, public link). */
+export const GUEST_PAGE_ROLES = ["viewer", "commenter", "editor"] as const;
+export type GuestPageRole = (typeof GUEST_PAGE_ROLES)[number];
+
+/** "Invite a guest" from the share dialog: someone without an account, by e-mail. */
+export const inviteGuestInput = z.object({
+  email: z.string().trim().toLowerCase().email().max(254),
+  role: z.enum(GUEST_PAGE_ROLES).default("viewer"),
+});
+export type InviteGuestInput = z.infer<typeof inviteGuestInput>;
+
+/** A guest invited on a page who hasn't created their account yet. */
+export interface PendingGuest {
+  id: string;
+  email: string;
+  role: GuestPageRole;
+  expiresAt: string;
+}
 
 /** Turns the link on or changes it. Left out, `includeSubpages` keeps its value (on for a new link). */
 export const publicLinkInput = publicLinkProtectionInput.extend({ includeSubpages: z.boolean().optional() });

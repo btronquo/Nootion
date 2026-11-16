@@ -179,6 +179,9 @@ settings (see [SSO.md](SSO.md#linking-existing-accounts)).
 - A **plugin** installed in `/data/plugins` runs with the server's rights (see [PLUGINS.md](PLUGINS.md#trust)).
 - A **member** sees the pages of their spaces and those shared with them, and, in the people lists, only those they
   work with. They can create shared spaces, API tokens for their own spaces, and public links to pages they can edit.
+- A **guest** only sees the pages shared with them (and their subpages), with no space of their own, no people
+  directory beyond those pages and no API tokens; they can't share nor publish. Administrators can turn guests off in
+  Administration › Guests.
 - A **public link** shows a page (and its subpages if chosen) read-only to anyone who has the address; a **public
   form** lets them add rows. Both are revoked from where they were made, and can ask for a password or stop on a date.
 - The step of a **button** runs with the rights of the person who clicks it, not of who wrote it: look at what a

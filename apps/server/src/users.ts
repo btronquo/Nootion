@@ -5,6 +5,7 @@ import { sql } from "drizzle-orm";
 import type { Db } from "./db/index.js";
 import { users, workspaceMembers, workspaces } from "./db/schema.js";
 import { hashPassword } from "./auth/password.js";
+import { guestKnownUserIds } from "./guests.js";
 
 export type UserRow = typeof users.$inferSelect;
 
@@ -27,7 +28,7 @@ export function toPublicUser(u: UserRow): PublicUser {
   };
 }
 
-/** Creates a user together with their private personal workspace. */
+/** Creates a user together with their private personal workspace (a guest has none: see guests.ts). */
 export async function createUser(
   db: Db,
   input: { name: string; email: string; password: string; role: UserRole; locale: Locale },
@@ -39,6 +40,7 @@ export async function createUser(
       .values({ id: randomUUID(), name: input.name, email: input.email, passwordHash, role: input.role, locale: input.locale })
       .returning()
       .get();
+    if (input.role === "guest") return user;
     const workspaceId = randomUUID();
     tx.insert(workspaces).values({ id: workspaceId, name: t("workspace.personal"), kind: "personal", createdBy: user.id }).run();
     tx.insert(workspaceMembers).values({ workspaceId, userId: user.id, role: "owner" }).run();
@@ -53,6 +55,7 @@ export async function createUser(
  */
 export function knownUserIds(db: Db, user: Pick<UserRow, "id" | "role">): Set<string> | null {
   if (user.role === "admin") return null;
+  if (user.role === "guest") return guestKnownUserIds(db, user.id);
   const ids = (rows: { id: string }[]) => rows.map((r) => r.id);
   const known = new Set<string>([user.id]);
   const add = (list: string[]) => list.forEach((id) => known.add(id));

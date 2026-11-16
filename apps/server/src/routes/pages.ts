@@ -3,19 +3,26 @@ import type { FastifyPluginAsync } from "fastify";
 import {
 
   createPageInput,
+  inviteGuestInput,
+  isLocale,
   movePageInput,
   publicLinkInput,
   sharePageInput,
   updatePageInput,
+  type Locale,
   type PageShare,
+  type PendingGuest,
   type PageSummary,
   type PublicLinkInfo,
+  tIn,
 } from "@nootion/shared";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
-import { newToken } from "../auth/tokens.js";
+import { hashToken, newToken } from "../auth/tokens.js";
+import { guestsAllowed, guestsOff, isGuest } from "../guests.js";
+import { INVITATION_TTL_MS } from "./admin.js";
 import { protectionInfo, protectionUpdate } from "../public-access.js";
-import { attachments, pagePermissions, pages, publicLinks, users, workspaceMembers } from "../db/schema.js";
+import { attachments, invitations, pagePermissions, pages, publicLinks, users, workspaceMembers } from "../db/schema.js";
 import { HttpError, notFound, parseBody, requireUser } from "../http.js";
 import {
   CAN_CREATE_ROOT_PAGES,
@@ -413,9 +420,9 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
 
   app.get<{ Params: { id: string } }>("/:id/shares", async (req) => {
     const user = requireUser(req);
-    const { chain } = requirePageRole(db, user.id, req.params.id, "viewer");
+    const { chain, role } = requirePageRole(db, user.id, req.params.id, "viewer");
     const rows = db
-      .select({ pageId: pagePermissions.pageId, userId: users.id, name: users.name, email: users.email, role: pagePermissions.role })
+      .select({ pageId: pagePermissions.pageId, userId: users.id, name: users.name, email: users.email, role: pagePermissions.role, userRole: users.role })
       .from(pagePermissions)
       .innerJoin(users, eq(users.id, pagePermissions.userId))
       .where(inArray(pagePermissions.pageId, chain.map((c) => c.id)))
@@ -434,10 +441,22 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
         name: r.name,
         email: r.email,
         role: r.role,
+        guest: r.userRole === "guest",
         inheritedFrom: from.id === req.params.id ? null : { id: from.id, title: from.title },
       });
     }
-    return { shares };
+    // Guests invited on this page who haven't made their account yet, for those who manage its sharing.
+    const pendingGuests: PendingGuest[] =
+      role === "full" && !isGuest(user)
+        ? db
+            .select()
+            .from(invitations)
+            .where(and(eq(invitations.pageId, req.params.id), eq(invitations.role, "guest"), isNull(invitations.usedAt), gt(invitations.expiresAt, new Date())))
+            .orderBy(invitations.createdAt)
+            .all()
+            .map(toPendingGuest)
+        : [];
+    return { shares, pendingGuests, guestsAllowed: guestsAllowed(db) };
   });
 
   app.put<{ Params: { id: string } }>("/:id/shares", async (req) => {
@@ -446,6 +465,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     requirePageRole(db, user.id, req.params.id, "full");
     const target = db.select().from(users).where(eq(users.id, input.userId)).get();
     if (!target || target.disabled) throw new HttpError(404, "user_not_found", t("error.userNotFound"));
+    if (isGuest(target) && input.role === "full") throw new HttpError(400, "guest_role", t("error.guestRole"));
     db.insert(pagePermissions)
       .values({ pageId: req.params.id, userId: input.userId, role: input.role, grantedBy: user.id })
       .onConflictDoUpdate({ target: [pagePermissions.pageId, pagePermissions.userId], set: { role: input.role, grantedBy: user.id } })
@@ -458,6 +478,83 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     requirePageRole(db, user.id, req.params.id, "full");
     db.delete(pagePermissions)
       .where(and(eq(pagePermissions.pageId, req.params.id), eq(pagePermissions.userId, req.params.userId)))
+      .run();
+    return { ok: true };
+  });
+
+  // --- Guests ---
+
+  const toPendingGuest = (i: typeof invitations.$inferSelect): PendingGuest => ({
+    id: i.id,
+    email: i.email ?? "",
+    role: i.pageRole ?? "viewer",
+    expiresAt: i.expiresAt.toISOString(),
+  });
+
+  /**
+   * "Invite a guest": someone without an account gets a link by e-mail; once their account is made, the page is
+   * shared with them, and only it. Someone who already has an account gets the page shared at once.
+   */
+  app.post<{ Params: { id: string } }>("/:id/guests", { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (req) => {
+    const user = requireUser(req);
+    const input = parseBody(inviteGuestInput, req.body);
+    const { page } = requirePageRole(db, user.id, req.params.id, "full");
+    if (!guestsAllowed(db)) throw guestsOff();
+    const existing = db.select().from(users).where(sql`lower(${users.email}) = ${input.email}`).get();
+    if (existing) {
+      if (existing.disabled) throw new HttpError(404, "user_not_found", t("error.userNotFound"));
+      db.insert(pagePermissions)
+        .values({ pageId: page.id, userId: existing.id, role: input.role, grantedBy: user.id })
+        .onConflictDoUpdate({ target: [pagePermissions.pageId, pagePermissions.userId], set: { role: input.role, grantedBy: user.id } })
+        .run();
+      return { shared: true };
+    }
+    // One invitation per address and page: inviting again sends a new link.
+    db.delete(invitations)
+      .where(and(eq(invitations.pageId, page.id), eq(invitations.email, input.email), isNull(invitations.usedAt)))
+      .run();
+    const token = newToken();
+    const invitation = db
+      .insert(invitations)
+      .values({
+        id: randomUUID(),
+        tokenHash: hashToken(token),
+        email: input.email,
+        role: "guest",
+        pageId: page.id,
+        pageRole: input.role,
+        createdBy: user.id,
+        expiresAt: new Date(Date.now() + INVITATION_TTL_MS),
+      })
+      .returning()
+      .get();
+    const url = `${app.config.appUrl}/invite/${token}`;
+    let emailed = false;
+    if (app.mailer.enabled()) {
+      const locale = (isLocale(user.locale) ? user.locale : "en") as Locale;
+      const title = page.title || tIn(locale, "common.untitled");
+      try {
+        await app.mailer.send({
+          to: input.email,
+          subject: tIn(locale, "mail.guestInviteSubject", { name: user.name, title }),
+          text: tIn(locale, "mail.guestInviteBody", { name: user.name, title }),
+          action: { label: tIn(locale, "mail.guestInviteAction"), url },
+          footer: tIn(locale, "mail.inviteFooter"),
+        });
+        emailed = true;
+      } catch (err) {
+        req.log.warn({ err }, "Couldn't send a guest invitation e-mail");
+      }
+    }
+    // The link is shown once (only its hash is kept), to be sent another way when there is no e-mail.
+    return { shared: false, invitation: toPendingGuest(invitation), url, emailed };
+  });
+
+  app.delete<{ Params: { id: string; invitationId: string } }>("/:id/guests/:invitationId", async (req) => {
+    const user = requireUser(req);
+    requirePageRole(db, user.id, req.params.id, "full");
+    db.delete(invitations)
+      .where(and(eq(invitations.id, req.params.invitationId), eq(invitations.pageId, req.params.id), isNull(invitations.usedAt)))
       .run();
     return { ok: true };
   });

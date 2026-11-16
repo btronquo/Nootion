@@ -194,6 +194,29 @@ printed: no sidebar, buttons or handles, on white even with the dark theme.
 To get a PDF, choose **Save as PDF** as the printer in the browser's print window. The PDF is made by the browser,
 so nothing more runs on the server.
 
+## Guests
+
+To share a page with someone outside the team, without giving them access to the rest, open **Share** › **Invite a
+guest**, type their e-mail address and choose what they may do: **Can view**, **Can comment** or **Can edit**
+(never full access: a guest doesn't manage a page). They get an e-mail with a link valid 7 days; without e-mail set
+up on the server, or to send it another way, copy the link shown. If the address already has an account, the page is
+simply shared with it.
+
+Until the person has made their account, the invitation shows in the share window as *Invitation pending*, with ✕ to
+cancel it; inviting the same address again sends a new link. Putting the page in the trash makes the link stop
+working.
+
+A guest signs in like anyone, but only sees the pages shared with them and their subpages, listed under **Shared
+with me**, which is their home. They have no personal space and no shared spaces, no inbox, tasks, library or
+graph; in the people lists (sharing, mentions, person columns) they only see the people the page is shared with, and
+they can't make API tokens, connect apps, import, nor share or publish a page. With **Can edit** they write in the
+page and add subpages to it. Several pages can be shared with the same guest, from each page's share window.
+
+Administrators see guests apart, in **Administration › Guests**, with the pages each one sees. **Make a member**
+gives the person a personal space and lets them be added to spaces; the pages shared with them stay shared. The same
+section has **Allow guests**: turned off, nobody can invite a guest, pending invitations stop working and guests can't
+sign in, until it is turned on again.
+
 ## Public links: password and end date
 
 **Share** › **Public link** gives an address anyone can open without an account, read-only. Under the address, two

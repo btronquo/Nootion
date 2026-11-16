@@ -57,7 +57,7 @@ type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 /** What a plugin's route handler receives. */
 export interface PluginRequest {
   /** The signed-in user, or null on public routes. */
-  user: { id: string; name: string; email: string; role: "admin" | "member" } | null;
+  user: { id: string; name: string; email: string; role: "admin" | "member" | "guest" } | null;
   params: Record<string, string>;
   query: Record<string, string>;
   body: unknown;
