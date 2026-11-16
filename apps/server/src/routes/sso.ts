@@ -7,6 +7,7 @@ import { invitations, users } from "../db/schema.js";
 import { parseBody, requireAdmin } from "../http.js";
 import { requestLocale } from "../i18n.js";
 import type { SsoIdentity } from "../sso.js";
+import { grantInvitedPage, guestInvitationUsable, guestsAllowed, isGuest } from "../guests.js";
 import { createUser, type UserRow } from "../users.js";
 import { startSession } from "./session-cookie.js";
 
@@ -147,7 +148,7 @@ export const ssoLoginRoutes: FastifyPluginAsync = async (app) => {
           .where(eq(users.id, user.id))
           .run();
     }
-    if (user) return user.disabled ? "disabled" : user;
+    if (user) return user.disabled || (isGuest(user) && !guestsAllowed(db)) ? "disabled" : user;
     if (!who.email) return "no_email";
     if (
       db
@@ -177,7 +178,9 @@ export const ssoLoginRoutes: FastifyPluginAsync = async (app) => {
         .where(and(sql`lower(${invitations.email}) = ${who.email}`, open))
         .get();
     const usable =
-      inv && (!inv.email || inv.email.toLowerCase() === who.email)
+      inv &&
+      (!inv.email || inv.email.toLowerCase() === who.email) &&
+      guestInvitationUsable(db, inv)
         ? inv
         : undefined;
     const domain = who.email.split("@")[1]!;
@@ -186,6 +189,9 @@ export const ssoLoginRoutes: FastifyPluginAsync = async (app) => {
       c.signup === "anyone" ||
       (c.signup === "domains" && c.domains.includes(domain));
     if (!allowed) return "no_account";
+    // Without an invitation, people arrive as the administrator chose: members, or guests who see nothing yet.
+    const role = usable?.role ?? c.signupRole;
+    if (role === "guest" && !guestsAllowed(db)) return "no_account";
     if (usable) {
       const claimed = db
         .update(invitations)
@@ -199,18 +205,20 @@ export const ssoLoginRoutes: FastifyPluginAsync = async (app) => {
       name: who.name ?? who.email.split("@")[0]!,
       email: who.email,
       password: randomBytes(32).toString("hex"),
-      role: usable?.role ?? "member",
+      role,
       locale,
     });
     db.update(users)
       .set({ ssoSubject: who.subject })
       .where(eq(users.id, created.id))
       .run();
-    if (usable)
+    if (usable) {
       db.update(invitations)
         .set({ usedBy: created.id })
         .where(eq(invitations.id, usable.id))
         .run();
+      grantInvitedPage(db, usable, created.id);
+    }
     return { ...created, ssoSubject: who.subject };
   }
 };

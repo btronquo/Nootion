@@ -113,6 +113,8 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
     requireSharedOwner(user.id, req.params.id);
     const target = db.select().from(users).where(eq(users.id, input.userId)).get();
     if (!target || target.disabled) throw new HttpError(404, "user_not_found", t("error.userNotFound"));
+    // A guest is never in a space: pages are shared with them one by one.
+    if (target.role === "guest") throw new HttpError(400, "guest_not_member", t("error.guestNoSpace"));
     if (input.role !== "owner" && ownerCount(req.params.id, input.userId) === 0) {
       throw new HttpError(409, "last_owner", t("error.lastOwner"));
     }

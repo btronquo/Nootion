@@ -44,6 +44,9 @@ Then:
   - *Anyone with an address in these domains*, e.g. `contoso.com`.
   - *Anyone who can sign in at the provider*: with "Assignment required" in Entra, that is the people and groups
     assigned to the app.
+- **They arrive as** (for the last two): *Member*, the default, or *Guest*: they then see nothing until a page is
+  shared with them, and an administrator can make them members later. People invited on a page as guests (see
+  [EDITOR.md](EDITOR.md#guests)) can also sign in with the provider; they stay guests.
 - **SSO session length**: 12 hours by default. After that, people go through Microsoft again: a click if they are
   still signed in there, the door closed if their account was disabled.
 - **Allow passwords too**: turn it off to make SSO the only way in. Administrators can always still sign in with

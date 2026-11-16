@@ -61,6 +61,10 @@ Three things sit beside it:
 - **Tokens** narrow a user's rights to some spaces, read-only or not. They never widen them.
 - **The people directory** (`users.ts`) only lists those who share a space or a page with you; administrators see
   everyone.
+- **Guests** (`guests.ts`) are accounts with the role `guest`, invited on a page: no personal space, never in a
+  space, so `permissions.ts` gives them only the pages shared with them. What they may not do besides (tokens,
+  looking people up, sharing, home page and inbox…) is one list of routes, refused in a hook of `app.ts` for every
+  request; `guests.test.ts` covers it. Their directory is limited to the people of those pages.
 
 ## Page content and collaborative editing
 

@@ -77,6 +77,8 @@ import { syncErrorText, useDesktopSync } from "../pages/SyncPage";
 
 export function AppShell() {
   const { user, refresh } = useSession();
+  // A guest only has the pages shared with them: no spaces, inbox, tasks, library or graph.
+  const guest = user?.role === "guest";
   const version = useVersion();
   const update = useUpdateStatus(user?.role === "admin").data;
   const updateWarning = !!update?.available && !update.dismissed;
@@ -153,7 +155,7 @@ export function AppShell() {
           </kbd>
         )}
       </button>
-      <button
+      {!guest && <button
         onClick={() => setCapturing(true)}
         className="mx-2 mb-1 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-neutral-600 hover:bg-neutral-200/50 dark:text-neutral-400 dark:hover:bg-neutral-800/60"
         data-quick-capture-button
@@ -164,7 +166,7 @@ export function AppShell() {
             {captureShortcutLabel()}
           </kbd>
         )}
-      </button>
+      </button>}
       <NavLink
         to="/"
         end
@@ -172,7 +174,7 @@ export function AppShell() {
           `mx-2 mb-1 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-neutral-200/50 dark:hover:bg-neutral-800/60 ${isActive ? "bg-neutral-200/70 font-medium text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100" : "text-neutral-600 dark:text-neutral-400"}`
         }
       >
-        <Home size={16} /> {t("home.title")}
+        {guest ? <Share2 size={16} /> : <Home size={16} />} {guest ? t("sidebar.shared") : t("home.title")}
       </NavLink>
       <NavLink
         to="/reminders"
@@ -190,7 +192,7 @@ export function AppShell() {
           </span>
         )}
       </NavLink>
-      {(
+      {!guest && (
         [
           ["/tasks", <ListChecks size={16} key="i" />, t("tasks.title")],
           ["/pages", <Library size={16} key="i" />, t("library.title")],
@@ -213,17 +215,21 @@ export function AppShell() {
           <WorkspaceSection key={ws.id} workspace={ws} />
         ))}
         <SharedSection />
-        <button
-          onClick={() => setCreatingWorkspace(true)}
-          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-neutral-500 hover:bg-neutral-200/50 dark:hover:bg-neutral-800/60"
-        >
-          <Plus size={16} /> {t("workspace.new")}
-        </button>
+        {!guest && (
+          <button
+            onClick={() => setCreatingWorkspace(true)}
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-neutral-500 hover:bg-neutral-200/50 dark:hover:bg-neutral-800/60"
+          >
+            <Plus size={16} /> {t("workspace.new")}
+          </button>
+        )}
       </nav>
       <div className="space-y-0.5 border-t border-neutral-200 p-2 dark:border-neutral-800">
-        <NavLink to="/trash" className={linkClass}>
-          <Trash2 size={16} /> {t("trash.title")}
-        </NavLink>
+        {!guest && (
+          <NavLink to="/trash" className={linkClass}>
+            <Trash2 size={16} /> {t("trash.title")}
+          </NavLink>
+        )}
         {syncLinks && (
           <NavLink to="/sync" className={linkClass}>
             <RefreshCw size={16} /> {t("sync.title")}
@@ -297,7 +303,7 @@ export function AppShell() {
       )}
       {searching && <SearchDialog onClose={() => setSearching(false)} />}
       <WhatsNewDialog />
-      {capturing && <QuickCaptureDialog onClose={() => setCapturing(false)} />}
+      {capturing && !guest && <QuickCaptureDialog onClose={() => setCapturing(false)} />}
     </SidebarLayout>
   );
 }

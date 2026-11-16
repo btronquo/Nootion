@@ -11,6 +11,7 @@ import { HttpError, parseBody, requireUser } from "../http.js";
 import { avatarsDir, toPublicUser } from "../users.js";
 import { imageExtension } from "../images.js";
 import { clearSessionCookie, startSession } from "./session-cookie.js";
+import { guestsAllowed, guestsOff, isGuest } from "../guests.js";
 import { passwordAllowed, ssoOnlyMessage } from "./sso.js";
 import { startTwoFactorChallenge } from "./two-factor.js";
 
@@ -40,6 +41,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     if (!(await verifyPassword(user.passwordHash, input.password))) throw failed(input.email);
     if (user.disabled) throw new HttpError(403, "disabled", t("error.accountDisabled"));
     if (!passwordAllowed(app, user.role)) throw new HttpError(403, "sso_only", ssoOnlyMessage());
+    if (isGuest(user) && !guestsAllowed(app.db)) throw guestsOff();
     failures.delete(input.email);
     // The password alone is not enough: the code from the authenticator app comes next (POST /login/2fa).
     if (user.totpSecret) {

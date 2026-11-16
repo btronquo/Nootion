@@ -3,6 +3,7 @@ import { z } from "zod";
 /** Who gets an account the first time they sign in with SSO. */
 export const SSO_SIGNUPS = ["invited", "domains", "anyone"] as const;
 export type SsoSignup = (typeof SSO_SIGNUPS)[number];
+export const SSO_SIGNUP_ROLES = ["member", "guest"] as const;
 
 /** Single sign-on with an OpenID Connect provider (Microsoft Entra ID, Google, Keycloak…), set by administrators. */
 export const ssoSettingsInput = z.object({
@@ -14,6 +15,8 @@ export const ssoSettingsInput = z.object({
   /** Left out: the saved one is kept. */
   clientSecret: z.string().max(1000).optional(),
   signup: z.enum(SSO_SIGNUPS).default("invited"),
+  /** What people who sign in for the first time without an invitation become ("domains" and "anyone"). */
+  signupRole: z.enum(SSO_SIGNUP_ROLES).default("member"),
   /** For "domains": e.g. ["example.com"]. */
   domains: z
     .array(z.string().trim().toLowerCase().min(3).max(200))

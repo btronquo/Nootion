@@ -14,7 +14,9 @@ export const settingsRoutes: FastifyPluginAsync = async (app) => {
 
   app.put("/admin/settings", async (req) => {
     requireAdmin(req);
-    return { settings: saveInstanceSettings(db, parseBody(instanceSettingsInput, req.body)) };
+    // Settings left out keep their value: a form that only knows some of them doesn't reset the others.
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    return { settings: saveInstanceSettings(db, parseBody(instanceSettingsInput, { ...getInstanceSettings(db), ...body })) };
   });
 
   // What the button editor tells people about webhooks.

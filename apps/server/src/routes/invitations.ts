@@ -2,7 +2,8 @@ import type { FastifyPluginAsync } from "fastify";
 import { acceptInvitationInput, t } from "@nootion/shared";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { hashToken } from "../auth/tokens.js";
-import { invitations, users } from "../db/schema.js";
+import { invitations, pages, users } from "../db/schema.js";
+import { grantInvitedPage, guestInvitationUsable } from "../guests.js";
 import { HttpError, parseBody } from "../http.js";
 import { requestLocale } from "../i18n.js";
 import { createUser, toPublicUser } from "../users.js";
@@ -21,8 +22,9 @@ export const invitationRoutes: FastifyPluginAsync = async (app) => {
 
   app.get<{ Params: { token: string } }>("/:token", async (req) => {
     const inv = findValid(req.params.token);
-    if (!inv) throw invalid();
-    return { email: inv.email, sso: app.sso.info() };
+    if (!inv || !guestInvitationUsable(app.db, inv)) throw invalid();
+    const page = inv.pageId ? app.db.select({ title: pages.title }).from(pages).where(eq(pages.id, inv.pageId)).get() : undefined;
+    return { email: inv.email, sso: app.sso.info(), guest: inv.role === "guest", pageTitle: page ? page.title : null };
   });
 
   app.post<{ Params: { token: string } }>(
@@ -31,7 +33,7 @@ export const invitationRoutes: FastifyPluginAsync = async (app) => {
     async (req, reply) => {
       const input = parseBody(acceptInvitationInput, req.body);
       const inv = findValid(req.params.token);
-      if (!inv) throw invalid();
+      if (!inv || !guestInvitationUsable(app.db, inv)) throw invalid();
       if (!passwordAllowed(app, inv.role)) throw new HttpError(403, "sso_only", ssoOnlyMessage());
       if (inv.email && inv.email !== input.email) {
         throw new HttpError(400, "email_mismatch", t("error.invitationEmail"));
@@ -48,6 +50,7 @@ export const invitationRoutes: FastifyPluginAsync = async (app) => {
       if (claimed.changes === 0) throw invalid();
       const user = await createUser(app.db, { ...input, role: inv.role, locale: input.locale ?? requestLocale(req) });
       app.db.update(invitations).set({ usedBy: user.id }).where(eq(invitations.id, inv.id)).run();
+      grantInvitedPage(app.db, inv, user.id);
       startSession(app, reply, user.id);
       return { user: toPublicUser(user) };
     },

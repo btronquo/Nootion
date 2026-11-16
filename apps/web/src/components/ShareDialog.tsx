@@ -1,24 +1,44 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, Globe, X } from "lucide-react";
-import { PAGE_ROLES, type PageDetail, type PageRole, type PageShare, type PublicLinkInfo, type PublicLinkProtectionInput } from "@nootion/shared";
+import { Copy, Globe, UserPlus, X } from "lucide-react";
+import {
+  GUEST_PAGE_ROLES,
+  intlLocale,
+  PAGE_ROLES,
+  type GuestPageRole,
+  type PageDetail,
+  type PageRole,
+  type PageShare,
+  type PendingGuest,
+  type PublicLinkInfo,
+  type PublicLinkProtectionInput,
+} from "@nootion/shared";
 import { LinkProtection } from "./LinkProtection";
 import { PersonChooser } from "./PersonChooser";
 import { api } from "../lib/api";
 import { useUserDirectory } from "../lib/queries";
 import { useSession } from "../lib/session";
 import { pageRoleLabel } from "../lib/labels";
-import { Button, CancelButton, ErrorText, Modal, Select } from "./ui";
+import { Button, CancelButton, ErrorText, Field, Modal, Select } from "./ui";
 import { t } from "@nootion/shared";
 import { copyText } from "../lib/browser";
 
 const ROLES_DESC = [...PAGE_ROLES].reverse();
+/** A guest can't manage a page: no "Full access" for them. */
+const GUEST_ROLES_DESC = [...GUEST_PAGE_ROLES].reverse();
+
+interface SharesResponse {
+  shares: PageShare[];
+  pendingGuests: PendingGuest[];
+  guestsAllowed: boolean;
+}
 
 export function ShareDialog({ page, onClose }: { page: PageDetail; onClose: () => void }) {
   const { user: me } = useSession();
   const qc = useQueryClient();
   const directory = useUserDirectory();
-  const shares = useQuery({ queryKey: ["shares", page.id], queryFn: async () => (await api<{ shares: PageShare[] }>(`/pages/${page.id}/shares`)).shares });
+  const sharing = useQuery({ queryKey: ["shares", page.id], queryFn: () => api<SharesResponse>(`/pages/${page.id}/shares`) });
+  const shares = { data: sharing.data?.shares };
   const link = useQuery({ queryKey: ["public-link", page.id], queryFn: async () => (await api<{ link: PublicLinkInfo | null }>(`/pages/${page.id}/public-link`)).link });
   const [newUser, setNewUser] = useState("");
   const [newRole, setNewRole] = useState<PageRole>("viewer");
@@ -45,6 +65,10 @@ export function ShareDialog({ page, onClose }: { page: PageDetail; onClose: () =
     const res = await api<{ link: PublicLinkInfo }>(`/pages/${page.id}/public-link`, { method: "PUT", body: input });
     qc.setQueryData(["public-link", page.id], res.link);
   };
+  const removeGuest = useMutation({
+    mutationFn: (invitationId: string) => api(`/pages/${page.id}/guests/${invitationId}`, { method: "DELETE" }),
+    onSuccess: invalidate,
+  });
   const removeLink = useMutation({ mutationFn: () => api(`/pages/${page.id}/public-link`, { method: "DELETE" }), onSuccess: invalidate });
 
   const sharedIds = new Set(shares.data?.filter((s) => !s.inheritedFrom).map((s) => s.userId));
@@ -78,7 +102,10 @@ export function ShareDialog({ page, onClose }: { page: PageDetail; onClose: () =
           {shares.data?.map((s) => (
             <li key={s.userId} className="flex items-center justify-between gap-2 py-2 text-sm">
               <div className="min-w-0">
-                <div className="truncate font-medium">{s.name}</div>
+                <div className="flex items-center gap-1.5 truncate font-medium">
+                  {s.name}
+                  {s.guest && <GuestBadge />}
+                </div>
                 <div className="truncate text-xs text-neutral-500">
                   {s.email}
                   {s.inheritedFrom && <> · {t("share.inheritedFrom", { title: s.inheritedFrom.title || t("common.untitled") })}</>}
@@ -89,7 +116,7 @@ export function ShareDialog({ page, onClose }: { page: PageDetail; onClose: () =
               ) : (
                 <div className="flex items-center gap-1">
                   <Select value={s.role} onChange={(e) => setShare.mutate({ userId: s.userId, role: e.target.value as PageRole })} aria-label={t("share.accessOf", { name: s.name })}>
-                    {ROLES_DESC.map((r) => (
+                    {(s.guest ? GUEST_ROLES_DESC : ROLES_DESC).map((r) => (
                       <option key={r} value={r}>
                         {pageRoleLabel(r)}
                       </option>
@@ -102,8 +129,28 @@ export function ShareDialog({ page, onClose }: { page: PageDetail; onClose: () =
               )}
             </li>
           ))}
-          {shares.data?.length === 0 && <li className="py-2 text-sm text-neutral-500">{t("share.nobody")}</li>}
+          {sharing.data?.pendingGuests.map((g) => (
+            <li key={g.id} className="flex items-center justify-between gap-2 py-2 text-sm" data-pending-guest>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 truncate font-medium">
+                  {g.email}
+                  <GuestBadge />
+                </div>
+                <div className="truncate text-xs text-neutral-500">
+                  {t("guest.pending", { date: new Intl.DateTimeFormat(intlLocale(), { dateStyle: "medium" }).format(new Date(g.expiresAt)) })}
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-neutral-500">{pageRoleLabel(g.role)}</span>
+                <Button variant="ghost" onClick={() => removeGuest.mutate(g.id)} title={t("guest.cancelInvitation")} aria-label={t("guest.cancelInvitation")}>
+                  <X size={16} />
+                </Button>
+              </div>
+            </li>
+          ))}
+          {shares.data?.length === 0 && !sharing.data?.pendingGuests.length && <li className="py-2 text-sm text-neutral-500">{t("share.nobody")}</li>}
         </ul>
+        {page.role === "full" && me?.role !== "guest" && sharing.data?.guestsAllowed && <InviteGuest pageId={page.id} onInvited={invalidate} />}
       </section>
 
       <section className="mt-5 border-t border-neutral-200 pt-4 dark:border-neutral-800">
@@ -147,5 +194,84 @@ export function ShareDialog({ page, onClose }: { page: PageDetail; onClose: () =
         <CancelButton onClose={onClose} label={t("common.close")} />
       </div>
     </Modal>
+  );
+}
+
+function GuestBadge() {
+  return (
+    <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300" data-guest-badge>
+      {t("guest.badge")}
+    </span>
+  );
+}
+
+/** "Invite a guest": someone from outside, by e-mail, who will only see this page (and its subpages). */
+function InviteGuest({ pageId, onInvited }: { pageId: string; onInvited: () => Promise<unknown> }) {
+  const [open, setOpen] = useState(false);
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<GuestPageRole>("viewer");
+  const [result, setResult] = useState<{ email: string; shared: boolean; emailed: boolean; url?: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+  const invite = useMutation({
+    mutationFn: () => api<{ shared: boolean; emailed?: boolean; url?: string }>(`/pages/${pageId}/guests`, { method: "POST", body: { email, role } }),
+    onSuccess: (res) => {
+      setResult({ email, shared: res.shared, emailed: !!res.emailed, url: res.url });
+      setEmail("");
+      setCopied(false);
+      return onInvited();
+    },
+  });
+
+  if (!open) {
+    return (
+      <Button variant="ghost" onClick={() => setOpen(true)} data-invite-guest>
+        <UserPlus size={16} /> {t("guest.invite")}
+      </Button>
+    );
+  }
+  return (
+    <div className="space-y-2 rounded-lg border border-neutral-200 p-3 dark:border-neutral-800" data-invite-guest-form>
+      <div className="flex items-center gap-2 text-sm font-medium">
+        <UserPlus size={16} /> {t("guest.invite")}
+      </div>
+      <p className="text-xs text-neutral-500">{t("guest.inviteHelp")}</p>
+      <form
+        className="flex flex-wrap items-end gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          invite.mutate();
+        }}
+      >
+        <div className="min-w-48 flex-1">
+          <Field label={t("auth.email")} type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t("guest.emailPlaceholder")} required autoFocus />
+        </div>
+        <Select value={role} onChange={(e) => setRole(e.target.value as GuestPageRole)} aria-label={t("share.access")}>
+          {GUEST_ROLES_DESC.map((r) => (
+            <option key={r} value={r}>
+              {pageRoleLabel(r)}
+            </option>
+          ))}
+        </Select>
+        <Button type="submit" disabled={invite.isPending || !email}>
+          {t("guest.send")}
+        </Button>
+      </form>
+      <ErrorText error={invite.error} />
+      {result && (
+        <div className="space-y-2 text-sm" data-guest-result>
+          <p className="text-green-700 dark:text-green-400">
+            ✓ {result.shared ? t("guest.alreadyMember", { email: result.email }) : result.emailed ? t("guest.emailed", { email: result.email }) : t("guest.linkReady")}
+          </p>
+          {result.url && (
+            <div className="flex items-center gap-2 rounded-md bg-neutral-100 p-2 dark:bg-neutral-800">
+              <code className="flex-1 break-all text-xs">{result.url}</code>
+              <Button variant="ghost" onClick={async () => setCopied(await copyText(result.url!))} title={t("common.copy")}>
+                <Copy size={16} /> {copied ? t("common.copied") : ""}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

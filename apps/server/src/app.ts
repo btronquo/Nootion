@@ -16,6 +16,7 @@ import { DEFAULT_TRUST_PROXY, type Config } from "./config.js";
 import type { Db } from "./db/index.js";
 import { findSessionUser, SESSION_COOKIE } from "./auth/sessions.js";
 import { HttpError } from "./http.js";
+import { guestForbidden, guestRefused, guestsAllowed, isGuest } from "./guests.js";
 import { requestLocale, withLocale } from "./i18n.js";
 import { t } from "@nootion/shared";
 import type { UserRow } from "./users.js";
@@ -260,6 +261,16 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
     }
     const token = req.cookies[SESSION_COOKIE];
     if (token) req.user = findSessionUser(opts.db, token);
+  });
+  // Guests: signed out while administrators have turned guests off, and refused what only members may do.
+  app.addHook("onRequest", async (req) => {
+    if (!isGuest(req.user)) return;
+    if (!guestsAllowed(opts.db)) {
+      if (req.tokenScope) throw new HttpError(401, "guests_off", withLocale(requestLocale(req), () => t("error.guestsOff")));
+      req.user = null;
+      return;
+    }
+    if (req.tokenScope || guestRefused(req.method, req.url)) throw withLocale(requestLocale(req), () => guestForbidden());
   });
   // From here on (the body is parsed), t() speaks the user's language until the response is sent,
   // and permission checks stay within the token's scope for requests made with one.

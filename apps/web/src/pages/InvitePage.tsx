@@ -20,7 +20,7 @@ export function InvitePage() {
   const invitation = useQuery({
     queryKey: ["invitation", token],
     queryFn: () =>
-      api<{ email: string | null; sso?: SsoInfo | null }>(
+      api<{ email: string | null; sso?: SsoInfo | null; guest?: boolean; pageTitle?: string | null }>(
         `/invitations/${token}`,
       ),
   });
@@ -69,7 +69,14 @@ export function InvitePage() {
   }
 
   return (
-    <AuthCard title={t("invite.title")} subtitle={t("invite.subtitle")}>
+    <AuthCard
+      title={t("invite.title")}
+      subtitle={
+        invitation.data?.guest
+          ? t("guest.inviteSubtitle", { title: invitation.data.pageTitle || t("common.untitled") })
+          : t("invite.subtitle")
+      }
+    >
       {sso && (
         <div className="mb-4 space-y-3">
           <a
