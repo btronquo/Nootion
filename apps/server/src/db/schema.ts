@@ -64,6 +64,40 @@ export const loginChallenges = sqliteTable(
   },
 );
 
+/** A passkey: a key pair kept by the person's device (or password manager), which signs them in on its own. */
+export const passkeys = sqliteTable(
+  "passkeys",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    // The credential id the authenticator gave, in base64url.
+    credentialId: text("credential_id").notNull(),
+    // The public key, COSE-encoded: the private key never leaves the device.
+    publicKey: blob("public_key", { mode: "buffer" }).notNull(),
+    // The authenticator's signature counter (0 for most synced passkeys).
+    counter: integer("counter").notNull().default(0),
+    transports: text("transports", { mode: "json" }).$type<string[]>().notNull().default([]),
+    // Synced to the person's other devices (a password manager, the phone's keychain).
+    backedUp: integer("backed_up", { mode: "boolean" }).notNull().default(false),
+    name: text("name").notNull(),
+    lastUsedAt: integer("last_used_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("passkeys_credential_unique").on(t.credentialId), index("passkeys_user_idx").on(t.userId)],
+);
+
+/** A WebAuthn challenge waiting for the device's answer: adding a passkey (user known) or signing in (user not known yet). */
+export const passkeyChallenges = sqliteTable("passkey_challenges", {
+  tokenHash: text("token_hash").primaryKey(),
+  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
+  purpose: text("purpose", { enum: ["register", "login"] }).notNull(),
+  challenge: text("challenge").notNull(),
+  expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+  createdAt: createdAt(),
+});
+
 export const sessions = sqliteTable(
   "sessions",
   {

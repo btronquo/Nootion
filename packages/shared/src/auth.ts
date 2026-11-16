@@ -51,6 +51,39 @@ export interface TwoFactorSetup {
   qrSvg: string;
 }
 
+/** Adding a passkey asks for the password again, as turning two-factor sign-in on does. */
+export const passkeyOptionsInput = z.object({ password: z.string().min(1).max(256) });
+
+/** The device's answer (WebAuthn JSON), checked on the server; the name tells passkeys apart in the list. */
+export const passkeyAddInput = z.object({
+  name: z.string().trim().max(100).optional(),
+  response: z.record(z.string(), z.unknown()),
+});
+
+export const passkeyRenameInput = z.object({ name: z.string().trim().min(1).max(100) });
+
+/** Signing in with a passkey: the device's signed answer to the challenge. */
+export const passkeyLoginInput = z.object({ response: z.record(z.string(), z.unknown()) });
+
+/** A passkey, as its owner sees it in the list. */
+export interface PasskeyInfo {
+  id: string;
+  name: string;
+  /** Synced to the person's other devices (a password manager, the phone's keychain). */
+  backedUp: boolean;
+  lastUsedAt: string | null;
+  createdAt: string;
+}
+
+/** What the account page shows about passkeys. */
+export interface PasskeysStatus {
+  /** Passkeys need HTTPS (or localhost) and the address set in APP_URL. */
+  available: boolean;
+  /** The address passkeys are tied to (the origin of APP_URL). */
+  origin: string;
+  passkeys: PasskeyInfo[];
+}
+
 export const createInvitationInput = z.object({
   email: emailSchema.optional(),
   role: z.enum(MEMBER_ROLES).default("member"),

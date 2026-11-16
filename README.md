@@ -72,6 +72,8 @@ offline use and the Notion import.
 - Sign in / sign out, secure sessions (httpOnly cookie, argon2 password hashes).
 - Two-factor authentication with an authenticator app (6-digit codes), with recovery codes; administrators can
   turn it off for someone who lost their phone.
+- Passkeys (fingerprint, face, phone, password manager or security key): sign in without typing anything; a passkey
+  counts as both steps of two-factor authentication, and the password still works.
 - Invitations by link (valid 7 days, optionally restricted to one email), admin / member roles, account disabling.
 - Guests: people from outside invited on one page from its share window, who only see the pages shared with them
   (no spaces, no people directory, no API tokens); administrators list them apart, make them members or forbid them.

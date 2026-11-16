@@ -199,6 +199,19 @@ People can sign in with their company account (Microsoft Entra ID, Google Worksp
 Connect provider), set in **Administration > Single sign-on (SSO)**, and SCIM lets the provider disable those who
 leave. The server must reach the provider over HTTPS. See [SSO.md](SSO.md) for the steps in Entra ID.
 
+## Passkeys
+
+Everyone can add passkeys in **My account > Passkeys** (fingerprint, face, the phone's screen lock, a password
+manager or a security key) and then use **Sign in with a passkey** on the sign-in page, with no e-mail, password or
+code to type. A passkey counts as both steps of two-factor authentication; the password keeps working beside it.
+
+Browsers only hand out passkeys over **HTTPS** (or on `localhost`), and only to the address they were made on: the
+host name of `APP_URL` (`mynootion.example.com` for `https://mynootion.example.com`). So set `APP_URL` to the exact
+`https://…` address people type. Over plain HTTP the sign-in page shows no passkey button and My account says why;
+opened at another address than `APP_URL`, My account says which one to use. Changing the host name later makes the
+passkeys already added stop working (people add them again; their password still works). Where SSO is required for
+everyone, a passkey signs in only those who may still use a password (administrators).
+
 ## Sending e-mail
 
 Nootion sends nothing by e-mail until an administrator sets it up in **Administration > E-mail**:
