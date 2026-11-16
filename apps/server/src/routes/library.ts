@@ -6,7 +6,7 @@ import { pagePermissions, pages, users, workspaceMembers, workspaces } from "../
 import { requireUser } from "../http.js";
 import { scopeAllows } from "../api-tokens.js";
 import { getChain, isTrashed } from "../permissions.js";
-import { getPageMeta, listDescendants, listWorkspacePages, notRow, toSummary, type PageMeta } from "../pages.js";
+import { getPageMeta, listDescendants, listWorkspacePages, inTree, toSummary, type PageMeta } from "../pages.js";
 import { homePageOf } from "../home.js";
 import type { ProseMirrorNode } from "../collab.js";
 
@@ -22,8 +22,8 @@ export function readablePages(db: Db, userId: string): PageMeta[] {
   for (const { pageId } of grants) {
     if (byId.has(pageId) || isTrashed(getChain(db, pageId))) continue;
     const root = getPageMeta(db, pageId);
-    if (root && notRow(root)) byId.set(root.id, root);
-    for (const d of listDescendants(db, pageId).filter(notRow)) byId.set(d.id, d);
+    if (root && inTree(root)) byId.set(root.id, root);
+    for (const d of listDescendants(db, pageId).filter(inTree)) byId.set(d.id, d);
   }
   const home = homePageOf(db, userId);
   if (home) byId.delete(home);

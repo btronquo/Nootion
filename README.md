@@ -95,6 +95,8 @@ offline use and the Notion import.
 - Code blocks coloured by their language (about 35, chosen or guessed), with a copy button and line wrapping.
 - Equations in LaTeX, in a line (`$…$`) or as a centred block (`/equation`), edited with a live preview and kept in
   Markdown export and import. See [docs/EDITOR.md](docs/EDITOR.md#equations).
+- Synced blocks: the same blocks in several pages, edited from any of them ("Turn into synced block", then paste it
+  elsewhere, or `/synced`). See [docs/EDITOR.md](docs/EDITOR.md#synced-blocks-the-same-content-in-several-pages).
 - Print a page or save it as PDF (Ctrl+P): only the page, toggles open, every row of its databases, optional new
   sheet before headings. See [docs/EDITOR.md](docs/EDITOR.md).
 - Images open full screen when clicked, to go through a page's images.

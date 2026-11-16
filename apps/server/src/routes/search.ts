@@ -16,7 +16,7 @@ import {
 } from "@nootion/shared";
 import { HttpError, notFound, parseBody, requireUser } from "../http.js";
 import { getChain, isTrashed, roleFromChain } from "../permissions.js";
-import { savedSearches } from "../db/schema.js";
+import { pages, savedSearches } from "../db/schema.js";
 import type { Db } from "../db/index.js";
 import { refreshCellsText } from "../search-index.js";
 
@@ -79,7 +79,8 @@ type Row = {
   id: string;
   title: string;
   icon: string | null;
-  kind: "page" | "database" | "row";
+  kind: "page" | "database" | "row" | "block";
+  parentId?: string | null;
   body?: string;
   cells?: string;
   titleSnippet?: string;
@@ -102,7 +103,7 @@ function findCandidates(db: Db, query: string | null, filters: SearchFilters): R
       const c = conditions(filters, false);
       rows = client
         .prepare(
-          `SELECT f.page_id AS id, p.title, p.icon, p.kind, p.updated_at AS updatedAt,
+          `SELECT f.page_id AS id, p.title, p.icon, p.kind, p.parent_id AS parentId, p.updated_at AS updatedAt,
                   snippet(pages_fts, 1, char(1), char(2), '…', 14) AS titleSnippet,
                   snippet(pages_fts, 2, char(1), char(2), '…', 14) AS body,
                   snippet(pages_fts, 3, char(1), char(2), '…', 14) AS cells,
@@ -119,7 +120,7 @@ function findCandidates(db: Db, query: string | null, filters: SearchFilters): R
       const c = conditions(filters, true);
       files = client
         .prepare(
-          `SELECT p.id, p.title, p.icon, p.kind, p.updated_at AS updatedAt, f.attachment_id AS fileId, a.filename AS fileName,
+          `SELECT p.id, p.title, p.icon, p.kind, p.parent_id AS parentId, p.updated_at AS updatedAt, f.attachment_id AS fileId, a.filename AS fileName,
                   snippet(attachments_fts, 3, char(1), char(2), '…', 14) AS snippet, bm25(attachments_fts, 0, 0, 4, 1) AS score
              FROM attachments_fts f JOIN attachments a ON a.id = f.attachment_id JOIN pages p ON p.id = a.page_id
             WHERE attachments_fts MATCH ? AND ${c.where}
@@ -139,7 +140,7 @@ function findCandidates(db: Db, query: string | null, filters: SearchFilters): R
         `SELECT p.id, p.title, p.icon, p.kind, p.updated_at AS updatedAt, -p.updated_at AS score,
                 substr(coalesce(p.content_text, ''), 1, 160) AS body, substr(coalesce(p.cells_text, ''), 1, 160) AS cells
            FROM pages p
-          WHERE ${c.where} AND p.template = 0
+          WHERE ${c.where} AND p.template = 0 AND p.kind <> 'block'
           ORDER BY p.updated_at DESC
           LIMIT ${CANDIDATES}`,
       )
@@ -149,7 +150,7 @@ function findCandidates(db: Db, query: string | null, filters: SearchFilters): R
     const c = conditions(filters, true);
     files = client
       .prepare(
-        `SELECT p.id, p.title, p.icon, p.kind, p.updated_at AS updatedAt, a.id AS fileId, a.filename AS fileName,
+        `SELECT p.id, p.title, p.icon, p.kind, p.parent_id AS parentId, p.updated_at AS updatedAt, a.id AS fileId, a.filename AS fileName,
                 -a.created_at AS score, '' AS snippet
            FROM attachments a JOIN pages p ON p.id = a.page_id
           WHERE ${c.where}
@@ -190,7 +191,11 @@ export const searchRoutes: FastifyPluginAsync = async (app) => {
 
     const results: SearchResult[] = [];
     const seen = new Set<string>();
-    for (const r of merged) {
+    for (const found of merged) {
+      // Words found in a synced block lead to the page where it lives.
+      const host = found.kind === "block" && found.parentId ? db.select().from(pages).where(eq(pages.id, found.parentId)).get() : null;
+      if (found.kind === "block" && (!host || host.kind === "block")) continue;
+      const r: Row = host ? { ...found, id: host.id, title: host.title, icon: host.icon, kind: host.kind, titleSnippet: undefined } : found;
       const key = r.fileId ?? r.id;
       if (seen.has(key)) continue;
       seen.add(key);
@@ -202,7 +207,7 @@ export const searchRoutes: FastifyPluginAsync = async (app) => {
         id: r.id,
         title: r.title,
         icon: r.icon,
-        kind: r.kind,
+        kind: r.kind as SearchResult["kind"],
         path: parents.map((c) => c.title || t("common.untitled")).reverse(),
         ...describe(r),
         updatedAt: new Date(r.updatedAt).toISOString(),

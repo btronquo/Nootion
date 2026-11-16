@@ -26,7 +26,7 @@ import {
   requirePageRole,
   requireWorkspaceRole,
 } from "../permissions.js";
-import { breadcrumbFor, getPageMeta, notRow, pageMeta, listDescendants, nextPosition, placeAmongSiblings, sortPages, toDetail, toSummary } from "../pages.js";
+import { breadcrumbFor, getPageMeta, inTree, pageMeta, listDescendants, nextPosition, placeAmongSiblings, sortPages, toDetail, toSummary } from "../pages.js";
 import { t } from "@nootion/shared";
 import { homePageOf, recordVisit } from "../home.js";
 import { copyTree } from "../templates.js";
@@ -39,6 +39,7 @@ import { toMarkdown } from "../markdown.js";
 import { fromAutomation, rowSnapshot } from "../automations.js";
 import { checkContent, parseMarkdown } from "../markdown-in.js";
 import { assertUnlocked, lockedError } from "../locks.js";
+import { canReadSynced, inlineSyncedBlocks } from "../synced-blocks.js";
 
 const contentBody = z.object({ markdown: z.string().max(2_000_000).optional(), content: z.unknown().optional() }).passthrough();
 
@@ -100,7 +101,11 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     if (page.kind === "database") throw new HttpError(400, "not_a_page", t("error.notAPage"));
     const content = readContent(app.collab, db, page.id);
     const base = app.config.appUrl;
-    const markdown = toMarkdown(content, { file: (id) => `${base}/api/attachments/${id}`, page: (id) => `${base}/page/${id}` });
+    // Synced blocks are written out in the Markdown; the JSON keeps them as they are.
+    const markdown = toMarkdown(inlineSyncedBlocks(db, content, canReadSynced(db, user.id)), {
+      file: (id) => `${base}/api/attachments/${id}`,
+      page: (id) => `${base}/page/${id}`,
+    });
     return { id: page.id, title: page.title, markdown, content };
   });
 
@@ -159,7 +164,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     for (const id of roots) {
       const root = getPageMeta(db, id)!;
       result.push({ ...toSummary(root), parentId: null, shared: true });
-      for (const d of listDescendants(db, id).filter(notRow)) result.push({ ...toSummary(d), shared: false });
+      for (const d of listDescendants(db, id).filter(inTree)) result.push({ ...toSummary(d), shared: false });
     }
     return { pages: result };
   });

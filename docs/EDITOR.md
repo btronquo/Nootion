@@ -108,6 +108,34 @@ Typical use: one "Tasks" database, and in each project page a view of it showing
   Duplicating the page, or making pages from a template, copies the linked view with its filters.
 - A linked view's views belong to its page: locking the database doesn't freeze them, locking the page does.
 
+## Synced blocks: the same content in several pages
+
+A **synced block** shows the same blocks in several pages: a notice, a checklist, a list of contacts written once and
+kept up to date everywhere. Editing it in any page changes it in all of them, live.
+
+- In a block's menu (the dots left of it), **Turn into synced block** (*Synchroniser ce bloc* in French) turns that block into a
+  synced block in place. A list item takes its whole list with it.
+- **Copy synced block**, in the block's menu or in the bar that appears when the mouse is over it, copies it: paste
+  it in another page and both copies show the same content. Copying it with the keyboard (select it with its dots,
+  then Ctrl+C) works too.
+- **/synced** (or *Synced block* in the "/" menu) makes a new, empty synced block, or shows one already used
+  elsewhere: the list shows the start of each one and the page it comes from, and can be searched.
+- A synced block has a thin orange frame when the mouse is over it, and its bar says **Synced in 3 pages**: a click
+  lists those pages, the one it lives in marked "original".
+- Removing a copy leaves the others as they are. **Unsync** turns one copy into ordinary blocks, with the content it
+  had; the other copies stay synced.
+- Its content lives in the page where it was made: someone who can read the page showing it but not that page sees
+  "No access to this content" instead. Moving that page to the trash does the same for the copies elsewhere, until
+  it is restored.
+- Inside a synced block, the "/" menu has everything except new subpages, databases and synced blocks.
+- Search finds the words of a synced block and leads to the page where it lives; a link inside it counts as a link
+  from that page. Exports, public pages and the Markdown of the API write its content in each page that shows it
+  (a public page only shows it if whoever made the link can read it). Duplicating a page, or making one from a
+  template, copies the synced blocks made in it as new ones. Synced blocks work offline and with the desktop app like
+  any page.
+- The import from other tools keeps synced blocks synced: the original and its copies become one synced block. A copy
+  whose original was left out of the import becomes the original.
+
 ## Command palette (Ctrl+K)
 
 **Ctrl+K** (⌘K on a Mac), or *Search* in the sidebar, opens one box for both finding pages and doing things.

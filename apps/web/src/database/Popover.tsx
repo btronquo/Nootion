@@ -21,7 +21,8 @@ export function Popover({ anchor, onClose, children, width: wanted = 260 }: { an
     };
     place();
     // The anchor can grow while the panel is open (an equation drawn as it is typed): the panel follows it.
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(place);
+    // Only a real element: the block menu anchors to a fixed spot (an object with a rectangle), not observable.
+    const observer = typeof ResizeObserver === "undefined" || !(anchor instanceof Element) ? null : new ResizeObserver(place);
     observer?.observe(anchor);
     return () => observer?.disconnect();
   }, [anchor, width]);

@@ -367,7 +367,7 @@ const NODES = new Set([
   "codeBlock", "horizontalRule", "table", "tableRow", "tableHeader", "tableCell", "image", "callout", "details", "detailsSummary",
   "detailsContent", "columns", "column", "fileAttachment", "pageLink", "dateMention", "userMention", "databaseBlock", "calendarBlock", "tableOfContents",
   "recentPages", "favoritesList", "tasksList", "upcomingEvents", "databaseRows", "buttonBlock", "chart", "progressBar", "countdown", "pomodoro",
-  "habitTracker", "clock", "weather", "quoteOfDay", "imageCarousel", "drawing", "video", "mathInline", "mathBlock",
+  "habitTracker", "clock", "weather", "quoteOfDay", "imageCarousel", "drawing", "video", "mathInline", "mathBlock", "syncedBlock",
 ]);
 const MARKS = new Set(["bold", "italic", "strike", "underline", "code", "link", "textColor", "highlight"]);
 /** Marks whose only attribute is one of the blocks' colors, never a free CSS value. */

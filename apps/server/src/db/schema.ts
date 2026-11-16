@@ -124,8 +124,9 @@ export const pages = sqliteTable(
       .notNull()
       .references(() => workspaces.id, { onDelete: "cascade" }),
     parentId: text("parent_id"),
-    // "database": the page is a database (its rows are its children). "row": a database row.
-    kind: text("kind", { enum: ["page", "database", "row"] })
+    // "database": the page is a database (its rows are its children). "row": a database row. "block": the content of a
+    // synced block, under the page where it was made (synced-blocks.ts).
+    kind: text("kind", { enum: ["page", "database", "row", "block"] })
       .notNull()
       .default("page"),
     title: text("title").notNull().default(""),

@@ -34,6 +34,7 @@ import { Highlight, TextColor } from "./textColors";
 import { NootionCodeBlock } from "./codeBlock";
 import { MathBlock, MathInline } from "./mathNodes";
 import { RepeatingTaskItem, TaskRepeatExtension } from "./taskRepeat";
+import { SyncedBlock } from "./syncedBlock";
 import { t } from "@nootion/shared";
 
 /** Extensions shared by the collaborative editor and the read-only public view. Keep both schemas identical. */
@@ -46,6 +47,8 @@ export function baseExtensions(opts: {
   pageId?: string;
   /** Opens a path of this site in the app, when a text link to it is clicked. */
   navigate?: (path: string) => void;
+  /** Inside a synced block: the synced blocks it is in (see SyncedBlock). */
+  syncedAncestors?: string[];
 }): AnyExtension[] {
   return [
     StarterKit.configure({
@@ -55,6 +58,8 @@ export function baseExtensions(opts: {
       heading: { levels: [1, 2, 3] },
       // Replaced below by the one with colours and a language menu.
       codeBlock: false,
+      // A synced block ends with its last block, without the empty line pages keep at their end.
+      ...(opts.syncedAncestors?.length ? { trailingNode: false as const } : {}),
     }),
     TextColor,
     Highlight,
@@ -84,6 +89,7 @@ export function baseExtensions(opts: {
     Drawing,
     ButtonBlock.configure({ pageId: opts.publicToken ? null : (opts.pageId ?? null) }),
     Video.configure({ pageId: opts.publicToken ? null : (opts.pageId ?? null) }),
+    SyncedBlock.configure({ pageId: opts.publicToken ? null : (opts.pageId ?? null), ancestors: opts.syncedAncestors ?? [] }),
     ...WIDGETS.map((w) => w.configure({ publicToken: opts.publicToken ?? null, pageId: opts.publicToken ? null : (opts.pageId ?? null) })),
     WidgetCommands,
     ...pluginNodes(opts.plugins, opts.publicToken ? null : (opts.pageId ?? null)),

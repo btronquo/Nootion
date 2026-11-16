@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   atLeast,
   CUSTOM_ICON_PREFIX,
@@ -26,7 +26,7 @@ import { attachments, customIcons, databaseProperties, databaseViews, notionLink
 import { imageExtension } from "../images.js";
 import { iconsDir } from "../routes/icons.js";
 import { attachmentPath, uploadsDir } from "../attachments.js";
-import { writeContent, type Collab } from "../collab.js";
+import { writeContent, type Collab, type ProseMirrorNode } from "../collab.js";
 import { assignUniqueIds, checkFormula, listProperties } from "../databases.js";
 import { nextPosition } from "../pages.js";
 import { getPageRole } from "../permissions.js";
@@ -682,6 +682,31 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
     db.update(pages).set({ cover: value }).where(eq(pages.id, page.id)).run();
   }
 
+  // Synced blocks, by the Notion id of their original: the hidden page holding their content (synced-blocks.ts), kept
+  // from one import to the next. A copy whose original isn't imported (in a page left out) becomes the original.
+  const synced = new Map<string, { id: string; made: boolean; fallback?: { hostId: string; content: ProseMirrorNode[] } }>();
+  const placeSynced = async (key: string, entry: { id: string }, hostId: string, content: ProseMirrorNode[]) => {
+    const host = db.select({ workspaceId: pages.workspaceId }).from(pages).where(eq(pages.id, hostId)).get()!;
+    const exists = db.select({ id: pages.id }).from(pages).where(and(eq(pages.id, entry.id), eq(pages.kind, "block"))).get();
+    if (exists) db.update(pages).set({ parentId: hostId, workspaceId: host.workspaceId, deletedAt: null }).where(eq(pages.id, entry.id)).run();
+    else db.insert(pages).values({ id: entry.id, workspaceId: host.workspaceId, parentId: hostId, kind: "block", title: "", createdBy: o.userId }).run();
+    await writeContent(o.collab, db, entry.id, { type: "doc", content: content.length ? content : [{ type: "paragraph" }] });
+    db.insert(notionLinks)
+      .values({ workspaceId: o.workspaceId, notionId: key, pageId: entry.id, notionEditedAt: null })
+      .onConflictDoUpdate({ target: [notionLinks.workspaceId, notionLinks.notionId], set: { pageId: entry.id } })
+      .run();
+  };
+  const syncedFor = (hostId: string) => async (originalId: string, original: boolean, content: ProseMirrorNode[]) => {
+    const key = `synced:${normId(originalId)}`;
+    let entry = synced.get(key);
+    if (!entry) synced.set(key, (entry = { id: links.get(key)?.pageId ?? randomUUID(), made: false }));
+    if (original && !entry.made) {
+      await placeSynced(key, entry, hostId, content);
+      entry.made = true;
+    } else if (!original && !entry.made && !entry.fallback) entry.fallback = { hostId, content };
+    return entry.id;
+  };
+
   const withContent = [...items.entries()].filter(([id, item]) => item.kind !== "database" && target.get(id)!.changed);
   step("content", withContent.length);
   for (const [id, item] of withContent) {
@@ -696,10 +721,12 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
       },
       saveFile: (url, name) => saveFile(pageId, url, name),
       note: (what, detail) => note(what, at(id, { info: detail?.info }, detail?.blockId)),
+      synced: syncedFor(pageId),
     });
     await writeContent(o.collab, db, pageId, doc);
     job.done++;
   }
+  for (const [key, entry] of synced) if (!entry.made && entry.fallback) await placeSynced(key, entry, entry.fallback.hostId, entry.fallback.content);
 
   // --- 6. Remembered for the next import, as finished ----------------------------------------------
   for (const [id, item] of items) {
