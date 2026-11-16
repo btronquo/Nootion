@@ -1,7 +1,7 @@
 # Writing, finding and printing
 
 This page explains, for everyday users, the editor and search features that are not obvious at first sight: text
-colours, code blocks, the list of all your to-dos, the command palette, search filters and saved searches, and
+colours, code blocks, equations, the list of all your to-dos, the command palette, search filters and saved searches, and
 printing a page or saving it as PDF. Importing Markdown, HTML, Word or CSV files is described in
 [DEPLOYMENT.md](DEPLOYMENT.md#importing-from-files).
 
@@ -26,6 +26,30 @@ Type ` ``` ` or choose *Code* in the "/" menu. The menu above the block picks th
 
 Each language is downloaded the first time a block uses it, so pages without code load nothing more. Public pages
 show the colours too. Code blocks imported from Markdown (` ```python `) or from other tools keep their language.
+
+## Equations
+
+Equations are written in LaTeX and drawn as they would be on paper.
+
+- **A block equation**, centred on its own line: type `$$` then a space at the start of an empty line, or choose
+  *Equation* in the "/" menu. Its editor opens at once.
+- **An equation in a line of text**: type it between dollars, `$\pi r^2$`; the closing `$` turns it into an
+  equation. *Inline equation* in the "/" menu does the same. Prices are left alone: in "between $5 and $10" nothing
+  changes, because an equation may not start or end with a space and a `$` followed by a digit does not close one.
+  Type `\$` for a dollar that should never start an equation.
+- **Click an equation** (or select it and press Enter) to change it: a small editor shows the LaTeX and the drawing
+  as you type. A mistake is explained under it ("Expected '}'…") and the equation shows its LaTeX in red until it is
+  fixed. Enter closes the editor of an inline equation; a block takes several lines and closes with Ctrl+Enter (⌘↩)
+  or *Done*. An equation left empty is removed.
+
+The drawing library is downloaded the first time a page shows an equation, so pages without one load nothing more.
+Equations show on public pages, in the history, in print and in the dark theme. Search finds a page by the LaTeX of
+its equations. For safety, commands that would make links or add HTML (`\href`, `\url`, `\includegraphics`…)
+are not drawn.
+
+In Markdown (export, import, API), an inline equation is written `$…$` and a block between two `$$` lines;
+` ```math ` blocks are read as equations too. Equations from other tools' exports (HTML pages drawn with KaTeX, the
+API import) are kept as equations.
 
 ## Tasks: all your to-dos in one list
 

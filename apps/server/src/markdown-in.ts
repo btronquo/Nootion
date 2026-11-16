@@ -39,6 +39,9 @@ type Opts = MarkdownInOptions & { extended: boolean };
 const BASIC: Opts = { extended: false };
 const opts = (o?: MarkdownInOptions): Opts => (o ? { ...o, extended: true } : BASIC);
 
+/** "$…$" (Pandoc's rule): no space just inside the dollars, and no digit just after the closing one. */
+const INLINE_MATH = /^\$((?:[^\s$\\]|\\.)(?:(?:[^$\\\n]|\\.)*?(?:[^\s$\\]|\\.))?)\$(?![\d$])/;
+
 const linkMark = (href: string): Mark => ({ type: "link", attrs: { href, target: "_blank", rel: "noopener noreferrer nofollow", class: null } });
 const IMAGE_TYPES = /^image\/(png|jpeg|gif|webp|avif|svg\+xml)$/;
 
@@ -62,12 +65,17 @@ function inlineNodes(src: string, marks: Mark[], o: Opts): ProseMirrorNode[] {
   while (i < src.length) {
     const rest = src.slice(i);
     let m: RegExpMatchArray | null;
-    if (rest[0] === "\\" && rest.length > 1 && /[\\`*_~[\]()#>!|-]/.test(rest[1]!)) {
+    if (rest[0] === "\\" && rest.length > 1 && /[\\`*_~[\]()#>!|$-]/.test(rest[1]!)) {
       plain += rest[1];
       i += 2;
     } else if ((m = rest.match(/^`([^`]+)`/))) {
       flush();
       out.push(text(m[1]!, [...marks, { type: "code" }]));
+      i += m[0].length;
+    } else if ((m = rest.match(INLINE_MATH))) {
+      // $x^2$: an equation in the line. Not "$5 and $10" (no space just inside the "$", no digit just after).
+      flush();
+      out.push({ type: "mathInline", attrs: { latex: m[1]! } });
       i += m[0].length;
     } else if (o.extended && (m = rest.match(/^!?\[\[([^\]|#\n]+)(?:#[^\]|\n]*)?(?:\|([^\]\n]+))?\]\]/))) {
       // [[Page]], [[Page|shown text]], [[Page#Heading]], ![[file.png]] in a line.
@@ -186,7 +194,18 @@ function parseBlocks(lines: string[], o: Opts = BASIC): ProseMirrorNode[] {
       while (i < lines.length && !lines[i]!.trim().startsWith(fence)) body.push(lines[i++]!);
       i++;
       const code = body.join("\n");
+      // ```math, as GitHub writes equations: an equation block.
+      if (m[2]!.toLowerCase() === "math") {
+        out.push({ type: "mathBlock", attrs: { latex: code.trim() } });
+        continue;
+      }
       out.push({ type: "codeBlock", attrs: { language: m[2] || null }, ...(code ? { content: [{ type: "text", text: code }] } : {}) });
+    } else if (/^\s*\$\$/.test(line) && mathBlockEnd(lines, i) >= 0) {
+      // $$ … $$, on one line or several: an equation block.
+      const end = mathBlockEnd(lines, i);
+      const body = lines.slice(i, end + 1).join("\n").trim();
+      out.push({ type: "mathBlock", attrs: { latex: body.slice(2, -2).trim() } });
+      i = end + 1;
     } else if ((m = line.match(/^(#{1,6})\s+(.*?)\s*#*\s*$/))) {
       const content = parseInline(m[2]!);
       out.push({ type: "heading", attrs: { level: Math.min(3, m[1]!.length) }, ...(content.length ? { content } : {}) });
@@ -276,7 +295,7 @@ function parseBlocks(lines: string[], o: Opts = BASIC): ProseMirrorNode[] {
     } else {
       // A line no other block took (an image with a refused address, a lone "|") is text.
       const body: string[] = [lines[i++]!.trimStart()];
-      while (i < lines.length && lines[i]!.trim() && !/^(\s*(```|~~~|#{1,6}\s|>|\|)|\s*!\[)/.test(lines[i]!) && !LIST_ITEM.test(lines[i]!))
+      while (i < lines.length && lines[i]!.trim() && !/^(\s*(```|~~~|#{1,6}\s|>|\||\$\$)|\s*!\[)/.test(lines[i]!) && !LIST_ITEM.test(lines[i]!))
         body.push(lines[i++]!.trimStart());
       // Two spaces or a backslash at the end of a line: a line break; otherwise lines join with a space.
       out.push(
@@ -285,6 +304,18 @@ function parseBlocks(lines: string[], o: Opts = BASIC): ProseMirrorNode[] {
     }
   }
   return out;
+}
+
+/** The line closing a "$$" equation opened at line `start` (the same line when it ends with "$$"), or -1. */
+function mathBlockEnd(lines: string[], start: number): number {
+  const first = lines[start]!.trim();
+  if (first.length > 4 && first.endsWith("$$")) return start;
+  for (let j = start + 1; j < lines.length && j < start + 200; j++) {
+    const l = lines[j]!.trim();
+    if (l.endsWith("$$")) return j;
+    if (!l) return -1; // an empty line: not an equation
+  }
+  return -1;
 }
 
 /** A list starting at line `start`, with its nested lists: bullets, numbers or to-dos ("- [ ]", "- [x]"). */
@@ -336,12 +367,15 @@ const NODES = new Set([
   "codeBlock", "horizontalRule", "table", "tableRow", "tableHeader", "tableCell", "image", "callout", "details", "detailsSummary",
   "detailsContent", "columns", "column", "fileAttachment", "pageLink", "dateMention", "userMention", "databaseBlock", "calendarBlock", "tableOfContents",
   "recentPages", "favoritesList", "tasksList", "upcomingEvents", "databaseRows", "buttonBlock", "chart", "progressBar", "countdown", "pomodoro",
-  "habitTracker", "clock", "weather", "quoteOfDay", "imageCarousel", "drawing", "video",
+  "habitTracker", "clock", "weather", "quoteOfDay", "imageCarousel", "drawing", "video", "mathInline", "mathBlock",
 ]);
 const MARKS = new Set(["bold", "italic", "strike", "underline", "code", "link", "textColor", "highlight"]);
 /** Marks whose only attribute is one of the blocks' colors, never a free CSS value. */
 const COLOR_MARKS = new Set(["textColor", "highlight"]);
 const isOptionColor = (c: unknown) => typeof c === "string" && (OPTION_COLORS as readonly string[]).includes(c);
+
+/** Longest equation kept, as in the editor. */
+const MAX_LATEX = 10_000;
 
 export class ContentError extends Error {}
 
@@ -374,6 +408,8 @@ export function checkContent(json: unknown, userId: string, maxNodes = 20_000): 
       for (const key of ["src", "url", "href"]) if (key in attrs && attrs[key] !== null && !SAFE_URL.test(String(attrs[key]))) attrs[key] = null;
       // A mention sent through the API is the sender's.
       if (n.type === "userMention") attrs = { ...attrs, id: typeof attrs.id === "string" && attrs.id ? attrs.id : randomUUID(), by: userId };
+      // An equation is its LaTeX, as text: never longer than the editor draws.
+      if (n.type === "mathInline" || n.type === "mathBlock") attrs = { latex: typeof attrs.latex === "string" ? attrs.latex.slice(0, MAX_LATEX) : "" };
       if (n.type === "dateMention") {
         attrs.id = randomUUID();
         if (attrs.remindUser !== userId) attrs = { ...attrs, reminder: null, remindAt: null, remindUser: null };

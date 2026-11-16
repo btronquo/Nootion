@@ -40,6 +40,8 @@ import {
   Brush,
   Film,
   Workflow,
+  Sigma,
+  Radical,
 } from "lucide-react";
 import { currentLocale, parseNaturalDate, pluginNodeName, type ClientPluginInfo, type PageSummary, type UserDirectoryEntry } from "@nootion/shared";
 import { formatMentionDate } from "../lib/reminders";
@@ -95,6 +97,14 @@ export function slashItems(ctx: CommandContext) {
       <Workflow size={16} />,
       (e, r) => del(e, r).setCodeBlock({ language: "mermaid" }).insertContent({ type: "text", text: t("mermaid.sample") }).run(),
       "diagram flowchart chart sequence graph gantt schema",
+    ),
+    item("Equation", t("command.equation"), <Sigma size={16} />, (e, r) => del(e, r).insertMathBlock().run(), "math maths latex formula formule katex équation tex"),
+    item(
+      "Inline equation",
+      t("command.inlineEquation"),
+      <Radical size={16} />,
+      (e, r) => del(e, r).insertMathInline().run(),
+      "math maths latex formula formule katex équation tex inline ligne",
     ),
     item("Table", t("command.table"), <Table size={16} />, (e, r) => del(e, r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(), "grid"),
     item("Divider", t("command.divider"), <Minus size={16} />, (e, r) => del(e, r).setHorizontalRule().run(), "hr separator"),

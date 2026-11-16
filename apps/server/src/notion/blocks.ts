@@ -15,15 +15,13 @@ export interface ConvertContext {
   note: (what: string, detail?: { blockId?: string; info?: string }) => void;
 }
 
-const short = (s: string, max = 80) => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
-
 type Mark = { type: string; attrs?: Record<string, unknown> };
 
 const text = (s: string, marks: Mark[] = []): ProseMirrorNode => (marks.length ? { type: "text", text: s, marks } : { type: "text", text: s });
 const paragraph = (content: ProseMirrorNode[] = []): ProseMirrorNode => (content.length ? { type: "paragraph", content } : { type: "paragraph" });
 
 /** Notion's rich text as inline nodes: marks, links, and mentions of pages turned into links to the imported pages. */
-export function richText(items: RichText[] | undefined, ctx: Pick<ConvertContext, "pageFor" | "note">, blockId?: string): ProseMirrorNode[] {
+export function richText(items: RichText[] | undefined, ctx: Pick<ConvertContext, "pageFor" | "note">): ProseMirrorNode[] {
   const out: ProseMirrorNode[] = [];
   for (const item of Array.isArray(items) ? items : []) {
     const a = item.annotations ?? { bold: false, italic: false, strikethrough: false, underline: false, code: false, color: "default" };
@@ -53,7 +51,11 @@ export function richText(items: RichText[] | undefined, ctx: Pick<ConvertContext
       out.push({ type: "dateMention", attrs: { id: randomUUID(), date: m[2] ? `${m[1]}T${m[2]}` : m[1], reminder: null, remindAt: null, remindUser: null } });
       continue;
     }
-    if (item.type === "equation") ctx.note("equation", { blockId, info: short(item.plain_text ?? "") });
+    if (item.type === "equation") {
+      const latex = item.equation?.expression ?? item.plain_text ?? "";
+      if (latex.trim()) out.push({ type: "mathInline", attrs: { latex } });
+      continue;
+    }
     // Notion's own links to its pages point to the imported page.
     const internal = href && /^\/[0-9a-f]{32}(\?|#|$)/.test(href) ? ctx.pageFor(href.slice(1, 33)) : null;
     if (internal) {
@@ -126,7 +128,7 @@ function toggle(summary: ProseMirrorNode[], content: ProseMirrorNode[], level?: 
 
 async function convertBlock(block: BlockTree, ctx: ConvertContext): Promise<ProseMirrorNode[]> {
   const data = (block[block.type] ?? {}) as { rich_text?: RichText[]; color?: string; [key: string]: unknown };
-  const inline = () => richText(data.rich_text, ctx, block.id);
+  const inline = () => richText(data.rich_text, ctx);
   const note = (what: string, info?: string) => ctx.note(what, { blockId: block.id, ...(info ? { info } : {}) });
   const children = () => convertBlocks(block.children ?? [], ctx);
 
@@ -175,8 +177,8 @@ async function convertBlock(block: BlockTree, ctx: ConvertContext): Promise<Pros
       return [{ type: "codeBlock", attrs: { language }, ...(code ? { content: [text(code)] } : {}) }];
     }
     case "equation": {
-      note("equation", short(String(data.expression ?? "")));
-      return [{ type: "codeBlock", attrs: { language: "latex" }, content: [text(String(data.expression ?? ""))] }];
+      const latex = String(data.expression ?? "");
+      return latex.trim() ? [{ type: "mathBlock", attrs: { latex } }] : [];
     }
     case "divider":
       return [{ type: "horizontalRule" }];
@@ -261,7 +263,7 @@ async function convertBlock(block: BlockTree, ctx: ConvertContext): Promise<Pros
             type: "tableRow",
             content: ((row.table_row as { cells: RichText[][] }).cells ?? []).map((cell) => ({
               type: hasHeader && i === 0 ? "tableHeader" : "tableCell",
-              content: [paragraph(richText(cell, ctx, block.id))],
+              content: [paragraph(richText(cell, ctx))],
             })),
           })),
         },

@@ -7,7 +7,7 @@ type Mark = { type: string; attrs?: Record<string, unknown> };
 const SAFE_URL = /^(https?:\/\/|mailto:|\/api\/attachments\/)/i;
 const IMAGE_TYPES = /^image\/(png|jpeg|gif|webp|avif|svg\+xml)$/;
 const VIDEO_TYPES = /^video\/(mp4|webm)$/;
-const INLINE_TYPES = new Set(["text", "hardBreak", "pageLink"]);
+const INLINE_TYPES = new Set(["text", "hardBreak", "pageLink", "mathInline"]);
 
 export interface HtmlInOptions {
   links?: MarkdownLinks;
@@ -142,6 +142,8 @@ function element(el: HTMLElement, marks: Mark[], o: HtmlInOptions): ProseMirrorN
     if (tag === "input" || tag === "button" || tag === "select" || tag === "textarea") return [];
     return [];
   }
+  // An equation drawn by KaTeX (other tools' HTML exports, pages saved from the web): its LaTeX is kept beside the drawing.
+  if (hasClass(el, "katex") || hasClass(el, "katex-display") || (tag === "math" && el.querySelector("annotation"))) return equation(el);
   if (MARK_TAGS[tag]) return children(withMarks(marks, [{ type: MARK_TAGS[tag]! }]));
   if (CODE_TAGS.has(tag) && !(el.parentNode instanceof HTMLElement && el.parentNode.rawTagName?.toLowerCase() === "pre")) {
     const value = el.text.replace(/\s+/g, " ");
@@ -241,6 +243,20 @@ function element(el: HTMLElement, marks: Mark[], o: HtmlInOptions): ProseMirrorN
       // div, section, article, p, header, footer, main, aside, center, address, dd…: their content as blocks.
       return blocks();
   }
+}
+
+/** An equation of KaTeX or MathML, from the LaTeX it keeps in an <annotation>: a block when it is shown on its own. */
+function equation(el: HTMLElement): ProseMirrorNode[] {
+  const annotation = el.querySelectorAll("annotation").find((a) => /tex/i.test(a.getAttribute("encoding") ?? ""));
+  const latex = (annotation?.text ?? "").trim();
+  if (!latex) return [{ type: "text", text: el.text.replace(/\s+/g, " ") }].filter((n) => n.text.trim());
+  const display =
+    hasClass(el, "katex-display") ||
+    el.getAttribute("display") === "block" ||
+    !!el.closest(".katex-display") ||
+    !!el.closest("figure.equation") ||
+    !!el.querySelector("math[display=block]");
+  return [{ type: display ? "mathBlock" : "mathInline", attrs: { latex } }];
 }
 
 function anchor(el: HTMLElement, marks: Mark[], o: HtmlInOptions): ProseMirrorNode[] {
@@ -350,6 +366,7 @@ function flattenToParagraphs(n: ProseMirrorNode): ProseMirrorNode[] {
   if (n.type === "paragraph") return [n];
   if (n.type === "heading") return [{ type: "paragraph", ...(n.content ? { content: n.content } : {}) }];
   if (n.type === "codeBlock") return n.content ? [{ type: "paragraph", content: n.content }] : [];
+  if (n.type === "mathBlock") return [{ type: "paragraph", content: [{ type: "mathInline", attrs: n.attrs ?? {} }] }];
   return (n.content ?? []).flatMap(flattenToParagraphs);
 }
 

@@ -32,6 +32,7 @@ import { LinkClicks } from "./linkClicks";
 import { ImageViewer } from "./imageViewer";
 import { Highlight, TextColor } from "./textColors";
 import { NootionCodeBlock } from "./codeBlock";
+import { MathBlock, MathInline } from "./mathNodes";
 import { RepeatingTaskItem, TaskRepeatExtension } from "./taskRepeat";
 import { t } from "@nootion/shared";
 
@@ -58,6 +59,8 @@ export function baseExtensions(opts: {
     TextColor,
     Highlight,
     NootionCodeBlock,
+    MathInline,
+    MathBlock,
     TaskList,
     RepeatingTaskItem.configure({ nested: true }),
     TaskRepeatExtension,
