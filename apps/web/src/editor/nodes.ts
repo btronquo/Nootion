@@ -27,7 +27,7 @@ declare module "@tiptap/core" {
     callout: { setCallout: () => ReturnType };
     fileAttachment: { insertFile: (attrs: { url: string; name: string; size: number; mimeType: string }) => ReturnType };
     pageLink: { insertPageLink: (attrs: { pageId: string; title: string }) => ReturnType };
-    databaseBlock: { insertDatabase: (pageId: string) => ReturnType };
+    databaseBlock: { insertDatabase: (pageId: string) => ReturnType; insertLinkedView: () => ReturnType };
     calendarBlock: { insertCalendar: () => ReturnType };
     widget: { insertWidget: (name: WidgetName) => ReturnType };
     toggle: { insertToggle: (level?: 1 | 2 | 3) => ReturnType };
@@ -200,24 +200,31 @@ export const DateMention = Node.create({
 /**
  * Database shown inside a page. The database itself is a child page; this block only says where it
  * appears. `publicToken` switches the view to the read-only public API.
+ *
+ * A linked view (`linked`) shows a database that lives elsewhere, with views of its own: they belong to this block,
+ * named by `linkId` in the page being edited (`pageId`). Rows, columns and access are the database's.
  */
-export const DatabaseBlock = Node.create<{ publicToken: string | null }>({
+export const DatabaseBlock = Node.create<{ publicToken: string | null; pageId: string | null }>({
   name: "databaseBlock",
   group: "block",
   atom: true,
   draggable: true,
   selectable: true,
   addOptions() {
-    return { publicToken: null };
+    return { publicToken: null, pageId: null };
   },
   addAttributes() {
-    return { pageId: { default: null } };
+    return {
+      pageId: { default: null },
+      linked: { default: false, parseHTML: (el) => el.dataset.linked === "true", renderHTML: (a) => (a.linked ? { "data-linked": "true" } : {}) },
+      linkId: { default: null, parseHTML: (el) => el.dataset.linkId || null, renderHTML: (a) => (a.linkId ? { "data-link-id": a.linkId } : {}) },
+    };
   },
   parseHTML() {
     return [{ tag: "div[data-database]", getAttrs: (el) => ({ pageId: (el as HTMLElement).dataset.database || null }) }];
   },
-  renderHTML({ node }) {
-    return ["div", { "data-database": node.attrs.pageId ?? "" }, t("common.database")];
+  renderHTML({ node, HTMLAttributes }) {
+    return ["div", mergeAttributes(HTMLAttributes, { "data-database": node.attrs.pageId ?? "" }), node.attrs.linked ? t("linkedView.name") : t("common.database")];
   },
   addNodeView() {
     // The table handles its own clicks and keys.
@@ -229,6 +236,11 @@ export const DatabaseBlock = Node.create<{ publicToken: string | null }>({
         (pageId) =>
         ({ commands }) =>
           commands.insertContent([{ type: this.name, attrs: { pageId } }, { type: "paragraph" }]),
+      insertLinkedView:
+        () =>
+        ({ commands }) =>
+          // The database is chosen in the block.
+          commands.insertContent([{ type: this.name, attrs: { pageId: null, linked: true, linkId: randomId() } }, { type: "paragraph" }]),
     };
   },
 });

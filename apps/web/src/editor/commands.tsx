@@ -159,6 +159,13 @@ export function slashItems(ctx: CommandContext) {
       "db table",
     ),
     item(
+      "Linked view",
+      t("command.linkedView"),
+      <Link2 size={16} />,
+      (e, r) => del(e, r).insertLinkedView().run(),
+      "linked database view existing filtered vue liée base existante filtrée lien",
+    ),
+    item(
       "Button",
       t("command.button"),
       <MousePointerClick size={16} />,

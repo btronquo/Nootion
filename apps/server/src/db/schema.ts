@@ -270,8 +270,16 @@ export const databaseViews = sqliteTable(
     createdAt: createdAt(),
     /** When it last changed (ms), for sync. */
     syncClock: integer("sync_clock").notNull().default(0),
+    /**
+     * Views of a linked view: the page showing the database and the id of its block there (`linkId`). Views without
+     * an owner are those of the database itself.
+     */
+    ownerPageId: text("owner_page_id").references(() => pages.id, { onDelete: "cascade" }),
+    ownerBlockId: text("owner_block_id"),
+    /** Since when the block is no longer in its page (ms): its views go after a while, so that undo can bring them back. */
+    orphanedAt: integer("orphaned_at"),
   },
-  (t) => [index("database_views_db_idx").on(t.databaseId)],
+  (t) => [index("database_views_db_idx").on(t.databaseId), index("database_views_owner_idx").on(t.ownerPageId, t.ownerBlockId)],
 );
 
 export const plugins = sqliteTable("plugins", {

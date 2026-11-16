@@ -6,7 +6,7 @@ import type { ProseMirrorNode } from "../collab.js";
 import { notFound } from "../http.js";
 import { getChain, isTrashed } from "../permissions.js";
 import { getPageMeta, listDescendants, notRow, toSummary } from "../pages.js";
-import { enrichRows, listProperties, loadDatabase, toRow } from "../databases.js";
+import { enrichRows, listProperties, listViews, loadDatabase, toRow } from "../databases.js";
 import { calendarSources, t } from "@nootion/shared";
 
 /** Read-only access through a public link. No account needed. */
@@ -129,12 +129,17 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
   });
 
   // Read-only database. Names of people are not published.
-  app.get<{ Params: { token: string; id: string } }>("/:token/databases/:id", async (req) => {
+  // `page` and `block`: shown in a linked view, with that block's views (the database's own until it has some).
+  app.get<{ Params: { token: string; id: string }; Querystring: { page?: string; block?: string } }>("/:token/databases/:id", async (req) => {
     const link = resolve(req.params.token);
     if (!inScope(link, req.params.id)) throw notFound();
     const meta = getPageMeta(db, req.params.id);
     if (!meta || meta.kind !== "database") throw notFound();
     const data = loadDatabase(db, meta, "viewer", (id) => inScope(link, id));
+    if (req.query.page && req.query.block && inScope(link, req.query.page)) {
+      const own = listViews(db, meta.id, { pageId: req.query.page, blockId: req.query.block });
+      if (own.length) data.views = own;
+    }
     return { database: { ...data, properties: publicProperties(data.properties), people: {}, templates: [], defaultTemplateId: null } };
   });
 

@@ -25,6 +25,7 @@ import {
   type PropertyType,
   type SelectOption,
   type ViewColumn,
+  type ViewOwner,
 } from "@nootion/shared";
 import { Cell } from "./Cell";
 import { PropertyMenu } from "./PropertyMenu";
@@ -54,9 +55,9 @@ const DEFAULT_WIDTH = 180;
 const TITLE_WIDTH = 260;
 
 /** Table view of a database the user is signed in to. */
-export function DatabaseTable({ id, compact }: { id: string; compact?: boolean }) {
-  const db = useDatabase(id);
-  const actions = useDatabaseActions(id);
+export function DatabaseTable({ id, compact, owner }: { id: string; compact?: boolean; owner?: ViewOwner | null }) {
+  const db = useDatabase(id, owner);
+  const actions = useDatabaseActions(id, owner);
   if (db.isLoading) return <div className="py-4 text-sm text-neutral-400">{t("common.loading")}</div>;
   if (db.isError || !db.data) return <div className="py-4 text-sm text-neutral-500">{t("database.notFound")}</div>;
   return <DatabaseViews data={db.data} actions={actions} compact={compact} rowHref={(r) => `/page/${r.id}`} />;
@@ -76,16 +77,18 @@ interface ViewProps {
 /** A database with its view tabs: the chosen view filters, sorts and groups the rows, as a table or a board. */
 export function DatabaseViews(props: ViewProps) {
   const { data, actions } = props;
-  const [view, select] = useActiveView(data.id, data.views);
+  const [view, select] = useActiveView(data.id, data.views, data.linked?.blockId);
   const editable = !!actions && (data.role === "editor" || data.role === "full");
   // A locked database keeps its columns and views: its rows can still be filled in.
   const structure = editable && !data.locked;
+  // A linked view's views are its page's: the page's editors may change them, whatever the database's lock.
+  const viewsEditable = data.linked ? !!actions && data.linked.canEditViews : structure;
   const me = useSession().user?.id ?? null;
   const ctx: ViewContext = useMemo(() => ({ ...data, me }), [data, me]);
   const rows = useMemo(() => applyView(ctx, view?.config ?? {}), [ctx, view?.config]);
   return (
     <div>
-      {view && <ViewBar data={data} view={view} onSelect={select} actions={actions} editable={structure} rowsEditable={editable} />}
+      {view && <ViewBar data={data} view={view} onSelect={select} actions={actions} editable={viewsEditable} rowsEditable={editable} />}
       {view?.type === "board" ? (
         <div className="pt-2">
           <BoardView {...props} view={view} ctx={ctx} rows={rows} editable={editable} />

@@ -37,6 +37,7 @@ import {
   type PropertyConfig,
   type PropertyType,
   type SelectOption,
+  type ViewOwner,
 } from "@nootion/shared";
 import type { Db, DbLike } from "./db/index.js";
 import { attachments, databaseProperties, databaseViews, pages, users } from "./db/schema.js";
@@ -61,14 +62,71 @@ export function listProperties(db: DbLike, databaseId: string): DatabaseProperty
     .sort((a, b) => a.position - b.position);
 }
 
-export function listViews(db: DbLike, databaseId: string): DatabaseViewInfo[] {
+const toViewInfo = (v: typeof databaseViews.$inferSelect): DatabaseViewInfo => ({
+  id: v.id,
+  name: v.name,
+  type: (VIEW_TYPES as readonly string[]).includes(v.type) ? (v.type as ViewType) : "table",
+  config: v.config,
+  position: v.position,
+});
+
+/** Which views: those of the database itself (no owner), or those of a linked view. */
+export const viewScope = (databaseId: string, owner?: ViewOwner | null) =>
+  and(
+    eq(databaseViews.databaseId, databaseId),
+    owner ? and(eq(databaseViews.ownerPageId, owner.pageId), eq(databaseViews.ownerBlockId, owner.blockId)) : isNull(databaseViews.ownerBlockId),
+  );
+
+/** The views of a database, or with `owner` those of one of its linked views, in their order. */
+export function listViews(db: DbLike, databaseId: string, owner?: ViewOwner | null): DatabaseViewInfo[] {
   return db
     .select()
     .from(databaseViews)
-    .where(eq(databaseViews.databaseId, databaseId))
+    .where(viewScope(databaseId, owner))
     .all()
-    .map((v) => ({ id: v.id, name: v.name, type: (VIEW_TYPES as readonly string[]).includes(v.type) ? (v.type as ViewType) : "table", config: v.config, position: v.position }))
+    .map(toViewInfo)
     .sort((a, b) => a.position - b.position);
+}
+
+/** Any view of a database, its own or a linked view's (the API and exports name views by id). */
+export function findView(db: DbLike, databaseId: string, viewId: string): DatabaseViewInfo | undefined {
+  const v = db
+    .select()
+    .from(databaseViews)
+    .where(and(eq(databaseViews.id, viewId), eq(databaseViews.databaseId, databaseId)))
+    .get();
+  return v && toViewInfo(v);
+}
+
+/**
+ * The views of a linked view, made on first sight from the database's first view (its filters and sorts included):
+ * a linked view starts out showing what the database shows.
+ */
+export function ensureLinkedViews(db: Db, databaseId: string, owner: ViewOwner): DatabaseViewInfo[] {
+  const own = listViews(db, databaseId, owner);
+  if (own.length) return own;
+  const first = listViews(db, databaseId)[0];
+  db.insert(databaseViews)
+    .values({
+      id: randomUUID(),
+      databaseId,
+      name: first?.name ?? t("view.defaultTable"),
+      type: first?.type ?? "table",
+      config: (first?.config ?? {}) as Record<string, unknown>,
+      position: 0,
+      ownerPageId: owner.pageId,
+      ownerBlockId: owner.blockId,
+    })
+    .run();
+  return listViews(db, databaseId, owner);
+}
+
+/** How long the views of a linked view stay after its block left its page (undo, the page's history). */
+export const ORPHAN_VIEW_DAYS = 30;
+
+/** Removes the views of linked views whose block left its page long ago. Returns how many. */
+export function purgeOrphanViews(db: Db, now = Date.now()): number {
+  return db.$client.prepare(`DELETE FROM database_views WHERE orphaned_at IS NOT NULL AND orphaned_at < ?`).run(now - ORPHAN_VIEW_DAYS * 86_400_000).changes;
 }
 
 /** Creates the page holding the database, its title column and a first table view. */
@@ -163,16 +221,16 @@ export function collectPeople(
 /** Whether the reader may see the rows of a database (used for relations and rollups). */
 export type CanRead = (databaseId: string) => boolean;
 
-export function loadDatabase(db: Db, page: PageMeta, role: PageRole, canRead: CanRead): DatabaseData {
+export function loadDatabase(db: Db, page: PageMeta, role: PageRole, canRead: CanRead, linked?: DatabaseData["linked"]): DatabaseData {
   const properties = listProperties(db, page.id);
   const rows = listRowPages(db, page.id).map((r) => toRow(r, properties));
-  const views = listViews(db, page.id);
+  const views = linked ? ensureLinkedViews(db, page.id, linked) : listViews(db, page.id);
   if (views.some((v) => v.type === "gallery")) addImagePreviews(db, rows);
   const { related, rollupTargets } = enrichRows(db, properties, rows, canRead);
   const people = collectPeople(db, properties, rows, rollupTargets);
   const templates = listRowTemplates(db, page.id);
   const defaultTemplateId = templates.some((t) => t.id === page.defaultTemplateId) ? page.defaultTemplateId : null;
-  return { id: page.id, title: page.title, icon: page.icon, role, locked: page.locked, properties, views, rows, people, related, rollupTargets, templates, defaultTemplateId };
+  return { id: page.id, title: page.title, icon: page.icon, role, locked: page.locked, properties, views, rows, people, related, rollupTargets, templates, defaultTemplateId, ...(linked ? { linked } : {}) };
 }
 
 /** Formulas that read the clock give another result as time passes. */

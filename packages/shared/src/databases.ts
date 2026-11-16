@@ -307,6 +307,11 @@ export interface DatabaseData {
   templates: RowTemplate[];
   /** Template new rows start from, unless another (or a blank row) is chosen. */
   defaultTemplateId: string | null;
+  /**
+   * Shown in a linked view (another page): `views` are that block's own, and these say whether the reader may change
+   * them (an editor of the page may, even if they can only read the database).
+   */
+  linked?: { pageId: string; blockId: string; canEditViews: boolean };
 }
 
 export interface RowTemplate {
@@ -371,11 +376,17 @@ export const updateViewInput = z.object({
   position: z.number().int().min(0).optional(),
 });
 
+/** Where a linked view is: the page showing the database, and its block's `linkId` there. */
+export const viewOwnerSchema = z.object({ pageId: z.string().min(1).max(100), blockId: z.string().min(1).max(100) });
+export type ViewOwner = z.infer<typeof viewOwnerSchema>;
+
 export const createViewInput = z.object({
   name: z.string().trim().min(1).max(100),
   type: z.enum(VIEW_TYPES).default("table"),
   /** Copies the settings of another view of the same database. */
   duplicateOf: z.string().min(1).optional(),
+  /** A view of a linked view: the page showing it and the block's id there. */
+  owner: viewOwnerSchema.optional(),
 });
 
 const UNSAFE_URL = /^(javascript|data|vbscript|file|blob):/i;

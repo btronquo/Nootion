@@ -92,6 +92,22 @@ page's **⋯** menu, turn on **Lock page** (or *Lock database*), or type "lock" 
 The server refuses the changes too, not only the interface: the API answers `423 Locked`, and the live editor opens
 the page read-only. The lock travels with the desktop app's sync like the page's other settings.
 
+## Linked views: a database shown in another page
+
+A **linked view** shows a database that lives elsewhere, inside any page, with filters, sorts and views of its own.
+Typical use: one "Tasks" database, and in each project page a view of it showing only that project's tasks.
+
+- Type **/linked view** (or *Linked view* in the "/" menu), then pick the database in the list that appears.
+- The view starts as a copy of the database's first view. Filter, sort, group, hide columns or add views (board,
+  calendar, timeline…) as usual: it changes only this block, never the database's own views or other linked views.
+- Rows are the database's: adding, editing or deleting a row here does it in the database, for everyone.
+- The title (with a link icon) is the database's and opens it. Renaming happens in the database itself.
+- Who sees what doesn't change: someone who can't read the database sees a notice instead. The editors of the page
+  may change the linked view's views even if they can only read the database; its rows stay read-only for them.
+- Deleting the block removes its views after 30 days, so that undo or the page's history bring it back intact.
+  Duplicating the page, or making pages from a template, copies the linked view with its filters.
+- A linked view's views belong to its page: locking the database doesn't freeze them, locking the page does.
+
 ## Command palette (Ctrl+K)
 
 **Ctrl+K** (⌘K on a Mac), or *Search* in the sidebar, opens one box for both finding pages and doing things.

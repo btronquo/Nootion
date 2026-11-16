@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { CellValue, DatabaseData, DatabaseProperty, DatabaseRow, DatabaseSummary, PropertyConfig, PropertyType, RelatedRow, ViewConfig, ViewType, DatabaseViewInfo } from "@nootion/shared";
+import type { CellValue, DatabaseData, DatabaseProperty, DatabaseRow, DatabaseSummary, PropertyConfig, PropertyType, RelatedRow, ViewConfig, ViewType, DatabaseViewInfo, ViewOwner } from "@nootion/shared";
 import { api, apiIfChanged } from "../lib/api";
 import { sendOrQueue, useOfflineQueue, withQueuedChanges } from "../lib/offline";
 
 export const dbKey = (id: string) => ["database", id] as const;
+/** A linked view's copy: the same database with that block's views (refreshed along with the database's key). */
+const linkedKey = (id: string, owner?: ViewOwner | null) => (owner ? (["database", id, owner.pageId, owner.blockId] as const) : dbKey(id));
+const linkedQuery = (owner?: ViewOwner | null) => (owner ? `?${new URLSearchParams({ page: owner.pageId, block: owner.blockId })}` : "");
 
 interface RowResponse {
   row: DatabaseRow;
@@ -17,14 +20,16 @@ interface RowResponse {
  */
 const versions = new WeakMap<DatabaseData, string>();
 
-export function useDatabase(id: string) {
+/** A database; with `owner`, as shown in that linked view (its own views). */
+export function useDatabase(id: string, owner?: ViewOwner | null) {
   const { pending } = useOfflineQueue();
   const qc = useQueryClient();
+  const key = linkedKey(id, owner);
   return useQuery({
-    queryKey: dbKey(id),
+    queryKey: key,
     queryFn: async () => {
-      const current = qc.getQueryData<DatabaseData>(dbKey(id));
-      const res = await apiIfChanged<{ database: DatabaseData }>(`/databases/${id}`, current && versions.get(current));
+      const current = qc.getQueryData<DatabaseData>(key);
+      const res = await apiIfChanged<{ database: DatabaseData }>(`/databases/${id}${linkedQuery(owner)}`, current && versions.get(current));
       // Unchanged: the same object, so nothing renders again.
       if (!res.data) return current!;
       if (res.etag) versions.set(res.data.database, res.etag);
@@ -44,11 +49,12 @@ export function useDatabaseList() {
 }
 
 /** Mutations of a database, with the local copy updated right away. */
-export function useDatabaseActions(id: string) {
+export function useDatabaseActions(id: string, owner?: ViewOwner | null) {
   const qc = useQueryClient();
-  const key = dbKey(id);
+  const key = linkedKey(id, owner);
   const patch = (fn: (d: DatabaseData) => DatabaseData) => qc.setQueryData<DatabaseData>(key, (d) => (d ? fn(d) : d));
-  const refresh = () => qc.invalidateQueries({ queryKey: key });
+  // Every copy of the database: the page itself and its linked views.
+  const refresh = () => qc.invalidateQueries({ queryKey: dbKey(id) });
 
   const updateCell = useMutation({
     // Kept for later when the server can't be reached.
@@ -178,7 +184,7 @@ export function useDatabaseActions(id: string) {
   });
 
   const createView = useMutation({
-    mutationFn: (body: { name: string; type: ViewType; duplicateOf?: string }) => api<{ view: DatabaseViewInfo }>(`/databases/${id}/views`, { method: "POST", body }),
+    mutationFn: (body: { name: string; type: ViewType; duplicateOf?: string }) => api<{ view: DatabaseViewInfo }>(`/databases/${id}/views`, { method: "POST", body: owner ? { ...body, owner } : body }),
     onSuccess: ({ view }) => patch((d) => ({ ...d, views: [...d.views, view] })),
     onError: (err) => alert(err instanceof Error ? err.message : String(err)),
   });
@@ -195,10 +201,11 @@ export function useDatabaseActions(id: string) {
 const VIEW_KEY = "nootion-view-";
 
 /** The view shown for a database, remembered per browser. */
-export function useActiveView(databaseId: string, views: DatabaseViewInfo[]) {
+export function useActiveView(databaseId: string, views: DatabaseViewInfo[], linkId?: string) {
+  const storageKey = VIEW_KEY + databaseId + (linkId ? `-${linkId}` : "");
   const [picked, setPicked] = useState<string | null>(() => {
     try {
-      return localStorage.getItem(VIEW_KEY + databaseId);
+      return localStorage.getItem(storageKey);
     } catch {
       return null;
     }
@@ -207,7 +214,7 @@ export function useActiveView(databaseId: string, views: DatabaseViewInfo[]) {
   const select = (viewId: string) => {
     setPicked(viewId);
     try {
-      localStorage.setItem(VIEW_KEY + databaseId, viewId);
+      localStorage.setItem(storageKey, viewId);
     } catch {
       // Private browsing: the choice just isn't remembered.
     }

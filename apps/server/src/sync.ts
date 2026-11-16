@@ -83,6 +83,9 @@ export interface SyncColumn {
   position: number;
   createdAt: number;
   syncClock: number;
+  /** Views of a linked view: the page showing it, and its block there. */
+  ownerPageId?: string | null;
+  ownerBlockId?: string | null;
 }
 
 export interface SyncAttachment {
@@ -206,7 +209,7 @@ const toSyncPage = (r: typeof pages.$inferSelect): SyncPage => ({
   content: r.contentState ? Buffer.from(r.contentState).toString("base64") : null,
 });
 
-const toSyncColumn = (r: typeof databaseProperties.$inferSelect): SyncColumn => ({
+const toSyncColumn = (r: typeof databaseProperties.$inferSelect | typeof databaseViews.$inferSelect): SyncColumn => ({
   id: r.id,
   databaseId: r.databaseId,
   name: r.name,
@@ -215,6 +218,7 @@ const toSyncColumn = (r: typeof databaseProperties.$inferSelect): SyncColumn => 
   position: r.position,
   createdAt: r.createdAt.getTime(),
   syncClock: r.syncClock,
+  ...("ownerPageId" in r && r.ownerPageId ? { ownerPageId: r.ownerPageId, ownerBlockId: r.ownerBlockId } : {}),
 });
 
 const ms = (d: Date | null) => d?.getTime() ?? null;
@@ -662,9 +666,17 @@ export async function applyChanges(
           if (!db_ || db_.ws !== workspaceId || col.id !== c.id) continue;
           const row = tx.select().from(table).where(eq(table.id, col.id)).get();
           const values = { databaseId: col.databaseId, name: col.name, type: col.type, config: col.config, position: col.position, syncClock: col.syncClock };
+          // A linked view's views need its page, in this space (pages come first in a batch).
+          const owner =
+            c.entity === "view" && col.ownerPageId && col.ownerBlockId
+              ? tx.select({ ws: pages.workspaceId }).from(pages).where(eq(pages.id, col.ownerPageId)).get()?.ws === workspaceId
+                ? { ownerPageId: col.ownerPageId, ownerBlockId: col.ownerBlockId }
+                : null
+              : {};
+          if (!owner) continue;
           if (!row) {
             tx.insert(table)
-              .values({ id: col.id, createdAt: new Date(col.createdAt), ...values })
+              .values({ id: col.id, createdAt: new Date(col.createdAt), ...values, ...owner })
               .run();
             applied++;
           } else if (col.syncClock > row.syncClock) {

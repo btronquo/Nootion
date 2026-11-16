@@ -110,6 +110,7 @@ A database is a page of kind `database`; its rows are pages of kind `row`, with 
 | --- | --- |
 | `GET /api/databases` | Databases you can read. |
 | `GET /api/databases/:id` | Its columns (`properties`: `id`, `name`, `type`, `config` with select options), views, and all rows. |
+| `GET /api/databases/:id?page=…&block=…` | The same database as shown in a linked view: `views` are those of the block `block` (its `linkId`) in the page `page`, made from the database's first view the first time. |
 | `POST /api/databases/:id/query` | Rows filtered and sorted, a page at a time (below). |
 | `POST /api/databases` | Creates one: `{ "workspaceId", "parentId": null, "title" }`. |
 | `POST /api/databases/:id/rows` | Adds a row: `{ "values": { … }, "markdown"?, "after"? }`. With `after` (a row id, or `null` for first), the row is placed right after that row instead of last. |

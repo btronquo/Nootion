@@ -35,6 +35,7 @@ import {
   type ViewConfig,
   type ViewSort,
   type ViewType,
+  atLeast,
 } from "@nootion/shared";
 import { Popover } from "./Popover";
 import { TemplatesMenu } from "./TemplatesMenu";
@@ -189,7 +190,7 @@ export function ViewBar({
           <a className={menuItem} href={`/api/databases/${data.id}/export?format=json`} download onClick={close}>
             <Download size={14} /> {t("view.exportJson")}
           </a>
-          {editable && (
+          {editable && atLeast(data.role, "editor") && (
             <button
               className={menuItem}
               onClick={() => {
