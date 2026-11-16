@@ -78,8 +78,11 @@ export const pageMeta = {
 };
 export type PageMeta = Omit<PageRow, "contentState" | "contentJson" | "contentText" | "cellsText" | "props" | "syncClock" | "fieldClock" | "updatedBy">;
 
-/** Database rows are pages too, but they are listed inside their database, not in page trees. */
-export const notRow = <T extends { kind: string }>(p: T) => p.kind !== "row";
+/**
+ * Pages listed in page trees. Database rows are pages too, but they are listed inside their database; the content of a
+ * synced block is a hidden page, shown only where the block is.
+ */
+export const inTree = <T extends { kind: string }>(p: T) => p.kind !== "row" && p.kind !== "block";
 
 export function getPageMeta(db: DbLike, id: string): PageMeta | undefined {
   return db.select(pageMeta).from(pages).where(eq(pages.id, id)).get();
@@ -87,7 +90,7 @@ export function getPageMeta(db: DbLike, id: string): PageMeta | undefined {
 
 export function listWorkspacePages(db: Db, workspaceId: string): PageMeta[] {
   const rows = db.select(pageMeta).from(pages).where(eq(pages.workspaceId, workspaceId)).all();
-  return sortPages(withoutTrashed(rows)).filter(notRow);
+  return sortPages(withoutTrashed(rows)).filter(inTree);
 }
 
 /** All live descendants of a page (not including the page itself). */

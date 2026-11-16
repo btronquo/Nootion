@@ -29,6 +29,8 @@ import {
   SlidersHorizontal,
   Text,
   Trash2,
+  RefreshCw,
+  Unlink,
 } from "lucide-react";
 import { OPTION_COLORS, TASK_REPEAT_CHOICES, parseTaskRepeat, t, type MessageKey, type OptionColor } from "@nootion/shared";
 import { Popover } from "../database/Popover";
@@ -39,6 +41,7 @@ import { canTurnInto, currentKind, deleteBlock, duplicateBlock, moveBlock, still
 import { canColor, ensureBlockId, lastEdit, setBlockColor, type BlockColor } from "./blockAttrs";
 import { setTaskRepeat, taskRepeatLabel } from "./taskRepeat";
 import { TaskRepeatDialog } from "./TaskRepeatDialog";
+import { canTurnIntoSynced, copySyncedBlock, turnIntoSynced, unsyncBlock } from "./syncedBlock";
 
 /**
  * The handles shown left of the block under the mouse, as in Notion: "+" adds a block below it (the "/" menu opens),
@@ -358,6 +361,26 @@ function BlockMenu({
         });
       },
     },
+    ...(block.node.type.name === "syncedBlock" && block.node.attrs.sourceId
+      ? [
+          { id: "synced-copy", label: t("synced.copy"), icon: <Copy size={16} />, run: act(() => copySyncedBlock(editor, block.pos)) },
+          {
+            id: "synced-unsync",
+            label: t("synced.unsync"),
+            icon: <Unlink size={16} />,
+            run: act(() => void unsyncBlock(editor, block.node, () => block.pos).catch((err: Error) => alert(err.message))),
+          },
+        ]
+      : canTurnIntoSynced(editor, block)
+        ? [
+            {
+              id: "synced-turn",
+              label: t("synced.turnInto"),
+              icon: <RefreshCw size={16} />,
+              run: act(() => void turnIntoSynced(editor, pageId, block).catch((err: Error) => alert(`${t("synced.failed")} ${err.message}`))),
+            },
+          ]
+        : []),
     { id: "duplicate", label: t("block.duplicate"), icon: <Copy size={16} />, keys: `${mod}D`, run: act(() => duplicateBlock(editor, block)) },
     { id: "up", label: t("block.moveUp"), icon: <ArrowUp size={16} />, keys: `${mod}${shift}↑`, run: act(() => moveBlock(editor, block, -1)) },
     { id: "down", label: t("block.moveDown"), icon: <ArrowDown size={16} />, keys: `${mod}${shift}↓`, run: act(() => moveBlock(editor, block, 1)) },

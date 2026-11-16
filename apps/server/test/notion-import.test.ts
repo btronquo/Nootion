@@ -213,6 +213,34 @@ describe("Notion import", () => {
     expect(tasks.properties.filter((p) => p.name === "Price")).toHaveLength(1);
   });
 
+  it("keeps synced blocks synced: the original and its copies show the same block", async () => {
+    await runImport();
+    const pagesNow = await tree();
+    const home = pagesNow.find((p) => p.title === "Home")!;
+    const notes = pagesNow.find((p) => p.title === "Notes")!;
+    const syncedIn = (id: string) =>
+      (content(id).content ?? []).filter((n) => n.type === "syncedBlock").map((n) => n.attrs!.sourceId as string);
+    const [original] = syncedIn(home.id);
+    const [copy, orphan] = syncedIn(notes.id);
+    expect(original).toBeTruthy();
+    expect(copy).toBe(original);
+    // Its content lives in a hidden page under Home, not in the tree.
+    const hidden = app.db.select().from(pages).where(eq(pages.id, original!)).get()!;
+    expect(hidden).toMatchObject({ kind: "block", parentId: home.id });
+    expect(JSON.stringify(hidden.contentJson)).toContain("Shared notice");
+    expect(pagesNow.map((p) => p.id)).not.toContain(original);
+    // A copy whose original wasn't imported becomes the original, under the page it was in.
+    const elsewhere = app.db.select().from(pages).where(eq(pages.id, orphan!)).get()!;
+    expect(elsewhere).toMatchObject({ kind: "block", parentId: notes.id });
+    expect(JSON.stringify(elsewhere.contentJson)).toContain("From elsewhere");
+
+    // Imported again: the same synced blocks, no new hidden pages.
+    notion.editNotes("Second notes.");
+    await runImport({});
+    expect(syncedIn(notes.id)).toEqual([original, orphan]);
+    expect(app.db.select().from(pages).where(eq(pages.kind, "block")).all()).toHaveLength(2);
+  });
+
   it("turns status columns imported as selects by older versions into status columns", async () => {
     await runImport();
     let tasks = await getDb((await tree()).find((p) => p.title === "Tasks")!.id);

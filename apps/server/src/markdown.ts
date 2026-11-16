@@ -158,6 +158,9 @@ function block(n: ProseMirrorNode, links: MarkdownLinks): string {
       return drawingStrokes(n.attrs?.strokes).length
         ? `![${translate("drawing.title")}](data:image/svg+xml;base64,${Buffer.from(drawingToSvg(n.attrs?.strokes, n.attrs?.height)).toString("base64")})`
         : "";
+    // Written out beforehand by inlineSyncedBlocks (synced-blocks.ts), when the reader may see it.
+    case "syncedBlock":
+      return "";
     case "calendarBlock":
       return calendarSources(n.attrs?.sources)
         .map((s) => links.page(s.databaseId))

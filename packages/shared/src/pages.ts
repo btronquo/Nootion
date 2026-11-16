@@ -28,7 +28,11 @@ export const WORKSPACE_ROLE_TO_PAGE_ROLE: Record<WorkspaceRole, PageRole> = {
   viewer: "viewer",
 };
 
-export const PAGE_KINDS = ["page", "database", "row"] as const;
+/**
+ * "block": the content of a synced block, shown in several pages. It lives in a hidden page of its own, under the page
+ * where it was made, absent from page trees and from search results (which show its host page instead).
+ */
+export const PAGE_KINDS = ["page", "database", "row", "block"] as const;
 export type PageKind = (typeof PAGE_KINDS)[number];
 
 export interface PageSummary {
@@ -164,6 +168,33 @@ export const sharePageInput = z.object({ userId: z.string().min(1), role: z.enum
 /** Turns the link on or changes it. Left out, `includeSubpages` keeps its value (on for a new link). */
 export const publicLinkInput = publicLinkProtectionInput.extend({ includeSubpages: z.boolean().optional() });
 export const publicLinkUnlockInput = z.object({ password: z.string().min(1).max(PUBLIC_LINK_PASSWORD_MAX) });
+
+/** A synced block, as one of the pages it is shown in sees it (GET /api/synced-blocks/:id). */
+export interface SyncedBlockInfo {
+  id: string;
+  /** The page where it was made, where its content lives. */
+  host: { id: string; title: string; icon: string | null };
+  role: PageRole;
+  locked: boolean;
+  /** Its content, as the editor's JSON. */
+  content: unknown;
+  /** Pages it is shown in, among those the user can read. */
+  pages: { id: string; title: string; icon: string | null }[];
+}
+
+/** A synced block offered by "/synced". */
+export interface SyncedBlockSummary {
+  id: string;
+  host: { id: string; title: string; icon: string | null };
+  /** The start of its text. */
+  preview: string;
+  updatedAt: string;
+}
+
+export const createSyncedBlockInput = z.object({
+  /** The blocks it starts with (those turned into a synced block); an empty paragraph when missing. */
+  content: z.array(z.unknown()).max(5000).optional(),
+});
 
 /** A page found by the search. */
 export interface SearchResult {

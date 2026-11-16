@@ -243,13 +243,22 @@ export function fakeNotion() {
     ]),
     block("b14", "table_of_contents", {}),
     block("b15", "file", { type: "external", external: { url: "https://example.org/doc.pdf" }, name: "doc.pdf" }),
+    // A synced block: the original here, a copy in Notes.
+    block("s1", "synced_block", { synced_from: null }, [block("s1p", "paragraph", { rich_text: [rt("Shared notice")] })]),
+  ];
+  const notesBlocks = () => [
+    block("n1", "paragraph", { rich_text: [rt(notesText)] }),
+    // Notion lists a copy's content as the original's.
+    block("s2", "synced_block", { synced_from: { type: "block_id", block_id: "s1" } }, [block("s1p", "paragraph", { rich_text: [rt("Shared notice")] })]),
+    // A copy of a synced block whose original is in a page left out of the import.
+    block("s3", "synced_block", { synced_from: { type: "block_id", block_id: "s9" } }, [block("s9p", "paragraph", { rich_text: [rt("From elsewhere")] })]),
   ];
   const blocksOf = (id: string): ReturnType<typeof block>[] => {
     if (id === IDS.home) return homeBlocks();
-    if (id === IDS.notes) return [block("n1", "paragraph", { rich_text: [rt(notesText)] })];
+    if (id === IDS.notes) return notesBlocks();
     if (id === IDS.task1) return [block("t1p", "paragraph", { rich_text: [rt("Two coats.")] })];
     const all = (list: ReturnType<typeof block>[]): ReturnType<typeof block>[] => list.flatMap((b) => [b, ...all(b._children as ReturnType<typeof block>[])]);
-    return (all(homeBlocks()).find((b) => b.id === id)?._children as ReturnType<typeof block>[]) ?? [];
+    return (all([...homeBlocks(), ...notesBlocks()]).find((b) => b.id === id)?._children as ReturnType<typeof block>[]) ?? [];
   };
   const strip = (b: ReturnType<typeof block>) => {
     const { _children: _, ...rest } = b;

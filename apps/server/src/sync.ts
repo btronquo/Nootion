@@ -53,7 +53,7 @@ export interface SyncPage {
   id: string;
   workspaceId: string;
   parentId: string | null;
-  kind: "page" | "database" | "row";
+  kind: "page" | "database" | "row" | "block";
   title: string;
   icon: string | null;
   fullWidth: boolean;

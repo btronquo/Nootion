@@ -15,7 +15,7 @@ const page = z.object({
   id,
   workspaceId: id,
   parentId: id.nullable(),
-  kind: z.enum(["page", "database", "row"]),
+  kind: z.enum(["page", "database", "row", "block"]),
   title: z.string().max(2000),
   icon: z.string().max(10_000).nullable(),
   fullWidth: z.boolean(),

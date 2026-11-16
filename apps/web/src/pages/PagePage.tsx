@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ChevronRight,
@@ -66,6 +66,8 @@ export function PagePage({ id: given }: { id?: string }) {
       </div>
     );
   }
+  // The content of a synced block (a link to it, a reminder in it): shown in the page where it lives.
+  if (page.data.kind === "block" && page.data.parentId) return <Navigate to={`/page/${page.data.parentId}`} replace />;
   return <PageView key={page.data.id} page={page.data} />;
 }
 

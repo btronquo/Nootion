@@ -13,6 +13,11 @@ export interface ConvertContext {
   saveFile: (url: string, name: string) => Promise<{ url: string; name: string; size: number; mimeType: string } | null>;
   /** Notes what couldn't be imported as it was, for the import report: in which block, and what (a file's name, a block's kind…). */
   note: (what: string, detail?: { blockId?: string; info?: string }) => void;
+  /**
+   * A synced block: `originalId` is the Notion id of its original (the block itself for an original), `content` what it
+   * shows. Gives the id of the Nootion synced block to show, or null to keep its content as ordinary blocks.
+   */
+  synced?: (originalId: string, original: boolean, content: ProseMirrorNode[]) => Promise<string | null>;
 }
 
 type Mark = { type: string; attrs?: Record<string, unknown> };
@@ -300,9 +305,14 @@ async function convertBlock(block: BlockTree, ctx: ConvertContext): Promise<Pros
       const ratio = typeof data.width_ratio === "number" && data.width_ratio > 0 && data.width_ratio <= 1 ? data.width_ratio : null;
       return [{ type: "column", ...(ratio ? { attrs: { width: Math.round(ratio * 10_000) / 10_000 } } : {}), content: nested.length ? nested : [paragraph()] }];
     }
-    case "synced_block":
+    case "synced_block": {
+      // The original and its copies show the same synced block; without it, the content stays as ordinary blocks.
+      const nested = await children();
+      const from = (data.synced_from as { block_id?: string } | null | undefined)?.block_id;
+      const sourceId = ctx.synced ? await ctx.synced(from ?? block.id, !from, nested) : null;
+      return sourceId ? [{ type: "syncedBlock", attrs: { sourceId } }] : nested;
+    }
     case "template":
-      // Synced blocks keep their content.
       return children();
     case "table_of_contents":
     case "breadcrumb":

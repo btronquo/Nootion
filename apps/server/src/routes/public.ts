@@ -6,10 +6,11 @@ import type { ProseMirrorNode } from "../collab.js";
 import { HttpError, notFound, parseBody } from "../http.js";
 import { verifyPassword } from "../auth/password.js";
 import { isExpired, requireOpen, setUnlockCookie, tooManyAttempts, unlockLimiter } from "../public-access.js";
-import { getChain, isTrashed } from "../permissions.js";
-import { getPageMeta, listDescendants, notRow, toSummary } from "../pages.js";
+import { getChain, getPageRole, isTrashed } from "../permissions.js";
+import { inlineSyncedBlocks } from "../synced-blocks.js";
+import { getPageMeta, listDescendants, inTree, toSummary } from "../pages.js";
 import { enrichRows, listProperties, listViews, loadDatabase, toRow } from "../databases.js";
-import { calendarSources, publicLinkUnlockInput, t } from "@nootion/shared";
+import { atLeast, calendarSources, publicLinkUnlockInput, t } from "@nootion/shared";
 
 /** Read-only access through a public link. No account needed. */
 export const publicRoutes: FastifyPluginAsync = async (app) => {
@@ -64,7 +65,9 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
       )
       .all();
     const kind = new Map(rows.map((r) => [r.id, r.kind]));
-    return below.every((c) => kind.get(c.id) === "row" || (kind.get(c.id) === "database" && c.parentId !== null && embeds(c.parentId, c.id)));
+    return below.every(
+      (c) => kind.get(c.id) === "row" || kind.get(c.id) === "block" || (kind.get(c.id) === "database" && c.parentId !== null && embeds(c.parentId, c.id)),
+    );
   };
 
   const embeds = (pageId: string, databaseId: string) => {
@@ -113,6 +116,13 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
     return out;
   };
 
+  /**
+   * Synced blocks are published with the page that shows them when their content is part of what the link publishes,
+   * or when whoever made the link can read it: someone who can edit the page can't publish content they can't see.
+   */
+  const syncedPublished = (link: typeof publicLinks.$inferSelect, id: string) =>
+    inScope(link, id) || (!!link.createdBy && atLeast(getPageRole(db, link.createdBy, id), "viewer"));
+
   // Button columns are published without what they do.
   const publicProperties = <T extends { config: { button?: unknown } }>(properties: T[]): T[] =>
     properties.map((p) => (p.config.button ? { ...p, config: { ...p.config, button: undefined } } : p));
@@ -131,7 +141,12 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
       fullWidth: p.fullWidth,
       cover: p.cover?.replace(/^\/api\/attachments\//, `/api/public/${link.token}/attachments/`) ?? null,
       coverPosition: p.coverPosition,
-      content: p.contentJson ? sanitize(link, p.contentJson as ProseMirrorNode) : null,
+      content: p.contentJson
+        ? sanitize(
+            link,
+            inlineSyncedBlocks(db, p.contentJson as ProseMirrorNode, (id) => syncedPublished(link, id)),
+          )
+        : null,
       row,
     };
   };
@@ -139,7 +154,7 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
   app.get<{ Params: { token: string } }>("/:token", async (req, reply) => {
     const link = resolve(req, reply);
     const root = getPageMeta(db, link.pageId)!;
-    const subpages = link.includeSubpages ? listDescendants(db, root.id).filter(notRow).map(toSummary) : [];
+    const subpages = link.includeSubpages ? listDescendants(db, root.id).filter(inTree).map(toSummary) : [];
     return { root: { ...toSummary(root), parentId: null }, pages: subpages };
   });
 

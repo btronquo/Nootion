@@ -102,6 +102,17 @@ The JSON form takes the editor's blocks only (toggles, callouts, columns, dates,
 `content` to see how they are written. A date with a reminder keeps it only if the reminder is yours. A person is
 `{ "type": "userMention", "attrs": { "id", "userId", "name" } }`: they are told once per `id`, the mention being yours.
 
+A synced block is `{ "type": "syncedBlock", "attrs": { "sourceId" } }`: the same blocks shown in several pages. Its
+content lives in a hidden page of its own (kind `block`, under the page where it was made), read and written like any
+page's (`/api/pages/:sourceId/content`), with the access of that page. In the Markdown of a page, synced blocks are
+written out as their content, or as "No access to this content" when you can't read it.
+
+| Request | What it does |
+| --- | --- |
+| `POST /api/pages/:id/synced-blocks` | Makes a synced block in the page: `{ "content"?: [ …blocks ] }` (an empty line when missing). Answers `{ "id" }`; add `{ "type": "syncedBlock", "attrs": { "sourceId": id } }` to the content of the pages that show it. |
+| `GET /api/synced-blocks/:id` | `{ "block": { "id", "host", "role", "locked", "content", "pages" } }`: where it lives, its content and the pages (you can read) that show it. 404 without access. |
+| `GET /api/synced-blocks?q=` | Synced blocks you can read whose text or page title matches, latest first: `{ "blocks": [{ "id", "host", "preview", "updatedAt" }] }`. |
+
 ## Databases
 
 A database is a page of kind `database`; its rows are pages of kind `row`, with cell values and content.

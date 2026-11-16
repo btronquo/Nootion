@@ -431,7 +431,7 @@ body {
 .nootion-content img {
   @apply my-2 max-w-full rounded-md;
 }
-.nootion-content > .ProseMirror-selectednode:not(img, [data-node-view-wrapper]),
+.nootion-content > .ProseMirror-selectednode:not(img, [data-node-view-wrapper], .node-syncedBlock),
 .nootion-content li.ProseMirror-selectednode {
   /* The block whose menu is open (or picked with its handle), as in Notion. */
   background-color: rgb(35 131 226 / 0.14);
@@ -552,6 +552,38 @@ body.nt-resizing-columns * {
 }
 .nootion-content .page-link-private {
   @apply cursor-default text-neutral-400 no-underline;
+}
+/* A synced block: a thin frame on hover, and its bar ("Synced in 3 pages", copy, unsync) at its top right. */
+.nootion-content .synced-block {
+  @apply relative -mx-2 rounded-md border border-transparent px-2 py-0.5 transition-colors;
+}
+.nootion-content .synced-block:hover,
+.nootion-content .synced-block:focus-within,
+.nootion-content .ProseMirror-selectednode > [data-node-view-wrapper] > .synced-block,
+.nootion-content .synced-block-touch {
+  @apply border-orange-300 dark:border-orange-700/70;
+}
+.nootion-content .synced-block-bar {
+  @apply pointer-events-none absolute -top-3 right-2 z-10 flex items-center gap-0.5 rounded-md border border-orange-200 bg-white px-0.5 text-xs leading-5 text-orange-700 opacity-0 shadow-sm transition-opacity dark:border-orange-800 dark:bg-neutral-900 dark:text-orange-300;
+}
+.nootion-content .synced-block:hover > .synced-block-bar,
+.nootion-content .synced-block:focus-within > .synced-block-bar,
+.nootion-content .ProseMirror-selectednode > [data-node-view-wrapper] > .synced-block > .synced-block-bar,
+.nootion-content .synced-block-touch > .synced-block-bar {
+  @apply pointer-events-auto opacity-100;
+}
+/* On touch screens there is no hover: the bar stays, above the content, without covering it. */
+.nootion-content .synced-block-touch > .synced-block-bar {
+  @apply static mb-1 ml-auto w-fit;
+}
+/* The block's own editor: no minimum height, the content's spacing. */
+.nootion-content .synced-block-content {
+  @apply min-h-0;
+}
+@media print {
+  .nootion-content .synced-block {
+    @apply border-transparent;
+  }
 }
 /* A date in the text: "@tomorrow 9am". */
 .nootion-content .date-mention {

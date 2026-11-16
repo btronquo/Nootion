@@ -7,6 +7,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Synced blocks: the same content in several pages, edited from any of them and updated live in all. "Turn into
+  synced block" in a block's menu, then "Copy synced block" and paste it elsewhere; or "/synced" to make a new one or
+  show one already used. A thin frame and "Synced in 3 pages" show on hover, with the list of those pages. Removing a
+  copy leaves the others; "Unsync" turns a copy into ordinary blocks. People who can't read the page where it lives
+  see "No access to this content". Its content is a hidden page under that page, so history, permissions, the trash,
+  offline use and the desktop sync work as for any page. Search and backlinks lead to the page where it lives;
+  exports, public pages and the Markdown of the API write its content out; the import from other tools keeps synced
+  blocks synced instead of copying their content.
 - Public links with a password and an end date: under the address in the share window, "Ask for a password" and
   "Stops working" (never, after 1, 7 or 30 days, or on a date). Visitors type the password once per browser, for that
   link only (the page, its subpages, its files and databases); changing it asks them again. After the end date the
@@ -111,6 +119,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Fixed
 
+- Clicking a block's dots to open its menu emptied the page (since equations came in, not in a released version).
 - In a subpage, the breadcrumb showed the internal code of a parent page's uploaded image icon instead of the image.
 
 ## [3.6.0] - 2026-11-12

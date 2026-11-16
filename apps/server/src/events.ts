@@ -66,12 +66,12 @@ export function createLiveEvents(db: Db) {
   // Temporary triggers: they live with this connection, and need no migration.
   const tree = "title, icon, parent_id, position, deleted_at, workspace_id, kind";
   sqlite.exec(`
-    CREATE TEMP TRIGGER IF NOT EXISTS live_page_insert AFTER INSERT ON main.pages WHEN NEW.kind <> 'row'
+    CREATE TEMP TRIGGER IF NOT EXISTS live_page_insert AFTER INSERT ON main.pages WHEN NEW.kind NOT IN ('row', 'block')
       BEGIN SELECT nootion_changed('space', NEW.workspace_id); END;
     CREATE TEMP TRIGGER IF NOT EXISTS live_page_update AFTER UPDATE OF ${tree} ON main.pages
-      WHEN NEW.kind <> 'row' OR OLD.kind <> 'row'
+      WHEN NEW.kind NOT IN ('row', 'block') OR OLD.kind NOT IN ('row', 'block')
       BEGIN SELECT nootion_changed('space', OLD.workspace_id), nootion_changed('space', NEW.workspace_id); END;
-    CREATE TEMP TRIGGER IF NOT EXISTS live_page_delete AFTER DELETE ON main.pages WHEN OLD.kind <> 'row'
+    CREATE TEMP TRIGGER IF NOT EXISTS live_page_delete AFTER DELETE ON main.pages WHEN OLD.kind NOT IN ('row', 'block')
       BEGIN SELECT nootion_changed('space', OLD.workspace_id); END;
     CREATE TEMP TRIGGER IF NOT EXISTS live_page_lock AFTER UPDATE OF locked ON main.pages WHEN OLD.locked IS NOT NEW.locked
       BEGIN SELECT nootion_changed('page', NEW.id); END;

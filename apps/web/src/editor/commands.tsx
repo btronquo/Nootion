@@ -42,6 +42,7 @@ import {
   Workflow,
   Sigma,
   Radical,
+  RefreshCw,
 } from "lucide-react";
 import { currentLocale, parseNaturalDate, pluginNodeName, type ClientPluginInfo, type PageSummary, type UserDirectoryEntry } from "@nootion/shared";
 import { formatMentionDate } from "../lib/reminders";
@@ -71,7 +72,8 @@ export interface CommandContext {
 
 const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
-export function slashItems(ctx: CommandContext) {
+/** `omit`: titles of commands left out (inside a synced block). */
+export function slashItems(ctx: CommandContext, omit: ReadonlySet<string> = new Set()) {
   const del = (e: Editor, r: Range) => e.chain().focus().deleteRange(r);
   const all = [
     item("Text", t("command.text"), <Text size={16} />, (e, r) => del(e, r).setParagraph().run(), "paragraph"),
@@ -164,6 +166,13 @@ export function slashItems(ctx: CommandContext) {
       <Link2 size={16} />,
       (e, r) => del(e, r).insertLinkedView().run(),
       "linked database view existing filtered vue liée base existante filtrée lien",
+    ),
+    item(
+      "Synced block",
+      t("command.synced"),
+      <RefreshCw size={16} />,
+      (e, r) => del(e, r).insertSyncedBlock().run(),
+      "synced sync bloc synchronisé synchroniser copie partagé shared reuse réutiliser",
     ),
     item(
       "Button",
@@ -274,7 +283,7 @@ export function slashItems(ctx: CommandContext) {
           ),
         ),
       ),
-  ];
+  ].filter((i) => !omit.has(i.title));
   return ({ query }: { query: string }) => {
     const q = norm(query).trim();
     // Typing on past a non-matching command closes the menu.
