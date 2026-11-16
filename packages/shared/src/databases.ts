@@ -122,6 +122,13 @@ export const propertyConfigSchema = z
     databaseId: z.string().min(1).optional(),
     /** relation: the matching property in the related database, for two-way relations. Managed by the server. */
     twinPropertyId: z.string().min(1).nullable().optional(),
+    /**
+     * relation of a database to itself with a meaning: "parent" and its twin "children" make sub-items, "blocks" and
+     * its twin "blockedBy" make dependencies. Set by the server when the option is turned on; fixed afterwards.
+     */
+    role: z.enum(["parent", "children", "blocks", "blockedBy"]).optional(),
+    /** relation with the "blocks" role: moving a row's dates moves the rows it blocks by as many days. */
+    shiftDependents: z.boolean().optional(),
     /** rollup: relation of this database to follow */
     relationPropertyId: z.string().min(1).optional(),
     /** rollup: property of the related database to compute */

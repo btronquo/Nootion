@@ -32,6 +32,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   unlocks it (a click on the padlock). A locked database keeps its columns, views and row templates while its rows
   can still be added and filled in. The server refuses the changes too: the API answers 423 and the live editor
   opens the page read-only, including for people who already had it open. The lock travels with the desktop sync.
+- Sub-items and dependencies between the rows of a database, in the ⋯ menu of its toolbar ("Organise rows").
+  Sub-items add "Parent item" and "Sub-items" columns: tables show sub-items indented under their parent, folded or
+  not, with the share of them done (`1/3`); a matching sub-item keeps its parents in view when filtering; a row's page
+  lists its sub-items with a progress bar and "Add a sub-item" (also in the row menu). Dependencies add "Blocked by"
+  and "Blocking" columns: the timeline draws an arrow from each row to the rows waiting on it (red when they overlap),
+  a row's page says what it still waits on, and, if chosen, moving the end of a row's date moves the rows it blocks by
+  as many days. A row has one parent at most, and loops are refused. Both are ordinary relations of the database to
+  itself, so filters, rollups, formulas and the API work with them. See [docs/DATABASES.md](docs/DATABASES.md).
 - Tasks: one list of every to-do still unchecked in the pages you can read ("Tasks" in the sidebar, under
   Notifications). Grouped by page, or by date (overdue, today, next 7 days, later, no date) from the first date
   written in each to-do; filters for a space, the to-dos mentioning you and those with a date. Checking a box in the

@@ -1,8 +1,10 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   ArrowUpDown,
   Copy,
   Download,
+  GitFork,
+  Link2,
   Eye,
   LayoutTemplate,
   EyeOff,
@@ -24,6 +26,8 @@ import {
 } from "lucide-react";
 import {
   t,
+  dependencyProps,
+  subItemProps,
   type MessageKey,
   canGroupBy,
   calendarDateProp,
@@ -180,7 +184,8 @@ export function ViewBar({
       {menu?.kind === "templates" && <TemplatesMenu data={data} anchor={menu.anchor} onClose={close} />}
       {automations && <AutomationsDialog data={data} onClose={() => setAutomations(false)} />}
       {menu?.kind === "more" && actions && (
-        <Popover anchor={menu.anchor} onClose={close} width={260}>
+        <Popover anchor={menu.anchor} onClose={close} width={editable ? 300 : 260}>
+          {editable && <StructureOptions data={data} actions={actions} />}
           <a className={menuItem} href={`/api/databases/${data.id}/export?viewId=${view.id}`} download onClick={close}>
             <Download size={14} /> {t("view.exportCsv")}
           </a>
@@ -496,4 +501,43 @@ function importCsv(databaseId: string): Promise<boolean> {
     };
     input.click();
   });
+}
+
+/** Sub-items and dependencies, turned on or off for the whole database (they add or remove two columns). */
+function StructureOptions({ data, actions }: { data: DatabaseData; actions: Actions }) {
+  const sub = subItemProps(data.properties);
+  const deps = dependencyProps(data.properties);
+  const toggle = (kind: "subItems" | "dependencies", on: boolean, pair: [DatabaseProperty, DatabaseProperty] | null) => {
+    if (!on && pair && !confirm(t(kind === "subItems" ? "subItems.confirmOff" : "dependencies.confirmOff", { a: pair[0].name, b: pair[1].name }))) return;
+    actions.setStructure.mutate({ [kind]: on });
+  };
+  const row = (on: boolean, icon: ReactNode, title: string, help: string, onChange: (on: boolean) => void, attr: string) => (
+    <label className="flex cursor-pointer items-start gap-2 rounded px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800" {...{ [attr]: "" }}>
+      <span className="mt-0.5 text-neutral-500">{icon}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block">{title}</span>
+        <span className="block text-xs text-neutral-500">{help}</span>
+      </span>
+      <input type="checkbox" role="switch" checked={on} onChange={(e) => onChange(e.target.checked)} className="mt-1 h-3.5 w-3.5 accent-blue-600" />
+    </label>
+  );
+  return (
+    <div className="mb-1 border-b border-neutral-200 pb-1 dark:border-neutral-800">
+      <div className="px-2 py-1 text-xs text-neutral-500">{t("subItems.section")}</div>
+      {row(!!sub, <GitFork size={14} />, t("subItems.title"), t("subItems.help"), (on) => toggle("subItems", on, sub && [sub.parent, sub.children]), "data-sub-items-option")}
+      {row(!!deps, <Link2 size={14} />, t("dependencies.title"), t("dependencies.help"), (on) => toggle("dependencies", on, deps && [deps.blockedBy, deps.blocks]), "data-dependencies-option")}
+      {deps && (
+        <label className="flex cursor-pointer items-start gap-2 rounded py-1 pl-8 pr-2 text-xs text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800">
+          <input
+            type="checkbox"
+            checked={!!deps.blocks.config.shiftDependents}
+            onChange={(e) => actions.updateProperty.mutate({ propId: deps.blocks.id, config: { ...deps.blocks.config, shiftDependents: e.target.checked } })}
+            className="mt-0.5 h-3.5 w-3.5 accent-blue-600"
+            data-shift-dependents
+          />
+          <span>{t("dependencies.shift")}</span>
+        </label>
+      )}
+    </div>
+  );
 }

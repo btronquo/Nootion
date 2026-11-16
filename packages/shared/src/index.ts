@@ -6,6 +6,7 @@ export * from "./databases.js";
 export * from "./calculations.js";
 export * from "./formula.js";
 export * from "./views.js";
+export * from "./subitems.js";
 export * from "./calendar.js";
 export * from "./drawing.js";
 export * from "./dates.js";

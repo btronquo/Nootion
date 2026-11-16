@@ -3,6 +3,10 @@ import { Link } from "react-router-dom";
 import { ChevronDown, ChevronRight, GripVertical, Maximize2, Plus, Trash2 } from "lucide-react";
 import {
   applyView,
+  nestRows,
+  subItemProps,
+  subItemsOf,
+  type TreeRow,
   canGroupBy,
   canMoveBetweenGroups,
   groupRows,
@@ -50,6 +54,7 @@ import { pageIcon } from "../lib/icons";
 import { RowMenu } from "./RowMenu";
 import type { MenuAnchor } from "../components/PageMenu";
 import { countGroupRows, limitGroups, ShowMoreRows, useShownRows } from "./progressive";
+import { useFoldedRows } from "./subItems";
 
 const DEFAULT_WIDTH = 180;
 const TITLE_WIDTH = 260;
@@ -175,6 +180,10 @@ export function TableView({
   // Rows keep a manual order; a sorted view shows its own.
   const sorted = (view?.config.sorts ?? []).length > 0;
   const groupOf = useMemo(() => new Map((groups ?? []).flatMap((g) => g.rows.map((r) => [r.id, g.key] as const))), [groups]);
+  // Sub-items: rows under their parent (grouped tables stay flat, a row being in one group only).
+  const sub = subItemProps(data.properties);
+  const [folded, toggleFold] = useFoldedRows(data.id);
+  const tree = useMemo(() => (sub && !groups ? nestRows(rows, data.rows, sub.parent.id, folded) : null), [sub, groups, rows, data.rows, folded]);
 
   /** The rows a menu acts on: the selection when the row is part of it, else the row alone. */
   const menuRows = (rowId: string) => (selected.has(rowId) && selected.size > 1 ? data.rows.filter((r) => selected.has(r.id)) : data.rows.filter((r) => r.id === rowId));
@@ -263,7 +272,39 @@ export function TableView({
   const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id));
   const gutter = editable ? "w-8 shrink-0" : "w-0 shrink-0";
 
-  const renderRow = (row: DatabaseRow) => (
+  /** Before a title, in a tree: the indent, and the arrow that folds the sub-items with their progress. */
+  const treeLead = (node: TreeRow) => {
+    const progress = node.childCount ? subItemsOf(data.properties, data.rows, node.row) : null;
+    const open = !folded.has(node.row.id);
+    return (
+      <span className="flex h-[34px] shrink-0 items-center" style={{ paddingLeft: 4 + node.depth * 20 }} data-tree-depth={node.depth}>
+        {node.childCount ? (
+          <button
+            type="button"
+            aria-label={open ? t("subItems.collapse") : t("subItems.expand")}
+            aria-expanded={open}
+            onClick={() => toggleFold(node.row.id)}
+            className="flex h-5 w-5 items-center justify-center rounded text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+          >
+            {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          </button>
+        ) : (
+          <span className="w-5" />
+        )}
+        {progress && progress.done !== null && (
+          <span
+            className={`ml-0.5 rounded px-1 text-[11px] tabular-nums ${progress.done === progress.items.length ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300" : "bg-neutral-100 text-neutral-500 dark:bg-neutral-800"}`}
+            title={t("subItems.progress", { done: progress.done, count: progress.items.length })}
+            data-sub-progress
+          >
+            {progress.done}/{progress.items.length}
+          </span>
+        )}
+      </span>
+    );
+  };
+
+  const renderRow = (row: DatabaseRow, node?: TreeRow) => (
             <div
               key={row.id}
               role="row"
@@ -282,7 +323,8 @@ export function TableView({
                 const r = e.currentTarget.getBoundingClientRect();
                 dropRow(row, e.clientY < r.top + r.height / 2);
               }}
-              className={`group relative flex border-b border-neutral-200 dark:border-neutral-800 ${menuTargets?.has(row.id) ? "bg-blue-50/60 dark:bg-blue-950/30" : ""}`}
+              title={node?.context ? t("subItems.context") : undefined}
+              className={`group relative flex border-b border-neutral-200 dark:border-neutral-800 ${menuTargets?.has(row.id) ? "bg-blue-50/60 dark:bg-blue-950/30" : ""} ${node?.context ? "text-neutral-400 dark:text-neutral-500" : ""}`}
             >
               {dropAt?.rowId === row.id && <div className={`pointer-events-none absolute inset-x-0 z-10 h-0.5 bg-blue-500 ${dropAt.before ? "-top-px" : "-bottom-px"}`} />}
               {actions && (
@@ -342,12 +384,15 @@ export function TableView({
               </div>
               {visible.map((c) => (
                 <div key={c.prop.id} style={{ width: widthOf(c) }} className="relative shrink-0 border-r border-neutral-200 dark:border-neutral-800">
-                  {c.prop.type === "title" && row.icon ? (
-                    // The row's page icon, before its title, as in Notion.
+                  {c.prop.type === "title" && (row.icon || node) ? (
+                    // The row's page icon, before its title, as in Notion (after the indent of a sub-item).
                     <div className="flex items-start">
-                      <span className="flex h-[34px] shrink-0 items-center pl-2 leading-none [&_img]:h-4 [&_img]:w-4" data-row-icon>
-                        {pageIcon(row.icon)}
-                      </span>
+                      {node && treeLead(node)}
+                      {row.icon && (
+                        <span className="flex h-[34px] shrink-0 items-center pl-2 leading-none [&_img]:h-4 [&_img]:w-4" data-row-icon>
+                          {pageIcon(row.icon)}
+                        </span>
+                      )}
                       <div className="min-w-0 flex-1">
                       <Cell
                         prop={c.prop}
@@ -537,7 +582,7 @@ export function TableView({
                       <span className="text-xs text-neutral-400">{g.rows.length}</span>
                     </button>
                   </div>
-                  {open && shownRows.map(renderRow)}
+                  {open && shownRows.map((r) => renderRow(r))}
                   {open && cut && <ShowMoreRows shown={limit} total={countGroupRows(groups, (x) => !collapsed.has(x.key))} onMore={more} className="sticky left-0" />}
                   {open && !cut && editable && canMoveBetweenGroups(groupProp!.type) && (
                     <button
@@ -554,8 +599,10 @@ export function TableView({
             })
           ) : (
             <>
-              {(rows.length > limit ? rows.slice(0, limit) : rows).map(renderRow)}
-              <ShowMoreRows shown={Math.min(limit, rows.length)} total={rows.length} onMore={more} className="sticky left-0" />
+              {tree
+                ? (tree.length > limit ? tree.slice(0, limit) : tree).map((n) => renderRow(n.row, n))
+                : (rows.length > limit ? rows.slice(0, limit) : rows).map((r) => renderRow(r))}
+              <ShowMoreRows shown={Math.min(limit, (tree ?? rows).length)} total={(tree ?? rows).length} onMore={more} className="sticky left-0" />
               {renderCalcs(rows)}
             </>
           )}

@@ -122,6 +122,9 @@ offline use and the Notion import.
 - Calculations under columns (sum, average, median, min, max, count, percent checked, dates…).
 - Relations between databases (one way or both ways, kept up to date automatically) and rollups
   (e.g. the total of a supplier's invoices).
+- Sub-items and dependencies: rows shown under their parent in tables, folded or not, with the share of sub-items
+  done; "Blocked by" / "Blocking" drawn as arrows on the timeline, with the rows that wait moving along with the
+  dates if wanted. See [docs/DATABASES.md](docs/DATABASES.md).
 - Notion-like formulas: `prop("Price") * 1.2`, `if(prop("Paid"), "OK", "To pay")`, `dateBetween(now(), prop("Due"), "days")`…
   Editor with live checking and function help; formulas work with relations, rollups and calculations. Notion 2's
   syntax works too: lists `[1, 2]`, methods `prop("Name").upper()`, `let`/`lets`, and `map`, `filter`, `find`,
