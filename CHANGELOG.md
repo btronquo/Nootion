@@ -7,6 +7,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Public links with a password and an end date: under the address in the share window, "Ask for a password" and
+  "Stops working" (never, after 1, 7 or 30 days, or on a date). Visitors type the password once per browser, for that
+  link only (the page, its subpages, its files and databases); changing it asks them again. After the end date the
+  link shows "This link has expired", and its owner sees it greyed with "Extend by 7 days". Public forms of buttons
+  get the same two options. Passwords are hashed like account passwords, and wrong ones are limited to 10 a minute
+  for each link.
 - Linked views: "/linked view" shows an existing database in any page, with filters, sorts and views of its own that
   don't change the database's views (for example the "Tasks" database in each project page, filtered on that
   project). Rows, columns and access stay those of the database; the title leads to it. The page's editors may change

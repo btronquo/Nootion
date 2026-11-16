@@ -16,6 +16,7 @@ import {
   type FormField,
   type MessageKey,
   type PageSummary,
+  type PublicLinkProtectionInput,
   type SearchResult,
 } from "@nootion/shared";
 import { api } from "../lib/api";
@@ -24,6 +25,7 @@ import { PropertyIcon } from "../database/icons";
 import { BUTTON_STYLES } from "./ButtonAction";
 import { copyText, randomId } from "../lib/browser";
 import { pageIcon } from "../lib/icons";
+import { LinkProtection } from "../components/LinkProtection";
 
 const inputClass =
   "w-full rounded-md border border-neutral-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-blue-500 dark:border-neutral-700 dark:bg-neutral-900";
@@ -650,22 +652,33 @@ export function PagePicker({ value, onChange, emptyLabel }: { value: string | nu
   );
 }
 
-/** The public link of a button's form: made, copied and removed here. */
+interface PublicFormLink {
+  token: string;
+  url: string;
+  hasPassword: boolean;
+  expiresAt: string | null;
+  expired: boolean;
+}
+
+/** The public link of a button's form: made, copied, protected and removed here. */
 function PublicLink({ source, saved }: { source: { pageId: string; blockId: string }; saved: boolean }) {
   const key = ["button-public-link", source.pageId, source.blockId];
   const qc = useQueryClient();
   const link = useQuery({
     queryKey: key,
     queryFn: async () =>
-      (await api<{ link: { token: string; url: string } | null }>(`/buttons/public-link?pageId=${source.pageId}&blockId=${encodeURIComponent(source.blockId)}`))
-        .link,
+      (await api<{ link: PublicFormLink | null }>(`/buttons/public-link?pageId=${source.pageId}&blockId=${encodeURIComponent(source.blockId)}`)).link,
     enabled: saved,
   });
+  const protect = async (input: PublicLinkProtectionInput) => {
+    const res = await api<{ link: PublicFormLink }>("/buttons/public-link", { method: "PUT", body: { ...source, ...input } });
+    qc.setQueryData(key, res.link);
+  };
   const [error, setError] = useState<unknown>(null);
   const change = async (method: "PUT" | "DELETE") => {
     setError(null);
     try {
-      const res = await api<{ link?: { token: string; url: string } | null }>("/buttons/public-link", { method, body: source });
+      const res = await api<{ link?: PublicFormLink | null }>("/buttons/public-link", { method, body: source });
       qc.setQueryData(key, res.link ?? null);
     } catch (err) {
       setError(err);
@@ -679,21 +692,24 @@ function PublicLink({ source, saved }: { source: { pageId: string; blockId: stri
         {!saved ? (
           <p className="text-xs text-amber-700 dark:text-amber-400">{t("button.publicSaveFirst")}</p>
         ) : link.data ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              readOnly
-              value={link.data.url}
-              onFocus={(e) => e.target.select()}
-              className={`${inputClass} min-w-0 flex-1 font-mono text-xs`}
-              data-public-form-url
-            />
-            <Button type="button" variant="ghost" onClick={() => void copyText(link.data!.url)}>
-              {t("tokens.copy")}
-            </Button>
-            <Button type="button" variant="danger" onClick={() => void change("DELETE")}>
-              {t("button.publicRemove")}
-            </Button>
-          </div>
+          <>
+            <div className={`flex flex-wrap items-center gap-2 ${link.data.expired ? "opacity-50" : ""}`}>
+              <input
+                readOnly
+                value={link.data.url}
+                onFocus={(e) => e.target.select()}
+                className={`${inputClass} min-w-0 flex-1 font-mono text-xs`}
+                data-public-form-url
+              />
+              <Button type="button" variant="ghost" onClick={() => void copyText(link.data!.url)}>
+                {t("tokens.copy")}
+              </Button>
+              <Button type="button" variant="danger" onClick={() => void change("DELETE")}>
+                {t("button.publicRemove")}
+              </Button>
+            </div>
+            <LinkProtection value={link.data} onChange={protect} />
+          </>
         ) : (
           link.isSuccess && (
             <Button type="button" variant="ghost" className="border border-neutral-200 dark:border-neutral-700" onClick={() => void change("PUT")}>

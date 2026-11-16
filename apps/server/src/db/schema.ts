@@ -213,6 +213,9 @@ export const publicLinks = sqliteTable("public_links", {
     .references(() => pages.id, { onDelete: "cascade" }),
   token: text("token").notNull().unique(),
   includeSubpages: integer("include_subpages", { mode: "boolean" }).notNull().default(true),
+  // Optional protection: visitors type the password first (argon2 hash), and the link stops working after the date.
+  passwordHash: text("password_hash"),
+  expiresAt: integer("expires_at", { mode: "timestamp_ms" }),
   createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: createdAt(),
 });
@@ -534,6 +537,9 @@ export const publicForms = sqliteTable(
     userId: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
+    // Same protection as public links: a password (argon2 hash) and an end date, both optional.
+    passwordHash: text("password_hash"),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("public_forms_block_unique").on(t.pageId, t.blockId)],

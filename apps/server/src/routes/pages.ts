@@ -14,6 +14,7 @@ import {
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { newToken } from "../auth/tokens.js";
+import { protectionInfo, protectionUpdate } from "../public-access.js";
 import { attachments, pagePermissions, pages, publicLinks, users, workspaceMembers } from "../db/schema.js";
 import { HttpError, notFound, parseBody, requireUser } from "../http.js";
 import {
@@ -462,6 +463,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     token: l.token,
     includeSubpages: l.includeSubpages,
     url: `${app.config.appUrl}/p/${l.token}`,
+    ...protectionInfo(l),
   });
 
   app.get<{ Params: { id: string } }>("/:id/public-link", async (req) => {
@@ -475,10 +477,12 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     const user = requireUser(req);
     const input = parseBody(publicLinkInput, req.body);
     requirePageRole(db, user.id, req.params.id, "full");
+    const protection = await protectionUpdate(input);
+    const changes = { ...protection, ...(input.includeSubpages !== undefined && { includeSubpages: input.includeSubpages }) };
     const link = db
       .insert(publicLinks)
-      .values({ pageId: req.params.id, token: newToken(), includeSubpages: input.includeSubpages, createdBy: user.id })
-      .onConflictDoUpdate({ target: publicLinks.pageId, set: { includeSubpages: input.includeSubpages } })
+      .values({ pageId: req.params.id, token: newToken(), includeSubpages: input.includeSubpages ?? true, createdBy: user.id, ...protection })
+      .onConflictDoUpdate({ target: publicLinks.pageId, set: Object.keys(changes).length ? changes : { pageId: req.params.id } })
       .returning()
       .get();
     return { link: linkInfo(link) };

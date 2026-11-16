@@ -79,7 +79,30 @@ export interface PublicLinkInfo {
   token: string;
   includeSubpages: boolean;
   url: string;
+  /** Visitors type a password first. The password itself is never sent back. */
+  hasPassword: boolean;
+  /** When the link stops working (ISO), or null for never. */
+  expiresAt: string | null;
+  /** The end date has passed: the link shows "expired" until it is extended. */
+  expired: boolean;
 }
+
+/** Longest and shortest password a public link accepts. */
+export const PUBLIC_LINK_PASSWORD_MIN = 4;
+export const PUBLIC_LINK_PASSWORD_MAX = 200;
+
+/**
+ * Protection of a public link or a public form. Left out, a field keeps its value; `password: null` removes the
+ * password, `expiresAt: null` makes the link work forever.
+ */
+export const publicLinkProtectionInput = z.object({
+  password: z.string().min(PUBLIC_LINK_PASSWORD_MIN).max(PUBLIC_LINK_PASSWORD_MAX).nullable().optional(),
+  expiresAt: z.iso.datetime({ offset: true }).nullable().optional(),
+});
+export type PublicLinkProtectionInput = z.infer<typeof publicLinkProtectionInput>;
+
+/** What a visitor is told when a public link or form can't be opened yet: a password to type, or nothing to do. */
+export type PublicLinkLock = "password_required" | "link_expired";
 
 export interface TrashedPage {
   id: string;
@@ -138,7 +161,9 @@ export const movePageInput = z.object({
 
 export const sharePageInput = z.object({ userId: z.string().min(1), role: z.enum(PAGE_ROLES) });
 
-export const publicLinkInput = z.object({ includeSubpages: z.boolean().default(true) });
+/** Turns the link on or changes it. Left out, `includeSubpages` keeps its value (on for a new link). */
+export const publicLinkInput = publicLinkProtectionInput.extend({ includeSubpages: z.boolean().optional() });
+export const publicLinkUnlockInput = z.object({ password: z.string().min(1).max(PUBLIC_LINK_PASSWORD_MAX) });
 
 /** A page found by the search. */
 export interface SearchResult {

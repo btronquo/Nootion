@@ -85,6 +85,10 @@ for instance to collect expenses or ideas from family members. Their answers run
 **Call a webhook** steps with the rights of the person who made the link (the other steps don't run, and `{{user}}` and
 `{{me}}` are empty). Answers are limited to 10 a minute from one address. Remove the link to close the form.
 
+Under the address, **Ask for a password** and **Stops working** protect the form as they protect a page's public
+link (see [EDITOR.md](EDITOR.md#public-links-password-and-end-date)): visitors type the password before they see the
+fields, and after the end date the form says "This link has expired" and takes no more answers.
+
 On a public form, the answers can go in a webhook's body or in its path (`https://example.com/hook/{{form.Name}}`),
 but never choose the server called: a webhook whose host comes from an answer doesn't run. And when a webhook fails,
 people without an account aren't told why.
