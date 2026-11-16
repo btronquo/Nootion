@@ -15,6 +15,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   keeps their equations (it used to turn them into LaTeX code blocks), from their API and from their HTML exports.
   The drawing library (KaTeX) is downloaded the first time a page shows an equation, and runs without `trust`: no
   links nor HTML from an equation.
+- Locking a page or a database, from the page's menu ("Lock page") or the command palette. A locked page shows a
+  padlock at the top and its content, title, icon and cover are read-only for everyone until someone who can edit it
+  unlocks it (a click on the padlock). A locked database keeps its columns, views and row templates while its rows
+  can still be added and filled in. The server refuses the changes too: the API answers 423 and the live editor
+  opens the page read-only, including for people who already had it open. The lock travels with the desktop sync.
 - Tasks: one list of every to-do still unchecked in the pages you can read ("Tasks" in the sidebar, under
   Notifications). Grouped by page, or by date (overdue, today, next 7 days, later, no date) from the first date
   written in each to-do; filters for a space, the to-dos mentioning you and those with a date. Checking a box in the

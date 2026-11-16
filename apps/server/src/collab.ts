@@ -10,6 +10,7 @@ import { findSessionUser, SESSION_COOKIE } from "./auth/sessions.js";
 import { getPageRole } from "./permissions.js";
 import { recordSnapshot } from "./history.js";
 import { syncReminders } from "./reminders.js";
+import { isLocked } from "./locks.js";
 
 /** Name of the Y.XmlFragment holding the page body (TipTap's default). */
 export const CONTENT_FIELD = "default";
@@ -144,8 +145,8 @@ export function createCollab(db: Db) {
     async onAuthenticate({ context, documentName, connectionConfig }) {
       const role = getPageRole(db, context.userId, documentName);
       if (!atLeast(role, "viewer")) throw new Error("forbidden");
-      // Viewers and commenters receive updates but cannot send any.
-      connectionConfig.readOnly = !atLeast(role, "editor");
+      // Viewers and commenters receive updates but cannot send any; nor can anyone while the page is locked.
+      connectionConfig.readOnly = !atLeast(role, "editor") || isLocked(db, documentName);
     },
 
     async onLoadDocument({ document, documentName }) {
@@ -264,6 +265,8 @@ export async function appendContent(collab: Collab, db: Db, pageId: string, node
  * like any link). It goes before a trailing empty paragraph, so the line people type on stays last.
  */
 export async function linkChildPage(collab: Collab, db: Db, parentId: string, page: { id: string; title: string }) {
+  // A locked page's content stays as it is: the subpage is still in the sidebar.
+  if (isLocked(db, parentId)) return;
   const block = { type: "paragraph", content: [{ type: "pageLink", attrs: { pageId: page.id, title: page.title } }] };
   await editContent(collab, db, parentId, (d) =>
     d.transact(() => {
@@ -292,6 +295,7 @@ export function hasLinkLine(collab: Collab, db: Db, parentId: string, pageId: st
 
 /** Removes the lines holding only a link to a page that moved out of this one (links within text stay). */
 export async function unlinkChildPage(collab: Collab, db: Db, parentId: string, pageId: string) {
+  if (isLocked(db, parentId)) return;
   if (!hasLinkLine(collab, db, parentId, pageId)) return;
   await editContent(collab, db, parentId, (d) =>
     d.transact(() => {

@@ -164,6 +164,8 @@ export const pages = sqliteTable(
     template: integer("template", { mode: "boolean" }).notNull().default(false),
     // Databases only: the row template new rows start from, if any.
     defaultTemplateId: text("default_template_id"),
+    // Locked: the content (and, for a database, its columns and views) can't be changed until someone unlocks it.
+    locked: integer("locked", { mode: "boolean" }).notNull().default(false),
   },
   (t) => [
     index("pages_workspace_idx").on(t.workspaceId),

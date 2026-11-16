@@ -45,6 +45,7 @@ export const PAGE_FIELDS = [
   "deletedBy",
   "template",
   "defaultTemplateId",
+  "locked",
 ] as const;
 type PageField = (typeof PAGE_FIELDS)[number];
 
@@ -66,6 +67,8 @@ export interface SyncPage {
   props: Record<string, unknown> | null;
   template: boolean;
   defaultTemplateId: string | null;
+  /** Absent from peers older than the lock. */
+  locked?: boolean;
   fieldClock: Record<string, number>;
   /** The Yjs document, base64. */
   content: string | null;
@@ -198,6 +201,7 @@ const toSyncPage = (r: typeof pages.$inferSelect): SyncPage => ({
   props: r.props ?? null,
   template: r.template,
   defaultTemplateId: r.defaultTemplateId,
+  locked: r.locked,
   fieldClock: r.fieldClock ?? {},
   content: r.contentState ? Buffer.from(r.contentState).toString("base64") : null,
 });
@@ -618,6 +622,7 @@ export async function applyChanges(
                 props: p.props,
                 template: p.template,
                 defaultTemplateId: p.defaultTemplateId,
+                locked: p.locked ?? false,
                 fieldClock: p.fieldClock,
                 syncClock: Math.max(0, ...Object.values(p.fieldClock)),
               })
@@ -642,6 +647,7 @@ export async function applyChanges(
             if ("deletedBy" in f) set.deletedBy = knownUser(db, f.deletedBy as string | null);
             if ("template" in f) set.template = f.template as boolean;
             if ("defaultTemplateId" in f) set.defaultTemplateId = f.defaultTemplateId as string | null;
+            if ("locked" in f) set.locked = Boolean(f.locked);
             tx.update(pages).set(set).where(eq(pages.id, p.id)).run();
             applied++;
           }

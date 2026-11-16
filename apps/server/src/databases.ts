@@ -172,7 +172,7 @@ export function loadDatabase(db: Db, page: PageMeta, role: PageRole, canRead: Ca
   const people = collectPeople(db, properties, rows, rollupTargets);
   const templates = listRowTemplates(db, page.id);
   const defaultTemplateId = templates.some((t) => t.id === page.defaultTemplateId) ? page.defaultTemplateId : null;
-  return { id: page.id, title: page.title, icon: page.icon, role, properties, views, rows, people, related, rollupTargets, templates, defaultTemplateId };
+  return { id: page.id, title: page.title, icon: page.icon, role, locked: page.locked, properties, views, rows, people, related, rollupTargets, templates, defaultTemplateId };
 }
 
 /** Formulas that read the clock give another result as time passes. */
@@ -193,7 +193,7 @@ export function databaseVersion(db: DbLike, page: Pick<PageMeta, "id">, role: Pa
     seen.add(databaseId);
     parts.push(
       databaseId,
-      db.get(sql`select sync_clock, updated_at, default_template_id, deleted_at from pages where id = ${databaseId}`),
+      db.get(sql`select sync_clock, updated_at, default_template_id, deleted_at, locked from pages where id = ${databaseId}`),
       // Rows (with row templates and rows in the trash): any change of a row moves its sync clock (SQLite trigger).
       db.get(sql`select count(*), total(sync_clock), max(sync_clock), max(updated_at) from pages where parent_id = ${databaseId}`),
       db.get(sql`select count(*), total(sync_clock), max(sync_clock) from database_views where database_id = ${databaseId}`),

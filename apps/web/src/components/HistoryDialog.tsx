@@ -81,7 +81,8 @@ export function HistoryDialog({ page, onClose }: { page: PageDetail; onClose: ()
   const versions = list.data ?? [];
   const current = versions.find((v) => v.id === selected) ?? versions[0];
   const previous = current ? versions[versions.indexOf(current) + 1] : undefined;
-  const canRestore = atLeast(page.role, "editor");
+  // A locked page is restored once it is unlocked.
+  const canRestore = atLeast(page.role, "editor") && !page.locked;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();

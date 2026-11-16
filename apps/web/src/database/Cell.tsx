@@ -37,7 +37,8 @@ export interface CellProps {
   people: Record<string, string>;
   editable: boolean;
   onChange: (value: CellValue) => void;
-  onCreateOption: (name: string) => Promise<SelectOption>;
+  /** Absent: new options can't be added (a locked database). */
+  onCreateOption?: (name: string) => Promise<SelectOption>;
   /** "table": compact, one line. "panel": property list of an opened row. */
   variant?: "table" | "panel";
   /** Address of an attached file (differs on public pages). */

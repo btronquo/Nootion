@@ -34,7 +34,7 @@ export function TimelineView(props: MoreViewProps) {
   const [localScale, setLocalScale] = useState<Scale>("week");
   const scale = actions ? (view.config.timelineScale ?? "week") : localScale;
   const setScale = (s: Scale) =>
-    actions && editable ? actions.updateView.mutate({ viewId: view.id, config: { ...view.config, timelineScale: s } }) : setLocalScale(s);
+    actions && editable && !data.locked ? actions.updateView.mutate({ viewId: view.id, config: { ...view.config, timelineScale: s } }) : setLocalScale(s);
   const { px, span } = SCALES[scale];
   const today = localDay(new Date());
   // First day shown: a little before today, then moved by the arrows.
