@@ -69,12 +69,15 @@ export function useDatabaseActions(id: string, owner?: ViewOwner | null) {
             : r,
         ),
       })),
-    onSuccess: (res) => {
+    onSuccess: (res, { propId }) => {
       if (!res) return;
       const { row, related } = res;
+      const prop = qc.getQueryData<DatabaseData>(key)?.properties.find((p) => p.id === propId);
+      const touchesOtherRows = (prop?.type === "relation" && prop.config.databaseId === id) || prop?.type === "date";
       patch((d) => ({ ...d, related: { ...d.related, ...related }, rows: d.rows.map((r) => (r.id === row.id ? row : r)) }));
-      // Other databases may show this row through relations and rollups.
-      return qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === "database" && q.queryKey[1] !== id });
+      // Other databases may show this row through relations and rollups; in this one, a relation to itself (sub-items,
+      // dependencies) changes the other side, and moving a date can move the rows waiting on it.
+      return qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === "database" && (q.queryKey[1] !== id || touchesOtherRows) });
     },
     onError: (err) => {
       alert(err instanceof Error ? err.message : String(err));
@@ -195,7 +198,14 @@ export function useDatabaseActions(id: string, owner?: ViewOwner | null) {
     onSettled: refresh,
   });
 
-  return { updateCell, addRow, insertRow, duplicateRow, moveRow, setRowIcon, deleteRows, addProperty, updateProperty, deleteProperty, updateView, createView, deleteView, refresh };
+  /** Turns sub-items or dependencies on or off (their two columns are added or removed). */
+  const setStructure = useMutation({
+    mutationFn: (body: { subItems?: boolean; dependencies?: boolean }) => api(`/databases/${id}/structure`, { method: "PUT", body }),
+    onSettled: refresh,
+    onError: (err) => alert(err instanceof Error ? err.message : String(err)),
+  });
+
+  return { setStructure, updateCell, addRow, insertRow, duplicateRow, moveRow, setRowIcon, deleteRows, addProperty, updateProperty, deleteProperty, updateView, createView, deleteView, refresh };
 }
 
 const VIEW_KEY = "nootion-view-";

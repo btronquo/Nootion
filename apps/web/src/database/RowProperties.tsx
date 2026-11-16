@@ -6,6 +6,7 @@ import { Cell } from "./Cell";
 import { PropertyIcon } from "./icons";
 import { newOption } from "./OptionPicker";
 import { t } from "@nootion/shared";
+import { RowStructure } from "./subItems";
 
 interface RowData {
   properties: DatabaseProperty[];
@@ -78,6 +79,7 @@ export function RowProperties({ databaseId, rowId, locked = false }: { databaseI
             </div>
           </div>
         ))}
+      <RowStructure databaseId={databaseId} rowId={rowId} />
     </div>
   );
 }

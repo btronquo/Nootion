@@ -63,6 +63,7 @@ import { IMPORT_MAX_ROWS, parseCsv, planImport } from "../import.js";
 import { t } from "@nootion/shared";
 import { fromAutomation, rowSnapshot } from "../automations.js";
 import { assertUnlocked } from "../locks.js";
+import { checkRoleLinks, keepOneParent, roleTwin, setStructure, shiftDependents } from "../subitems.js";
 
 /** Content-Disposition header of a download, with a non-ASCII-safe file name. */
 export function attachmentHeader(filename: string) {
@@ -143,6 +144,14 @@ const queryInput = z.object({
   limit: z.number().int().min(1).max(1000).default(100),
   cursor: z.string().regex(/^\d+$/).optional(),
 });
+
+/** After a row's links were written: a row given as a sub-item leaves its previous parent. */
+function afterRoleLinks(tx: DbLike, properties: DatabaseProperty[], rowId: string, values: Record<string, CellValue>, before: Record<string, CellValue> = {}) {
+  const children = properties.find((p) => p.type === "relation" && p.config.role === "children");
+  if (!children || !(children.id in values)) return;
+  const list = (v: CellValue | undefined) => (Array.isArray(v) ? (v as string[]) : []);
+  keepOneParent(tx, properties, rowId, list(before[children.id]), list(values[children.id]));
+}
 
 export const databaseRoutes: FastifyPluginAsync = async (app) => {
   const db = app.db;
@@ -273,6 +282,9 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
       ...input.config,
     };
     delete config.twinPropertyId;
+    // Sub-items and dependencies are turned on with PUT /:id/structure.
+    delete config.role;
+    delete config.shiftDependents;
     if (config.options) config.options = normalizeOptions(input.type, config.options);
     let twin: { databaseId: string; id: string } | null = null;
     if (input.type === "relation") {
@@ -346,7 +358,12 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
         ...input.config,
         databaseId: prop.config.databaseId,
         twinPropertyId: prop.config.twinPropertyId ?? null,
+        role: prop.config.role,
+        // Only the rows a row blocks can move with it.
+        shiftDependents: prop.config.role === "blocks" ? input.config.shiftDependents : undefined,
       };
+      if (!input.config.role) delete input.config.role;
+      if (input.config.shiftDependents === undefined) delete input.config.shiftDependents;
     }
     // So is a plugin column's type.
     if (input.config && prop.type === "plugin") input.config = { ...input.config, plugin: prop.config.plugin };
@@ -413,18 +430,23 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
   app.delete<{ Params: { id: string; propId: string } }>("/:id/properties/:propId", async (req) => {
     const user = requireUser(req);
     requireDatabase(db, user.id, req.params.id, "editor", { structure: true });
-    const prop = listProperties(db, req.params.id).find((p) => p.id === req.params.propId);
+    const properties = listProperties(db, req.params.id);
+    const prop = properties.find((p) => p.id === req.params.propId);
     if (!prop) throw notFound();
     if (prop.type === "title") throw new HttpError(400, "title_delete", t("error.titleDelete"));
+    // The columns of sub-items and dependencies go in pairs: deleting one turns the option off.
+    const pair = roleTwin(properties, prop);
     db.transaction((tx) => {
       for (const r of listRowPages(tx, req.params.id)) {
-        if (!r.props || !(prop.id in r.props)) continue;
+        if (!r.props || !(prop.id in r.props || (pair && pair.id in r.props))) continue;
         const { [prop.id]: _removed, ...rest } = r.props;
+        if (pair) delete rest[pair.id];
         tx.update(pages).set({ props: rest }).where(eq(pages.id, r.id)).run();
       }
       tx.delete(databaseProperties).where(eq(databaseProperties.id, prop.id)).run();
+      if (pair) tx.delete(databaseProperties).where(eq(databaseProperties.id, pair.id)).run();
       // The other side of a two-way relation stays, as a one-way relation.
-      if (prop.type === "relation" && prop.config.twinPropertyId) {
+      else if (prop.type === "relation" && prop.config.twinPropertyId) {
         const twin = tx.select().from(databaseProperties).where(eq(databaseProperties.id, prop.config.twinPropertyId)).get();
         if (twin)
           tx.update(databaseProperties)
@@ -434,6 +456,18 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
       }
     });
     return { ok: true };
+  });
+
+  // Turns sub-items (a parent and its sub-items) or dependencies (blocked by / blocking) on or off.
+  app.put<{ Params: { id: string } }>("/:id/structure", async (req) => {
+    const user = requireUser(req);
+    const input = parseBody(z.object({ subItems: z.boolean().optional(), dependencies: z.boolean().optional() }), req.body);
+    requireDatabase(db, user.id, req.params.id, "editor", { structure: true });
+    db.transaction((tx) => {
+      if (input.subItems !== undefined) setStructure(tx, req.params.id, "subItems", input.subItems);
+      if (input.dependencies !== undefined) setStructure(tx, req.params.id, "dependencies", input.dependencies);
+    });
+    return { properties: listProperties(db, req.params.id) };
   });
 
   // --- Rows ---
@@ -465,6 +499,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     input.values = valuesByIds(properties, input.values);
     checkRelationAccess(user.id, properties, input.values);
     const { values, title } = validateValues(db, properties, null, input.values);
+    checkRoleLinks(db, database.id, properties, null, values);
     const position = nextPosition(db, database.workspaceId, database.id);
     // Without a choice, new rows start from the database's default template.
     const templateId = input.templateId === undefined ? database.defaultTemplateId : input.templateId;
@@ -487,6 +522,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
           .where(eq(pages.id, id))
           .run();
         for (const p of properties) if (p.type === "relation" && props[p.id]) syncTwin(tx, p, id, [], props[p.id] as string[]);
+        afterRoleLinks(tx, properties, id, props);
         return;
       }
       tx.insert(pages)
@@ -502,6 +538,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
         })
         .run();
       for (const p of properties) if (p.type === "relation" && values[p.id]) syncTwin(tx, p, id, [], values[p.id] as string[]);
+      afterRoleLinks(tx, properties, id, values);
     });
     if (input.after !== undefined) db.transaction((tx) => placeRow(tx, database.id, id, input.after ?? null));
     assignUniqueIds(db, database.id);
@@ -568,6 +605,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     input.values = valuesByIds(properties, input.values);
     checkRelationAccess(user.id, properties, input.values);
     const { values, title } = validateValues(db, properties, req.params.rowId, input.values);
+    checkRoleLinks(db, req.params.id, properties, req.params.rowId, values);
     const snapshot = rowSnapshot(db, req.params.id, req.params.rowId);
     db.transaction((tx) => {
       const current = tx.select({ props: pages.props }).from(pages).where(eq(pages.id, req.params.rowId)).get()!;
@@ -591,6 +629,9 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
         if (p.type === "relation" && p.id in values)
           syncTwin(tx, p, req.params.rowId, (before[p.id] as string[] | null) ?? [], (props[p.id] as string[] | null) ?? []);
       }
+      afterRoleLinks(tx, properties, req.params.rowId, values, before);
+      // Rows waiting on this one follow its dates, when the database asks for it.
+      shiftDependents(tx, req.params.id, properties, req.params.rowId, before, props);
     });
     const after = rowSnapshot(db, req.params.id, req.params.rowId);
     if (snapshot && after && !fromAutomation(req)) await app.automations.rowChanged({ databaseId: req.params.id, rowId: req.params.rowId, before: snapshot, after });
@@ -614,7 +655,8 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     db.transaction((tx) => {
       const props = (tx.select({ props: pages.props }).from(pages).where(eq(pages.id, id)).get()?.props ?? {}) as Record<string, CellValue>;
       // The copy gets a number of its own.
-      const ids = properties.filter((p) => p.type === "unique_id" && p.id in props);
+      // Sub-items stay with their parent: the copy has none.
+      const ids = properties.filter((p) => (p.type === "unique_id" || p.config.role === "children") && p.id in props);
       if (ids.length) {
         for (const p of ids) delete props[p.id];
         tx.update(pages).set({ props }).where(eq(pages.id, id)).run();
