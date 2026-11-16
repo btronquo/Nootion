@@ -7,6 +7,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Linked views: "/linked view" shows an existing database in any page, with filters, sorts and views of its own that
+  don't change the database's views (for example the "Tasks" database in each project page, filtered on that
+  project). Rows, columns and access stay those of the database; the title leads to it. The page's editors may change
+  the linked view's views even if they only read the database. Its views go with the block: kept 30 days after it is
+  deleted (undo, history), copied with the page when it is duplicated or made from a template, carried by sync, and
+  exported by the API and CSV export like the database's.
 - Equations in LaTeX: `/equation` (or `$$` and a space on an empty line) adds a centred block, and `$…$` typed in a
   line becomes an inline equation when the closing `$` is typed ("$5 and $10" stays text). Click an equation, or
   select it and press Enter, to edit its LaTeX with a live preview that explains mistakes. Equations show on public

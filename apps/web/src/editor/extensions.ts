@@ -79,7 +79,7 @@ export function baseExtensions(opts: {
     DateMention,
     UserMention,
     TableOfContents,
-    DatabaseBlock.configure({ publicToken: opts.publicToken ?? null }),
+    DatabaseBlock.configure({ pageId: opts.pageId ?? null, publicToken: opts.publicToken ?? null }),
     CalendarBlock.configure({ pageId: opts.pageId ?? null, publicToken: opts.publicToken ?? null }),
     Drawing,
     ButtonBlock.configure({ pageId: opts.publicToken ? null : (opts.pageId ?? null) }),

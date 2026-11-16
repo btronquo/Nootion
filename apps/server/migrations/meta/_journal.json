@@ -288,6 +288,13 @@
       "when": 1794847501489,
       "tag": "0040_page_lock",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "6",
+      "when": 1794856491669,
+      "tag": "0041_linked_views",
+      "breakpoints": true
     }
   ]
 }

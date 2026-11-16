@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import { randomUUID } from "node:crypto";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, or } from "drizzle-orm";
 import * as Y from "yjs";
 import type { Db } from "./db/index.js";
 import { attachments, databaseProperties, databaseViews, pages } from "./db/schema.js";
@@ -69,7 +69,17 @@ export async function copyTree(
   if (into) ids.set(sourceId, into.pageId);
   const databases = sources.filter((p) => p.kind === "database").map((p) => p.id);
   const props = databases.length ? db.select().from(databaseProperties).where(inArray(databaseProperties.databaseId, databases)).all() : [];
-  const views = databases.length ? db.select().from(databaseViews).where(inArray(databaseViews.databaseId, databases)).all() : [];
+  const views = db
+    .select()
+    .from(databaseViews)
+    .where(
+      or(
+        databases.length ? inArray(databaseViews.databaseId, databases) : undefined,
+        // Linked views in the copied pages, of databases elsewhere: their filters are copied too.
+        inArray(databaseViews.ownerPageId, pageIds),
+      ),
+    )
+    .all();
   const files = db.select().from(attachments).where(inArray(attachments.pageId, pageIds)).all();
   for (const x of [...props, ...views, ...files]) ids.set(x.id, randomUUID());
 
@@ -131,8 +141,19 @@ export async function copyTree(
         .run();
     }
     for (const v of views) {
+      // A linked view's views go with its page: copied with it, left behind when it isn't copied.
+      if (v.ownerPageId && !ids.has(v.ownerPageId)) continue;
       tx.insert(databaseViews)
-        .values({ id: ids.get(v.id)!, databaseId: ids.get(v.databaseId)!, name: v.name, type: v.type, config: remap(v.config), position: v.position })
+        .values({
+          id: ids.get(v.id)!,
+          databaseId: ids.get(v.databaseId) ?? v.databaseId,
+          name: v.name,
+          type: v.type,
+          config: remap(v.config),
+          position: v.position,
+          ownerPageId: v.ownerPageId ? ids.get(v.ownerPageId)! : null,
+          ownerBlockId: v.ownerBlockId,
+        })
         .run();
     }
     for (const f of files) {

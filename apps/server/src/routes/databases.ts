@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import {
@@ -23,6 +23,9 @@ import {
   hasOptions,
   isSingleOption,
   normalizeOptions,
+  viewOwnerSchema,
+  type DatabaseData,
+  type ViewOwner,
 } from "@nootion/shared";
 import { and, eq, inArray, isNull, max } from "drizzle-orm";
 import { databaseProperties, databaseViews, pages } from "../db/schema.js";
@@ -43,7 +46,8 @@ import {
   enrichRows,
   listProperties,
   listRowPages,
-  listViews,
+  findView,
+  viewScope,
   listRowTemplates,
   loadDatabase,
   syncTwin,
@@ -70,6 +74,23 @@ function requireDatabase(db: Db, userId: string, id: string, min: PageRole, opts
   if (access.page.kind !== "database") throw notFound();
   // Columns, views and row templates of a locked database stay as they are (its rows can still be filled in).
   if (opts.structure) assertUnlocked(access.page);
+  return access;
+}
+
+/** The linked view a view belongs to, if any. */
+const ownerOf = (v: { ownerPageId: string | null; ownerBlockId: string | null } | undefined): ViewOwner | null =>
+  v?.ownerPageId && v.ownerBlockId ? { pageId: v.ownerPageId, blockId: v.ownerBlockId } : null;
+
+/**
+ * Who may change views: the database's editors; for a linked view, also the editors of the page showing it, as long as
+ * they can read the database (filtering rows one can read changes nothing for others).
+ */
+function requireViewEditor(db: Db, userId: string, databaseId: string, owner: ViewOwner | null) {
+  if (!owner) return requireDatabase(db, userId, databaseId, "editor", { structure: true });
+  const access = requireDatabase(db, userId, databaseId, "viewer");
+  // They belong to the page showing them: its lock counts, not the database's.
+  const host = atLeast(access.role, "editor") ? requirePageRole(db, userId, owner.pageId, "viewer") : requirePageRole(db, userId, owner.pageId, "editor");
+  assertUnlocked(host.page);
   return access;
 }
 
@@ -182,15 +203,23 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     return { database: loadDatabase(db, page, role, canReadAs(db, user.id)) };
   });
 
-  app.get<{ Params: { id: string } }>("/:id", async (req, reply) => {
+  // `page` and `block`: shown in a linked view, with that block's own views.
+  app.get<{ Params: { id: string }; Querystring: { page?: string; block?: string } }>("/:id", async (req, reply) => {
     const user = requireUser(req);
     const { page, role } = requireDatabase(db, user.id, req.params.id, "viewer");
     const canRead = canReadAs(db, user.id);
+    let linked: DatabaseData["linked"];
+    if (req.query.page && req.query.block) {
+      const owner = parseBody(viewOwnerSchema, { pageId: req.query.page, blockId: req.query.block });
+      const host = requirePageRole(db, user.id, owner.pageId, "viewer");
+      linked = { ...owner, canEditViews: (atLeast(role, "editor") || atLeast(host.role, "editor")) && !host.page.locked };
+    }
     // The app asks again every few seconds: answered "not modified" in a few queries while nothing changed.
-    const version = databaseVersion(db, page, role, canRead);
+    let version = databaseVersion(db, page, role, canRead);
+    if (linked) version = `${version.slice(0, -1)}:${createHash("sha1").update(JSON.stringify(linked)).digest("base64url").slice(0, 10)}"`;
     reply.header("etag", version).header("cache-control", "private, no-cache");
     if (req.headers["if-none-match"] === version) return reply.code(304).send();
-    return { database: loadDatabase(db, page, role, canRead) };
+    return { database: loadDatabase(db, page, role, canRead, linked) };
   });
 
   // Rows filtered and sorted (by a view's settings, or by the ones given), a page at a time. For the API.
@@ -200,7 +229,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     const { page } = requireDatabase(db, user.id, req.params.id, "viewer");
     const canRead = canReadAs(db, user.id);
     const properties = listProperties(db, page.id);
-    const view = input.viewId ? listViews(db, page.id).find((v) => v.id === input.viewId) : undefined;
+    const view = input.viewId ? findView(db, page.id, input.viewId) : undefined;
     if (input.viewId && !view) throw notFound();
     const idOf = (key: string) => {
       const prop = findProperty(properties, key);
@@ -629,12 +658,12 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
   app.patch<{ Params: { id: string; viewId: string } }>("/:id/views/:viewId", async (req) => {
     const user = requireUser(req);
     const input = parseBody(updateViewInput, req.body);
-    requireDatabase(db, user.id, req.params.id, "editor", { structure: true });
     const view = db
       .select()
       .from(databaseViews)
       .where(and(eq(databaseViews.id, req.params.viewId), eq(databaseViews.databaseId, req.params.id)))
       .get();
+    requireViewEditor(db, user.id, req.params.id, ownerOf(view));
     if (!view) throw notFound();
     db.update(databaseViews)
       .set({
@@ -651,28 +680,34 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
   app.post<{ Params: { id: string } }>("/:id/views", async (req) => {
     const user = requireUser(req);
     const input = parseBody(createViewInput, req.body);
-    requireDatabase(db, user.id, req.params.id, "editor", { structure: true });
+    const owner = input.owner ?? null;
+    requireViewEditor(db, user.id, req.params.id, owner);
     let config: Record<string, unknown> = {};
     if (input.duplicateOf) {
-      const source = db
-        .select()
-        .from(databaseViews)
-        .where(and(eq(databaseViews.id, input.duplicateOf), eq(databaseViews.databaseId, req.params.id)))
-        .get();
+      // Any view of the database: a linked view may start from one of the original's.
+      const source = findView(db, req.params.id, input.duplicateOf);
       if (!source) throw notFound();
-      config = source.config;
+      config = source.config as Record<string, unknown>;
     }
-    const last = db.select({ p: max(databaseViews.position) }).from(databaseViews).where(eq(databaseViews.databaseId, req.params.id)).get();
+    const last = db.select({ p: max(databaseViews.position) }).from(databaseViews).where(viewScope(req.params.id, owner)).get();
     const view = { id: randomUUID(), databaseId: req.params.id, name: input.name, type: input.type, config, position: (last?.p ?? -1) + 1 };
-    db.insert(databaseViews).values(view).run();
+    db.insert(databaseViews)
+      .values({ ...view, ownerPageId: owner?.pageId ?? null, ownerBlockId: owner?.blockId ?? null })
+      .run();
     return { view: { id: view.id, name: view.name, type: view.type, config: view.config, position: view.position } };
   });
 
   app.delete<{ Params: { id: string; viewId: string } }>("/:id/views/:viewId", async (req) => {
     const user = requireUser(req);
-    requireDatabase(db, user.id, req.params.id, "editor", { structure: true });
-    const views = db.select({ id: databaseViews.id }).from(databaseViews).where(eq(databaseViews.databaseId, req.params.id)).all();
-    if (!views.some((v) => v.id === req.params.viewId)) throw notFound();
+    const view = db
+      .select()
+      .from(databaseViews)
+      .where(and(eq(databaseViews.id, req.params.viewId), eq(databaseViews.databaseId, req.params.id)))
+      .get();
+    const owner = ownerOf(view);
+    requireViewEditor(db, user.id, req.params.id, owner);
+    if (!view) throw notFound();
+    const views = db.select({ id: databaseViews.id }).from(databaseViews).where(viewScope(req.params.id, owner)).all();
     if (views.length === 1) throw new HttpError(400, "last_view", t("error.lastView"));
     db.delete(databaseViews).where(eq(databaseViews.id, req.params.viewId)).run();
     return { ok: true };
@@ -684,6 +719,9 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     const user = requireUser(req);
     const { page, role } = requireDatabase(db, user.id, req.params.id, "viewer");
     const data = loadDatabase(db, page, role, canReadAs(db, user.id));
+    // A linked view's view is exported as well.
+    const extra = req.query.viewId && !data.views.some((v) => v.id === req.query.viewId) ? findView(db, page.id, req.query.viewId) : undefined;
+    if (extra) data.views.push(extra);
     const name = safeName(page.title);
     if (req.query.format === "json") {
       return reply
