@@ -8,6 +8,7 @@ import { notFound, requireAdmin, requireUser } from "../http.js";
 import { listWorkspacePages } from "../pages.js";
 import { requirePageRole, requireWorkspaceRole } from "../permissions.js";
 import { attachmentHeader } from "./databases.js";
+import { audit } from "../audit.js";
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -21,6 +22,7 @@ export const exportRoutes: FastifyPluginAsync = async (app) => {
     const { page } = requirePageRole(db, user.id, req.params.id, "viewer");
     await app.collab.flushPendingStores();
     const zip = exportPagesZip(db, app.config.dataDir, user.id, [page]);
+    audit(db, req, { action: "export.page", target: { type: "page", id: page.id, label: page.title } });
     return reply
       .header("content-type", "application/zip")
       .header("content-disposition", attachmentHeader(`${safeName(page.title)}.zip`))
@@ -36,6 +38,7 @@ export const exportRoutes: FastifyPluginAsync = async (app) => {
     await app.collab.flushPendingStores();
     const roots = listWorkspacePages(db, ws.id).filter((p) => !p.parentId);
     const zip = exportPagesZip(db, app.config.dataDir, user.id, roots);
+    audit(db, req, { action: "export.workspace", target: { type: "workspace", id: ws.id, label: ws.name } });
     const name = ws.kind === "personal" ? t("workspace.personal") : safeName(ws.name);
     return reply
       .header("content-type", "application/zip")
@@ -47,6 +50,7 @@ export const exportRoutes: FastifyPluginAsync = async (app) => {
   app.get("/admin/backup", async (req, reply) => {
     requireAdmin(req);
     const { stream, cleanup } = await fullBackupZip(app);
+    audit(db, req, { action: "export.backup" });
     reply.raw.on("close", cleanup);
     return reply
       .header("content-type", "application/zip")

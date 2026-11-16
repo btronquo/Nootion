@@ -1,19 +1,20 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
-import type { FastifyPluginAsync } from "fastify";
+import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import { AVATAR_MAX_BYTES, deleteMeInput, loginInput, t, updateMeInput } from "@nootion/shared";
 import { and, count, countDistinct, eq, inArray, ne } from "drizzle-orm";
 import { burnPasswordCheck, hashPassword, verifyPassword } from "../auth/password.js";
 import { deleteSession, deleteUserSessions, SESSION_COOKIE } from "../auth/sessions.js";
 import { effectiveWorkspaceMembers, users, workspaceMembers, workspaces } from "../db/schema.js";
 import { HttpError, parseBody, requireUser } from "../http.js";
-import { avatarsDir, toPublicUser } from "../users.js";
+import { avatarsDir, toPublicUser, type UserRow } from "../users.js";
 import { imageExtension } from "../images.js";
 import { clearSessionCookie, startSession } from "./session-cookie.js";
 import { guestsAllowed, guestsOff, isGuest } from "../guests.js";
 import { passwordAllowed, ssoOnlyMessage } from "./sso.js";
 import { startTwoFactorChallenge } from "./two-factor.js";
+import { audit } from "../audit.js";
 
 /** Wrong passwords allowed for one account before it has to wait. */
 const LOGIN_FAILURES_MAX = 20;
@@ -23,7 +24,8 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   // Wrong passwords for one account, whatever address they come from (the limit per address is spread over many by a botnet).
   const failures = new Map<string, number[]>();
   const recentFailures = (email: string, now = Date.now()) => (failures.get(email) ?? []).filter((at) => now - at < LOGIN_FAILURE_WINDOW_MS);
-  const failed = (email: string) => {
+  const failed = (req: FastifyRequest, email: string, user?: UserRow) => {
+    audit(app.db, req, { action: "auth.login_failed", actor: user ?? null, details: { email, reason: "bad_credentials" } });
     const now = Date.now();
     failures.set(email, [...recentFailures(email, now), now]);
     if (failures.size > 5000) for (const [k] of failures) if (!recentFailures(k, now).length) failures.delete(k);
@@ -36,12 +38,22 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     const user = app.db.select().from(users).where(eq(users.email, input.email)).get();
     if (!user) {
       await burnPasswordCheck(input.password);
-      throw failed(input.email);
+      throw failed(req, input.email);
     }
-    if (!(await verifyPassword(user.passwordHash, input.password))) throw failed(input.email);
-    if (user.disabled) throw new HttpError(403, "disabled", t("error.accountDisabled"));
-    if (!passwordAllowed(app, user.role)) throw new HttpError(403, "sso_only", ssoOnlyMessage());
-    if (isGuest(user) && !guestsAllowed(app.db)) throw guestsOff();
+    if (!(await verifyPassword(user.passwordHash, input.password))) throw failed(req, input.email, user);
+    const refused = (reason: string) => audit(app.db, req, { action: "auth.login_failed", actor: user, details: { email: input.email, reason } });
+    if (user.disabled) {
+      refused("disabled");
+      throw new HttpError(403, "disabled", t("error.accountDisabled"));
+    }
+    if (!passwordAllowed(app, user.role)) {
+      refused("sso_only");
+      throw new HttpError(403, "sso_only", ssoOnlyMessage());
+    }
+    if (isGuest(user) && !guestsAllowed(app.db)) {
+      refused("guests_off");
+      throw guestsOff();
+    }
     failures.delete(input.email);
     // The password alone is not enough: the code from the authenticator app comes next (POST /login/2fa).
     if (user.totpSecret) {
@@ -49,10 +61,12 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       return { twoFactorRequired: true };
     }
     startSession(app, reply, user.id);
+    audit(app.db, req, { action: "auth.login", actor: user, details: { method: "password" } });
     return { user: toPublicUser(user) };
   });
 
   app.post("/logout", async (req, reply) => {
+    if (req.user) audit(app.db, req, { action: "auth.logout" });
     const token = req.cookies[SESSION_COOKIE];
     if (token) deleteSession(app.db, token);
     clearSessionCookie(reply);
@@ -79,6 +93,8 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     if (changesEmail) set.email = input.email;
     if (input.newPassword) set.passwordHash = await hashPassword(input.newPassword);
     const updated = Object.keys(set).length ? app.db.update(users).set(set).where(eq(users.id, user.id)).returning().get() : user;
+    if (changesEmail) audit(app.db, req, { action: "account.email_changed", details: { from: user.email, to: input.email } });
+    if (input.newPassword) audit(app.db, req, { action: "account.password_changed" });
     if (input.newPassword) {
       // Signs out every other device; this one gets a fresh session.
       deleteUserSessions(app.db, user.id);
@@ -158,6 +174,8 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     }
     if (blocking.length) throw new HttpError(409, "sole_owner", t("error.soleOwner", { names: blocking.join(", ") }));
 
+    // Written before the account goes: the line keeps the person's name.
+    audit(db, req, { action: "account.deleted", details: { spacesDeleted: toDelete.length } });
     db.transaction((tx) => {
       if (toDelete.length) tx.delete(workspaces).where(inArray(workspaces.id, toDelete)).run();
       // Sessions, memberships and shares go with the account; what it wrote in shared spaces stays.

@@ -9,6 +9,7 @@ import { ensurePersonalWorkspace } from "../guests.js";
 import { HttpError, notFound, parseBody, requireAdmin } from "../http.js";
 import { toPublicUser } from "../users.js";
 import { clearTwoFactor } from "./two-factor.js";
+import { audit, personTarget } from "../audit.js";
 import { t } from "@nootion/shared";
 
 export const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -84,6 +85,9 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       return tx.update(users).set(input).where(eq(users.id, target.id)).returning().get();
     });
     if (input.disabled) deleteUserSessions(app.db, target.id);
+    const who = personTarget(app.db, target.id);
+    if (input.role && input.role !== target.role) audit(app.db, req, { action: "user.role_changed", target: who, details: { from: target.role, to: input.role } });
+    if (input.disabled !== undefined && input.disabled !== target.disabled) audit(app.db, req, { action: input.disabled ? "user.disabled" : "user.enabled", target: who });
     return { user: toPublicUser(updated) };
   });
 
@@ -91,7 +95,9 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   app.delete<{ Params: { id: string } }>("/users/:id/2fa", async (req) => {
     const target = app.db.select({ id: users.id }).from(users).where(eq(users.id, req.params.id)).get();
     if (!target) throw notFound();
-    return { user: toPublicUser(clearTwoFactor(app, target.id)) };
+    const updated = clearTwoFactor(app, target.id);
+    audit(app.db, req, { action: "user.two_factor_reset", target: personTarget(app.db, target.id) });
+    return { user: toPublicUser(updated) };
   });
 
   app.get("/invitations", async () => ({
@@ -139,12 +145,14 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         req.log.warn({ err }, "Couldn't send an invitation e-mail");
       }
     }
+    audit(app.db, req, { action: "user.invited", target: { type: "invitation", id: invitation.id, label: input.email ?? null }, details: { role: input.role } });
     // The token is only shown once: only its hash is stored.
     return { invitation: toInvitationInfo(invitation), url, emailed };
   });
 
   app.delete<{ Params: { id: string } }>("/invitations/:id", async (req) => {
-    app.db.delete(invitations).where(eq(invitations.id, req.params.id)).run();
+    const gone = app.db.delete(invitations).where(eq(invitations.id, req.params.id)).returning().get();
+    if (gone) audit(app.db, req, { action: "user.invitation_revoked", target: { type: "invitation", id: gone.id, label: gone.email } });
     return { ok: true };
   });
 };

@@ -214,7 +214,7 @@ describe("administrators and guests", () => {
 
     // Another setting saved alone leaves this one as it is.
     await boris.put("/api/admin/settings", { webhookPrivateNetworks: true });
-    expect((await boris.get("/api/admin/settings")).json().settings).toEqual({ webhookPrivateNetworks: true, allowGuests: false });
+    expect((await boris.get("/api/admin/settings")).json().settings).toMatchObject({ webhookPrivateNetworks: true, allowGuests: false });
 
     // Turned on again, the guest's session works as before.
     await boris.put("/api/admin/settings", { allowGuests: true });

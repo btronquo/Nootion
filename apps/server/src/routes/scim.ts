@@ -5,6 +5,7 @@ import { deleteUserSessions } from "../auth/sessions.js";
 import { groupMembers, groups, users } from "../db/schema.js";
 import { addGroupMembers, assertNameFree, createGroup, findGroup, removeGroupMembers, setGroupMembers, type GroupRow } from "../groups.js";
 import { createUser, type UserRow } from "../users.js";
+import { audit, personTarget } from "../audit.js";
 
 /**
  * SCIM 2.0 users and groups, for the SSO provider to create, update and disable accounts and keep the company's
@@ -185,6 +186,9 @@ export const scimRoutes: FastifyPluginAsync = async (app) => {
       deleteUserSessions(db, u.id);
       app.collab.revalidateAll();
     }
+    if (set.disabled !== undefined) {
+      audit(db, null, { action: set.disabled ? "user.disabled" : "user.enabled", actor: null, target: personTarget(db, u.id), details: { via: "scim" } });
+    }
     return updated;
   }
 
@@ -279,6 +283,7 @@ export const scimRoutes: FastifyPluginAsync = async (app) => {
       role: "member",
       locale: "en",
     });
+    audit(db, req, { action: "account.created", actor: null, target: personTarget(db, u.id), details: { via: "scim", role: "member" } });
     u = update(u, {
       externalId: body.externalId,
       active: body.active === undefined ? true : bool(body.active),

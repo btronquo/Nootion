@@ -8,6 +8,7 @@ import { HttpError, parseBody } from "../http.js";
 import { requestLocale } from "../i18n.js";
 import { createUser, toPublicUser } from "../users.js";
 import { startSession } from "./session-cookie.js";
+import { audit } from "../audit.js";
 import { passwordAllowed, ssoOnlyMessage } from "./sso.js";
 
 export const invitationRoutes: FastifyPluginAsync = async (app) => {
@@ -52,6 +53,7 @@ export const invitationRoutes: FastifyPluginAsync = async (app) => {
       app.db.update(invitations).set({ usedBy: user.id }).where(eq(invitations.id, inv.id)).run();
       grantInvitedPage(app.db, inv, user.id);
       startSession(app, reply, user.id);
+      audit(app.db, req, { action: "account.created", actor: user, details: { via: "invitation", role: inv.role } });
       return { user: toPublicUser(user) };
     },
   );

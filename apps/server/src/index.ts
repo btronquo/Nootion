@@ -1,6 +1,7 @@
 import path from "node:path";
 import { buildApp } from "./app.js";
 import { purgeExpiredSessions } from "./auth/sessions.js";
+import { purgeOldAuditEvents } from "./audit.js";
 import { cleanOrphanFiles } from "./attachments.js";
 import { purgeOrphanViews } from "./databases.js";
 import { loadConfig } from "./config.js";
@@ -13,9 +14,11 @@ const app = await buildApp({ db, config, logger: true });
 purgeExpiredSessions(db);
 cleanOrphanFiles(db, config.dataDir);
 purgeOrphanViews(db);
+purgeOldAuditEvents(db);
 setInterval(() => {
   purgeExpiredSessions(db);
   purgeOrphanViews(db);
+  purgeOldAuditEvents(db);
 }, 60 * 60 * 1000).unref();
 
 const shutdown = async () => {

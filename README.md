@@ -77,6 +77,8 @@ offline use and the Notion import.
 - Invitations by link (valid 7 days, optionally restricted to one email), admin / member roles, account disabling.
 - Guests: people from outside invited on one page from its share window, who only see the pages shared with them
   (no spaces, no people directory, no API tokens); administrators list them apart, make them members or forbid them.
+- Activity log for administrators: sign-ins, shares, public links, exports, deletions, roles and settings, with filters,
+  a CSV export and a chosen retention time.
 - A private personal space for each user, and shared spaces with roles (owner, editor, commenter, viewer).
 - Groups of people made by administrators (or by the company's directory through SCIM): share a space or a page with
   a whole group, and `@group` in a page tells everyone in it.

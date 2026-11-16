@@ -6,6 +6,7 @@ import {
   KeyRound,
   Mail,
   Puzzle,
+  ScrollText,
   ShieldCheck,
   Trash2,
   UserPlus,
@@ -31,6 +32,7 @@ import { SsoAdmin } from "./SsoAdmin";
 import { SecurityAdmin } from "./SecurityAdmin";
 import { GuestsAdmin } from "./GuestsAdmin";
 import { GroupsAdmin } from "./GroupsAdmin";
+import { AuditLogAdmin } from "./AuditLogAdmin";
 import { copyText } from "../lib/browser";
 import { UpdateBanner, VersionLine } from "../components/UpdateNotice";
 
@@ -44,6 +46,7 @@ const SECTIONS: { id: string; icon: LucideIcon; label: () => string }[] = [
   { id: "mail", icon: Mail, label: () => t("admin.nav.mail") },
   { id: "sso", icon: KeyRound, label: () => t("admin.nav.sso") },
   { id: "security", icon: ShieldCheck, label: () => t("admin.nav.security") },
+  { id: "activity", icon: ScrollText, label: () => t("admin.nav.activity") },
   { id: "plugins", icon: Puzzle, label: () => t("admin.nav.plugins") },
 ];
 
@@ -486,6 +489,10 @@ export function AdminPage() {
 
           <AdminCard id="security">
             <SecurityAdmin />
+          </AdminCard>
+
+          <AdminCard id="activity">
+            <AuditLogAdmin />
           </AdminCard>
 
           <AdminCard id="plugins">

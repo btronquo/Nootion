@@ -20,6 +20,9 @@ import { listWorkspacePages, toSummary } from "../pages.js";
 import { t } from "@nootion/shared";
 import { homePageOf } from "../home.js";
 import { memberCounts, requireGroup } from "../groups.js";
+import { audit, personTarget } from "../audit.js";
+
+const spaceTarget = (w: { id: string; name: string }) => ({ type: "workspace" as const, id: w.id, label: w.name });
 
 const ANY_ROLE = ["owner", "editor", "commenter", "viewer"] as const;
 
@@ -71,6 +74,7 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
       tx.insert(workspaces).values({ id, name: input.name, kind: "shared", createdBy: user.id }).run();
       tx.insert(workspaceMembers).values({ workspaceId: id, userId: user.id, role: "owner" }).run();
     });
+    audit(db, req, { action: "workspace.created", target: { type: "workspace", id, label: input.name } });
     const workspace: WorkspaceSummary = { id, name: input.name, kind: "shared", role: "owner" };
     return { workspace };
   });
@@ -87,7 +91,9 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
   app.delete<{ Params: { id: string } }>("/:id", async (req) => {
     const user = requireUser(req);
     requireSharedOwner(user.id, req.params.id);
+    const ws = getWorkspace(req.params.id)!;
     db.delete(workspaces).where(eq(workspaces.id, req.params.id)).run();
+    audit(db, req, { action: "workspace.deleted", target: spaceTarget(ws) });
     return { ok: true };
   });
 
@@ -96,6 +102,8 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
     const user = requireUser(req);
     requireWorkspaceRole(db, user.id, req.params.id, ["owner"]);
     const deleted = db.delete(pages).where(eq(pages.workspaceId, req.params.id)).run().changes;
+    const ws = getWorkspace(req.params.id);
+    if (ws) audit(db, req, { action: "workspace.emptied", target: spaceTarget(ws), details: { pages: deleted } });
     return { ok: true, deleted };
   });
 
@@ -159,6 +167,18 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
     if (input.role !== "owner" && ownerCount(req.params.id, input.userId) === 0) {
       throw new HttpError(409, "last_owner", t("error.lastOwner"));
     }
+    const was = db
+      .select({ role: workspaceMembers.role })
+      .from(workspaceMembers)
+      .where(and(eq(workspaceMembers.workspaceId, req.params.id), eq(workspaceMembers.userId, input.userId)))
+      .get()?.role;
+    if (was !== input.role) {
+      audit(db, req, {
+        action: "workspace.member_set",
+        target: spaceTarget(getWorkspace(req.params.id)!),
+        details: { member: `${target.name} <${target.email}>`, role: input.role, ...(was && { from: was }) },
+      });
+    }
     db.insert(workspaceMembers)
       .values({ workspaceId: req.params.id, userId: input.userId, role: input.role })
       .onConflictDoUpdate({ target: [workspaceMembers.workspaceId, workspaceMembers.userId], set: { role: input.role } })
@@ -185,9 +205,17 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
     if (ownerCount(req.params.id, req.params.userId) === 0) {
       throw new HttpError(409, "last_owner", t("error.lastOwner"));
     }
-    db.delete(workspaceMembers)
+    const removed = db
+      .delete(workspaceMembers)
       .where(and(eq(workspaceMembers.workspaceId, req.params.id), eq(workspaceMembers.userId, req.params.userId)))
-      .run();
+      .run().changes;
+    if (removed) {
+      audit(db, req, {
+        action: "workspace.member_removed",
+        target: spaceTarget(getWorkspace(req.params.id)!),
+        details: { member: personTarget(db, req.params.userId).label ?? req.params.userId, ...(req.params.userId === user.id && { left: true }) },
+      });
+    }
     return { ok: true };
   });
 

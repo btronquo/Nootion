@@ -193,6 +193,38 @@ always downloaded, never displayed.
 
 To report a vulnerability, see [SECURITY.md](../SECURITY.md).
 
+## Activity log
+
+**Administration › Activity log** lists who did what on the server, latest first:
+
+- **Sign-ins**: successful ones (password, password and code, SSO), failed ones with the reason (wrong password,
+  unknown address, disabled account, wrong code…) and sign-outs.
+- **Accounts**: accounts created (first administrator, invitation, SSO, company directory), passwords changed or reset,
+  e-mail addresses changed, two-step sign-in turned on or off, API tokens created or revoked, accounts deleted.
+- **People and roles**: invitations created or cancelled, roles changed, accounts disabled or enabled (also by SCIM),
+  two-step sign-in reset by an administrator.
+- **Sharing and public links**: pages shared or unshared (with whom, with which access), guests invited, public links
+  and public form links created, changed (password, end date) or removed, members added to a space, their role
+  changed, or removed.
+- **Deletions and spaces**: pages moved to the trash, restored or deleted for good, spaces created, emptied or deleted.
+- **Exports and backups**: pages and spaces exported, the full backup downloaded, a backup started by hand.
+- **Settings**: changes in Security, E-mail, SSO, automatic backups and plugins (the names of the settings changed,
+  never the passwords or keys), SCIM tokens made or removed.
+
+Each line has the person (their name is kept after their account is deleted), what the action was about (a page's
+title, a person, a space), a few facts (the role given, the settings changed) and the visitor's address (see
+[The visitor's address](#securing-your-instance) behind a proxy). Page content is never written in the log.
+
+Filters narrow it by family of actions, person, words (a name, an address, a page title) and days; **Export as CSV**
+downloads the lines the filters show (separated by semicolons when the browser is in French, so spreadsheets set to
+French open it as columns). **Keep the log** chooses how long lines stay: 30 days, 3 or 6 months, 1 year (the
+default), 2 years or forever; older lines are deleted every hour. The log is only added to: nobody, administrators
+included, can change or delete a line from the interface.
+
+The API offers the same for scripts run by an administrator: `GET /api/admin/audit` (parameters `category`,
+`action`, `actorId`, `q`, `from`, `to`, `limit`, and `before` with the `next` value of the previous answer) and
+`GET /api/admin/audit/export` for the CSV.
+
 ## Single sign-on (SSO)
 
 People can sign in with their company account (Microsoft Entra ID, Google Workspace, Okta, Keycloak… any OpenID

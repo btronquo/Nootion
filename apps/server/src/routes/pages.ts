@@ -51,8 +51,13 @@ import { fromAutomation, rowSnapshot } from "../automations.js";
 import { checkContent, parseMarkdown } from "../markdown-in.js";
 import { assertUnlocked, lockedError } from "../locks.js";
 import { canReadSynced, inlineSyncedBlocks } from "../synced-blocks.js";
+import { audit, personTarget } from "../audit.js";
 
 const contentBody = z.object({ markdown: z.string().max(2_000_000).optional(), content: z.unknown().optional() }).passthrough();
+
+/** A page, as the activity log names it. */
+const pageTarget = (p: { id: string; title: string }) => ({ type: "page" as const, id: p.id, label: p.title });
+const personLabel = (u: { name: string; email: string }) => `${u.name} <${u.email}>`;
 
 export const pageRoutes: FastifyPluginAsync = async (app) => {
   const db = app.db;
@@ -388,9 +393,10 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
   // Moves the page (and its subpages) to the trash.
   app.delete<{ Params: { id: string } }>("/:id", async (req) => {
     const user = requireUser(req);
-    requirePageRole(db, user.id, req.params.id, "full");
+    const { page } = requirePageRole(db, user.id, req.params.id, "full");
     if (homePageOf(db, user.id) === req.params.id) throw new HttpError(400, "home_page", t("error.homePage"));
     db.update(pages).set({ deletedAt: new Date(), deletedBy: user.id }).where(eq(pages.id, req.params.id)).run();
+    audit(db, req, { action: "page.trashed", target: pageTarget(page) });
     return { ok: true };
   });
 
@@ -407,6 +413,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
         .run();
       if (parentTrashed) placeAmongSiblings(tx, getPageMeta(tx, page.id)!, undefined);
     });
+    audit(db, req, { action: "page.restored", target: pageTarget(page) });
     return { ok: true };
   });
 
@@ -416,6 +423,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     if (!page.deletedAt) throw new HttpError(400, "not_trashed", t("error.trashFirst"));
     const ids = [page.id, ...listDescendants(db, page.id, { includeTrashed: true }).map((p) => p.id)];
     db.delete(pages).where(inArray(pages.id, ids)).run();
+    audit(db, req, { action: "page.deleted", target: { type: "page", id: page.id, label: page.title }, details: { pages: ids.length } });
     return { ok: true };
   });
 
@@ -514,7 +522,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
   app.put<{ Params: { id: string } }>("/:id/shares", async (req) => {
     const user = requireUser(req);
     const input = parseBody(sharePageInput, req.body);
-    requirePageRole(db, user.id, req.params.id, "full");
+    const { page } = requirePageRole(db, user.id, req.params.id, "full");
     const target = db.select().from(users).where(eq(users.id, input.userId)).get();
     if (!target || target.disabled) throw new HttpError(404, "user_not_found", t("error.userNotFound"));
     if (isGuest(target) && input.role === "full") throw new HttpError(400, "guest_role", t("error.guestRole"));
@@ -522,15 +530,18 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
       .values({ pageId: req.params.id, userId: input.userId, role: input.role, grantedBy: user.id })
       .onConflictDoUpdate({ target: [pagePermissions.pageId, pagePermissions.userId], set: { role: input.role, grantedBy: user.id } })
       .run();
+    audit(db, req, { action: "page.shared", target: pageTarget(page), details: { with: personLabel(target), role: input.role } });
     return { ok: true };
   });
 
   app.delete<{ Params: { id: string; userId: string } }>("/:id/shares/:userId", async (req) => {
     const user = requireUser(req);
-    requirePageRole(db, user.id, req.params.id, "full");
-    db.delete(pagePermissions)
+    const { page } = requirePageRole(db, user.id, req.params.id, "full");
+    const removed = db
+      .delete(pagePermissions)
       .where(and(eq(pagePermissions.pageId, req.params.id), eq(pagePermissions.userId, req.params.userId)))
-      .run();
+      .run().changes;
+    if (removed) audit(db, req, { action: "page.unshared", target: pageTarget(page), details: { with: personTarget(db, req.params.userId).label ?? req.params.userId } });
     return { ok: true };
   });
 
@@ -559,6 +570,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
         .values({ pageId: page.id, userId: existing.id, role: input.role, grantedBy: user.id })
         .onConflictDoUpdate({ target: [pagePermissions.pageId, pagePermissions.userId], set: { role: input.role, grantedBy: user.id } })
         .run();
+      audit(db, req, { action: "page.shared", target: pageTarget(page), details: { with: personLabel(existing), role: input.role } });
       return { shared: true };
     }
     // One invitation per address and page: inviting again sends a new link.
@@ -598,6 +610,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
         req.log.warn({ err }, "Couldn't send a guest invitation e-mail");
       }
     }
+    audit(db, req, { action: "page.guest_invited", target: pageTarget(page), details: { email: input.email, role: input.role } });
     // The link is shown once (only its hash is kept), to be sent another way when there is no e-mail.
     return { shared: false, invitation: toPendingGuest(invitation), url, emailed };
   });
@@ -605,9 +618,12 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
   app.delete<{ Params: { id: string; invitationId: string } }>("/:id/guests/:invitationId", async (req) => {
     const user = requireUser(req);
     requirePageRole(db, user.id, req.params.id, "full");
-    db.delete(invitations)
+    const gone = db
+      .delete(invitations)
       .where(and(eq(invitations.id, req.params.invitationId), eq(invitations.pageId, req.params.id), isNull(invitations.usedAt)))
-      .run();
+      .returning()
+      .get();
+    if (gone) audit(db, req, { action: "user.invitation_revoked", target: { type: "invitation", id: gone.id, label: gone.email }, details: { pageId: req.params.id } });
     return { ok: true };
   });
 
@@ -630,7 +646,8 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
   app.put<{ Params: { id: string } }>("/:id/public-link", async (req) => {
     const user = requireUser(req);
     const input = parseBody(publicLinkInput, req.body);
-    requirePageRole(db, user.id, req.params.id, "full");
+    const { page } = requirePageRole(db, user.id, req.params.id, "full");
+    const before = db.select().from(publicLinks).where(eq(publicLinks.pageId, req.params.id)).get();
     const protection = await protectionUpdate(input);
     const changes = { ...protection, ...(input.includeSubpages !== undefined && { includeSubpages: input.includeSubpages }) };
     const link = db
@@ -639,13 +656,19 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
       .onConflictDoUpdate({ target: publicLinks.pageId, set: Object.keys(changes).length ? changes : { pageId: req.params.id } })
       .returning()
       .get();
-    return { link: linkInfo(link) };
+    const info = linkInfo(link);
+    const facts = { includeSubpages: link.includeSubpages, password: info.hasPassword, expiresAt: info.expiresAt };
+    if (!before) audit(db, req, { action: "page.public_link_created", target: pageTarget(page), details: facts });
+    else if (Object.keys(changes).length) audit(db, req, { action: "page.public_link_changed", target: pageTarget(page), details: facts });
+    return { link: info };
   });
 
   app.delete<{ Params: { id: string } }>("/:id/public-link", async (req) => {
     const user = requireUser(req);
-    requirePageRole(db, user.id, req.params.id, "full");
-    db.delete(publicLinks).where(eq(publicLinks.pageId, req.params.id)).run();
+    const { page } = requirePageRole(db, user.id, req.params.id, "full");
+    if (db.delete(publicLinks).where(eq(publicLinks.pageId, req.params.id)).run().changes) {
+      audit(db, req, { action: "page.public_link_removed", target: pageTarget(page) });
+    }
     return { ok: true };
   });
 };
