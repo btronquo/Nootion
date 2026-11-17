@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import type { FastifyRequest } from "fastify";
 import type { AnySQLiteColumn } from "drizzle-orm/sqlite-core";
 import { and, desc, eq, gte, inArray, like, lt, or, sql, type SQL } from "drizzle-orm";
@@ -18,6 +18,33 @@ export interface AuditEntry {
   details?: Record<string, unknown>;
 }
 
+let lastMs = 0;
+let seq = 0;
+/**
+ * A UUID (version 7) that sorts in the order lines were written: the time in milliseconds, then a counter for lines
+ * written in the same millisecond, then random bits. The log is listed by time then id, so lines of the same
+ * millisecond keep their order.
+ */
+export function timeOrderedId(): string {
+  let ms = Date.now();
+  if (ms <= lastMs) {
+    ms = lastMs;
+    seq++;
+    // 4096 lines in one millisecond: borrow the next one.
+    if (seq > 0xfff) ((ms = ++lastMs), (seq = 0));
+  } else {
+    lastMs = ms;
+    seq = 0;
+  }
+  const b = randomBytes(16);
+  b.writeUIntBE(ms, 0, 6);
+  b[6] = 0x70 | (seq >> 8);
+  b[7] = seq & 0xff;
+  b[8] = 0x80 | (b[8]! & 0x3f);
+  const h = b.toString("hex");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
 /**
  * Adds a line to the activity log. Called by the routes concerned after the change is made; it never makes a
  * request fail (the log is a record, not a gate).
@@ -30,7 +57,7 @@ export function audit(db: Db, req: FastifyRequest | null, entry: AuditEntry): vo
   try {
     db.insert(auditEvents)
       .values({
-        id: randomUUID(),
+        id: timeOrderedId(),
         actorId: actor?.id ?? null,
         actorName: actor?.name ?? null,
         actorEmail: actor?.email ?? null,

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import type { AuditEvent } from "@nootion/shared";
 import { auditEvents } from "../src/db/schema.js";
-import { purgeOldAuditEvents } from "../src/audit.js";
+import { purgeOldAuditEvents, timeOrderedId } from "../src/audit.js";
 import { ADMIN, Client, inviteUser, makeApp, setupAdmin } from "./helpers.js";
 
 let app: FastifyInstance;
@@ -166,5 +166,14 @@ describe("the activity log", () => {
       .values({ id: "older", action: "auth.login", createdAt: new Date(0) })
       .run();
     expect(purgeOldAuditEvents(app.db)).toBe(0);
+  });
+});
+
+describe("order of the log", () => {
+  it("gives ids that sort in the order they were made, even within one millisecond", () => {
+    const ids = Array.from({ length: 5000 }, () => timeOrderedId());
+    expect([...ids].sort()).toEqual(ids);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids[0]).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   });
 });
