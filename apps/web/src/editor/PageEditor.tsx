@@ -24,6 +24,9 @@ import { usePlugins } from "../plugins/registry";
 import type { ClientPluginInfo } from "@nootion/shared";
 import { t } from "@nootion/shared";
 import { MobileToolbar } from "./MobileToolbar";
+import { SelectionPanels } from "./selectionPanel";
+import { PluginSelectionButtons } from "../plugins/SelectionMenus";
+import { PagePanels } from "../plugins/PagePanels";
 import { TextColorButton } from "./TextColorMenu";
 import { BlockHandle } from "./BlockHandle";
 import { BlockShortcuts } from "./blockActions";
@@ -216,6 +219,7 @@ function CollabEditor({
         createSuggestionExtension("slashCommands", "/", slashItems(ctx), t("editor.noCommand")),
         createSuggestionExtension("pageMentions", "@", mentionItems(ctx), t("editor.noPage")),
         CommentHighlights.configure({ onOpen: (id) => commentsRef.current?.onOpen(id) }),
+        SelectionPanels,
         BlockShortcuts,
         BlockFlash,
         EditTracking.configure({ user: user ? { id: user.id, name: user.name } : null }),
@@ -306,10 +310,14 @@ function CollabEditor({
         ) : null}
       </div>
       {/* On touch screens, formatting is in the bar above the keyboard, away from the system's selection menu. */}
-      {editor && canEdit && !touch && <FormatMenu editor={editor} onComment={comments?.canComment ? () => startComment(editor, comments) : undefined} />}
+      {editor && canEdit && !touch && (
+        <FormatMenu editor={editor} pageId={page.id} onComment={comments?.canComment ? () => startComment(editor, comments) : undefined} />
+      )}
       {/* People who may only comment, and phones, get a menu with just "Comment". */}
       {editor && comments?.canComment && (touch || !canEdit) && <CommentMenu editor={editor} onComment={() => startComment(editor, comments)} />}
-      {editor && canEdit && touch && <MobileToolbar editor={editor} />}
+      {editor && canEdit && touch && <MobileToolbar editor={editor} pageId={page.id} />}
+      {/* Round buttons of plugins at the bottom right (the AI assistant's chat…). */}
+      {editor && <PagePanels editor={editor} pageId={page.id} title={page.title} canEdit={canEdit} touch={touch} />}
       {editor && canEdit && <TableMenu editor={editor} />}
       {editor && editable && !touch && (
         <BlockHandle
@@ -350,7 +358,7 @@ function CommentMenu({ editor, onComment }: { editor: Editor; onComment: () => v
   );
 }
 
-function FormatMenu({ editor, onComment }: { editor: Editor; onComment?: () => void }) {
+function FormatMenu({ editor, pageId, onComment }: { editor: Editor; pageId: string; onComment?: () => void }) {
   const state = useEditorState({
     editor,
     selector: ({ editor: e }) => ({
@@ -414,6 +422,8 @@ function FormatMenu({ editor, onComment }: { editor: Editor; onComment?: () => v
           </button>
         </>
       )}
+      {/* Entries that plugins add (the AI assistant…). */}
+      <PluginSelectionButtons editor={editor} pageId={pageId} />
     </BubbleMenu>
   );
 }

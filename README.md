@@ -28,8 +28,9 @@ the freedom of an open-source app you host yourself, and the databases that make
 - **On the phone and the desktop, even offline.** Installs as an app on phones; a desktop app for Windows, macOS and
   Linux keeps whole spaces on the computer. Pages stay readable and editable offline and sync when the connection
   comes back, merged with others' changes.
-- **Yours to extend.** Plugins add editor blocks, database column types, API routes, scheduled tasks and formula
-  functions.
+- **Yours to extend.** Plugins add editor blocks, database column types, entries in the selection menu, API routes,
+  scheduled tasks and formula functions. An optional AI assistant summarises, translates or rewrites a selection with
+  your own key or a local model.
 - **Open for good.** Licensed under the AGPL-3.0: the code, and the code of any hosted version of it, stays open.
 - **Light.** Runs on a small home server or NAS (amd64 and arm64), no separate database server or Redis.
 
@@ -195,7 +196,10 @@ offline use and the Notion import.
   - "Test management (QA)": test cases, runs and results as in TestRail, over several products at once
     ([docs/QA.md](docs/QA.md));
   - "Map": the rows of a database as pins on a map, places added by address or with a click, the nearest ones to
-    you ([docs/MAP.md](docs/MAP.md)).
+    you ([docs/MAP.md](docs/MAP.md));
+  - "AI assistant" (off by default): summarise, translate, improve or continue a selection, or ask about it, with
+    your own key (Anthropic, OpenAI, Mistral) or a model on your network (Ollama); nothing is sent without a click
+    ([docs/AI_ASSISTANT.md](docs/AI_ASSISTANT.md)).
 
 ### Import, export and backups
 

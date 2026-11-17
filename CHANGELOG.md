@@ -7,6 +7,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- AI assistant, an optional plugin (off by default): once an administrator turns it on and gives a key (Anthropic,
+  OpenAI, Mistral) or the address of a model on the network (Ollama, or a server compatible with OpenAI's API), the
+  bar over selected text gets "✨ AI" with "Summarise", "Translate to…", "Improve the writing", "Continue" and
+  "Ask…" (on phones, a ✨ button in the bar above the keyboard). The answer is written as it comes in a panel under
+  the passage, which stays highlighted, then "Replace", "Insert below" (or "Insert" for a continuation), "Try again"
+  or "Discard"; Markdown of the answer becomes real blocks. A round ✨ button at the bottom right of pages opens a chat
+about the page being read (suggestions such as "Summarise this page" or "What is left to do?"), each answer with
+"Insert in the page" and "Copy"; readers of a page may chat about it too. DeepSeek, OpenRouter, Groq and other
+services compatible with OpenAI's API work with their address and key. Nothing leaves the server without a click, only the
+  selection is sent, and the menu and the panel say where the text goes. The key is kept encrypted and only the
+  configured address may be on the local network. Settings for the model, a daily limit per person, and guests
+  (refused by default). See [docs/AI_ASSISTANT.md](docs/AI_ASSISTANT.md).
+- Plugins can add entries to the menu of a selection (`registerSelectionMenu`), with a panel under the passage that
+  replaces it or inserts after or below it, add a round button at the bottom right of pages that opens a panel beside
+  them (`registerPagePanel`), send a route's answer as it is written (`nootion.stream`, read in the
+  browser with `nootion.fetch`), turn Markdown into page blocks (`nootion.markdown`), and read an outside answer as it
+  arrives (`net.request(url, { stream: true })`). See [docs/PLUGINS.md](docs/PLUGINS.md).
 - German, Spanish and Italian interfaces, besides English and French: every text, the e-mails and the server's
   messages, with dates, numbers and plurals in the language's own format, emoji names in the icon picker and form
   validation messages. Dates written in words in a page are understood in all five languages whatever the one chosen

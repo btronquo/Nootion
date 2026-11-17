@@ -29,6 +29,8 @@ import { attachments, pluginUserData, plugins } from "./db/schema.js";
 import { fileStore, streamToTemp } from "./files.js";
 import { HttpError, notFound, unauthorized } from "./http.js";
 import { getPageRole, requirePageRole } from "./permissions.js";
+import { parseMarkdown } from "./markdown-in.js";
+import type { ProseMirrorNode } from "./collab.js";
 import { t } from "@nootion/shared";
 
 /** Files a plugin may ship in its assets/ folder, by extension. */
@@ -72,6 +74,14 @@ export class PluginRedirect {
 export class PluginBinary {
   constructor(
     readonly data: Buffer | Readable,
+    readonly contentType: string,
+  ) {}
+}
+
+/** Text a plugin's route sends as it is written (a model's answer), instead of JSON once done. */
+export class PluginStream {
+  constructor(
+    readonly data: Readable,
     readonly contentType: string,
   ) {}
 }
@@ -125,6 +135,13 @@ export interface ServerPluginApi {
   binary: (data: Buffer | Readable, contentType: string) => PluginBinary;
   /** Return this from a route to send the browser to another address. */
   redirect: (url: string) => PluginRedirect;
+  /**
+   * Return this from a route to send text as it is written (each chunk reaches the browser at once), from a stream
+   * or an async generator of strings. When the browser goes away, the stream is destroyed (the generator returns).
+   */
+  stream: (data: Readable | AsyncIterable<string | Buffer>, contentType?: string) => PluginStream;
+  /** Page blocks (as in the editor) from Markdown: headings, lists, to-dos, quotes, code, tables, links… */
+  markdown: (text: string) => ProseMirrorNode[];
   /** Address of Nootion as people open it (APP_URL), without a trailing slash. */
   appUrl: string;
   /**
@@ -336,6 +353,9 @@ export class PluginManager {
       attachments: { create: (input) => this.createAttachment(input) },
       binary: (data, contentType) => new PluginBinary(data, contentType),
       redirect: (url) => new PluginRedirect(url),
+      stream: (data, contentType = "text/plain; charset=utf-8") =>
+        new PluginStream(data instanceof Readable ? data : Readable.from(data, { objectMode: false }), contentType),
+      markdown: (text) => parseMarkdown(String(text ?? "")).content ?? [],
       appUrl: this.opts.appUrl,
       net: { request: outboundRequest, isPrivateAddress },
       request: async (userId, method, apiPath, body) => {
@@ -563,6 +583,20 @@ export class PluginManager {
         headers: req.headers,
       });
       if (result instanceof PluginRedirect) return reply.redirect(result.url);
+      if (result instanceof PluginStream) {
+        const stream = result.data;
+        // The browser left (closed the panel, stopped): the plugin stops too (and its request to another service).
+        reply.raw.on("close", () => {
+          if (!stream.destroyed) stream.destroy();
+        });
+        stream.on("error", (e) => this.opts.log.warn(`Plugin ${id}: stream: ${e instanceof Error ? e.message : e}`));
+        return reply
+          .header("content-type", result.contentType)
+          .header("cache-control", "no-store")
+          .header("x-accel-buffering", "no")
+          .header("x-content-type-options", "nosniff")
+          .send(stream);
+      }
       if (result instanceof PluginBinary) {
         const inline = INLINE_PLUGIN_TYPES.has(result.contentType);
         return reply
