@@ -22,6 +22,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   `@group` shows in their tasks. With SCIM, the company's directory makes and fills groups itself (`/Groups`), marked
   "From the directory". Guests are never in a group and don't see groups. Migration 0047 adds the tables and two
   views, `effective_workspace_members` and `effective_page_permissions`, which the permission checks read.
+- Activity log for administrators, in Administration: who signed in (and failed to, with the reason), shared what
+  with whom, invited a guest, made or changed a public link, exported a page or a space, downloaded a backup, moved to
+  the trash or deleted, changed a role, a space member or a setting, created an API token. Each line keeps the
+  person's name, the page or person concerned, a few facts (role, settings changed, never their values when secret)
+  and the address; page content is never written. Filters by family, person, words and days, "Show more" page after
+  page, an export of the filtered lines as CSV (spreadsheet formulas made harmless), and "Keep the log" for 30 days to
+  forever (one year by default). Migration 0048 adds the `audit_events` table.
 - Synced blocks: the same content in several pages, edited from any of them and updated live in all. "Turn into
   synced block" in a block's menu, then "Copy synced block" and paste it elsewhere; or "/synced" to make a new one or
   show one already used. A thin frame and "Synced in 3 pages" show on hover, with the list of those pages. Removing a

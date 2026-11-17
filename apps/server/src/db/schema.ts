@@ -975,3 +975,31 @@ export const pageTasks = sqliteTable(
 export const pageTasksStale = sqliteTable("page_tasks_stale", {
   pageId: text("page_id").primaryKey(),
 });
+
+/**
+ * The activity log for administrators (audit.ts): who signed in, shared, published, exported, deleted, or changed a
+ * role or a setting. Only ever added to, and emptied by age. The person's name and the target's label are copied so
+ * that a line still reads after they are gone; no page content is kept.
+ */
+export const auditEvents = sqliteTable(
+  "audit_events",
+  {
+    id: text("id").primaryKey(),
+    createdAt: createdAt(),
+    actorId: text("actor_id").references(() => users.id, { onDelete: "set null" }),
+    actorName: text("actor_name"),
+    actorEmail: text("actor_email"),
+    // What was done, e.g. "auth.login", "page.shared", "settings.changed" (AUDIT_ACTIONS).
+    action: text("action").notNull(),
+    targetType: text("target_type"),
+    targetId: text("target_id"),
+    targetLabel: text("target_label"),
+    details: text("details", { mode: "json" }).$type<Record<string, unknown>>(),
+    ip: text("ip"),
+  },
+  (t) => [
+    index("audit_events_created_idx").on(t.createdAt),
+    index("audit_events_actor_idx").on(t.actorId, t.createdAt),
+    index("audit_events_action_idx").on(t.action, t.createdAt),
+  ],
+);

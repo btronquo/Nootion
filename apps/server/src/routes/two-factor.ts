@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyPluginAsync, FastifyReply } from "fastify";
+import { audit } from "../audit.js";
 import QRCode from "qrcode";
 import { t, twoFactorCodeInput, twoFactorPasswordInput, type TwoFactorSetup, type TwoFactorStatus } from "@nootion/shared";
 import { and, eq, gt, lt } from "drizzle-orm";
@@ -94,11 +95,13 @@ export const twoFactorRoutes: FastifyPluginAsync = async (app) => {
         throw new HttpError(401, "challenge_expired", t("twoFactor.tooManyAttempts"));
       }
       db.update(loginChallenges).set({ attempts }).where(eq(loginChallenges.tokenHash, challenge.tokenHash)).run();
+      audit(db, req, { action: "auth.login_failed", actor: user, details: { email: user.email, reason: "bad_code" } });
       throw new HttpError(401, "bad_code", t("twoFactor.badCode"));
     }
     db.delete(loginChallenges).where(eq(loginChallenges.tokenHash, challenge.tokenHash)).run();
     reply.clearCookie(CHALLENGE_COOKIE, { path: "/api/auth" });
     startSession(app, reply, user.id);
+    audit(db, req, { action: "auth.login", actor: user, details: { method: user.totpSecret ? "password_2fa" : "password" } });
     return { user: toPublicUser(user) };
   });
 
@@ -134,6 +137,7 @@ export const twoFactorRoutes: FastifyPluginAsync = async (app) => {
       .where(eq(users.id, user.id))
       .returning()
       .get();
+    audit(db, req, { action: "account.two_factor_enabled" });
     return { user: toPublicUser(updated), recoveryCodes: codes };
   });
 
@@ -141,7 +145,9 @@ export const twoFactorRoutes: FastifyPluginAsync = async (app) => {
     const user = requireUser(req);
     const input = parseBody(twoFactorPasswordInput, req.body);
     await checkPassword(user, input.password);
-    return { user: toPublicUser(clearTwoFactor(app, user.id)) };
+    const updated = clearTwoFactor(app, user.id);
+    audit(db, req, { action: "account.two_factor_disabled" });
+    return { user: toPublicUser(updated) };
   });
 
   // New recovery codes; the old ones stop working.

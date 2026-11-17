@@ -108,7 +108,7 @@ function exportColumns(data: DatabaseData, viewId?: string): DatabaseProperty[] 
     .sort((a, b) => Number(b.type === "title") - Number(a.type === "title") || (order.get(a.id)?.i ?? 1e9) - (order.get(b.id)?.i ?? 1e9));
 }
 
-function csvField(s: string, separator = ","): string {
+export function csvField(s: string, separator = ","): string {
   return s.includes(separator) || /["\n\r]/.test(s) || /^\s|\s$/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 

@@ -8,6 +8,7 @@ import { actingAs, findButtonBlock, requestRunner, resolveButton, runButton } fr
 import { publicForms, users } from "../db/schema.js";
 import { getChain, isTrashed, requirePageRole } from "../permissions.js";
 import { getPageMeta } from "../pages.js";
+import { audit } from "../audit.js";
 import { verifyPassword } from "../auth/password.js";
 import { isExpired, protectionInfo, protectionUpdate, requireOpen, setUnlockCookie, tooManyAttempts, unlockLimiter } from "../public-access.js";
 
@@ -45,31 +46,38 @@ export const buttonRoutes: FastifyPluginAsync = async (app) => {
   app.put("/public-link", async (req) => {
     const user = requireUser(req);
     const { pageId, blockId, ...input } = parseBody(blockInput.extend(publicLinkProtectionInput.shape), req.body);
-    requirePageRole(db, user.id, pageId, "editor");
+    const { page } = requirePageRole(db, user.id, pageId, "editor");
     const config = findButtonBlock(app.collab, db, pageId, blockId);
     if (!config) throw notFound();
     if (!config.form) throw new HttpError(400, "no_form", t("button.publicNeedsForm"));
     const protection = await protectionUpdate(input);
     const existing = findLink(pageId, blockId);
+    const target = { type: "form" as const, id: pageId, label: page.title };
+    const facts = (l: typeof publicForms.$inferSelect) => ({ blockId, password: !!l.passwordHash, expiresAt: l.expiresAt?.toISOString() ?? null });
     if (existing) {
       if (!Object.keys(protection).length) return linkInfo(existing);
-      return linkInfo(db.update(publicForms).set(protection).where(eq(publicForms.token, existing.token)).returning().get());
+      const changed = db.update(publicForms).set(protection).where(eq(publicForms.token, existing.token)).returning().get();
+      audit(db, req, { action: "form.public_link_changed", target, details: facts(changed) });
+      return linkInfo(changed);
     }
     const link = db
       .insert(publicForms)
       .values({ token: randomBytes(18).toString("base64url"), pageId, blockId, userId: user.id, ...protection })
       .returning()
       .get();
+    audit(db, req, { action: "form.public_link_created", target, details: facts(link) });
     return linkInfo(link);
   });
 
   app.delete("/public-link", async (req) => {
     const user = requireUser(req);
     const { pageId, blockId } = parseBody(blockInput, req.body);
-    requirePageRole(db, user.id, pageId, "editor");
-    db.delete(publicForms)
+    const { page } = requirePageRole(db, user.id, pageId, "editor");
+    const removed = db
+      .delete(publicForms)
       .where(and(eq(publicForms.pageId, pageId), eq(publicForms.blockId, blockId)))
-      .run();
+      .run().changes;
+    if (removed) audit(db, req, { action: "form.public_link_removed", target: { type: "form", id: pageId, label: page.title }, details: { blockId } });
     return { ok: true };
   });
 };

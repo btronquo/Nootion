@@ -6,6 +6,8 @@ export const instanceSettingsInput = z.object({
   webhookPrivateNetworks: z.boolean().default(false),
   /** People outside the team can be invited on a page as guests. Off: no new guests, and guests can't sign in. */
   allowGuests: z.boolean().default(true),
+  /** How many days the activity log keeps its lines; 0 keeps them for ever. */
+  auditRetentionDays: z.number().int().min(0).max(3650).default(365),
 });
 export type InstanceSettings = z.infer<typeof instanceSettingsInput>;
 

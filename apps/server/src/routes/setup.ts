@@ -7,6 +7,7 @@ import { requestLocale } from "../i18n.js";
 import { createUser, toPublicUser } from "../users.js";
 import { startSession } from "./session-cookie.js";
 import { passkeySite } from "./passkeys.js";
+import { audit } from "../audit.js";
 
 export const setupRoutes: FastifyPluginAsync = async (app) => {
   const hasUsers = () => (app.db.select({ n: count() }).from(users).get()?.n ?? 0) > 0;
@@ -23,6 +24,7 @@ export const setupRoutes: FastifyPluginAsync = async (app) => {
     if (hasUsers()) throw new HttpError(409, "already_setup", t("error.alreadySetup"));
     const user = await createUser(app.db, { ...input, role: "admin", locale: input.locale ?? requestLocale(req) });
     startSession(app, reply, user.id);
+    audit(app.db, req, { action: "account.created", actor: user, details: { via: "setup", role: "admin" } });
     return { user: toPublicUser(user) };
   });
 };

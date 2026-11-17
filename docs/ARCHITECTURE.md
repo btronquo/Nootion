@@ -71,6 +71,11 @@ Three things sit beside it:
   space, so `permissions.ts` gives them only the pages shared with them. What they may not do besides (tokens,
   looking people up, sharing, home page and inbox…) is one list of routes, refused in a hook of `app.ts` for every
   request; `guests.test.ts` covers it. Their directory is limited to the people of those pages.
+- **The activity log** (`audit.ts`, table `audit_events`) is written by the routes concerned, after the change, with
+  one call to `audit()`: who (name and address copied, so that a line outlives the account), the action (the list is
+  `AUDIT_CATEGORIES` in `packages/shared/src/audit.ts`), the target and small facts, never page content nor secret
+  values. It is only added to, emptied by age (`purgeOldAuditEvents`, every hour), and read by administrators in
+  `routes/audit.ts`; `audit.test.ts` covers it.
 
 ## Page content and collaborative editing
 
@@ -105,6 +110,7 @@ No queue: timers in the server process, each reading what is due from the databa
 | Reminders, notifications, e-mails | `reminders.ts`, `mail.ts` |
 | Text of attached files (PDF, OCR) for search | `extract.ts` |
 | Automatic backups | `backups.ts` |
+| Old lines of the activity log, expired sessions | `audit.ts`, `auth/sessions.ts` (hourly, from `index.ts`) |
 | Plugins' scheduled tasks | `plugins.ts` |
 
 A button's steps run as the person who clicks it (for a public form, as the author of its link); an automation's or a
