@@ -185,6 +185,8 @@ services compatible with OpenAI's API work with their address and key. Nothing l
 
 ### Fixed
 
+- Activity log: lines written in the same millisecond (a group taken out of a page right before someone is taken out
+  of the group…) could be listed in either order. Their ids now follow the order they were written in.
 - Clicking a block's dots to open its menu emptied the page (since equations came in, not in a released version).
 - In a subpage, the breadcrumb showed the internal code of a parent page's uploaded image icon instead of the image.
 
