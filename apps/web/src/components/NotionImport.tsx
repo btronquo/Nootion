@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, ExternalLink } from "lucide-react";
 import {
   intlLocale,
+  numberFormat,
   t,
   type NotionImportDetail,
   type NotionImportJob,
@@ -316,8 +317,8 @@ function downloadReport(r: NotionImportReport) {
     if (n > details.length) rows.push([label, details.length ? t("notion.details.more", { count: n - details.length }) : String(n), "", "", ""]);
   }
   for (const f of r.formulas) rows.push([t("notion.formulasTitle"), f.database, f.name, f.reason, f.url ?? ""]);
-  // Spreadsheets in French split on semicolons.
-  const sep = intlLocale().startsWith("fr") ? ";" : ",";
+  // Where the decimal mark is a comma (French, German, Spanish, Italian…), spreadsheets split on semicolons.
+  const sep = numberFormat().format(1.5).includes(",") ? ";" : ",";
   // Quoted, and never read as a formula by the spreadsheet (titles come from Notion).
   const cell = (v: string) => `"${(/^[=+\-@\t\r]/.test(v) ? `'${v}` : v).replace(/"/g, '""')}"`;
   const csv = "\uFEFF" + [header, ...rows].map((row) => row.map(cell).join(sep)).join("\r\n");

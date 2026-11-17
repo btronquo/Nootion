@@ -83,8 +83,48 @@ describe("dates in plain words", () => {
     expect(parseNaturalDate("demain", now)?.remind).toBe(false);
   });
 
+  it("understands German, Spanish and Italian", () => {
+    expect(p("heute")).toBe("2026-10-29");
+    expect(p("morgen")).toBe("2026-10-30");
+    expect(p("mañana")).toBe("2026-10-30");
+    expect(p("domani")).toBe("2026-10-30");
+    expect(p("übermorgen")).toBe("2026-10-31");
+    expect(p("pasado mañana")).toBe("2026-10-31");
+    expect(p("ayer")).toBe("2026-10-28");
+    expect(p("am Freitag")).toBe("2026-10-30");
+    expect(p("viernes")).toBe("2026-10-30");
+    expect(p("venerdì")).toBe("2026-10-30");
+    expect(p("nächsten Freitag")).toBe("2026-11-06");
+    expect(p("el próximo viernes")).toBe("2026-11-06");
+    expect(p("venerdì prossimo")).toBe("2026-11-06");
+    expect(p("nächste Woche")).toBe("2026-11-02");
+    expect(p("la próxima semana")).toBe("2026-11-02");
+    expect(p("la settimana prossima")).toBe("2026-11-02");
+    expect(p("in 3 Tagen")).toBe("2026-11-01");
+    expect(p("vor 2 Tagen")).toBe("2026-10-27");
+    expect(p("en 3 días")).toBe("2026-11-01");
+    expect(p("dentro de una semana")).toBe("2026-11-05");
+    expect(p("hace 2 días")).toBe("2026-10-27");
+    expect(p("tra due settimane")).toBe("2026-11-12");
+    expect(p("3 giorni fa")).toBe("2026-10-26");
+    expect(p("15. November")).toBe("2026-11-15");
+    expect(p("15 de noviembre de 2027")).toBe("2027-11-15");
+    expect(p("1 dicembre")).toBe("2026-12-01");
+    expect(p("15.11.2026")).toBe("2026-11-15");
+    expect(p("morgen um 9 Uhr")).toBe("2026-10-30T09:00");
+    expect(p("morgen um 14:30")).toBe("2026-10-30T14:30");
+    expect(p("mañana a las 9")).toBe("2026-10-30T09:00");
+    expect(p("domani alle 15")).toBe("2026-10-30T15:00");
+    expect(p("heute Abend")).toBe("2026-10-29T19:00");
+    expect(p("stasera")).toBe("2026-10-29T19:00");
+    expect(p("a mezzogiorno")).toBe("2026-10-29T12:00");
+    expect(parseNaturalDate("erinnere mich morgen", now)).toEqual({ date: "2026-10-30", remind: true });
+    expect(parseNaturalDate("recuérdame el viernes", now)).toEqual({ date: "2026-10-30", remind: true });
+    expect(parseNaturalDate("ricordami domani alle 9", now)).toEqual({ date: "2026-10-30T09:00", remind: true });
+  });
+
   it("leaves other words alone", () => {
-    for (const text of ["", "réunion", "maison", "15", "projet 2026", "mar", "notes de lundi"]) expect(p(text)).toBeNull();
+    for (const text of ["", "réunion", "maison", "15", "projet 2026", "mar", "notes de lundi", "Termin", "riunione", "reunión"]) expect(p(text)).toBeNull();
   });
 
   it("places reminders before the date", () => {

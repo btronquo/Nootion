@@ -10,6 +10,7 @@
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint .",
+    "i18n:check": "pnpm --filter @nootion/shared i18n:check",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

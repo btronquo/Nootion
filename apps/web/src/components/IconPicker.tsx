@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ImagePlus, Shuffle, SmilePlus, X } from "lucide-react";
-import { CUSTOM_ICON_PREFIX, currentLocale, ICON_MAX_BYTES, t, type CustomIcon } from "@nootion/shared";
+import { CUSTOM_ICON_PREFIX, currentLocale, ICON_MAX_BYTES, t, type CustomIcon, type Locale } from "@nootion/shared";
 import { api, ApiError } from "../lib/api";
 import { pageIcon } from "../lib/icons";
 import { Popover } from "../database/Popover";
@@ -17,13 +17,22 @@ interface Emoji {
 const GROUPS = [0, 1, 3, 4, 5, 6, 7, 8, 9] as const;
 const RECENT_KEY = "nootion-recent-icons";
 
+/** Names and keywords of emojis in each language (loaded on demand, one file per language). */
+const EMOJI_DATA: Record<Locale, () => Promise<{ default: Emoji[] }>> = {
+  en: () => import("emojibase-data/en/compact.json"),
+  fr: () => import("emojibase-data/fr/compact.json"),
+  de: () => import("emojibase-data/de/compact.json"),
+  es: () => import("emojibase-data/es/compact.json"),
+  it: () => import("emojibase-data/it/compact.json"),
+};
+
 /** Every emoji with its name and keywords in the interface language, loaded the first time the picker opens. */
 function useEmojis() {
   const locale = currentLocale();
   return useQuery({
     queryKey: ["emojis", locale],
     queryFn: async () => {
-      const data: Emoji[] = (locale === "fr" ? await import("emojibase-data/fr/compact.json") : await import("emojibase-data/en/compact.json")).default;
+      const data: Emoji[] = (await EMOJI_DATA[locale]()).default;
       return data.filter((e) => e.group !== undefined && e.group !== 2).map(({ unicode, label, group, tags }) => ({ unicode, label, group, tags }));
     },
     staleTime: Infinity,

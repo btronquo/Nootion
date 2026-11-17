@@ -33,7 +33,7 @@ the freedom of an open-source app you host yourself, and the databases that make
 - **Open for good.** Licensed under the AGPL-3.0: the code, and the code of any hosted version of it, stays open.
 - **Light.** Runs on a small home server or NAS (amd64 and arm64), no separate database server or Redis.
 
-The interface is available in English and French; each user picks their language.
+The interface is available in English, French, German, Spanish and Italian; each user picks their language.
 
 ## Screenshots
 
@@ -87,7 +87,7 @@ offline use and the Notion import.
 - Single sign-on with Microsoft Entra ID, Google, Okta, Keycloak or any OpenID Connect provider, and SCIM so that
   people who leave the company are disabled automatically. See [docs/SSO.md](docs/SSO.md).
 - "My account" page: name, email, password, profile picture, language, light / dark / system theme, imports, emptying a space and deleting the account with its data.
-- English and French interface, chosen per user.
+- Interface in English, French, German, Spanish and Italian, chosen per user; dates, numbers and plurals follow the language, and a partly translated language falls back to English text by text.
 
 ### Pages and editor
 
@@ -249,8 +249,8 @@ pnpm build
 After changing `apps/server/src/db/schema.ts`, run `pnpm --filter @nootion/server db:generate` to create the migration.
 Migrations are applied automatically at startup.
 
-Interface texts live in `packages/shared/src/i18n/` (`en.ts` is the reference, `fr.ts` the French translation);
-see [CONTRIBUTING.md](CONTRIBUTING.md#translations) to add a language.
+Interface texts live in `packages/shared/src/i18n/` (`en.ts` is the reference, one file per language);
+see [docs/TRANSLATING.md](docs/TRANSLATING.md) to add or finish a language, and `pnpm i18n:check` to check them.
 
 To find your way in the code: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
