@@ -27,9 +27,14 @@ import {
 import { pluginNodes } from "../plugins/nodes";
 import { BlockAttributes } from "./blockAttrs";
 import { HandleTargets } from "./handleTargets";
+import { ColumnResize } from "./columnResize";
 import { LinkClicks } from "./linkClicks";
 import { ImageViewer } from "./imageViewer";
+import { Highlight, TextColor } from "./textColors";
+import { NootionCodeBlock } from "./codeBlock";
+import { MathBlock, MathInline } from "./mathNodes";
 import { RepeatingTaskItem, TaskRepeatExtension } from "./taskRepeat";
+import { SyncedBlock } from "./syncedBlock";
 import { t } from "@nootion/shared";
 
 /** Extensions shared by the collaborative editor and the read-only public view. Keep both schemas identical. */
@@ -42,6 +47,8 @@ export function baseExtensions(opts: {
   pageId?: string;
   /** Opens a path of this site in the app, when a text link to it is clicked. */
   navigate?: (path: string) => void;
+  /** Inside a synced block: the synced blocks it is in (see SyncedBlock). */
+  syncedAncestors?: string[];
 }): AnyExtension[] {
   return [
     StarterKit.configure({
@@ -49,7 +56,16 @@ export function baseExtensions(opts: {
       undoRedo: opts.collaborative ? false : undefined,
       link: { openOnClick: !opts.collaborative, autolink: true, HTMLAttributes: { rel: "noopener noreferrer nofollow", target: "_blank" } },
       heading: { levels: [1, 2, 3] },
+      // Replaced below by the one with colours and a language menu.
+      codeBlock: false,
+      // A synced block ends with its last block, without the empty line pages keep at their end.
+      ...(opts.syncedAncestors?.length ? { trailingNode: false as const } : {}),
     }),
+    TextColor,
+    Highlight,
+    NootionCodeBlock,
+    MathInline,
+    MathBlock,
     TaskList,
     RepeatingTaskItem.configure({ nested: true }),
     TaskRepeatExtension,
@@ -68,16 +84,18 @@ export function baseExtensions(opts: {
     DateMention,
     UserMention,
     TableOfContents,
-    DatabaseBlock.configure({ publicToken: opts.publicToken ?? null }),
+    DatabaseBlock.configure({ pageId: opts.pageId ?? null, publicToken: opts.publicToken ?? null }),
     CalendarBlock.configure({ pageId: opts.pageId ?? null, publicToken: opts.publicToken ?? null }),
     Drawing,
     ButtonBlock.configure({ pageId: opts.publicToken ? null : (opts.pageId ?? null) }),
     Video.configure({ pageId: opts.publicToken ? null : (opts.pageId ?? null) }),
+    SyncedBlock.configure({ pageId: opts.publicToken ? null : (opts.pageId ?? null), ancestors: opts.syncedAncestors ?? [] }),
     ...WIDGETS.map((w) => w.configure({ publicToken: opts.publicToken ?? null, pageId: opts.publicToken ? null : (opts.pageId ?? null) })),
     WidgetCommands,
     ...pluginNodes(opts.plugins, opts.publicToken ? null : (opts.pageId ?? null)),
     BlockAttributes,
     HandleTargets,
+    ColumnResize,
     // The read-only views keep the links' own behaviour (openOnClick above).
     ...(opts.collaborative ? [LinkClicks.configure({ navigate: opts.navigate ?? null })] : []),
     Placeholder.configure({

@@ -1,5 +1,6 @@
 import {
-  intlLocale,
+  dateTimeFormat,
+  numberFormat,
   uniqueIdText,
   t,
   type CalcResult,
@@ -35,13 +36,13 @@ export function formatNumber(value: number, prop: DatabaseProperty): string {
   const opts: Intl.NumberFormatOptions =
     decimals !== undefined ? { minimumFractionDigits: decimals, maximumFractionDigits: decimals } : { maximumFractionDigits: 10 };
   if (prop.type === "currency")
-    return new Intl.NumberFormat(intlLocale(), { style: "currency", currency: prop.config.currency ?? "EUR", ...opts }).format(value);
-  if (prop.type === "percent") return new Intl.NumberFormat(intlLocale(), { style: "percent", ...opts }).format(value / 100);
-  return new Intl.NumberFormat(intlLocale(), opts).format(value);
+    return numberFormat({ style: "currency", currency: prop.config.currency ?? "EUR", ...opts }).format(value);
+  if (prop.type === "percent") return numberFormat({ style: "percent", ...opts }).format(value / 100);
+  return numberFormat(opts).format(value);
 }
 
-const dateFmt = () => new Intl.DateTimeFormat(intlLocale(), { day: "numeric", month: "short", year: "numeric" });
-const dateTimeFmt = () => new Intl.DateTimeFormat(intlLocale(), { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+const dateFmt = () => dateTimeFormat({ day: "numeric", month: "short", year: "numeric" });
+const dateTimeFmt = () => dateTimeFormat({ day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
 export function formatDateString(iso: string): string {
   const hasTime = iso.length > 10;
@@ -50,7 +51,7 @@ export function formatDateString(iso: string): string {
   return (hasTime ? dateTimeFmt : dateFmt)().format(d);
 }
 
-const timeFmt = () => new Intl.DateTimeFormat(intlLocale(), { hour: "2-digit", minute: "2-digit" });
+const timeFmt = () => dateTimeFormat({ hour: "2-digit", minute: "2-digit" });
 
 export function formatDate(v: DateValue): string {
   if (!v.end) return formatDateString(v.start);
@@ -110,11 +111,11 @@ export function formatCalc(r: CalcResult, prop: DatabaseProperty | null | undefi
   const fmt = prop ? numberFormatOf(prop) : null;
   switch (r.kind) {
     case "number":
-      return fmt && NUMERIC.includes(fmt.type) ? formatNumber(r.value, fmt) : new Intl.NumberFormat(intlLocale(), { maximumFractionDigits: 2 }).format(r.value);
+      return fmt && NUMERIC.includes(fmt.type) ? formatNumber(r.value, fmt) : numberFormat({ maximumFractionDigits: 2 }).format(r.value);
     case "count":
-      return new Intl.NumberFormat(intlLocale()).format(r.value);
+      return numberFormat().format(r.value);
     case "percent":
-      return new Intl.NumberFormat(intlLocale(), { style: "percent", maximumFractionDigits: 1 }).format(r.value / 100);
+      return numberFormat({ style: "percent", maximumFractionDigits: 1 }).format(r.value / 100);
     case "days":
       return t("calc.days", { count: r.value });
     case "date":

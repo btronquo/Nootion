@@ -1,13 +1,13 @@
 import { useState, type DragEvent } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { ChevronRight, Database, FileText, MoreHorizontal, Plus } from "lucide-react";
+import { ChevronRight, MoreHorizontal, Plus } from "lucide-react";
 import type { PageSummary } from "@nootion/shared";
 import { api } from "../lib/api";
 import { useRefreshPages } from "../lib/queries";
 import { pageTitle, type TreeNode } from "../lib/tree";
 import { t } from "@nootion/shared";
 import { PageMenu, type MenuAnchor } from "./PageMenu";
-import { pageIcon } from "../lib/icons";
+import { PageGlyph } from "../lib/icons";
 import { DRAG_SPACE_TYPE, PendingSpaceMoveDialog, readDraggedSpace, type PendingSpaceMove } from "./SpaceMove";
 
 export const DRAG_TYPE = "application/x-nootion-page";
@@ -155,7 +155,9 @@ function PageTreeItem({ node, depth, workspaceId, editable, all }: TreeProps & {
             `flex min-w-0 flex-1 items-center gap-1.5 rounded px-1 py-1 text-sm touch:py-2 ${isActive ? "bg-neutral-200/80 font-medium dark:bg-neutral-800" : "hover:bg-neutral-200/50 dark:hover:bg-neutral-800/60"}`
           }
         >
-          <span className="w-4 shrink-0 text-center">{pageIcon(page.icon) ?? (page.kind === "database" ? <Database size={14} className="inline text-neutral-400" /> : <FileText size={14} className="inline text-neutral-400" />)}</span>
+          <span className="w-4 shrink-0 text-center">
+            <PageGlyph icon={page.icon} kind={page.kind} />
+          </span>
           <span className="truncate">{pageTitle(page.title)}</span>
         </NavLink>
         )}

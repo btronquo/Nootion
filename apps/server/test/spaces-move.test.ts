@@ -1,10 +1,11 @@
 import fs from "node:fs";
+import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { FastifyInstance } from "fastify";
 import { eq } from "drizzle-orm";
 import { attachments, pages, syncLinks, workspaceMembers, workspaces } from "../src/db/schema.js";
-import { attachmentPath, uploadsDir } from "../src/attachments.js";
+import { uploadsDir } from "../src/attachments.js";
 import { applyChanges, changesSince, type SyncChange } from "../src/sync.js";
 import { Client, inviteUser, makeApp, setupAdmin } from "./helpers.js";
 
@@ -67,7 +68,7 @@ describe("moving pages between spaces", () => {
     const file = randomUUID();
     app.db.insert(attachments).values({ id: file, pageId: draft, filename: "deck.pdf", mimeType: "application/pdf", size: 10 }).run();
     fs.mkdirSync(uploadsDir(app.config.dataDir), { recursive: true });
-    fs.writeFileSync(attachmentPath(app.config.dataDir, file), "%PDF-1.4 x");
+    fs.writeFileSync(path.join(uploadsDir(app.config.dataDir), file), "%PDF-1.4 x");
     const eve = await inviteUser(app, boris, { name: "Eve", email: "eve@example.com", password: "eve-password" });
     await boris.put(`/api/pages/${draft}/shares`, { userId: await eve.id(), role: "viewer" });
     const history = (await boris.get(`/api/pages/${draft}/history`)).json();
@@ -130,7 +131,12 @@ describe("moving pages between spaces", () => {
     await move(boris, d.id, { workspaceId: personal, parentId: null });
 
     const gone = changesSince(app.db, team, before.team, null, 1000).changes;
-    expect(gone).toEqual(expect.arrayContaining([{ entity: "page", id: d.id, deleted: true }, { entity: "page", id: row.id, deleted: true }]));
+    expect(gone).toEqual(
+      expect.arrayContaining([
+        { entity: "page", id: d.id, deleted: true },
+        { entity: "page", id: row.id, deleted: true },
+      ]),
+    );
     const came = changesSince(app.db, personal, before.personal, null, 1000).changes;
     const kinds = (entity: string) => came.filter((c) => c.entity === entity && !c.deleted).map((c) => c.id);
     expect(kinds("page")).toEqual(expect.arrayContaining([d.id, row.id]));
@@ -142,7 +148,15 @@ describe("moving pages between spaces", () => {
     const page = await boris.createPage(team, "Synchronisée");
     app.db
       .insert(syncLinks)
-      .values({ workspaceId: team, serverUrl: "https://nootion.example.com", clientId: "c", accessToken: "a", refreshToken: "r", accessExpiresAt: new Date(), peerId: "p" })
+      .values({
+        workspaceId: team,
+        serverUrl: "https://nootion.example.com",
+        clientId: "c",
+        accessToken: "a",
+        refreshToken: "r",
+        accessExpiresAt: new Date(),
+        peerId: "p",
+      })
       .run();
     const res = await move(boris, page, { workspaceId: personal, parentId: null });
     expect(res.statusCode).toBe(409);

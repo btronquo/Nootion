@@ -34,7 +34,8 @@ export function OptionPicker({
   selected: string[];
   multi: boolean;
   onChange: (ids: string[]) => void;
-  onCreate: (name: string) => Promise<SelectOption>;
+  /** Absent: only existing options can be picked (a locked database). */
+  onCreate?: (name: string) => Promise<SelectOption>;
 }) {
   const [query, setQuery] = useState("");
   const options = orderedOptions(prop);
@@ -57,7 +58,7 @@ export function OptionPicker({
           if (e.key !== "Enter" || !query.trim()) return;
           e.preventDefault();
           if (exact) toggle(exact.id);
-          else {
+          else if (onCreate) {
             const o = await onCreate(query.trim());
             onChange(multi ? [...selected, o.id] : [o.id]);
           }
@@ -85,7 +86,7 @@ export function OptionPicker({
               </div>
             ),
         )}
-        {query.trim() && !exact && (
+        {query.trim() && !exact && onCreate && (
           <button
             onClick={async () => {
               const o = await onCreate(query.trim());

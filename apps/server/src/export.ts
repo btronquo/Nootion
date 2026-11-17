@@ -1,4 +1,4 @@
-import fs from "node:fs";
+import { Readable } from "node:stream";
 import path from "node:path";
 import { inArray } from "drizzle-orm";
 import yazl from "yazl";
@@ -16,12 +16,13 @@ import {
   type FormulaResult,
   type RollupValue,
 } from "@nootion/shared";
-import { attachmentPath } from "./attachments.js";
+import { fileStore } from "./files.js";
 import type { ProseMirrorNode } from "./collab.js";
 import { canReadAs, loadDatabase } from "./databases.js";
 import type { Db } from "./db/index.js";
 import { attachments, pages } from "./db/schema.js";
 import { frontMatter, toMarkdown } from "./markdown.js";
+import { canReadSynced, inlineSyncedBlocks } from "./synced-blocks.js";
 import { listDescendants, type PageMeta } from "./pages.js";
 import { getPageRole } from "./permissions.js";
 
@@ -107,7 +108,7 @@ function exportColumns(data: DatabaseData, viewId?: string): DatabaseProperty[] 
     .sort((a, b) => Number(b.type === "title") - Number(a.type === "title") || (order.get(a.id)?.i ?? 1e9) - (order.get(b.id)?.i ?? 1e9));
 }
 
-function csvField(s: string, separator = ","): string {
+export function csvField(s: string, separator = ","): string {
   return s.includes(separator) || /["\n\r]/.test(s) || /^\s|\s$/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
@@ -160,7 +161,8 @@ export function exportPagesZip(db: Db, dataDir: string, userId: string, roots: P
     for (const p of listDescendants(db, root.id)) all.set(p.id, p);
   }
   // A page shared alone can sit under a page the user can't open: its subtree is cut there.
-  const readable = new Map([...all].filter(([id]) => getPageRole(db, userId, id)));
+  // The content of synced blocks is written in the pages that show them, not as pages of its own.
+  const readable = new Map([...all].filter(([id, p]) => p.kind !== "block" && getPageRole(db, userId, id)));
   const children = new Map<string | null, PageMeta[]>();
   const rootIds = new Set(roots.map((r) => r.id));
   for (const p of readable.values()) {
@@ -189,9 +191,10 @@ export function exportPagesZip(db: Db, dataDir: string, userId: string, roots: P
   const files = ids.length ? db.select().from(attachments).where(inArray(attachments.pageId, ids)).all() : [];
   const filePaths = new Map(files.map((f) => [f.id, `${t("export.filesFolder")}/${f.id.slice(0, 8)}-${safeName(f.filename, t("export.file"))}`]));
   const content = new Map(
-    (ids.length ? db.select({ id: pages.id, json: pages.contentJson, props: pages.props }).from(pages).where(inArray(pages.id, ids)).all() : []).map(
-      (r) => [r.id, r],
-    ),
+    (ids.length ? db.select({ id: pages.id, json: pages.contentJson, props: pages.props }).from(pages).where(inArray(pages.id, ids)).all() : []).map((r) => [
+      r.id,
+      r,
+    ]),
   );
 
   const zip = new yazl.ZipFile();
@@ -232,12 +235,20 @@ export function exportPagesZip(db: Db, dataDir: string, userId: string, roots: P
       const row = data.rows.find((r) => r.id === p.id);
       if (row) for (const prop of data.properties) if (prop.type !== "title") meta[prop.name] = exportText(prop, cellOf(prop, row), data);
     }
-    const body = toMarkdown(content.get(p.id)?.json as ProseMirrorNode | null, links);
+    const json = content.get(p.id)?.json as ProseMirrorNode | null;
+    const body = toMarkdown(json ? inlineSyncedBlocks(db, json, canReadSynced(db, userId)) : null, links);
     zip.addBuffer(Buffer.from(`${frontMatter(meta)}\n# ${p.title || t("common.untitled")}\n\n${body}\n`), file);
   }
+  // Read one after the other while the zip is written, from the data folder or the bucket. A file gone missing is
+  // left empty.
+  const store = fileStore(dataDir);
   for (const f of files) {
-    const source = attachmentPath(dataDir, f.id);
-    if (fs.existsSync(source)) zip.addFile(source, filePaths.get(f.id)!);
+    zip.addReadStreamLazy(filePaths.get(f.id)!, (cb) => {
+      store.open(f.id).then(
+        (opened) => cb(null, opened?.stream ?? Readable.from([])),
+        (err) => cb(err, Readable.from([])),
+      );
+    });
   }
   zip.end();
   return zip;

@@ -3,18 +3,29 @@ import type { FastifyPluginAsync } from "fastify";
 import {
 
   createPageInput,
+  inviteGuestInput,
+  isLocale,
   movePageInput,
   publicLinkInput,
+  sharePageGroupInput,
   sharePageInput,
   updatePageInput,
+  type Locale,
+  type PageGroupShare,
   type PageShare,
+  type PendingGuest,
   type PageSummary,
   type PublicLinkInfo,
+  tIn,
 } from "@nootion/shared";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
-import { newToken } from "../auth/tokens.js";
-import { attachments, pagePermissions, pages, publicLinks, users, workspaceMembers } from "../db/schema.js";
+import { hashToken, newToken } from "../auth/tokens.js";
+import { guestsAllowed, guestsOff, isGuest } from "../guests.js";
+import { INVITATION_TTL_MS } from "./admin.js";
+import { protectionInfo, protectionUpdate } from "../public-access.js";
+import { attachments, effectivePagePermissions, groups, invitations, pageGroupPermissions, pagePermissions, pages, publicLinks, users } from "../db/schema.js";
+import { findGroup, memberCounts, requireGroup } from "../groups.js";
 import { HttpError, notFound, parseBody, requireUser } from "../http.js";
 import {
   CAN_CREATE_ROOT_PAGES,
@@ -22,10 +33,11 @@ import {
   getPageRole,
   getWorkspaceRole,
   isTrashed,
+  memberWorkspaceIds,
   requirePageRole,
   requireWorkspaceRole,
 } from "../permissions.js";
-import { breadcrumbFor, getPageMeta, notRow, pageMeta, listDescendants, nextPosition, placeAmongSiblings, sortPages, toDetail, toSummary } from "../pages.js";
+import { breadcrumbFor, getPageMeta, inTree, pageMeta, listDescendants, nextPosition, placeAmongSiblings, sortPages, toDetail, toSummary } from "../pages.js";
 import { t } from "@nootion/shared";
 import { homePageOf, recordVisit } from "../home.js";
 import { copyTree } from "../templates.js";
@@ -37,8 +49,15 @@ import { appendContent, hasLinkLine, linkChildPage, unlinkChildPage, readContent
 import { toMarkdown } from "../markdown.js";
 import { fromAutomation, rowSnapshot } from "../automations.js";
 import { checkContent, parseMarkdown } from "../markdown-in.js";
+import { assertUnlocked, lockedError } from "../locks.js";
+import { canReadSynced, inlineSyncedBlocks } from "../synced-blocks.js";
+import { audit, personTarget } from "../audit.js";
 
 const contentBody = z.object({ markdown: z.string().max(2_000_000).optional(), content: z.unknown().optional() }).passthrough();
+
+/** A page, as the activity log names it. */
+const pageTarget = (p: { id: string; title: string }) => ({ type: "page" as const, id: p.id, label: p.title });
+const personLabel = (u: { name: string; email: string }) => `${u.name} <${u.email}>`;
 
 export const pageRoutes: FastifyPluginAsync = async (app) => {
   const db = app.db;
@@ -98,7 +117,11 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     if (page.kind === "database") throw new HttpError(400, "not_a_page", t("error.notAPage"));
     const content = readContent(app.collab, db, page.id);
     const base = app.config.appUrl;
-    const markdown = toMarkdown(content, { file: (id) => `${base}/api/attachments/${id}`, page: (id) => `${base}/page/${id}` });
+    // Synced blocks are written out in the Markdown; the JSON keeps them as they are.
+    const markdown = toMarkdown(inlineSyncedBlocks(db, content, canReadSynced(db, user.id)), {
+      file: (id) => `${base}/api/attachments/${id}`,
+      page: (id) => `${base}/page/${id}`,
+    });
     return { id: page.id, title: page.title, markdown, content };
   });
 
@@ -107,6 +130,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     const user = requireUser(req);
     const { page } = requirePageRole(db, user.id, req.params.id, "editor");
     if (page.kind === "database") throw new HttpError(400, "not_a_page", t("error.notAPage"));
+    assertUnlocked(page);
     const doc = contentInput(req.body, user.id)!;
     recordSnapshot(db, page.id, { content: readContent(app.collab, db, page.id), force: true });
     await writeContent(app.collab, db, page.id, doc);
@@ -119,6 +143,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     const user = requireUser(req);
     const { page } = requirePageRole(db, user.id, req.params.id, "editor");
     if (page.kind === "database") throw new HttpError(400, "not_a_page", t("error.notAPage"));
+    assertUnlocked(page);
     const doc = contentInput(req.body, user.id)!;
     await appendContent(app.collab, db, page.id, doc.content ?? []);
     recordAgentVersion(db, page.id, readContent(app.collab, db, page.id), user.id);
@@ -132,14 +157,13 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
    */
   app.get("/shared", async (req) => {
     const user = requireUser(req);
-    const memberOf = new Set(
-      db.select({ id: workspaceMembers.workspaceId }).from(workspaceMembers).where(eq(workspaceMembers.userId, user.id)).all().map((r) => r.id),
-    );
+    // Spaces and pages shared with one of the user's groups count as shared with them.
+    const memberOf = new Set(memberWorkspaceIds(db, user.id));
     const grants = db
-      .select({ pageId: pagePermissions.pageId, workspaceId: pages.workspaceId })
-      .from(pagePermissions)
-      .innerJoin(pages, eq(pages.id, pagePermissions.pageId))
-      .where(eq(pagePermissions.userId, user.id))
+      .selectDistinct({ pageId: effectivePagePermissions.pageId, workspaceId: pages.workspaceId })
+      .from(effectivePagePermissions)
+      .innerJoin(pages, eq(pages.id, effectivePagePermissions.pageId))
+      .where(eq(effectivePagePermissions.userId, user.id))
       .all()
       .filter((g) => !memberOf.has(g.workspaceId));
     const grantedIds = new Set(grants.map((g) => g.pageId));
@@ -155,7 +179,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     for (const id of roots) {
       const root = getPageMeta(db, id)!;
       result.push({ ...toSummary(root), parentId: null, shared: true });
-      for (const d of listDescendants(db, id).filter(notRow)) result.push({ ...toSummary(d), shared: false });
+      for (const d of listDescendants(db, id).filter(inTree)) result.push({ ...toSummary(d), shared: false });
     }
     return { pages: result };
   });
@@ -180,6 +204,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     if (page.kind !== "page" || !template.template || template.kind !== "page" || chain.some((c) => c.id === template.id)) {
       throw new HttpError(400, "bad_template", t("error.badTemplate"));
     }
+    assertUnlocked(page);
     await copyTree(
       db,
       app.collab,
@@ -251,6 +276,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     const user = requireUser(req);
     const { page } = requirePageRole(db, user.id, req.params.id, "editor");
     if (page.kind === "database") throw notFound();
+    assertUnlocked(page);
     const snapshot = getSnapshot(db, req.params.id, req.params.versionId);
     if (!snapshot) throw notFound();
     const current = db.select({ content: pages.contentJson }).from(pages).where(eq(pages.id, page.id)).get();
@@ -269,9 +295,9 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     if (!isMember) {
       const shared = new Set(
         db
-          .select({ id: pagePermissions.pageId })
-          .from(pagePermissions)
-          .where(and(eq(pagePermissions.userId, user.id), inArray(pagePermissions.pageId, chain.map((c) => c.id))))
+          .select({ id: effectivePagePermissions.pageId })
+          .from(effectivePagePermissions)
+          .where(and(eq(effectivePagePermissions.userId, user.id), inArray(effectivePagePermissions.pageId, chain.map((c) => c.id))))
           .all()
           .map((r) => r.id),
       );
@@ -288,6 +314,10 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     const input = parseBody(updatePageInput, req.body);
     const { page: current } = requirePageRole(db, user.id, req.params.id, "editor");
     if (input.template !== undefined && current.kind !== "page") throw new HttpError(400, "not_a_page", t("error.templateKind"));
+    if (input.description !== undefined && current.kind !== "database") throw new HttpError(400, "not_a_database", t("error.descriptionKind"));
+    // A locked page keeps its title, icon and cover; the same request may unlock it first.
+    const touchesContent = input.title !== undefined || input.icon !== undefined || input.description !== undefined || input.cover !== undefined || input.coverPosition !== undefined;
+    if (current.locked && input.locked !== false && touchesContent) throw lockedError(current.kind);
     // An uploaded cover must be a file of this page: its access follows the page's.
     const coverFile = input.cover?.match(/^\/api\/attachments\/(.+)$/)?.[1];
     if (coverFile && db.select({ pageId: attachments.pageId }).from(attachments).where(eq(attachments.id, coverFile)).get()?.pageId !== req.params.id) {
@@ -301,6 +331,8 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
       .where(eq(pages.id, req.params.id))
       .returning(pageMeta)
       .get();
+    // Open editors of the page reconnect, and open it read-only (or editable again).
+    if (input.locked !== undefined && input.locked !== current.locked) app.collab.closeConnections(page.id);
     // A template's dates remind nobody; they come back when it is a page again.
     if (input.template !== undefined) {
       syncReminders(db, page.id, db.select({ json: pages.contentJson }).from(pages).where(eq(pages.id, page.id)).get()?.json as ProseMirrorNode | null);
@@ -362,9 +394,10 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
   // Moves the page (and its subpages) to the trash.
   app.delete<{ Params: { id: string } }>("/:id", async (req) => {
     const user = requireUser(req);
-    requirePageRole(db, user.id, req.params.id, "full");
+    const { page } = requirePageRole(db, user.id, req.params.id, "full");
     if (homePageOf(db, user.id) === req.params.id) throw new HttpError(400, "home_page", t("error.homePage"));
     db.update(pages).set({ deletedAt: new Date(), deletedBy: user.id }).where(eq(pages.id, req.params.id)).run();
+    audit(db, req, { action: "page.trashed", target: pageTarget(page) });
     return { ok: true };
   });
 
@@ -381,6 +414,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
         .run();
       if (parentTrashed) placeAmongSiblings(tx, getPageMeta(tx, page.id)!, undefined);
     });
+    audit(db, req, { action: "page.restored", target: pageTarget(page) });
     return { ok: true };
   });
 
@@ -390,6 +424,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     if (!page.deletedAt) throw new HttpError(400, "not_trashed", t("error.trashFirst"));
     const ids = [page.id, ...listDescendants(db, page.id, { includeTrashed: true }).map((p) => p.id)];
     db.delete(pages).where(inArray(pages.id, ids)).run();
+    audit(db, req, { action: "page.deleted", target: { type: "page", id: page.id, label: page.title }, details: { pages: ids.length } });
     return { ok: true };
   });
 
@@ -397,9 +432,9 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
 
   app.get<{ Params: { id: string } }>("/:id/shares", async (req) => {
     const user = requireUser(req);
-    const { chain } = requirePageRole(db, user.id, req.params.id, "viewer");
+    const { chain, role } = requirePageRole(db, user.id, req.params.id, "viewer");
     const rows = db
-      .select({ pageId: pagePermissions.pageId, userId: users.id, name: users.name, email: users.email, role: pagePermissions.role })
+      .select({ pageId: pagePermissions.pageId, userId: users.id, name: users.name, email: users.email, role: pagePermissions.role, userRole: users.role })
       .from(pagePermissions)
       .innerJoin(users, eq(users.id, pagePermissions.userId))
       .where(inArray(pagePermissions.pageId, chain.map((c) => c.id)))
@@ -418,31 +453,186 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
         name: r.name,
         email: r.email,
         role: r.role,
+        guest: r.userRole === "guest",
         inheritedFrom: from.id === req.params.id ? null : { id: from.id, title: from.title },
       });
     }
-    return { shares };
+    // Guests invited on this page who haven't made their account yet, for those who manage its sharing.
+    const pendingGuests: PendingGuest[] =
+      role === "full" && !isGuest(user)
+        ? db
+            .select()
+            .from(invitations)
+            .where(and(eq(invitations.pageId, req.params.id), eq(invitations.role, "guest"), isNull(invitations.usedAt), gt(invitations.expiresAt, new Date())))
+            .orderBy(invitations.createdAt)
+            .all()
+            .map(toPendingGuest)
+        : [];
+    // Groups the page is shared with, the closest grant first as for people.
+    const groupRows = db
+      .select({ pageId: pageGroupPermissions.pageId, groupId: groups.id, name: groups.name, role: pageGroupPermissions.role })
+      .from(pageGroupPermissions)
+      .innerJoin(groups, eq(groups.id, pageGroupPermissions.groupId))
+      .where(inArray(pageGroupPermissions.pageId, chain.map((c) => c.id)))
+      .all()
+      .sort((a, b) => depth.get(a.pageId)! - depth.get(b.pageId)!);
+    const counts = memberCounts(
+      db,
+      groupRows.map((r) => r.groupId),
+    );
+    const seenGroups = new Set<string>();
+    const groupShares: PageGroupShare[] = [];
+    for (const r of groupRows) {
+      if (seenGroups.has(r.groupId)) continue;
+      seenGroups.add(r.groupId);
+      const from = chain[depth.get(r.pageId)!];
+      groupShares.push({
+        groupId: r.groupId,
+        name: r.name,
+        memberCount: counts.get(r.groupId) ?? 0,
+        role: r.role,
+        inheritedFrom: from.id === req.params.id ? null : { id: from.id, title: from.title },
+      });
+    }
+    // A guest sees who else is on the page, not the groups of the team.
+    return { shares, groupShares: isGuest(user) ? [] : groupShares, pendingGuests, guestsAllowed: guestsAllowed(db) };
+  });
+
+  // Shares the page (and its subpages) with a group, or changes its access.
+  app.put<{ Params: { id: string } }>("/:id/group-shares", async (req) => {
+    const user = requireUser(req);
+    const input = parseBody(sharePageGroupInput, req.body);
+    const { page } = requirePageRole(db, user.id, req.params.id, "full");
+    const group = requireGroup(db, input.groupId);
+    const was = db
+      .select({ role: pageGroupPermissions.role })
+      .from(pageGroupPermissions)
+      .where(and(eq(pageGroupPermissions.pageId, req.params.id), eq(pageGroupPermissions.groupId, input.groupId)))
+      .get()?.role;
+    if (was !== input.role) audit(db, req, { action: "page.shared", target: pageTarget(page), details: { group: group.name, role: input.role, ...(was && { from: was }) } });
+    db.insert(pageGroupPermissions)
+      .values({ pageId: req.params.id, groupId: input.groupId, role: input.role, grantedBy: user.id })
+      .onConflictDoUpdate({ target: [pageGroupPermissions.pageId, pageGroupPermissions.groupId], set: { role: input.role, grantedBy: user.id } })
+      .run();
+    return { ok: true };
+  });
+
+  app.delete<{ Params: { id: string; groupId: string } }>("/:id/group-shares/:groupId", async (req) => {
+    const user = requireUser(req);
+    const { page } = requirePageRole(db, user.id, req.params.id, "full");
+    const removed = db
+      .delete(pageGroupPermissions)
+      .where(and(eq(pageGroupPermissions.pageId, req.params.id), eq(pageGroupPermissions.groupId, req.params.groupId)))
+      .run().changes;
+    if (removed) audit(db, req, { action: "page.unshared", target: pageTarget(page), details: { group: findGroup(db, req.params.groupId)?.name ?? req.params.groupId } });
+    return { ok: true };
   });
 
   app.put<{ Params: { id: string } }>("/:id/shares", async (req) => {
     const user = requireUser(req);
     const input = parseBody(sharePageInput, req.body);
-    requirePageRole(db, user.id, req.params.id, "full");
+    const { page } = requirePageRole(db, user.id, req.params.id, "full");
     const target = db.select().from(users).where(eq(users.id, input.userId)).get();
     if (!target || target.disabled) throw new HttpError(404, "user_not_found", t("error.userNotFound"));
+    if (isGuest(target) && input.role === "full") throw new HttpError(400, "guest_role", t("error.guestRole"));
     db.insert(pagePermissions)
       .values({ pageId: req.params.id, userId: input.userId, role: input.role, grantedBy: user.id })
       .onConflictDoUpdate({ target: [pagePermissions.pageId, pagePermissions.userId], set: { role: input.role, grantedBy: user.id } })
       .run();
+    audit(db, req, { action: "page.shared", target: pageTarget(page), details: { with: personLabel(target), role: input.role } });
     return { ok: true };
   });
 
   app.delete<{ Params: { id: string; userId: string } }>("/:id/shares/:userId", async (req) => {
     const user = requireUser(req);
-    requirePageRole(db, user.id, req.params.id, "full");
-    db.delete(pagePermissions)
+    const { page } = requirePageRole(db, user.id, req.params.id, "full");
+    const removed = db
+      .delete(pagePermissions)
       .where(and(eq(pagePermissions.pageId, req.params.id), eq(pagePermissions.userId, req.params.userId)))
+      .run().changes;
+    if (removed) audit(db, req, { action: "page.unshared", target: pageTarget(page), details: { with: personTarget(db, req.params.userId).label ?? req.params.userId } });
+    return { ok: true };
+  });
+
+  // --- Guests ---
+
+  const toPendingGuest = (i: typeof invitations.$inferSelect): PendingGuest => ({
+    id: i.id,
+    email: i.email ?? "",
+    role: i.pageRole ?? "viewer",
+    expiresAt: i.expiresAt.toISOString(),
+  });
+
+  /**
+   * "Invite a guest": someone without an account gets a link by e-mail; once their account is made, the page is
+   * shared with them, and only it. Someone who already has an account gets the page shared at once.
+   */
+  app.post<{ Params: { id: string } }>("/:id/guests", { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (req) => {
+    const user = requireUser(req);
+    const input = parseBody(inviteGuestInput, req.body);
+    const { page } = requirePageRole(db, user.id, req.params.id, "full");
+    if (!guestsAllowed(db)) throw guestsOff();
+    const existing = db.select().from(users).where(sql`lower(${users.email}) = ${input.email}`).get();
+    if (existing) {
+      if (existing.disabled) throw new HttpError(404, "user_not_found", t("error.userNotFound"));
+      db.insert(pagePermissions)
+        .values({ pageId: page.id, userId: existing.id, role: input.role, grantedBy: user.id })
+        .onConflictDoUpdate({ target: [pagePermissions.pageId, pagePermissions.userId], set: { role: input.role, grantedBy: user.id } })
+        .run();
+      audit(db, req, { action: "page.shared", target: pageTarget(page), details: { with: personLabel(existing), role: input.role } });
+      return { shared: true };
+    }
+    // One invitation per address and page: inviting again sends a new link.
+    db.delete(invitations)
+      .where(and(eq(invitations.pageId, page.id), eq(invitations.email, input.email), isNull(invitations.usedAt)))
       .run();
+    const token = newToken();
+    const invitation = db
+      .insert(invitations)
+      .values({
+        id: randomUUID(),
+        tokenHash: hashToken(token),
+        email: input.email,
+        role: "guest",
+        pageId: page.id,
+        pageRole: input.role,
+        createdBy: user.id,
+        expiresAt: new Date(Date.now() + INVITATION_TTL_MS),
+      })
+      .returning()
+      .get();
+    const url = `${app.config.appUrl}/invite/${token}`;
+    let emailed = false;
+    if (app.mailer.enabled()) {
+      const locale = (isLocale(user.locale) ? user.locale : "en") as Locale;
+      const title = page.title || tIn(locale, "common.untitled");
+      try {
+        await app.mailer.send({
+          to: input.email,
+          subject: tIn(locale, "mail.guestInviteSubject", { name: user.name, title }),
+          text: tIn(locale, "mail.guestInviteBody", { name: user.name, title }),
+          action: { label: tIn(locale, "mail.guestInviteAction"), url },
+          footer: tIn(locale, "mail.inviteFooter"),
+        });
+        emailed = true;
+      } catch (err) {
+        req.log.warn({ err }, "Couldn't send a guest invitation e-mail");
+      }
+    }
+    audit(db, req, { action: "page.guest_invited", target: pageTarget(page), details: { email: input.email, role: input.role } });
+    // The link is shown once (only its hash is kept), to be sent another way when there is no e-mail.
+    return { shared: false, invitation: toPendingGuest(invitation), url, emailed };
+  });
+
+  app.delete<{ Params: { id: string; invitationId: string } }>("/:id/guests/:invitationId", async (req) => {
+    const user = requireUser(req);
+    requirePageRole(db, user.id, req.params.id, "full");
+    const gone = db
+      .delete(invitations)
+      .where(and(eq(invitations.id, req.params.invitationId), eq(invitations.pageId, req.params.id), isNull(invitations.usedAt)))
+      .returning()
+      .get();
+    if (gone) audit(db, req, { action: "user.invitation_revoked", target: { type: "invitation", id: gone.id, label: gone.email }, details: { pageId: req.params.id } });
     return { ok: true };
   });
 
@@ -452,6 +642,7 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     token: l.token,
     includeSubpages: l.includeSubpages,
     url: `${app.config.appUrl}/p/${l.token}`,
+    ...protectionInfo(l),
   });
 
   app.get<{ Params: { id: string } }>("/:id/public-link", async (req) => {
@@ -464,20 +655,29 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
   app.put<{ Params: { id: string } }>("/:id/public-link", async (req) => {
     const user = requireUser(req);
     const input = parseBody(publicLinkInput, req.body);
-    requirePageRole(db, user.id, req.params.id, "full");
+    const { page } = requirePageRole(db, user.id, req.params.id, "full");
+    const before = db.select().from(publicLinks).where(eq(publicLinks.pageId, req.params.id)).get();
+    const protection = await protectionUpdate(input);
+    const changes = { ...protection, ...(input.includeSubpages !== undefined && { includeSubpages: input.includeSubpages }) };
     const link = db
       .insert(publicLinks)
-      .values({ pageId: req.params.id, token: newToken(), includeSubpages: input.includeSubpages, createdBy: user.id })
-      .onConflictDoUpdate({ target: publicLinks.pageId, set: { includeSubpages: input.includeSubpages } })
+      .values({ pageId: req.params.id, token: newToken(), includeSubpages: input.includeSubpages ?? true, createdBy: user.id, ...protection })
+      .onConflictDoUpdate({ target: publicLinks.pageId, set: Object.keys(changes).length ? changes : { pageId: req.params.id } })
       .returning()
       .get();
-    return { link: linkInfo(link) };
+    const info = linkInfo(link);
+    const facts = { includeSubpages: link.includeSubpages, password: info.hasPassword, expiresAt: info.expiresAt };
+    if (!before) audit(db, req, { action: "page.public_link_created", target: pageTarget(page), details: facts });
+    else if (Object.keys(changes).length) audit(db, req, { action: "page.public_link_changed", target: pageTarget(page), details: facts });
+    return { link: info };
   });
 
   app.delete<{ Params: { id: string } }>("/:id/public-link", async (req) => {
     const user = requireUser(req);
-    requirePageRole(db, user.id, req.params.id, "full");
-    db.delete(publicLinks).where(eq(publicLinks.pageId, req.params.id)).run();
+    const { page } = requirePageRole(db, user.id, req.params.id, "full");
+    if (db.delete(publicLinks).where(eq(publicLinks.pageId, req.params.id)).run().changes) {
+      audit(db, req, { action: "page.public_link_removed", target: pageTarget(page) });
+    }
     return { ok: true };
   });
 };

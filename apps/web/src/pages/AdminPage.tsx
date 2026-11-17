@@ -1,43 +1,49 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Copy,
   DatabaseBackup,
   KeyRound,
   Mail,
   Puzzle,
+  ScrollText,
   ShieldCheck,
-  Trash2,
   UserPlus,
+  UserRound,
   Users,
+  UsersRound,
   type LucideIcon,
 } from "lucide-react";
 import {
-  intlLocale,
   t,
-  type InvitationInfo,
   type PublicUser,
-  type UserRole,
+  type MemberRole,
 } from "@nootion/shared";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
-import { Button, ErrorText, Field, Rich } from "../components/ui";
+import { Button, ErrorText, Rich } from "../components/ui";
 import { PluginsAdmin } from "./PluginsAdmin";
 import { BackupsAdmin } from "./BackupsAdmin";
 import { MailAdmin } from "./MailAdmin";
 import { SsoAdmin } from "./SsoAdmin";
 import { SecurityAdmin } from "./SecurityAdmin";
-import { copyText } from "../lib/browser";
+import { GuestsAdmin } from "./GuestsAdmin";
+import { GroupsAdmin } from "./GroupsAdmin";
+import { AuditLogAdmin } from "./AuditLogAdmin";
+import { InviteAdmin } from "./InviteAdmin";
+import { SetupAssistantCard } from "./SetupAssistant";
 import { UpdateBanner, VersionLine } from "../components/UpdateNotice";
 
 /** The page's sections, in order: the menu on the left and the cards share these ids. */
 const SECTIONS: { id: string; icon: LucideIcon; label: () => string }[] = [
   { id: "users", icon: Users, label: () => t("admin.nav.users") },
+  { id: "groups", icon: UsersRound, label: () => t("admin.nav.groups") },
+  { id: "guests", icon: UserRound, label: () => t("admin.nav.guests") },
   { id: "invite", icon: UserPlus, label: () => t("admin.nav.invite") },
   { id: "backups", icon: DatabaseBackup, label: () => t("admin.nav.backups") },
   { id: "mail", icon: Mail, label: () => t("admin.nav.mail") },
   { id: "sso", icon: KeyRound, label: () => t("admin.nav.sso") },
   { id: "security", icon: ShieldCheck, label: () => t("admin.nav.security") },
+  { id: "activity", icon: ScrollText, label: () => t("admin.nav.activity") },
   { id: "plugins", icon: Puzzle, label: () => t("admin.nav.plugins") },
 ];
 
@@ -180,9 +186,6 @@ function SectionNav({
   );
 }
 
-const dateFmt = () =>
-  new Intl.DateTimeFormat(intlLocale(), { dateStyle: "medium" });
-
 export function AdminPage() {
   const { user: me } = useSession();
   const qc = useQueryClient();
@@ -190,14 +193,11 @@ export function AdminPage() {
     queryKey: ["admin", "users"],
     queryFn: () => api<{ users: PublicUser[] }>("/admin/users"),
   });
-  const invitations = useQuery({
-    queryKey: ["admin", "invitations"],
-    queryFn: () => api<{ invitations: InvitationInfo[] }>("/admin/invitations"),
+  // Attached files kept in a bucket (FILES_S3_BUCKET), which backups leave out.
+  const filesBucket = useQuery({
+    queryKey: ["admin", "backups", "files"],
+    queryFn: async () => (await api<{ filesBucket: string | null }>("/admin/backups/schedule")).filesBucket,
   });
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<UserRole>("member");
-  const [lastLink, setLastLink] = useState<string | null>(null);
-  const [emailedTo, setEmailedTo] = useState<string | null>(null);
   const content = useRef<HTMLDivElement>(null);
   const [current, setCurrent] = useCurrentSection(content);
   // A link to a section (/admin#sso) opens on it.
@@ -215,7 +215,7 @@ export function AdminPage() {
       patch,
     }: {
       id: string;
-      patch: { role?: UserRole; disabled?: boolean };
+      patch: { role?: MemberRole; disabled?: boolean };
     }) => api(`/admin/users/${id}`, { method: "PATCH", body: patch }),
     onSettled: () => qc.invalidateQueries({ queryKey: ["admin", "users"] }),
   });
@@ -223,30 +223,11 @@ export function AdminPage() {
     mutationFn: (id: string) => api(`/admin/users/${id}/2fa`, { method: "DELETE" }),
     onSettled: () => qc.invalidateQueries({ queryKey: ["admin", "users"] }),
   });
-  const createInvite = useMutation({
-    mutationFn: () =>
-      api<{ url: string; emailed: boolean }>("/admin/invitations", {
-        method: "POST",
-        body: { email: inviteEmail || undefined, role: inviteRole },
-      }),
-    onSuccess: (data) => {
-      setLastLink(data.url);
-      setEmailedTo(data.emailed ? inviteEmail : null);
-      setInviteEmail("");
-      qc.invalidateQueries({ queryKey: ["admin", "invitations"] });
-    },
-  });
-  const revokeInvite = useMutation({
-    mutationFn: (id: string) =>
-      api(`/admin/invitations/${id}`, { method: "DELETE" }),
-    onSettled: () =>
-      qc.invalidateQueries({ queryKey: ["admin", "invitations"] }),
-  });
-
   return (
     <div className="mx-auto max-w-6xl px-5 py-8 sm:px-8 sm:py-12">
       <h1 className="mb-6 text-2xl font-bold">{t("admin.title")}</h1>
       <UpdateBanner />
+      <SetupAssistantCard />
       <div className="lg:grid lg:grid-cols-[12rem_minmax(0,1fr)] lg:gap-10">
         <SectionNav current={current} onPick={setCurrent} />
         <div ref={content} className="space-y-6">
@@ -273,7 +254,8 @@ export function AdminPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {users.data?.users.map((u) => (
+                    {/* Guests have their own list, below. */}
+                    {users.data?.users.filter((u) => u.role !== "guest").map((u) => (
                       <tr
                         key={u.id}
                         className="border-t border-neutral-200 dark:border-neutral-800"
@@ -299,7 +281,7 @@ export function AdminPage() {
                             onChange={(e) =>
                               updateUser.mutate({
                                 id: u.id,
-                                patch: { role: e.target.value as UserRole },
+                                patch: { role: e.target.value as MemberRole },
                               })
                             }
                           >
@@ -354,88 +336,16 @@ export function AdminPage() {
             </section>
           </AdminCard>
 
+          <AdminCard id="groups">
+            <GroupsAdmin />
+          </AdminCard>
+
+          <AdminCard id="guests">
+            <GuestsAdmin />
+          </AdminCard>
+
           <AdminCard id="invite">
-            <section>
-              <h2 className="mb-1 text-lg font-semibold">
-                {t("admin.invite")}
-              </h2>
-              <p className="mb-3 text-sm text-neutral-500">
-                {t("admin.inviteHelp")}
-              </p>
-              <form
-                className="flex flex-wrap items-end gap-3"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  createInvite.mutate();
-                }}
-              >
-                <div className="min-w-64 flex-1">
-                  <Field
-                    label={t("admin.inviteEmail")}
-                    type="email"
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                  />
-                </div>
-                <select
-                  className="rounded-md border border-neutral-300 bg-transparent px-3 py-2 text-sm dark:border-neutral-700"
-                  value={inviteRole}
-                  onChange={(e) => setInviteRole(e.target.value as UserRole)}
-                >
-                  <option value="member">{t("admin.member")}</option>
-                  <option value="admin">{t("admin.admin")}</option>
-                </select>
-                <Button type="submit" disabled={createInvite.isPending}>
-                  {t("admin.createLink")}
-                </Button>
-              </form>
-              <ErrorText error={createInvite.error} />
-              {lastLink && emailedTo && (
-                <p className="mt-3 text-sm text-green-700 dark:text-green-400">
-                  ✓ {t("admin.inviteEmailed", { email: emailedTo })}
-                </p>
-              )}
-              {lastLink && (
-                <div className="mt-3 flex items-center gap-2 rounded-md bg-green-50 p-3 text-sm dark:bg-green-950">
-                  <code className="flex-1 break-all">{lastLink}</code>
-                  <Button
-                    variant="ghost"
-                    onClick={() => void copyText(lastLink)}
-                    title={t("common.copy")}
-                  >
-                    <Copy size={16} />
-                  </Button>
-                </div>
-              )}
-              {!!invitations.data?.invitations.length && (
-                <ul className="mt-4 divide-y divide-neutral-200 rounded-lg border border-neutral-200 text-sm dark:divide-neutral-800 dark:border-neutral-800">
-                  {invitations.data.invitations.map((i) => (
-                    <li
-                      key={i.id}
-                      className="flex items-center justify-between px-3 py-2"
-                    >
-                      <span>
-                        {i.email ?? t("admin.openLink")} ·{" "}
-                        {i.role === "admin"
-                          ? t("admin.admin")
-                          : t("admin.member")}{" "}
-                        ·{" "}
-                        {t("admin.expiresOn", {
-                          date: dateFmt().format(new Date(i.expiresAt)),
-                        })}
-                      </span>
-                      <Button
-                        variant="danger"
-                        onClick={() => revokeInvite.mutate(i.id)}
-                        title={t("admin.revoke")}
-                      >
-                        <Trash2 size={16} />
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
+            <InviteAdmin />
           </AdminCard>
 
           <AdminCard id="backups">
@@ -446,6 +356,11 @@ export function AdminPage() {
               <p className="mb-3 text-sm text-neutral-500">
                 <Rich text={t("admin.backupHelp")} />
               </p>
+              {filesBucket.data && (
+                <p className="mb-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                  <Rich text={t("admin.backupFilesInBucket", { bucket: filesBucket.data })} />
+                </p>
+              )}
               <a
                 href="/api/admin/backup"
                 download
@@ -469,6 +384,10 @@ export function AdminPage() {
 
           <AdminCard id="security">
             <SecurityAdmin />
+          </AdminCard>
+
+          <AdminCard id="activity">
+            <AuditLogAdmin />
           </AdminCard>
 
           <AdminCard id="plugins">

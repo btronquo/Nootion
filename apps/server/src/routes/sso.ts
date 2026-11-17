@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import type { FastifyPluginAsync, FastifyReply } from "fastify";
+import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import { ssoSettingsInput, t } from "@nootion/shared";
 import { hashToken } from "../auth/tokens.js";
@@ -7,8 +7,10 @@ import { invitations, users } from "../db/schema.js";
 import { parseBody, requireAdmin } from "../http.js";
 import { requestLocale } from "../i18n.js";
 import type { SsoIdentity } from "../sso.js";
+import { grantInvitedPage, guestInvitationUsable, guestsAllowed, isGuest } from "../guests.js";
 import { createUser, type UserRow } from "../users.js";
 import { startSession } from "./session-cookie.js";
+import { audit, changedKeys, settingsTarget } from "../audit.js";
 
 const STATE_COOKIE = "nootion_sso";
 const STATE_PATH = "/api/auth/sso";
@@ -24,24 +26,31 @@ export const ssoAdminRoutes: FastifyPluginAsync = async (app) => {
 
   app.put("/", async (req) => {
     requireAdmin(req);
-    return { settings: sso.save(parseBody(ssoSettingsInput, req.body)) };
+    const before = sso.get();
+    const settings = sso.save(parseBody(ssoSettingsInput, req.body));
+    audit(app.db, req, { action: "settings.changed", target: settingsTarget("sso"), details: { keys: changedKeys(before, settings) } });
+    return { settings };
   });
 
   app.delete("/", async (req) => {
     requireAdmin(req);
     sso.remove();
+    audit(app.db, req, { action: "settings.changed", target: settingsTarget("sso"), details: { removed: true } });
     return { ok: true };
   });
 
   // A new SCIM token replaces the old one; it is shown only now.
   app.post("/scim-token", async (req) => {
     requireAdmin(req);
-    return { token: sso.newScimToken() };
+    const token = sso.newScimToken();
+    audit(app.db, req, { action: "sso.scim_token_created" });
+    return { token };
   });
 
   app.delete("/scim-token", async (req) => {
     requireAdmin(req);
     sso.removeScimToken();
+    audit(app.db, req, { action: "sso.scim_token_removed" });
     return { ok: true };
   });
 };
@@ -109,9 +118,13 @@ export const ssoLoginRoutes: FastifyPluginAsync = async (app) => {
         req.log.warn({ err }, "SSO sign-in failed");
         return back(reply, "failed");
       }
-      const found = await account(who, saved.invite, requestLocale(req));
-      if (typeof found === "string") return back(reply, found);
+      const found = await account(who, saved.invite, requestLocale(req), req);
+      if (typeof found === "string") {
+        audit(db, req, { action: "auth.login_failed", actor: null, details: { email: who.email ?? null, method: "sso", reason: found } });
+        return back(reply, found);
+      }
       startSession(app, reply, found.id, sso.config()!.sessionHours * 3600_000);
+      audit(db, req, { action: "auth.login", actor: found, details: { method: "sso" } });
       return reply.redirect(saved.next);
     },
   );
@@ -121,6 +134,7 @@ export const ssoLoginRoutes: FastifyPluginAsync = async (app) => {
     who: SsoIdentity,
     inviteToken: string | undefined,
     locale: ReturnType<typeof requestLocale>,
+    req: FastifyRequest,
   ): Promise<UserRow | "no_account" | "disabled" | "no_email" | "unverified_email" | "not_linked"> {
     const c = sso.config()!;
     let user = db
@@ -147,7 +161,7 @@ export const ssoLoginRoutes: FastifyPluginAsync = async (app) => {
           .where(eq(users.id, user.id))
           .run();
     }
-    if (user) return user.disabled ? "disabled" : user;
+    if (user) return user.disabled || (isGuest(user) && !guestsAllowed(db)) ? "disabled" : user;
     if (!who.email) return "no_email";
     if (
       db
@@ -177,7 +191,9 @@ export const ssoLoginRoutes: FastifyPluginAsync = async (app) => {
         .where(and(sql`lower(${invitations.email}) = ${who.email}`, open))
         .get();
     const usable =
-      inv && (!inv.email || inv.email.toLowerCase() === who.email)
+      inv &&
+      (!inv.email || inv.email.toLowerCase() === who.email) &&
+      guestInvitationUsable(db, inv)
         ? inv
         : undefined;
     const domain = who.email.split("@")[1]!;
@@ -186,6 +202,9 @@ export const ssoLoginRoutes: FastifyPluginAsync = async (app) => {
       c.signup === "anyone" ||
       (c.signup === "domains" && c.domains.includes(domain));
     if (!allowed) return "no_account";
+    // Without an invitation, people arrive as the administrator chose: members, or guests who see nothing yet.
+    const role = usable?.role ?? c.signupRole;
+    if (role === "guest" && !guestsAllowed(db)) return "no_account";
     if (usable) {
       const claimed = db
         .update(invitations)
@@ -199,18 +218,21 @@ export const ssoLoginRoutes: FastifyPluginAsync = async (app) => {
       name: who.name ?? who.email.split("@")[0]!,
       email: who.email,
       password: randomBytes(32).toString("hex"),
-      role: usable?.role ?? "member",
+      role,
       locale,
     });
     db.update(users)
       .set({ ssoSubject: who.subject })
       .where(eq(users.id, created.id))
       .run();
-    if (usable)
+    if (usable) {
       db.update(invitations)
         .set({ usedBy: created.id })
         .where(eq(invitations.id, usable.id))
         .run();
+      grantInvitedPage(db, usable, created.id);
+    }
+    audit(db, req, { action: "account.created", actor: created, details: { via: "sso", role, invited: !!usable } });
     return { ...created, ssoSubject: who.subject };
   }
 };

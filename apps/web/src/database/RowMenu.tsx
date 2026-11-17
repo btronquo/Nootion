@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { Copy, ExternalLink, Link2, Maximize2, SmilePlus, Star, Trash2 } from "lucide-react";
-import { intlLocale, t, type DatabaseData, type DatabaseRow } from "@nootion/shared";
+import { Copy, CornerDownRight, ExternalLink, Link2, Maximize2, SmilePlus, Star, Trash2 } from "lucide-react";
+import { intlLocale, subItemProps, t, type DatabaseData, type DatabaseRow } from "@nootion/shared";
+import { addSubItem } from "./subItems";
 import { api } from "../lib/api";
 import { copyText } from "../lib/browser";
 import { keys, useFavorites } from "../lib/queries";
@@ -98,6 +99,9 @@ export function RowMenu({
       { key: "tab", icon: <ExternalLink size={15} />, label: t("page.openNewTab"), run: close(() => void window.open(rowHref(row), "_blank", "noopener")) },
       { key: "link", section: "", icon: <Link2 size={15} />, label: t("page.copyLink"), run: close(() => copyText(`${location.origin}${rowHref(row)}`)) },
     );
+  }
+  if (editable && row && subItemProps(data.properties)) {
+    entries.push({ key: "subItem", section: "", icon: <CornerDownRight size={15} />, label: t("subItems.add"), run: close(() => addSubItem(data, actions, row)) });
   }
   if (editable) {
     entries.push(

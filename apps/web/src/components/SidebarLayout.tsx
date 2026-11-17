@@ -189,7 +189,7 @@ export function SidebarLayout({
     <SidebarContext.Provider value={state}>
       {/* overflow-hidden: the fade-in nudges the page down 4px, which must not make the window scroll. */}
       <div
-        className={`flex h-full overflow-hidden ${resizing ? "cursor-col-resize select-none" : ""}`}
+        className={`flex h-full overflow-hidden print:block print:h-auto print:overflow-visible ${resizing ? "cursor-col-resize select-none" : ""}`}
         style={{ "--sidebar-w": `${width}px` } as React.CSSProperties}
       >
         {open && (
@@ -213,7 +213,7 @@ export function SidebarLayout({
           inert={collapsed && !peeking && !open ? true : undefined}
           onMouseEnter={collapsed ? () => peek(true) : undefined}
           onMouseLeave={collapsed ? () => peek(false) : undefined}
-          className={`group/sidebar fixed top-0 left-0 z-50 flex h-dvh w-72 max-w-[85vw] shrink-0 flex-col overflow-y-auto border-r pb-[env(safe-area-inset-bottom)] md:h-auto md:overflow-visible md:pb-0 border-neutral-200 bg-neutral-50 transition-transform duration-200 md:w-(--sidebar-w) dark:border-neutral-800 dark:bg-neutral-950 ${open ? "translate-x-0 shadow-2xl" : "-translate-x-full"} ${desktop}`}
+          className={`print:hidden group/sidebar fixed top-0 left-0 z-50 flex h-dvh w-72 max-w-[85vw] shrink-0 flex-col overflow-y-auto border-r pb-[env(safe-area-inset-bottom)] md:h-auto md:overflow-visible md:pb-0 border-neutral-200 bg-neutral-50 transition-transform duration-200 md:w-(--sidebar-w) dark:border-neutral-800 dark:bg-neutral-950 ${open ? "translate-x-0 shadow-2xl" : "-translate-x-full"} ${desktop}`}
         >
           <button
             onClick={toggle}
@@ -249,7 +249,7 @@ export function SidebarLayout({
             />
           </div>
         </aside>
-        <main ref={main} className="min-w-0 flex-1 overflow-y-auto">
+        <main ref={main} className="min-w-0 flex-1 overflow-y-auto print:overflow-visible">
           {children}
         </main>
       </div>

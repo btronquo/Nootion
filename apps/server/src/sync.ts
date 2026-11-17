@@ -20,11 +20,10 @@
  *
  * Changes applied from a peer are recorded with its id as `origin`, so they aren't sent back to it.
  */
-import fs from "node:fs";
 import { randomBytes } from "node:crypto";
 import * as Y from "yjs";
 import { and, eq, gt, inArray, sql } from "drizzle-orm";
-import { attachmentPath, uploadsDir } from "./attachments.js";
+import { fileStore, keepFiles } from "./files.js";
 import { hashPassword } from "./auth/password.js";
 import type { Collab } from "./collab.js";
 import { editContent, encodeContent } from "./collab.js";
@@ -45,6 +44,8 @@ export const PAGE_FIELDS = [
   "deletedBy",
   "template",
   "defaultTemplateId",
+  "locked",
+  "description",
 ] as const;
 type PageField = (typeof PAGE_FIELDS)[number];
 
@@ -52,7 +53,7 @@ export interface SyncPage {
   id: string;
   workspaceId: string;
   parentId: string | null;
-  kind: "page" | "database" | "row";
+  kind: "page" | "database" | "row" | "block";
   title: string;
   icon: string | null;
   fullWidth: boolean;
@@ -66,6 +67,10 @@ export interface SyncPage {
   props: Record<string, unknown> | null;
   template: boolean;
   defaultTemplateId: string | null;
+  /** Absent from peers older than the lock. */
+  locked?: boolean;
+  /** Absent from peers older than database descriptions. */
+  description?: string;
   fieldClock: Record<string, number>;
   /** The Yjs document, base64. */
   content: string | null;
@@ -80,6 +85,9 @@ export interface SyncColumn {
   position: number;
   createdAt: number;
   syncClock: number;
+  /** Views of a linked view: the page showing it, and its block there. */
+  ownerPageId?: string | null;
+  ownerBlockId?: string | null;
 }
 
 export interface SyncAttachment {
@@ -187,6 +195,7 @@ const toSyncPage = (r: typeof pages.$inferSelect): SyncPage => ({
   kind: r.kind,
   title: r.title,
   icon: r.icon,
+  description: r.description,
   fullWidth: r.fullWidth,
   cover: r.cover,
   coverPosition: r.coverPosition,
@@ -198,11 +207,12 @@ const toSyncPage = (r: typeof pages.$inferSelect): SyncPage => ({
   props: r.props ?? null,
   template: r.template,
   defaultTemplateId: r.defaultTemplateId,
+  locked: r.locked,
   fieldClock: r.fieldClock ?? {},
   content: r.contentState ? Buffer.from(r.contentState).toString("base64") : null,
 });
 
-const toSyncColumn = (r: typeof databaseProperties.$inferSelect): SyncColumn => ({
+const toSyncColumn = (r: typeof databaseProperties.$inferSelect | typeof databaseViews.$inferSelect): SyncColumn => ({
   id: r.id,
   databaseId: r.databaseId,
   name: r.name,
@@ -211,6 +221,7 @@ const toSyncColumn = (r: typeof databaseProperties.$inferSelect): SyncColumn => 
   position: r.position,
   createdAt: r.createdAt.getTime(),
   syncClock: r.syncClock,
+  ...("ownerPageId" in r && r.ownerPageId ? { ownerPageId: r.ownerPageId, ownerBlockId: r.ownerBlockId } : {}),
 });
 
 const ms = (d: Date | null) => d?.getTime() ?? null;
@@ -495,231 +506,254 @@ export async function applyChanges(
   // Files first, outside the transaction: an attachment is added only once its file is here.
   const { dataDir } = opts;
   const filed = new Set<string>();
-  for (const c of upserts) {
-    if (c.entity !== "attachment" || c.deleted || !dataDir || !isAttachmentId(c.id) || c.data.id !== c.id) continue;
-    if (db.select({ id: attachments.id }).from(attachments).where(eq(attachments.id, c.id)).get()) continue;
-    const file = attachmentPath(dataDir, c.id);
-    if (!fs.existsSync(file) && opts.fetchFile) {
-      const bytes = await opts.fetchFile(c.id);
-      if (bytes) {
-        fs.mkdirSync(uploadsDir(dataDir), { recursive: true });
-        fs.writeFileSync(`${file}.part`, bytes);
-        fs.renameSync(`${file}.part`, file);
+  // Kept from the orphan cleaner until their rows are in.
+  const release = keepFiles(upserts.filter((c) => c.entity === "attachment").map((c) => c.id));
+  try {
+    for (const c of upserts) {
+      if (c.entity !== "attachment" || c.deleted || !dataDir || !isAttachmentId(c.id) || c.data.id !== c.id) continue;
+      if (db.select({ id: attachments.id }).from(attachments).where(eq(attachments.id, c.id)).get()) continue;
+      const store = fileStore(dataDir);
+      let here = (await store.size(c.id)) !== null;
+      if (!here && opts.fetchFile) {
+        const bytes = await opts.fetchFile(c.id);
+        if (bytes) {
+          await store.putBuffer(c.id, bytes);
+          here = true;
+        }
       }
+      if (here) filed.add(c.id);
     }
-    if (fs.existsSync(file)) filed.add(c.id);
+    const pageIn = (tx: Pick<Db, "select">, pageId: string) =>
+      tx.select({ ws: pages.workspaceId }).from(pages).where(eq(pages.id, pageId)).get()?.ws === workspaceId;
+    const threadIn = (tx: Pick<Db, "select">, threadId: string) => {
+      const t = tx.select({ pageId: commentThreads.pageId }).from(commentThreads).where(eq(commentThreads.id, threadId)).get();
+      return !!t && pageIn(tx, t.pageId);
+    };
+
+    asPeer(db, peer, () =>
+      db.transaction((tx) => {
+        for (const c of upserts) {
+          if (c.deleted) continue;
+          if (c.entity === "attachment") {
+            const a = c.data;
+            if (!filed.has(c.id) || !pageIn(tx, a.pageId)) continue;
+            tx.insert(attachments)
+              .values({
+                id: a.id,
+                pageId: a.pageId,
+                filename: a.filename,
+                mimeType: a.mimeType,
+                size: a.size,
+                createdBy: knownUser(db, a.createdBy),
+                createdAt: new Date(a.createdAt),
+              })
+              .onConflictDoNothing()
+              .run();
+            applied++;
+            continue;
+          }
+          if (c.entity === "thread") {
+            const th = c.data;
+            if (th.id !== c.id || !pageIn(tx, th.pageId)) continue;
+            const row = tx.select().from(commentThreads).where(eq(commentThreads.id, th.id)).get();
+            if (row && row.pageId !== th.pageId) continue;
+            const values = {
+              anchorStart: th.anchorStart,
+              anchorEnd: th.anchorEnd,
+              quote: th.quote,
+              resolvedAt: date(th.resolvedAt),
+              resolvedBy: knownUser(db, th.resolvedBy),
+              syncClock: th.syncClock,
+            };
+            if (!row)
+              tx.insert(commentThreads)
+                .values({ id: th.id, pageId: th.pageId, createdAt: new Date(th.createdAt), ...values })
+                .run();
+            else if (th.syncClock > row.syncClock) tx.update(commentThreads).set(values).where(eq(commentThreads.id, th.id)).run();
+            else continue;
+            applied++;
+            continue;
+          }
+          if (c.entity === "comment") {
+            const cm = c.data;
+            if (cm.id !== c.id || !threadIn(tx, cm.threadId) || !knownUser(db, cm.authorId)) continue;
+            if (opts.pusher && cm.authorId !== opts.pusher) continue;
+            const row = tx.select().from(comments).where(eq(comments.id, cm.id)).get();
+            if (row && (row.threadId !== cm.threadId || row.authorId !== cm.authorId)) continue;
+            if (!row) {
+              tx.insert(comments)
+                .values({
+                  id: cm.id,
+                  threadId: cm.threadId,
+                  authorId: cm.authorId,
+                  body: cm.body,
+                  editedAt: date(cm.editedAt),
+                  createdAt: new Date(cm.createdAt),
+                  syncClock: cm.syncClock,
+                })
+                .run();
+            } else if (cm.syncClock > row.syncClock) {
+              tx.update(comments)
+                .set({ body: cm.body, editedAt: date(cm.editedAt), syncClock: cm.syncClock })
+                .where(eq(comments.id, cm.id))
+                .run();
+            } else continue;
+            applied++;
+            continue;
+          }
+          if (c.entity === "page") {
+            const p = c.data;
+            if (p.workspaceId !== workspaceId || p.id !== c.id) continue;
+            let row = tx.select().from(pages).where(eq(pages.id, p.id)).get();
+            if (row && row.workspaceId !== workspaceId) {
+              // Moved on the server from another space it keeps in sync here: moved here too (its old space's
+              // deletion, pulled later, then leaves it alone). Any other page of another space stays out of reach.
+              if (!opts.followMoves || !tx.select({ id: syncLinks.workspaceId }).from(syncLinks).where(eq(syncLinks.workspaceId, row.workspaceId)).get())
+                continue;
+              tx.update(pages).set({ workspaceId }).where(eq(pages.id, p.id)).run();
+              row = { ...row, workspaceId };
+            }
+            if (!row) {
+              tx.insert(pages)
+                .values({
+                  id: p.id,
+                  workspaceId,
+                  parentId: p.parentId,
+                  kind: p.kind,
+                  title: p.title,
+                  icon: p.icon,
+                  fullWidth: p.fullWidth,
+                  cover: p.cover,
+                  coverPosition: p.coverPosition,
+                  position: p.position,
+                  createdBy: knownUser(db, p.createdBy),
+                  createdAt: new Date(p.createdAt),
+                  deletedAt: date(p.deletedAt),
+                  deletedBy: knownUser(db, p.deletedBy),
+                  props: p.props,
+                  template: p.template,
+                  defaultTemplateId: p.defaultTemplateId,
+                  locked: p.locked ?? false,
+                  description: p.description ?? "",
+                  fieldClock: p.fieldClock,
+                  syncClock: Math.max(0, ...Object.values(p.fieldClock)),
+                })
+                .run();
+              if (p.content) contentToMerge.push({ id: p.id, update: new Uint8Array(Buffer.from(p.content, "base64")) });
+              applied++;
+              continue;
+            }
+            const merged = mergePage(toSyncPage(row), p);
+            if (merged) {
+              const f = merged.fields;
+              const set: Partial<typeof pages.$inferInsert> = { fieldClock: merged.fieldClock, props: merged.props };
+              if ("parentId" in f) set.parentId = f.parentId as string | null;
+              if ("kind" in f) set.kind = f.kind as SyncPage["kind"];
+              if ("title" in f) set.title = f.title as string;
+              if ("icon" in f) set.icon = f.icon as string | null;
+              if ("fullWidth" in f) set.fullWidth = f.fullWidth as boolean;
+              if ("cover" in f) set.cover = f.cover as string | null;
+              if ("coverPosition" in f) set.coverPosition = f.coverPosition as number;
+              if ("position" in f) set.position = f.position as number;
+              if ("deletedAt" in f) set.deletedAt = date(f.deletedAt as number | null);
+              if ("deletedBy" in f) set.deletedBy = knownUser(db, f.deletedBy as string | null);
+              if ("template" in f) set.template = f.template as boolean;
+              if ("defaultTemplateId" in f) set.defaultTemplateId = f.defaultTemplateId as string | null;
+              if ("locked" in f) set.locked = Boolean(f.locked);
+              if ("description" in f) set.description = (f.description as string | undefined) ?? "";
+              tx.update(pages).set(set).where(eq(pages.id, p.id)).run();
+              applied++;
+            }
+            if (p.content && mergeContent(row.contentState, p.content)) {
+              contentToMerge.push({ id: p.id, update: new Uint8Array(Buffer.from(p.content, "base64")) });
+              if (!merged) applied++;
+            }
+          } else {
+            const col = c.data;
+            const table = c.entity === "property" ? databaseProperties : databaseViews;
+            const db_ = tx.select({ ws: pages.workspaceId }).from(pages).where(eq(pages.id, col.databaseId)).get();
+            if (!db_ || db_.ws !== workspaceId || col.id !== c.id) continue;
+            const row = tx.select().from(table).where(eq(table.id, col.id)).get();
+            const values = { databaseId: col.databaseId, name: col.name, type: col.type, config: col.config, position: col.position, syncClock: col.syncClock };
+            // A linked view's views need its page, in this space (pages come first in a batch).
+            const owner =
+              c.entity === "view" && col.ownerPageId && col.ownerBlockId
+                ? tx.select({ ws: pages.workspaceId }).from(pages).where(eq(pages.id, col.ownerPageId)).get()?.ws === workspaceId
+                  ? { ownerPageId: col.ownerPageId, ownerBlockId: col.ownerBlockId }
+                  : null
+                : {};
+            if (!owner) continue;
+            if (!row) {
+              tx.insert(table)
+                .values({ id: col.id, createdAt: new Date(col.createdAt), ...values, ...owner })
+                .run();
+              applied++;
+            } else if (col.syncClock > row.syncClock) {
+              tx.update(table).set(values).where(eq(table.id, col.id)).run();
+              applied++;
+            }
+          }
+        }
+        for (const c of deletions) {
+          if (c.entity === "attachment") {
+            const row = tx.select({ pageId: attachments.pageId }).from(attachments).where(eq(attachments.id, c.id)).get();
+            if (!row || !pageIn(tx, row.pageId)) continue;
+            tx.delete(attachments).where(eq(attachments.id, c.id)).run();
+            if (dataDir && isAttachmentId(c.id)) filesToRemove.push(c.id);
+            applied++;
+            continue;
+          }
+          if (c.entity === "thread") {
+            const row = tx.select({ pageId: commentThreads.pageId }).from(commentThreads).where(eq(commentThreads.id, c.id)).get();
+            if (!row || !pageIn(tx, row.pageId)) continue;
+            // On a server, a thread goes only with comments of the one who pushed.
+            if (
+              opts.pusher &&
+              tx
+                .select({ a: comments.authorId })
+                .from(comments)
+                .where(eq(comments.threadId, c.id))
+                .all()
+                .some((r) => r.a !== opts.pusher)
+            )
+              continue;
+            tx.delete(commentThreads).where(eq(commentThreads.id, c.id)).run();
+            applied++;
+            continue;
+          }
+          if (c.entity === "comment") {
+            const row = tx.select({ threadId: comments.threadId, authorId: comments.authorId }).from(comments).where(eq(comments.id, c.id)).get();
+            if (!row || !threadIn(tx, row.threadId)) continue;
+            if (opts.pusher && row.authorId !== opts.pusher) continue;
+            tx.delete(comments).where(eq(comments.id, c.id)).run();
+            applied++;
+            continue;
+          }
+          if (c.entity === "page") {
+            const row = tx.select({ ws: pages.workspaceId }).from(pages).where(eq(pages.id, c.id)).get();
+            if (row?.ws !== workspaceId) continue;
+            // Columns, views and rows of a database go with it; rows' pages are its children.
+            tx.delete(pages).where(eq(pages.id, c.id)).run();
+            applied++;
+          } else {
+            const table = c.entity === "property" ? databaseProperties : databaseViews;
+            const row = tx.select({ ws: pages.workspaceId }).from(table).innerJoin(pages, eq(pages.id, table.databaseId)).where(eq(table.id, c.id)).get();
+            if (row?.ws !== workspaceId) continue;
+            tx.delete(table).where(eq(table.id, c.id)).run();
+            applied++;
+          }
+        }
+      }),
+    );
+  } finally {
+    release();
   }
-  const pageIn = (tx: Pick<Db, "select">, pageId: string) =>
-    tx.select({ ws: pages.workspaceId }).from(pages).where(eq(pages.id, pageId)).get()?.ws === workspaceId;
-  const threadIn = (tx: Pick<Db, "select">, threadId: string) => {
-    const t = tx.select({ pageId: commentThreads.pageId }).from(commentThreads).where(eq(commentThreads.id, threadId)).get();
-    return !!t && pageIn(tx, t.pageId);
-  };
 
-  asPeer(db, peer, () =>
-    db.transaction((tx) => {
-      for (const c of upserts) {
-        if (c.deleted) continue;
-        if (c.entity === "attachment") {
-          const a = c.data;
-          if (!filed.has(c.id) || !pageIn(tx, a.pageId)) continue;
-          tx.insert(attachments)
-            .values({
-              id: a.id,
-              pageId: a.pageId,
-              filename: a.filename,
-              mimeType: a.mimeType,
-              size: a.size,
-              createdBy: knownUser(db, a.createdBy),
-              createdAt: new Date(a.createdAt),
-            })
-            .onConflictDoNothing()
-            .run();
-          applied++;
-          continue;
-        }
-        if (c.entity === "thread") {
-          const th = c.data;
-          if (th.id !== c.id || !pageIn(tx, th.pageId)) continue;
-          const row = tx.select().from(commentThreads).where(eq(commentThreads.id, th.id)).get();
-          if (row && row.pageId !== th.pageId) continue;
-          const values = {
-            anchorStart: th.anchorStart,
-            anchorEnd: th.anchorEnd,
-            quote: th.quote,
-            resolvedAt: date(th.resolvedAt),
-            resolvedBy: knownUser(db, th.resolvedBy),
-            syncClock: th.syncClock,
-          };
-          if (!row)
-            tx.insert(commentThreads)
-              .values({ id: th.id, pageId: th.pageId, createdAt: new Date(th.createdAt), ...values })
-              .run();
-          else if (th.syncClock > row.syncClock) tx.update(commentThreads).set(values).where(eq(commentThreads.id, th.id)).run();
-          else continue;
-          applied++;
-          continue;
-        }
-        if (c.entity === "comment") {
-          const cm = c.data;
-          if (cm.id !== c.id || !threadIn(tx, cm.threadId) || !knownUser(db, cm.authorId)) continue;
-          if (opts.pusher && cm.authorId !== opts.pusher) continue;
-          const row = tx.select().from(comments).where(eq(comments.id, cm.id)).get();
-          if (row && (row.threadId !== cm.threadId || row.authorId !== cm.authorId)) continue;
-          if (!row) {
-            tx.insert(comments)
-              .values({
-                id: cm.id,
-                threadId: cm.threadId,
-                authorId: cm.authorId,
-                body: cm.body,
-                editedAt: date(cm.editedAt),
-                createdAt: new Date(cm.createdAt),
-                syncClock: cm.syncClock,
-              })
-              .run();
-          } else if (cm.syncClock > row.syncClock) {
-            tx.update(comments)
-              .set({ body: cm.body, editedAt: date(cm.editedAt), syncClock: cm.syncClock })
-              .where(eq(comments.id, cm.id))
-              .run();
-          } else continue;
-          applied++;
-          continue;
-        }
-        if (c.entity === "page") {
-          const p = c.data;
-          if (p.workspaceId !== workspaceId || p.id !== c.id) continue;
-          let row = tx.select().from(pages).where(eq(pages.id, p.id)).get();
-          if (row && row.workspaceId !== workspaceId) {
-            // Moved on the server from another space it keeps in sync here: moved here too (its old space's
-            // deletion, pulled later, then leaves it alone). Any other page of another space stays out of reach.
-            if (!opts.followMoves || !tx.select({ id: syncLinks.workspaceId }).from(syncLinks).where(eq(syncLinks.workspaceId, row.workspaceId)).get()) continue;
-            tx.update(pages).set({ workspaceId }).where(eq(pages.id, p.id)).run();
-            row = { ...row, workspaceId };
-          }
-          if (!row) {
-            tx.insert(pages)
-              .values({
-                id: p.id,
-                workspaceId,
-                parentId: p.parentId,
-                kind: p.kind,
-                title: p.title,
-                icon: p.icon,
-                fullWidth: p.fullWidth,
-                cover: p.cover,
-                coverPosition: p.coverPosition,
-                position: p.position,
-                createdBy: knownUser(db, p.createdBy),
-                createdAt: new Date(p.createdAt),
-                deletedAt: date(p.deletedAt),
-                deletedBy: knownUser(db, p.deletedBy),
-                props: p.props,
-                template: p.template,
-                defaultTemplateId: p.defaultTemplateId,
-                fieldClock: p.fieldClock,
-                syncClock: Math.max(0, ...Object.values(p.fieldClock)),
-              })
-              .run();
-            if (p.content) contentToMerge.push({ id: p.id, update: new Uint8Array(Buffer.from(p.content, "base64")) });
-            applied++;
-            continue;
-          }
-          const merged = mergePage(toSyncPage(row), p);
-          if (merged) {
-            const f = merged.fields;
-            const set: Partial<typeof pages.$inferInsert> = { fieldClock: merged.fieldClock, props: merged.props };
-            if ("parentId" in f) set.parentId = f.parentId as string | null;
-            if ("kind" in f) set.kind = f.kind as SyncPage["kind"];
-            if ("title" in f) set.title = f.title as string;
-            if ("icon" in f) set.icon = f.icon as string | null;
-            if ("fullWidth" in f) set.fullWidth = f.fullWidth as boolean;
-            if ("cover" in f) set.cover = f.cover as string | null;
-            if ("coverPosition" in f) set.coverPosition = f.coverPosition as number;
-            if ("position" in f) set.position = f.position as number;
-            if ("deletedAt" in f) set.deletedAt = date(f.deletedAt as number | null);
-            if ("deletedBy" in f) set.deletedBy = knownUser(db, f.deletedBy as string | null);
-            if ("template" in f) set.template = f.template as boolean;
-            if ("defaultTemplateId" in f) set.defaultTemplateId = f.defaultTemplateId as string | null;
-            tx.update(pages).set(set).where(eq(pages.id, p.id)).run();
-            applied++;
-          }
-          if (p.content && mergeContent(row.contentState, p.content)) {
-            contentToMerge.push({ id: p.id, update: new Uint8Array(Buffer.from(p.content, "base64")) });
-            if (!merged) applied++;
-          }
-        } else {
-          const col = c.data;
-          const table = c.entity === "property" ? databaseProperties : databaseViews;
-          const db_ = tx.select({ ws: pages.workspaceId }).from(pages).where(eq(pages.id, col.databaseId)).get();
-          if (!db_ || db_.ws !== workspaceId || col.id !== c.id) continue;
-          const row = tx.select().from(table).where(eq(table.id, col.id)).get();
-          const values = { databaseId: col.databaseId, name: col.name, type: col.type, config: col.config, position: col.position, syncClock: col.syncClock };
-          if (!row) {
-            tx.insert(table)
-              .values({ id: col.id, createdAt: new Date(col.createdAt), ...values })
-              .run();
-            applied++;
-          } else if (col.syncClock > row.syncClock) {
-            tx.update(table).set(values).where(eq(table.id, col.id)).run();
-            applied++;
-          }
-        }
-      }
-      for (const c of deletions) {
-        if (c.entity === "attachment") {
-          const row = tx.select({ pageId: attachments.pageId }).from(attachments).where(eq(attachments.id, c.id)).get();
-          if (!row || !pageIn(tx, row.pageId)) continue;
-          tx.delete(attachments).where(eq(attachments.id, c.id)).run();
-          if (dataDir && isAttachmentId(c.id)) filesToRemove.push(attachmentPath(dataDir, c.id));
-          applied++;
-          continue;
-        }
-        if (c.entity === "thread") {
-          const row = tx.select({ pageId: commentThreads.pageId }).from(commentThreads).where(eq(commentThreads.id, c.id)).get();
-          if (!row || !pageIn(tx, row.pageId)) continue;
-          // On a server, a thread goes only with comments of the one who pushed.
-          if (
-            opts.pusher &&
-            tx
-              .select({ a: comments.authorId })
-              .from(comments)
-              .where(eq(comments.threadId, c.id))
-              .all()
-              .some((r) => r.a !== opts.pusher)
-          )
-            continue;
-          tx.delete(commentThreads).where(eq(commentThreads.id, c.id)).run();
-          applied++;
-          continue;
-        }
-        if (c.entity === "comment") {
-          const row = tx.select({ threadId: comments.threadId, authorId: comments.authorId }).from(comments).where(eq(comments.id, c.id)).get();
-          if (!row || !threadIn(tx, row.threadId)) continue;
-          if (opts.pusher && row.authorId !== opts.pusher) continue;
-          tx.delete(comments).where(eq(comments.id, c.id)).run();
-          applied++;
-          continue;
-        }
-        if (c.entity === "page") {
-          const row = tx.select({ ws: pages.workspaceId }).from(pages).where(eq(pages.id, c.id)).get();
-          if (row?.ws !== workspaceId) continue;
-          // Columns, views and rows of a database go with it; rows' pages are its children.
-          tx.delete(pages).where(eq(pages.id, c.id)).run();
-          applied++;
-        } else {
-          const table = c.entity === "property" ? databaseProperties : databaseViews;
-          const row = tx.select({ ws: pages.workspaceId }).from(table).innerJoin(pages, eq(pages.id, table.databaseId)).where(eq(table.id, c.id)).get();
-          if (row?.ws !== workspaceId) continue;
-          tx.delete(table).where(eq(table.id, c.id)).run();
-          applied++;
-        }
-      }
-    }),
-  );
-
-  for (const f of filesToRemove) fs.rmSync(f, { force: true });
+  if (dataDir)
+    for (const id of filesToRemove)
+      await fileStore(dataDir)
+        .remove(id)
+        .catch(() => undefined);
 
   // Content goes through the live editing server when someone has the page open, so their editor gets it too.
   for (const { id, update } of contentToMerge) {

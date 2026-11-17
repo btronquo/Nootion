@@ -3,6 +3,10 @@ import { Link } from "react-router-dom";
 import { ChevronDown, ChevronRight, GripVertical, Maximize2, Plus, Trash2 } from "lucide-react";
 import {
   applyView,
+  nestRows,
+  subItemProps,
+  subItemsOf,
+  type TreeRow,
   canGroupBy,
   canMoveBetweenGroups,
   groupRows,
@@ -25,6 +29,7 @@ import {
   type PropertyType,
   type SelectOption,
   type ViewColumn,
+  type ViewOwner,
 } from "@nootion/shared";
 import { Cell } from "./Cell";
 import { PropertyMenu } from "./PropertyMenu";
@@ -48,14 +53,16 @@ import { usePluginPropertyTypes } from "../plugins/registry";
 import { pageIcon } from "../lib/icons";
 import { RowMenu } from "./RowMenu";
 import type { MenuAnchor } from "../components/PageMenu";
+import { countGroupRows, limitGroups, ShowMoreRows, useShownRows } from "./progressive";
+import { useFoldedRows } from "./subItems";
 
 const DEFAULT_WIDTH = 180;
 const TITLE_WIDTH = 260;
 
 /** Table view of a database the user is signed in to. */
-export function DatabaseTable({ id, compact }: { id: string; compact?: boolean }) {
-  const db = useDatabase(id);
-  const actions = useDatabaseActions(id);
+export function DatabaseTable({ id, compact, owner }: { id: string; compact?: boolean; owner?: ViewOwner | null }) {
+  const db = useDatabase(id, owner);
+  const actions = useDatabaseActions(id, owner);
   if (db.isLoading) return <div className="py-4 text-sm text-neutral-400">{t("common.loading")}</div>;
   if (db.isError || !db.data) return <div className="py-4 text-sm text-neutral-500">{t("database.notFound")}</div>;
   return <DatabaseViews data={db.data} actions={actions} compact={compact} rowHref={(r) => `/page/${r.id}`} />;
@@ -75,14 +82,18 @@ interface ViewProps {
 /** A database with its view tabs: the chosen view filters, sorts and groups the rows, as a table or a board. */
 export function DatabaseViews(props: ViewProps) {
   const { data, actions } = props;
-  const [view, select] = useActiveView(data.id, data.views);
+  const [view, select] = useActiveView(data.id, data.views, data.linked?.blockId);
   const editable = !!actions && (data.role === "editor" || data.role === "full");
+  // A locked database keeps its columns and views: its rows can still be filled in.
+  const structure = editable && !data.locked;
+  // A linked view's views are its page's: the page's editors may change them, whatever the database's lock.
+  const viewsEditable = data.linked ? !!actions && data.linked.canEditViews : structure;
   const me = useSession().user?.id ?? null;
   const ctx: ViewContext = useMemo(() => ({ ...data, me }), [data, me]);
   const rows = useMemo(() => applyView(ctx, view?.config ?? {}), [ctx, view?.config]);
   return (
     <div>
-      {view && <ViewBar data={data} view={view} onSelect={select} actions={actions} editable={editable} />}
+      {view && <ViewBar data={data} view={view} onSelect={select} actions={actions} editable={viewsEditable} rowsEditable={editable} />}
       {view?.type === "board" ? (
         <div className="pt-2">
           <BoardView {...props} view={view} ctx={ctx} rows={rows} editable={editable} />
@@ -137,12 +148,15 @@ export function TableView({
   rows,
 }: ViewProps & { view: DatabaseViewInfo | undefined; ctx: ViewContext; rows: DatabaseRow[] }) {
   const editable = !!actions && (data.role === "editor" || data.role === "full");
+  const structure = editable && !data.locked;
   const groupProp = data.properties.find((p) => p.id === view?.config.groupBy && canGroupBy(p.type));
   // Empty groups are left out of tables (boards show them, to drop cards in).
   const groups = useMemo(() => (groupProp ? groupRows(groupProp, rows, ctx).filter((g) => g.rows.length) : null), [groupProp, rows, ctx]);
   const collapsed = new Set(view?.config.collapsedGroups ?? []);
+  // Thousands of rows: only the first ones are put on the page, the next ones come while scrolling.
+  const { limit, more } = useShownRows(`${data.id}|${view?.id}|${groupProp?.id}`);
   const toggleGroup = (key: string) => {
-    if (!view || !actions) return;
+    if (!view || !actions || !structure) return;
     const next = collapsed.has(key) ? [...collapsed].filter((k) => k !== key) : [...collapsed, key];
     actions.updateView.mutate({ viewId: view.id, config: { ...view.config, collapsedGroups: next } });
   };
@@ -166,9 +180,15 @@ export function TableView({
   // Rows keep a manual order; a sorted view shows its own.
   const sorted = (view?.config.sorts ?? []).length > 0;
   const groupOf = useMemo(() => new Map((groups ?? []).flatMap((g) => g.rows.map((r) => [r.id, g.key] as const))), [groups]);
+  // Sub-items: rows under their parent (grouped tables stay flat, a row being in one group only).
+  const sub = subItemProps(data.properties);
+  const [folded, toggleFold] = useFoldedRows(data.id);
+  const tree = useMemo(() => (sub && !groups ? nestRows(rows, data.rows, sub.parent.id, folded) : null), [sub, groups, rows, data.rows, folded]);
 
   /** The rows a menu acts on: the selection when the row is part of it, else the row alone. */
   const menuRows = (rowId: string) => (selected.has(rowId) && selected.size > 1 ? data.rows.filter((r) => selected.has(r.id)) : data.rows.filter((r) => r.id === rowId));
+  // Rows the open menu acts on, highlighted (worked out once, not for each row).
+  const menuTargets = rowMenu ? (selected.has(rowMenu.rowId) && selected.size > 1 ? selected : new Set([rowMenu.rowId])) : null;
 
   function openRowMenu(e: React.MouseEvent, rowId: string) {
     if (!actions) return;
@@ -209,7 +229,7 @@ export function TableView({
   const widthOf = (c: { prop: DatabaseProperty; col: ViewColumn }) => widths[c.prop.id] ?? c.col.width ?? (c.prop.type === "title" ? TITLE_WIDTH : DEFAULT_WIDTH);
 
   function saveColumns(next: ViewColumn[]) {
-    if (view && actions) actions.updateView.mutate({ viewId: view.id, config: { ...view.config, columns: next } });
+    if (view && actions && structure) actions.updateView.mutate({ viewId: view.id, config: { ...view.config, columns: next } });
   }
   const currentColumns = () => columns.map((c) => ({ ...c.col, width: widths[c.prop.id] ?? c.col.width }));
   const setColumn = (propId: string, patch: Partial<ViewColumn>) => saveColumns(currentColumns().map((c) => (c.propertyId === propId ? { ...c, ...patch } : c)));
@@ -252,7 +272,39 @@ export function TableView({
   const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id));
   const gutter = editable ? "w-8 shrink-0" : "w-0 shrink-0";
 
-  const renderRow = (row: DatabaseRow) => (
+  /** Before a title, in a tree: the indent, and the arrow that folds the sub-items with their progress. */
+  const treeLead = (node: TreeRow) => {
+    const progress = node.childCount ? subItemsOf(data.properties, data.rows, node.row) : null;
+    const open = !folded.has(node.row.id);
+    return (
+      <span className="flex h-[34px] shrink-0 items-center" style={{ paddingLeft: 4 + node.depth * 20 }} data-tree-depth={node.depth}>
+        {node.childCount ? (
+          <button
+            type="button"
+            aria-label={open ? t("subItems.collapse") : t("subItems.expand")}
+            aria-expanded={open}
+            onClick={() => toggleFold(node.row.id)}
+            className="flex h-5 w-5 items-center justify-center rounded text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+          >
+            {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          </button>
+        ) : (
+          <span className="w-5" />
+        )}
+        {progress && progress.done !== null && (
+          <span
+            className={`ml-0.5 rounded px-1 text-[11px] tabular-nums ${progress.done === progress.items.length ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300" : "bg-neutral-100 text-neutral-500 dark:bg-neutral-800"}`}
+            title={t("subItems.progress", { done: progress.done, count: progress.items.length })}
+            data-sub-progress
+          >
+            {progress.done}/{progress.items.length}
+          </span>
+        )}
+      </span>
+    );
+  };
+
+  const renderRow = (row: DatabaseRow, node?: TreeRow) => (
             <div
               key={row.id}
               role="row"
@@ -271,7 +323,8 @@ export function TableView({
                 const r = e.currentTarget.getBoundingClientRect();
                 dropRow(row, e.clientY < r.top + r.height / 2);
               }}
-              className={`group relative flex border-b border-neutral-200 dark:border-neutral-800 ${rowMenu && menuRows(rowMenu.rowId).some((r) => r.id === row.id) ? "bg-blue-50/60 dark:bg-blue-950/30" : ""}`}
+              title={node?.context ? t("subItems.context") : undefined}
+              className={`group relative flex border-b border-neutral-200 dark:border-neutral-800 ${menuTargets?.has(row.id) ? "bg-blue-50/60 dark:bg-blue-950/30" : ""} ${node?.context ? "text-neutral-400 dark:text-neutral-500" : ""}`}
             >
               {dropAt?.rowId === row.id && <div className={`pointer-events-none absolute inset-x-0 z-10 h-0.5 bg-blue-500 ${dropAt.before ? "-top-px" : "-bottom-px"}`} />}
               {actions && (
@@ -331,12 +384,15 @@ export function TableView({
               </div>
               {visible.map((c) => (
                 <div key={c.prop.id} style={{ width: widthOf(c) }} className="relative shrink-0 border-r border-neutral-200 dark:border-neutral-800">
-                  {c.prop.type === "title" && row.icon ? (
-                    // The row's page icon, before its title, as in Notion.
+                  {c.prop.type === "title" && (row.icon || node) ? (
+                    // The row's page icon, before its title, as in Notion (after the indent of a sub-item).
                     <div className="flex items-start">
-                      <span className="flex h-[34px] shrink-0 items-center pl-2 leading-none [&_img]:h-4 [&_img]:w-4" data-row-icon>
-                        {pageIcon(row.icon)}
-                      </span>
+                      {node && treeLead(node)}
+                      {row.icon && (
+                        <span className="flex h-[34px] shrink-0 items-center pl-2 leading-none [&_img]:h-4 [&_img]:w-4" data-row-icon>
+                          {pageIcon(row.icon)}
+                        </span>
+                      )}
                       <div className="min-w-0 flex-1">
                       <Cell
                         prop={c.prop}
@@ -350,7 +406,7 @@ export function TableView({
                         rollupTarget={data.rollupTargets[c.prop.id]}
                         rowHref={(id) => rowHref({ id } as DatabaseRow)}
                         onChange={(value: CellValue) => actions?.updateCell.mutate({ rowId: row.id, propId: c.prop.id, value })}
-                        onCreateOption={createOption(c.prop)}
+                        onCreateOption={structure ? createOption(c.prop) : undefined}
                       />
                       </div>
                     </div>
@@ -367,7 +423,7 @@ export function TableView({
                       rollupTarget={data.rollupTargets[c.prop.id]}
                       rowHref={(id) => rowHref({ id } as DatabaseRow)}
                       onChange={(value: CellValue) => actions?.updateCell.mutate({ rowId: row.id, propId: c.prop.id, value })}
-                      onCreateOption={createOption(c.prop)}
+                      onCreateOption={structure ? createOption(c.prop) : undefined}
                     />
                   )}
                   {c.prop.type === "title" && (
@@ -386,7 +442,7 @@ export function TableView({
   );
 
   const renderCalcs = (calcRows: DatabaseRow[]) =>
-    (editable || Object.keys(view?.config.calculations ?? {}).length > 0) && (
+    (structure || Object.keys(view?.config.calculations ?? {}).length > 0) && (
             <div role="row" aria-label={t("table.calculations")} className="group/calc flex">
               <div className={gutter} />
               {visible.map((c) => {
@@ -396,7 +452,7 @@ export function TableView({
                   <button
                     key={c.prop.id}
                     style={{ width: widthOf(c) }}
-                    disabled={!editable}
+                    disabled={!structure}
                     aria-label={t("table.calcOf", { name: c.prop.name })}
                     onClick={(e) => setCalcMenu({ propId: c.prop.id, anchor: e.currentTarget })}
                     className="flex shrink-0 items-center justify-end gap-1 truncate px-2 py-1.5 text-xs text-neutral-500 enabled:hover:bg-neutral-100 dark:enabled:hover:bg-neutral-800"
@@ -460,6 +516,7 @@ export function TableView({
                 <input
                   type="checkbox"
                   aria-label={t("table.selectAll")}
+                  data-print-hide
                   className="h-3.5 w-3.5 accent-blue-600 opacity-40 hover:opacity-100 checked:opacity-100"
                   checked={allSelected}
                   onChange={() => setSelected(allSelected ? new Set() : new Set(rows.map((r) => r.id)))}
@@ -471,22 +528,22 @@ export function TableView({
                 key={c.prop.id}
                 role="columnheader"
                 style={{ width: widthOf(c) }}
-                draggable={editable && c.prop.type !== "title"}
+                draggable={structure && c.prop.type !== "title"}
                 onDragStart={() => (drag.current = c.prop.id)}
-                onDragOver={(e) => editable && drag.current && c.prop.type !== "title" && e.preventDefault()}
+                onDragOver={(e) => structure && drag.current && c.prop.type !== "title" && e.preventDefault()}
                 onDrop={() => drag.current && move(drag.current, c.prop.id)}
                 onDragEnd={() => (drag.current = null)}
                 className="relative shrink-0 border-r border-neutral-200 dark:border-neutral-800"
               >
                 <button
-                  disabled={!editable}
+                  disabled={!structure}
                   onClick={(e) => setMenu({ propId: c.prop.id, anchor: e.currentTarget })}
                   className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left enabled:hover:bg-neutral-100 dark:enabled:hover:bg-neutral-800"
                 >
                   <PropertyIcon type={c.prop.type} size={14} />
                   <span className="truncate">{c.prop.name}</span>
                 </button>
-                {editable && (
+                {structure && (
                   <div
                     onPointerDown={(e) => startResize(e, c.prop.id, widthOf(c))}
                     className="absolute -right-1 top-0 z-10 h-full w-2 cursor-col-resize hover:bg-blue-400/40"
@@ -494,8 +551,8 @@ export function TableView({
                 )}
               </div>
             ))}
-            {editable && (
-              <button aria-label={t("table.addProperty")} onClick={(e) => setAdding(e.currentTarget)} className="flex w-10 shrink-0 items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800">
+            {structure && (
+              <button data-print-hide aria-label={t("table.addProperty")} onClick={(e) => setAdding(e.currentTarget)} className="flex w-10 shrink-0 items-center justify-center hover:bg-neutral-100 dark:hover:bg-neutral-800">
                 <Plus size={16} />
               </button>
             )}
@@ -507,8 +564,9 @@ export function TableView({
           </div>
 
           {groups ? (
-            groups.map((g) => {
+            limitGroups(groups, limit, (g) => !collapsed.has(g.key)).map(({ group: g, rows: shownRows }) => {
               const open = !collapsed.has(g.key);
+              const cut = shownRows.length < g.rows.length;
               return (
                 <Fragment key={g.key}>
                   <div role="row" aria-label={t("table.group", { name: g.label })} className="flex items-center gap-1.5 border-b border-neutral-200 py-1.5 pl-1 dark:border-neutral-800">
@@ -524,22 +582,27 @@ export function TableView({
                       <span className="text-xs text-neutral-400">{g.rows.length}</span>
                     </button>
                   </div>
-                  {open && g.rows.map(renderRow)}
-                  {open && editable && canMoveBetweenGroups(groupProp!.type) && (
+                  {open && shownRows.map((r) => renderRow(r))}
+                  {open && cut && <ShowMoreRows shown={limit} total={countGroupRows(groups, (x) => !collapsed.has(x.key))} onMore={more} className="sticky left-0" />}
+                  {open && !cut && editable && canMoveBetweenGroups(groupProp!.type) && (
                     <button
+                      data-print-hide
                       onClick={() => addRow({ prop: groupProp!, key: g.key })}
                       className="sticky left-0 flex items-center gap-1.5 px-2 py-1 text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
                     >
                       <Plus size={14} /> {t("table.newRow")}
                     </button>
                   )}
-                  {open && renderCalcs(g.rows)}
+                  {open && !cut && renderCalcs(g.rows)}
                 </Fragment>
               );
             })
           ) : (
             <>
-              {rows.map(renderRow)}
+              {tree
+                ? (tree.length > limit ? tree.slice(0, limit) : tree).map((n) => renderRow(n.row, n))
+                : (rows.length > limit ? rows.slice(0, limit) : rows).map((r) => renderRow(r))}
+              <ShowMoreRows shown={Math.min(limit, (tree ?? rows).length)} total={(tree ?? rows).length} onMore={more} className="sticky left-0" />
               {renderCalcs(rows)}
             </>
           )}
@@ -549,6 +612,7 @@ export function TableView({
       </div>
       {editable && !(groups && canMoveBetweenGroups(groupProp!.type)) && (
         <button
+          data-print-hide
           onClick={() => addRow()}
           className="flex w-full items-center gap-1.5 px-2 py-1.5 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
         >
@@ -683,7 +747,7 @@ export function TableView({
           {hidden.map((c) => (
             <button
               key={c.prop.id}
-              disabled={!editable}
+              disabled={!structure}
               onClick={() => {
                 setColumn(c.prop.id, { hidden: false });
                 if (hidden.length === 1) setShowHidden(null);
@@ -691,7 +755,7 @@ export function TableView({
               className="flex w-full items-center gap-2 rounded px-2 py-1.5 enabled:hover:bg-neutral-100 dark:enabled:hover:bg-neutral-800"
             >
               <PropertyIcon type={c.prop.type} size={14} /> <span className="truncate">{c.prop.name}</span>
-              {editable && <span className="ml-auto text-xs text-blue-600">{t("common.show")}</span>}
+              {structure && <span className="ml-auto text-xs text-blue-600">{t("common.show")}</span>}
             </button>
           ))}
         </Popover>
@@ -722,9 +786,20 @@ function calcType(data: DatabaseData, prop: DatabaseProperty): PropertyType {
   return columnValues(data, prop).type;
 }
 
+// Results by list of rows (a new list whenever the data, the filters or the sorts change), then by column and function:
+// a table re-renders on every hover or drag, and going through thousands of rows each time would show.
+const calcCache = new WeakMap<DatabaseRow[], Map<DatabaseProperty, Map<CalcFunction, ReturnType<typeof computeCalc> | null>>>();
+
 function calcColumn(data: DatabaseData, prop: DatabaseProperty, fn: CalcFunction, rows: DatabaseRow[]) {
+  let byProp = calcCache.get(rows);
+  if (!byProp) calcCache.set(rows, (byProp = new Map()));
+  let byFn = byProp.get(prop);
+  if (!byFn) byProp.set(prop, (byFn = new Map()));
+  if (byFn.has(fn)) return byFn.get(fn)!;
   const { values, type } = columnValues(data, prop, rows);
-  return calcFunctionsFor(type).includes(fn) ? computeCalc(fn, values, type) : null;
+  const result = calcFunctionsFor(type).includes(fn) ? computeCalc(fn, values, type) : null;
+  byFn.set(fn, result);
+  return result;
 }
 
 /** Property whose number format applies to a column's result (a rollup's target for rollups). */

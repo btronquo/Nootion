@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import {
@@ -23,6 +23,9 @@ import {
   hasOptions,
   isSingleOption,
   normalizeOptions,
+  viewOwnerSchema,
+  type DatabaseData,
+  type ViewOwner,
 } from "@nootion/shared";
 import { and, eq, inArray, isNull, max } from "drizzle-orm";
 import { databaseProperties, databaseViews, pages } from "../db/schema.js";
@@ -43,13 +46,15 @@ import {
   enrichRows,
   listProperties,
   listRowPages,
-  listViews,
+  findView,
+  viewScope,
   listRowTemplates,
   loadDatabase,
   syncTwin,
   toRow,
   validateValues,
   canReadAs,
+  databaseVersion,
 } from "../databases.js";
 import type { PageRole } from "@nootion/shared";
 import type { Db, DbLike } from "../db/index.js";
@@ -57,15 +62,36 @@ import { databaseCsv, databaseJson, safeName } from "../export.js";
 import { IMPORT_MAX_ROWS, parseCsv, planImport } from "../import.js";
 import { t } from "@nootion/shared";
 import { fromAutomation, rowSnapshot } from "../automations.js";
+import { assertUnlocked } from "../locks.js";
+import { checkRoleLinks, keepOneParent, roleTwin, setStructure, shiftDependents } from "../subitems.js";
 
 /** Content-Disposition header of a download, with a non-ASCII-safe file name. */
 export function attachmentHeader(filename: string) {
   return `attachment; filename="${filename.replace(/[^\x20-\x7e]|"/g, "_")}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
 }
 
-function requireDatabase(db: Db, userId: string, id: string, min: PageRole) {
+function requireDatabase(db: Db, userId: string, id: string, min: PageRole, opts: { structure?: boolean } = {}) {
   const access = requirePageRole(db, userId, id, min);
   if (access.page.kind !== "database") throw notFound();
+  // Columns, views and row templates of a locked database stay as they are (its rows can still be filled in).
+  if (opts.structure) assertUnlocked(access.page);
+  return access;
+}
+
+/** The linked view a view belongs to, if any. */
+const ownerOf = (v: { ownerPageId: string | null; ownerBlockId: string | null } | undefined): ViewOwner | null =>
+  v?.ownerPageId && v.ownerBlockId ? { pageId: v.ownerPageId, blockId: v.ownerBlockId } : null;
+
+/**
+ * Who may change views: the database's editors; for a linked view, also the editors of the page showing it, as long as
+ * they can read the database (filtering rows one can read changes nothing for others).
+ */
+function requireViewEditor(db: Db, userId: string, databaseId: string, owner: ViewOwner | null) {
+  if (!owner) return requireDatabase(db, userId, databaseId, "editor", { structure: true });
+  const access = requireDatabase(db, userId, databaseId, "viewer");
+  // They belong to the page showing them: its lock counts, not the database's.
+  const host = atLeast(access.role, "editor") ? requirePageRole(db, userId, owner.pageId, "viewer") : requirePageRole(db, userId, owner.pageId, "editor");
+  assertUnlocked(host.page);
   return access;
 }
 
@@ -118,6 +144,14 @@ const queryInput = z.object({
   limit: z.number().int().min(1).max(1000).default(100),
   cursor: z.string().regex(/^\d+$/).optional(),
 });
+
+/** After a row's links were written: a row given as a sub-item leaves its previous parent. */
+function afterRoleLinks(tx: DbLike, properties: DatabaseProperty[], rowId: string, values: Record<string, CellValue>, before: Record<string, CellValue> = {}) {
+  const children = properties.find((p) => p.type === "relation" && p.config.role === "children");
+  if (!children || !(children.id in values)) return;
+  const list = (v: CellValue | undefined) => (Array.isArray(v) ? (v as string[]) : []);
+  keepOneParent(tx, properties, rowId, list(before[children.id]), list(values[children.id]));
+}
 
 export const databaseRoutes: FastifyPluginAsync = async (app) => {
   const db = app.db;
@@ -178,10 +212,23 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     return { database: loadDatabase(db, page, role, canReadAs(db, user.id)) };
   });
 
-  app.get<{ Params: { id: string } }>("/:id", async (req) => {
+  // `page` and `block`: shown in a linked view, with that block's own views.
+  app.get<{ Params: { id: string }; Querystring: { page?: string; block?: string } }>("/:id", async (req, reply) => {
     const user = requireUser(req);
     const { page, role } = requireDatabase(db, user.id, req.params.id, "viewer");
-    return { database: loadDatabase(db, page, role, canReadAs(db, user.id)) };
+    const canRead = canReadAs(db, user.id);
+    let linked: DatabaseData["linked"];
+    if (req.query.page && req.query.block) {
+      const owner = parseBody(viewOwnerSchema, { pageId: req.query.page, blockId: req.query.block });
+      const host = requirePageRole(db, user.id, owner.pageId, "viewer");
+      linked = { ...owner, canEditViews: (atLeast(role, "editor") || atLeast(host.role, "editor")) && !host.page.locked };
+    }
+    // The app asks again every few seconds: answered "not modified" in a few queries while nothing changed.
+    let version = databaseVersion(db, page, role, canRead);
+    if (linked) version = `${version.slice(0, -1)}:${createHash("sha1").update(JSON.stringify(linked)).digest("base64url").slice(0, 10)}"`;
+    reply.header("etag", version).header("cache-control", "private, no-cache");
+    if (req.headers["if-none-match"] === version) return reply.code(304).send();
+    return { database: loadDatabase(db, page, role, canRead, linked) };
   });
 
   // Rows filtered and sorted (by a view's settings, or by the ones given), a page at a time. For the API.
@@ -191,7 +238,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     const { page } = requireDatabase(db, user.id, req.params.id, "viewer");
     const canRead = canReadAs(db, user.id);
     const properties = listProperties(db, page.id);
-    const view = input.viewId ? listViews(db, page.id).find((v) => v.id === input.viewId) : undefined;
+    const view = input.viewId ? findView(db, page.id, input.viewId) : undefined;
     if (input.viewId && !view) throw notFound();
     const idOf = (key: string) => {
       const prop = findProperty(properties, key);
@@ -211,7 +258,13 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     const all = listRowPages(db, page.id).map((r) => toRow(r, properties));
     const { related, rollupTargets } = enrichRows(db, properties, all, canRead);
     const people = collectPeople(db, properties, all, rollupTargets);
-    const rows = applyView({ properties, rows: all, people, related, rollupTargets, me: user.id }, { filters, filterMode: input.filterMode ?? view?.config.filterMode, sorts });
+    const rows = applyView({ properties, rows: all, people, related, rollupTargets, me: user.id }, {
+      filters,
+      filterMode: input.filterMode ?? view?.config.filterMode,
+      // Filters sent with the query replace the view's, chips included.
+      simpleFilters: input.filters ? undefined : view?.config.simpleFilters,
+      sorts,
+    });
     const start = Number(input.cursor ?? 0);
     const slice = rows.slice(start, start + input.limit);
     const next = start + input.limit < rows.length ? String(start + input.limit) : null;
@@ -223,18 +276,21 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
   app.post<{ Params: { id: string } }>("/:id/properties", async (req) => {
     const user = requireUser(req);
     const input = parseBody(createPropertyInput, req.body);
-    const { page: database } = requireDatabase(db, user.id, req.params.id, "editor");
+    const { page: database } = requireDatabase(db, user.id, req.params.id, "editor", { structure: true });
     const config: PropertyConfig = {
       ...defaultConfig(input.type),
       ...input.config,
     };
     delete config.twinPropertyId;
+    // Sub-items and dependencies are turned on with PUT /:id/structure.
+    delete config.role;
+    delete config.shiftDependents;
     if (config.options) config.options = normalizeOptions(input.type, config.options);
     let twin: { databaseId: string; id: string } | null = null;
     if (input.type === "relation") {
       if (!config.databaseId) throw new HttpError(400, "relation_target", t("error.relationTarget"));
       // Linking needs to see the other database; a two-way link also adds a column there.
-      requireDatabase(db, user.id, config.databaseId, input.twoWay ? "editor" : "viewer");
+      requireDatabase(db, user.id, config.databaseId, input.twoWay ? "editor" : "viewer", { structure: input.twoWay });
       if (input.twoWay) twin = { databaseId: config.databaseId, id: randomUUID() };
     } else {
       delete config.databaseId;
@@ -286,7 +342,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
   app.patch<{ Params: { id: string; propId: string } }>("/:id/properties/:propId", async (req) => {
     const user = requireUser(req);
     const input = parseBody(updatePropertyInput, req.body);
-    requireDatabase(db, user.id, req.params.id, "editor");
+    requireDatabase(db, user.id, req.params.id, "editor", { structure: true });
     const properties = listProperties(db, req.params.id);
     const prop = properties.find((p) => p.id === req.params.propId);
     if (!prop) throw notFound();
@@ -302,7 +358,12 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
         ...input.config,
         databaseId: prop.config.databaseId,
         twinPropertyId: prop.config.twinPropertyId ?? null,
+        role: prop.config.role,
+        // Only the rows a row blocks can move with it.
+        shiftDependents: prop.config.role === "blocks" ? input.config.shiftDependents : undefined,
       };
+      if (!input.config.role) delete input.config.role;
+      if (input.config.shiftDependents === undefined) delete input.config.shiftDependents;
     }
     // So is a plugin column's type.
     if (input.config && prop.type === "plugin") input.config = { ...input.config, plugin: prop.config.plugin };
@@ -368,19 +429,24 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
 
   app.delete<{ Params: { id: string; propId: string } }>("/:id/properties/:propId", async (req) => {
     const user = requireUser(req);
-    requireDatabase(db, user.id, req.params.id, "editor");
-    const prop = listProperties(db, req.params.id).find((p) => p.id === req.params.propId);
+    requireDatabase(db, user.id, req.params.id, "editor", { structure: true });
+    const properties = listProperties(db, req.params.id);
+    const prop = properties.find((p) => p.id === req.params.propId);
     if (!prop) throw notFound();
     if (prop.type === "title") throw new HttpError(400, "title_delete", t("error.titleDelete"));
+    // The columns of sub-items and dependencies go in pairs: deleting one turns the option off.
+    const pair = roleTwin(properties, prop);
     db.transaction((tx) => {
       for (const r of listRowPages(tx, req.params.id)) {
-        if (!r.props || !(prop.id in r.props)) continue;
+        if (!r.props || !(prop.id in r.props || (pair && pair.id in r.props))) continue;
         const { [prop.id]: _removed, ...rest } = r.props;
+        if (pair) delete rest[pair.id];
         tx.update(pages).set({ props: rest }).where(eq(pages.id, r.id)).run();
       }
       tx.delete(databaseProperties).where(eq(databaseProperties.id, prop.id)).run();
+      if (pair) tx.delete(databaseProperties).where(eq(databaseProperties.id, pair.id)).run();
       // The other side of a two-way relation stays, as a one-way relation.
-      if (prop.type === "relation" && prop.config.twinPropertyId) {
+      else if (prop.type === "relation" && prop.config.twinPropertyId) {
         const twin = tx.select().from(databaseProperties).where(eq(databaseProperties.id, prop.config.twinPropertyId)).get();
         if (twin)
           tx.update(databaseProperties)
@@ -390,6 +456,18 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
       }
     });
     return { ok: true };
+  });
+
+  // Turns sub-items (a parent and its sub-items) or dependencies (blocked by / blocking) on or off.
+  app.put<{ Params: { id: string } }>("/:id/structure", async (req) => {
+    const user = requireUser(req);
+    const input = parseBody(z.object({ subItems: z.boolean().optional(), dependencies: z.boolean().optional() }), req.body);
+    requireDatabase(db, user.id, req.params.id, "editor", { structure: true });
+    db.transaction((tx) => {
+      if (input.subItems !== undefined) setStructure(tx, req.params.id, "subItems", input.subItems);
+      if (input.dependencies !== undefined) setStructure(tx, req.params.id, "dependencies", input.dependencies);
+    });
+    return { properties: listProperties(db, req.params.id) };
   });
 
   // --- Rows ---
@@ -421,6 +499,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     input.values = valuesByIds(properties, input.values);
     checkRelationAccess(user.id, properties, input.values);
     const { values, title } = validateValues(db, properties, null, input.values);
+    checkRoleLinks(db, database.id, properties, null, values);
     const position = nextPosition(db, database.workspaceId, database.id);
     // Without a choice, new rows start from the database's default template.
     const templateId = input.templateId === undefined ? database.defaultTemplateId : input.templateId;
@@ -443,6 +522,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
           .where(eq(pages.id, id))
           .run();
         for (const p of properties) if (p.type === "relation" && props[p.id]) syncTwin(tx, p, id, [], props[p.id] as string[]);
+        afterRoleLinks(tx, properties, id, props);
         return;
       }
       tx.insert(pages)
@@ -458,6 +538,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
         })
         .run();
       for (const p of properties) if (p.type === "relation" && values[p.id]) syncTwin(tx, p, id, [], values[p.id] as string[]);
+      afterRoleLinks(tx, properties, id, values);
     });
     if (input.after !== undefined) db.transaction((tx) => placeRow(tx, database.id, id, input.after ?? null));
     assignUniqueIds(db, database.id);
@@ -479,7 +560,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
   // A new, empty template; it is then edited like a row.
   app.post<{ Params: { id: string } }>("/:id/templates", async (req) => {
     const user = requireUser(req);
-    const { page: database } = requireDatabase(db, user.id, req.params.id, "editor");
+    const { page: database } = requireDatabase(db, user.id, req.params.id, "editor", { structure: true });
     const id = randomUUID();
     db.insert(pages)
       .values({ id, kind: "row", template: true, workspaceId: database.workspaceId, parentId: database.id, title: "", props: {}, createdBy: user.id })
@@ -490,7 +571,7 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
   app.put<{ Params: { id: string } }>("/:id/default-template", async (req) => {
     const user = requireUser(req);
     const { templateId } = parseBody(z.object({ templateId: z.string().min(1).nullable() }), req.body);
-    requireDatabase(db, user.id, req.params.id, "editor");
+    requireDatabase(db, user.id, req.params.id, "editor", { structure: true });
     if (templateId && !listRowTemplates(db, req.params.id).some((tpl) => tpl.id === templateId)) throw notFound();
     db.update(pages).set({ defaultTemplateId: templateId }).where(eq(pages.id, req.params.id)).run();
     return { ok: true };
@@ -517,11 +598,14 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
   app.patch<{ Params: { id: string; rowId: string } }>("/:id/rows/:rowId", async (req) => {
     const user = requireUser(req);
     const input = parseBody(rowInput, req.body);
-    requireRow(db, user.id, req.params.id, req.params.rowId, "editor");
+    const { page: row } = requireRow(db, user.id, req.params.id, req.params.rowId, "editor");
+    // A row locked on its own keeps its cells too.
+    assertUnlocked(row);
     const properties = listProperties(db, req.params.id);
     input.values = valuesByIds(properties, input.values);
     checkRelationAccess(user.id, properties, input.values);
     const { values, title } = validateValues(db, properties, req.params.rowId, input.values);
+    checkRoleLinks(db, req.params.id, properties, req.params.rowId, values);
     const snapshot = rowSnapshot(db, req.params.id, req.params.rowId);
     db.transaction((tx) => {
       const current = tx.select({ props: pages.props }).from(pages).where(eq(pages.id, req.params.rowId)).get()!;
@@ -545,6 +629,9 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
         if (p.type === "relation" && p.id in values)
           syncTwin(tx, p, req.params.rowId, (before[p.id] as string[] | null) ?? [], (props[p.id] as string[] | null) ?? []);
       }
+      afterRoleLinks(tx, properties, req.params.rowId, values, before);
+      // Rows waiting on this one follow its dates, when the database asks for it.
+      shiftDependents(tx, req.params.id, properties, req.params.rowId, before, props);
     });
     const after = rowSnapshot(db, req.params.id, req.params.rowId);
     if (snapshot && after && !fromAutomation(req)) await app.automations.rowChanged({ databaseId: req.params.id, rowId: req.params.rowId, before: snapshot, after });
@@ -568,7 +655,8 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     db.transaction((tx) => {
       const props = (tx.select({ props: pages.props }).from(pages).where(eq(pages.id, id)).get()?.props ?? {}) as Record<string, CellValue>;
       // The copy gets a number of its own.
-      const ids = properties.filter((p) => p.type === "unique_id" && p.id in props);
+      // Sub-items stay with their parent: the copy has none.
+      const ids = properties.filter((p) => (p.type === "unique_id" || p.config.role === "children") && p.id in props);
       if (ids.length) {
         for (const p of ids) delete props[p.id];
         tx.update(pages).set({ props }).where(eq(pages.id, id)).run();
@@ -612,12 +700,12 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
   app.patch<{ Params: { id: string; viewId: string } }>("/:id/views/:viewId", async (req) => {
     const user = requireUser(req);
     const input = parseBody(updateViewInput, req.body);
-    requireDatabase(db, user.id, req.params.id, "editor");
     const view = db
       .select()
       .from(databaseViews)
       .where(and(eq(databaseViews.id, req.params.viewId), eq(databaseViews.databaseId, req.params.id)))
       .get();
+    requireViewEditor(db, user.id, req.params.id, ownerOf(view));
     if (!view) throw notFound();
     db.update(databaseViews)
       .set({
@@ -634,28 +722,34 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
   app.post<{ Params: { id: string } }>("/:id/views", async (req) => {
     const user = requireUser(req);
     const input = parseBody(createViewInput, req.body);
-    requireDatabase(db, user.id, req.params.id, "editor");
+    const owner = input.owner ?? null;
+    requireViewEditor(db, user.id, req.params.id, owner);
     let config: Record<string, unknown> = {};
     if (input.duplicateOf) {
-      const source = db
-        .select()
-        .from(databaseViews)
-        .where(and(eq(databaseViews.id, input.duplicateOf), eq(databaseViews.databaseId, req.params.id)))
-        .get();
+      // Any view of the database: a linked view may start from one of the original's.
+      const source = findView(db, req.params.id, input.duplicateOf);
       if (!source) throw notFound();
-      config = source.config;
+      config = source.config as Record<string, unknown>;
     }
-    const last = db.select({ p: max(databaseViews.position) }).from(databaseViews).where(eq(databaseViews.databaseId, req.params.id)).get();
+    const last = db.select({ p: max(databaseViews.position) }).from(databaseViews).where(viewScope(req.params.id, owner)).get();
     const view = { id: randomUUID(), databaseId: req.params.id, name: input.name, type: input.type, config, position: (last?.p ?? -1) + 1 };
-    db.insert(databaseViews).values(view).run();
+    db.insert(databaseViews)
+      .values({ ...view, ownerPageId: owner?.pageId ?? null, ownerBlockId: owner?.blockId ?? null })
+      .run();
     return { view: { id: view.id, name: view.name, type: view.type, config: view.config, position: view.position } };
   });
 
   app.delete<{ Params: { id: string; viewId: string } }>("/:id/views/:viewId", async (req) => {
     const user = requireUser(req);
-    requireDatabase(db, user.id, req.params.id, "editor");
-    const views = db.select({ id: databaseViews.id }).from(databaseViews).where(eq(databaseViews.databaseId, req.params.id)).all();
-    if (!views.some((v) => v.id === req.params.viewId)) throw notFound();
+    const view = db
+      .select()
+      .from(databaseViews)
+      .where(and(eq(databaseViews.id, req.params.viewId), eq(databaseViews.databaseId, req.params.id)))
+      .get();
+    const owner = ownerOf(view);
+    requireViewEditor(db, user.id, req.params.id, owner);
+    if (!view) throw notFound();
+    const views = db.select({ id: databaseViews.id }).from(databaseViews).where(viewScope(req.params.id, owner)).all();
     if (views.length === 1) throw new HttpError(400, "last_view", t("error.lastView"));
     db.delete(databaseViews).where(eq(databaseViews.id, req.params.viewId)).run();
     return { ok: true };
@@ -667,6 +761,9 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     const user = requireUser(req);
     const { page, role } = requireDatabase(db, user.id, req.params.id, "viewer");
     const data = loadDatabase(db, page, role, canReadAs(db, user.id));
+    // A linked view's view is exported as well.
+    const extra = req.query.viewId && !data.views.some((v) => v.id === req.query.viewId) ? findView(db, page.id, req.query.viewId) : undefined;
+    if (extra) data.views.push(extra);
     const name = safeName(page.title);
     if (req.query.format === "json") {
       return reply
@@ -683,7 +780,8 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
   app.post<{ Params: { id: string } }>("/:id/import", async (req) => {
     const user = requireUser(req);
     const input = parseBody(z.object({ csv: z.string().min(1), createColumns: z.boolean().default(true) }), req.body);
-    const { page: database } = requireDatabase(db, user.id, req.params.id, "editor");
+    // An import may add columns and options: not into a locked database.
+    const { page: database } = requireDatabase(db, user.id, req.params.id, "editor", { structure: true });
     const csv = parseCsv(input.csv);
     if (csv.length < 2) throw new HttpError(400, "empty_csv", t("error.emptyCsv"));
     if (csv.length - 1 > IMPORT_MAX_ROWS) throw new HttpError(400, "too_many_rows", t("error.tooManyRows", { max: IMPORT_MAX_ROWS }));

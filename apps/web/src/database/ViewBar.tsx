@@ -1,12 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   ArrowUpDown,
   Copy,
   Download,
+  GitFork,
+  Link2,
   Eye,
   LayoutTemplate,
   EyeOff,
   ListFilter,
+  Lock,
   MoreHorizontal,
   Plus,
   Rows3,
@@ -23,35 +26,29 @@ import {
 } from "lucide-react";
 import {
   t,
+  dependencyProps,
+  subItemProps,
   type MessageKey,
-  DATE_PERIODS,
-  FILTER_OPERATORS_BY_KIND,
-  RELATIVE_DATES,
-  VALUELESS_OPERATORS,
   canGroupBy,
   calendarDateProp,
   VIEW_TYPES,
-  filterKind,
   isActiveFilter,
-  orderedOptions,
   type DatabaseData,
   type DatabaseProperty,
   type DatabaseViewInfo,
-  type FilterOperator,
   type ViewConfig,
-  type ViewFilter,
   type ViewSort,
   type ViewType,
+  atLeast,
 } from "@nootion/shared";
 import { Popover } from "./Popover";
 import { TemplatesMenu } from "./TemplatesMenu";
 import { AutomationsDialog } from "./Automations";
 import { PropertyIcon } from "./icons";
-import { parseNumberInput } from "./format";
+import { AddFilterMenu, FilterBar, newFilter, type FilterFocus } from "./Filters";
 import { orderedColumns } from "./DatabaseTable";
 import { boardGroupProp } from "./BoardView";
 import type { useDatabaseActions } from "./hooks";
-import { useUserDirectory } from "../lib/queries";
 import { api } from "../lib/api";
 
 type Actions = ReturnType<typeof useDatabaseActions>;
@@ -66,11 +63,6 @@ export function ViewIcon({ type, size = 14 }: { type: ViewType; size?: number })
   return <Icon size={size} className="shrink-0" />;
 }
 
-const operatorLabel = (key: string) => t(`filter.op.${key}` as MessageKey);
-
-const relativeLabel = (key: string) => t(`filter.relative.${key}` as MessageKey);
-const periodLabel = (key: string) => t(`filter.period.${key}` as MessageKey);
-
 const control =
   "rounded border border-neutral-200 bg-transparent px-1.5 py-1 outline-none focus:border-neutral-400 dark:border-neutral-700 dark:bg-neutral-900";
 const menuItem = "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-neutral-100 dark:hover:bg-neutral-800";
@@ -82,19 +74,29 @@ export function ViewBar({
   onSelect,
   actions,
   editable,
+  rowsEditable = editable,
 }: {
   data: DatabaseData;
   view: DatabaseViewInfo;
   onSelect: (viewId: string) => void;
   actions?: Actions;
+  /** The views, columns and templates can be changed (not when the database is locked). */
   editable: boolean;
+  /** The rows can be changed (still true when the database is locked). */
+  rowsEditable?: boolean;
 }) {
   const [menu, setMenu] = useState<{ kind: "view" | "add" | "filter" | "sort" | "group" | "date" | "props" | "more" | "templates"; anchor: HTMLElement } | null>(null);
   const close = () => setMenu(null);
   const [automations, setAutomations] = useState(false);
   const config = view.config;
   const save = (patch: Partial<ViewConfig>) => actions?.updateView.mutate({ viewId: view.id, config: { ...config, ...patch } });
-  const activeFilters = (config.filters ?? []).filter((f) => isActiveFilter(f, data)).length;
+  // The chip whose popover is open, for the view it belongs to.
+  const [focused, setFocused] = useState<{ viewId: string; focus: FilterFocus }>({ viewId: view.id, focus: null });
+  const filterFocus = focused.viewId === view.id ? focused.focus : null;
+  const setFilterFocus = (focus: FilterFocus) => setFocused({ viewId: view.id, focus });
+  const simpleFilters = config.simpleFilters ?? [];
+  const advancedFilters = config.filters ?? [];
+  const activeFilters = [...simpleFilters, ...advancedFilters].filter((f) => isActiveFilter(f, data)).length;
   const sorts = (config.sorts ?? []).filter((s) => data.properties.some((p) => p.id === s.propertyId)).length;
   const groupProp = view.type === "board" ? boardGroupProp(data, view) : data.properties.find((p) => p.id === config.groupBy);
   const dateProp = view.type === "calendar" || view.type === "timeline" ? calendarDateProp(data.properties, config.dateProperty) : undefined;
@@ -120,6 +122,7 @@ export function ViewBar({
         ))}
         {editable && (
           <button
+            data-print-hide
             aria-label={t("view.add")}
             onClick={(e) => setMenu({ kind: "add", anchor: e.currentTarget })}
             className="rounded p-1 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
@@ -128,8 +131,22 @@ export function ViewBar({
           </button>
         )}
       </div>
+      {data.locked && (
+        <span
+          title={t("lock.databaseHint")}
+          data-database-locked
+          className="ml-1 flex items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-xs text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+        >
+          <Lock size={12} /> {t("lock.badge")}
+        </span>
+      )}
       {actions && (
-        <div className="ml-auto flex items-center gap-0.5">
+        <div className="ml-auto flex items-center gap-0.5" data-print-hide>
+          {!editable && rowsEditable && (
+            <button className={tool(false)} onClick={() => setAutomations(true)} data-automations-button>
+              <Zap size={14} /> {t("automation.button")}
+            </button>
+          )}
           {editable && (
             <>
               <button className={tool(activeFilters > 0)} onClick={(e) => setMenu({ kind: "filter", anchor: e.currentTarget })}>
@@ -167,7 +184,8 @@ export function ViewBar({
       {menu?.kind === "templates" && <TemplatesMenu data={data} anchor={menu.anchor} onClose={close} />}
       {automations && <AutomationsDialog data={data} onClose={() => setAutomations(false)} />}
       {menu?.kind === "more" && actions && (
-        <Popover anchor={menu.anchor} onClose={close} width={260}>
+        <Popover anchor={menu.anchor} onClose={close} width={editable ? 300 : 260}>
+          {editable && <StructureOptions data={data} actions={actions} />}
           <a className={menuItem} href={`/api/databases/${data.id}/export?viewId=${view.id}`} download onClick={close}>
             <Download size={14} /> {t("view.exportCsv")}
           </a>
@@ -177,7 +195,7 @@ export function ViewBar({
           <a className={menuItem} href={`/api/databases/${data.id}/export?format=json`} download onClick={close}>
             <Download size={14} /> {t("view.exportJson")}
           </a>
-          {editable && (
+          {editable && atLeast(data.role, "editor") && (
             <button
               className={menuItem}
               onClick={() => {
@@ -219,9 +237,26 @@ export function ViewBar({
         </Popover>
       )}
       {menu?.kind === "filter" && (
-        <Popover anchor={menu.anchor} onClose={close} width={560}>
-          <FilterEditor data={data} config={config} onChange={save} />
-        </Popover>
+        <AddFilterMenu
+          anchor={menu.anchor}
+          data={data}
+          config={config}
+          onClose={close}
+          onAdd={(p) => {
+            close();
+            save({ simpleFilters: [...simpleFilters, newFilter(p, data)] });
+            setFilterFocus(simpleFilters.length);
+          }}
+          onAdvanced={() => {
+            close();
+            const first = data.properties.find((p) => p.type !== "button");
+            if (!advancedFilters.length && first) save({ filters: [newFilter(first, data)] });
+            setFilterFocus("advanced");
+          }}
+        />
+      )}
+      {actions && (simpleFilters.length > 0 || advancedFilters.length > 0) && (
+        <FilterBar data={data} config={config} editable={editable} onChange={save} focus={filterFocus} setFocus={setFilterFocus} />
       )}
       {menu?.kind === "sort" && (
         <Popover anchor={menu.anchor} onClose={close} width={380}>
@@ -268,6 +303,28 @@ export function ViewBar({
               <input type="checkbox" className="accent-blue-600" checked={config.showPreview !== false} onChange={(e) => save({ showPreview: e.target.checked })} />
               {t("view.showPreview")}
             </label>
+          )}
+          {view.type === "gallery" && (
+            <div className="px-2 py-1.5">
+              <div className="mb-1 text-xs text-neutral-500">{t("view.cardSize")}</div>
+              <div className="flex rounded-md border border-neutral-200 p-0.5 dark:border-neutral-700" role="radiogroup" aria-label={t("view.cardSize")}>
+                {(["small", "medium", "large"] as const).map((size) => (
+                  <button
+                    key={size}
+                    role="radio"
+                    aria-checked={(config.cardSize ?? "medium") === size}
+                    onClick={() => save({ cardSize: size })}
+                    className={`flex-1 rounded px-2 py-1 text-xs ${
+                      (config.cardSize ?? "medium") === size
+                        ? "bg-neutral-100 font-medium text-neutral-900 dark:bg-neutral-700 dark:text-neutral-100"
+                        : "text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                    }`}
+                  >
+                    {t(size === "small" ? "view.cardSmall" : size === "medium" ? "view.cardMedium" : "view.cardLarge")}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
           <div className="px-2 py-1 text-xs text-neutral-500">{t("view.shownProperties")}</div>
           <div className="max-h-80 overflow-y-auto">
@@ -374,185 +431,6 @@ function PropertySelect({
   );
 }
 
-function FilterEditor({ data, config, onChange }: { data: DatabaseData; config: ViewConfig; onChange: (patch: Partial<ViewConfig>) => void }) {
-  const filters = config.filters ?? [];
-  const mode = config.filterMode ?? "and";
-  const setFilters = (next: ViewFilter[]) => onChange({ filters: next });
-  const update = (i: number, patch: Partial<ViewFilter>) => setFilters(filters.map((f, j) => (j === i ? { ...f, ...patch } : f)));
-  const firstOperator = (p: DatabaseProperty) => FILTER_OPERATORS_BY_KIND[filterKind(p, data)][0]!;
-
-  return (
-    <div className="space-y-1.5 p-1">
-      {!filters.length && <p className="px-1 text-neutral-500">{t("filter.none")}</p>}
-      {filters.map((f, i) => {
-        const prop = data.properties.find((p) => p.id === f.propertyId);
-        const kind = prop ? filterKind(prop, data) : "text";
-        return (
-          <div key={i} role="group" aria-label={t("filter.number", { n: i + 1 })} className="flex items-center gap-1.5">
-            <div className="w-14 shrink-0 text-right text-neutral-500">
-              {i === 0 ? (
-                t("filter.where")
-              ) : i === 1 ? (
-                <select
-                  aria-label={t("filter.combination")}
-                  value={mode}
-                  onChange={(e) => onChange({ filterMode: e.target.value as "and" | "or" })}
-                  className={`${control} w-14`}
-                >
-                  <option value="and">{t("filter.and")}</option>
-                  <option value="or">{t("filter.or")}</option>
-                </select>
-              ) : mode === "and" ? (
-                t("filter.and")
-              ) : (
-                t("filter.or")
-              )}
-            </div>
-            <PropertySelect
-              properties={data.properties.filter((p) => p.type !== "button")}
-              value={f.propertyId}
-              onChange={(propertyId) => {
-                const p = data.properties.find((x) => x.id === propertyId)!;
-                update(i, { propertyId, operator: firstOperator(p), value: null });
-              }}
-            />
-            <select
-              aria-label={t("filter.condition")}
-              value={f.operator}
-              onChange={(e) =>
-                update(i, {
-                  operator: e.target.value as FilterOperator,
-                  ...(e.target.value === "within" || f.operator === "within" ? { value: null } : {}),
-                })
-              }
-              className={`${control} w-36`}
-            >
-              {FILTER_OPERATORS_BY_KIND[kind].map((op) => (
-                <option key={op} value={op}>
-                  {kind === "date" && op === "is" ? t("filter.isOn") : operatorLabel(op)}
-                </option>
-              ))}
-            </select>
-            <div className="min-w-0 flex-1">
-              {prop && !VALUELESS_OPERATORS.includes(f.operator) && (
-                <FilterValue prop={prop} kind={kind} filter={f} onChange={(value) => update(i, { value })} />
-              )}
-            </div>
-            <button
-              aria-label={t("filter.remove")}
-              onClick={() => setFilters(filters.filter((_, j) => j !== i))}
-              className="rounded p-1 text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-            >
-              <X size={14} />
-            </button>
-          </div>
-        );
-      })}
-      <button
-        className="flex items-center gap-1 rounded px-2 py-1 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
-        onClick={() => {
-          const p = data.properties[0]!;
-          setFilters([...filters, { propertyId: p.id, operator: firstOperator(p), value: null }]);
-        }}
-      >
-        <Plus size={14} /> {t("filter.add")}
-      </button>
-    </div>
-  );
-}
-
-/** Text typed in a filter, saved after a short pause so each key press doesn't save the view. */
-function DebouncedInput({ value, onChange, numeric }: { value: string; onChange: (v: string | number | null) => void; numeric?: boolean }) {
-  const [text, setText] = useState(value);
-  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const commit = (s: string) => {
-    if (!numeric) return onChange(s);
-    const n = parseNumberInput(s);
-    onChange(n === null || Number.isNaN(n) ? null : n);
-  };
-  useEffect(() => () => clearTimeout(timer.current), []);
-  return (
-    <input
-      autoFocus
-      aria-label={t("filter.value")}
-      inputMode={numeric ? "decimal" : undefined}
-      value={text}
-      placeholder={t("filter.valuePlaceholder")}
-      onChange={(e) => {
-        setText(e.target.value);
-        clearTimeout(timer.current);
-        const v = e.target.value;
-        timer.current = setTimeout(() => commit(v), 350);
-      }}
-      onBlur={() => {
-        clearTimeout(timer.current);
-        commit(text);
-      }}
-      className={`${control} w-full`}
-    />
-  );
-}
-
-function FilterValue({
-  prop,
-  kind,
-  filter,
-  onChange,
-}: {
-  prop: DatabaseProperty;
-  kind: string;
-  filter: ViewFilter;
-  onChange: (v: string | number | null) => void;
-}) {
-  const users = useUserDirectory();
-  const value = filter.value ?? "";
-  const select = (options: { value: string; label: string }[]) => (
-    <select aria-label={t("filter.value")} value={String(value)} onChange={(e) => onChange(e.target.value || null)} className={`${control} w-full`}>
-      <option value="">{t("common.choose")}</option>
-      {options.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
-  );
-
-  if (kind === "select" || kind === "multi_select") return select(orderedOptions(prop).map((o) => ({ value: o.id, label: o.name })));
-  if (kind === "people") return select([{ value: "me", label: t("filter.me") }, ...(users.data ?? []).map((u) => ({ value: u.id, label: u.name }))]);
-  if (kind === "date") {
-    if (filter.operator === "within") return select(DATE_PERIODS.map((p) => ({ value: p, label: periodLabel(p) })));
-    const relative = (RELATIVE_DATES as readonly string[]).includes(String(value));
-    return (
-      <div className="flex gap-1">
-        <select
-          aria-label={t("filter.compareDate")}
-          value={relative ? String(value) : "exact"}
-          onChange={(e) => onChange(e.target.value === "exact" ? new Date().toISOString().slice(0, 10) : e.target.value)}
-          className={`${control} min-w-0 flex-1`}
-        >
-          {!value && <option value="">{t("common.choose")}</option>}
-          {RELATIVE_DATES.map((r) => (
-            <option key={r} value={r}>
-              {relativeLabel(r)}
-            </option>
-          ))}
-          <option value="exact">{t("filter.exactDate")}</option>
-        </select>
-        {!relative && value !== "" && (
-          <input
-            type="date"
-            aria-label={t("filter.exactDate")}
-            value={String(value)}
-            onChange={(e) => onChange(e.target.value || null)}
-            className={`${control} min-w-0 flex-1`}
-          />
-        )}
-      </div>
-    );
-  }
-  return <DebouncedInput key={filter.propertyId} value={String(value)} numeric={kind === "number"} onChange={onChange} />;
-}
-
 function SortEditor({ properties, sorts, onChange }: { properties: DatabaseProperty[]; sorts: ViewSort[]; onChange: (sorts: ViewSort[]) => void }) {
   const sortable = (p: DatabaseProperty) => p.type !== "file" && p.type !== "button";
   const unused = properties.filter((p) => sortable(p) && !sorts.some((s) => s.propertyId === p.id));
@@ -623,4 +501,43 @@ function importCsv(databaseId: string): Promise<boolean> {
     };
     input.click();
   });
+}
+
+/** Sub-items and dependencies, turned on or off for the whole database (they add or remove two columns). */
+function StructureOptions({ data, actions }: { data: DatabaseData; actions: Actions }) {
+  const sub = subItemProps(data.properties);
+  const deps = dependencyProps(data.properties);
+  const toggle = (kind: "subItems" | "dependencies", on: boolean, pair: [DatabaseProperty, DatabaseProperty] | null) => {
+    if (!on && pair && !confirm(t(kind === "subItems" ? "subItems.confirmOff" : "dependencies.confirmOff", { a: pair[0].name, b: pair[1].name }))) return;
+    actions.setStructure.mutate({ [kind]: on });
+  };
+  const row = (on: boolean, icon: ReactNode, title: string, help: string, onChange: (on: boolean) => void, attr: string) => (
+    <label className="flex cursor-pointer items-start gap-2 rounded px-2 py-1.5 hover:bg-neutral-100 dark:hover:bg-neutral-800" {...{ [attr]: "" }}>
+      <span className="mt-0.5 text-neutral-500">{icon}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block">{title}</span>
+        <span className="block text-xs text-neutral-500">{help}</span>
+      </span>
+      <input type="checkbox" role="switch" checked={on} onChange={(e) => onChange(e.target.checked)} className="mt-1 h-3.5 w-3.5 accent-blue-600" />
+    </label>
+  );
+  return (
+    <div className="mb-1 border-b border-neutral-200 pb-1 dark:border-neutral-800">
+      <div className="px-2 py-1 text-xs text-neutral-500">{t("subItems.section")}</div>
+      {row(!!sub, <GitFork size={14} />, t("subItems.title"), t("subItems.help"), (on) => toggle("subItems", on, sub && [sub.parent, sub.children]), "data-sub-items-option")}
+      {row(!!deps, <Link2 size={14} />, t("dependencies.title"), t("dependencies.help"), (on) => toggle("dependencies", on, deps && [deps.blockedBy, deps.blocks]), "data-dependencies-option")}
+      {deps && (
+        <label className="flex cursor-pointer items-start gap-2 rounded py-1 pl-8 pr-2 text-xs text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800">
+          <input
+            type="checkbox"
+            checked={!!deps.blocks.config.shiftDependents}
+            onChange={(e) => actions.updateProperty.mutate({ propId: deps.blocks.id, config: { ...deps.blocks.config, shiftDependents: e.target.checked } })}
+            className="mt-0.5 h-3.5 w-3.5 accent-blue-600"
+            data-shift-dependents
+          />
+          <span>{t("dependencies.shift")}</span>
+        </label>
+      )}
+    </div>
+  );
 }

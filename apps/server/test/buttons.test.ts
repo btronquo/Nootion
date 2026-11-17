@@ -123,7 +123,7 @@ describe("buttons", () => {
       expect(refused.statusCode).toBe(400);
       expect(refused.json().message).toContain("réseau local");
       expect(received).toHaveLength(0);
-      expect((await boris.put("/api/admin/settings", { webhookPrivateNetworks: true })).json().settings).toEqual({ webhookPrivateNetworks: true });
+      expect((await boris.put("/api/admin/settings", { webhookPrivateNetworks: true })).json().settings).toMatchObject({ webhookPrivateNetworks: true, allowGuests: true });
       expect((await boris.get("/api/buttons/webhook-policy")).json()).toEqual({ privateNetworks: true });
 
       const notes = await boris.createPage(team, "Notes");
@@ -269,5 +269,41 @@ describe("buttons", () => {
 
     await boris.request("DELETE", "/api/buttons/public-link", { pageId: form, blockId: "btn-1" });
     expect((await anon.get(`/api/forms/${link.token}`)).statusCode).toBe(404);
+  });
+
+  it("a public form can ask for a password and stop on a date", async () => {
+    const form = await pageWithButton(
+      {
+        label: "Proposer",
+        form: { title: "Idée", fields: [{ id: "f1", label: "Idée", type: "text", required: true }] },
+        steps: [{ type: "add_row", databaseId: db, values: { [col.Nom!]: "{{form.Idée}}" } }],
+      },
+      "Idées",
+    );
+    const { link } = (await boris.put("/api/buttons/public-link", { pageId: form, blockId: "btn-1" })).json();
+    expect(link).toMatchObject({ hasPassword: false, expiresAt: null, expired: false });
+    const changed = (await boris.put("/api/buttons/public-link", { pageId: form, blockId: "btn-1", password: "club-1234" })).json().link;
+    expect(changed).toMatchObject({ token: link.token, hasPassword: true });
+
+    const anon = new Client(app);
+    const locked = await anon.get(`/api/forms/${link.token}`);
+    expect(locked.statusCode).toBe(401);
+    expect(locked.body).not.toContain("Idée");
+    expect((await anon.post(`/api/forms/${link.token}`, { now: NOW, form: { f1: "Sans mot de passe" } })).statusCode).toBe(401);
+    expect((await anon.post(`/api/forms/${link.token}/unlock`, { password: "faux-mot" })).statusCode).toBe(403);
+    const unlocked = await anon.post(`/api/forms/${link.token}/unlock`, { password: "club-1234" });
+    const cookie = unlocked.cookies.find((c) => c.name === "nootion_unlock")!;
+    expect(cookie.path).toBe(`/api/forms/${link.token}`);
+    const headers = { cookie: `nootion_unlock=${cookie.value}` };
+    expect((await anon.request("GET", `/api/forms/${link.token}`, undefined, headers)).statusCode).toBe(200);
+    expect((await anon.request("POST", `/api/forms/${link.token}`, { now: NOW, form: { f1: "Pique-nique" } }, headers)).statusCode).toBe(200);
+    expect((await boris.post(`/api/databases/${db}/query`, {})).json().rows.map((r: { title: string }) => r.title)).toEqual(["Pique-nique"]);
+
+    const past = new Date(Date.now() - 1000).toISOString();
+    expect((await boris.put("/api/buttons/public-link", { pageId: form, blockId: "btn-1", expiresAt: past })).json().link.expired).toBe(true);
+    const gone = await anon.request("GET", `/api/forms/${link.token}`, undefined, headers);
+    expect(gone.statusCode).toBe(410);
+    expect(gone.json().error).toBe("link_expired");
+    expect((await anon.request("POST", `/api/forms/${link.token}`, { now: NOW, form: { f1: "Trop tard" } }, headers)).statusCode).toBe(410);
   });
 });

@@ -6,7 +6,7 @@ All data lives in the folder mounted on `/data`:
 | Path in `/data` | Content |
 |---|---|
 | `nootion.db` (+ `-wal`, `-shm` while the app runs) | The SQLite database: accounts, pages, databases, shares |
-| `uploads/` | Files attached to pages and database rows (images, PDFs…). One file per attachment, named by its id. |
+| `uploads/` | Files attached to pages and database rows (images, PDFs…). One file per attachment, named by its id. Empty when they are kept in a bucket (see [Attached files in S3-compatible storage](#attached-files-in-s3-compatible-storage)). |
 | `avatars/` | Profile pictures |
 | `icons/` | Page icons uploaded by people |
 | `vapid.json` | The keys that sign notifications sent to phones and computers (made at the first start) |
@@ -39,12 +39,14 @@ They go to:
 | `TZ` | no | Time zone (e.g. `Europe/Paris`). |
 | `PORT` | no | Port the server listens on inside the container (default `3000`). To change the port on the host, change `ports:` instead. |
 | `MAX_UPLOAD_MB` | no | Maximum size of an attached file, in MB (default `50`). |
+| `IMPORT_MAX_MB` | no | Maximum size of an import from files (all the files sent at once, archives included), in MB (default `500`). Once uncompressed, archives may hold up to four times as much. |
 | `DEMO_PAGE` | no | `false` to stop giving new users a demo page on their first visit (default: given). |
 | `UPDATE_CHECK` | no | `false` to stop looking for new releases (default: the server asks GitHub twice a day, sending nothing about your server, and tells administrators). |
 | `OCR_LANGS` | no | Languages read in images and scanned PDFs, joined by `+` (default `fra+eng`). The image ships French and English; other languages need their `tesseract-ocr-<lang>` package. |
 | `TRUST_PROXY` | no | Which reverse proxies are believed about the visitor's address (`X-Forwarded-For`, `X-Forwarded-Proto`). Default: proxies on the server itself or its private network (10.x, 172.16–31.x, 192.168.x, fc00::/7). `true` trusts any, `false` none, or give a list of addresses and ranges (`203.0.113.4, 198.51.100.0/24`). See [Securing your instance](#securing-your-instance). |
 | `CONTENT_SECURITY_POLICY` | no | `off` to stop sending the Content-Security-Policy with the interface (only needed for a hand-installed plugin that loads scripts from another site). |
 | `API_RATE_LIMIT` | no | Requests a personal API token can make per minute (default `300`). See [API.md](API.md). |
+| `FILES_S3_BUCKET` … | no | Keeps attached files in an S3-compatible bucket instead of `/data/uploads`. See [Attached files in S3-compatible storage](#attached-files-in-s3-compatible-storage). |
 
 If Nootion sits behind an HTTPS reverse proxy, put the `https://…` URL in `APP_URL`: the session cookie then becomes `Secure`
 (examples for Caddy and Nginx in [Securing your instance](#securing-your-instance)).
@@ -70,6 +72,11 @@ docker compose up -d
 ```
 
 Open `APP_URL` in the browser: the page that creates the administrator account shows up, with a choice of language.
+Once the account exists, the setup assistant goes through the main settings one step at a time: e-mail, sign-in and
+security (passkeys, single sign-on), backups, the AI assistant, plugins and the team. Every step can be skipped and
+everything stays in Administration; "Finish later" leaves a card there to resume it, and `/admin/setup` opens it
+again at any time. Settings that come from variables (`APP_URL`, `FILES_S3_*`) are shown, not changed, by the
+assistant. Each new account then gets a short guided tour of the features, which My account opens again.
 
 [`docker-compose.yml`](../docker-compose.yml) keeps the data in a named Docker volume, `nootion-data`.
 To keep it in a folder of the host instead (easier to back up), replace the volume with
@@ -141,7 +148,7 @@ server {
     listen 443 ssl;
     server_name notes.example.com;
     # ssl_certificate and ssl_certificate_key here
-    client_max_body_size 50m;                  # MAX_UPLOAD_MB
+    client_max_body_size 500m;                 # IMPORT_MAX_MB (attached files: MAX_UPLOAD_MB)
 
     location / {
         proxy_pass http://127.0.0.1:3000;
@@ -178,8 +185,11 @@ settings (see [SSO.md](SSO.md#linking-existing-accounts)).
 - A **plugin** installed in `/data/plugins` runs with the server's rights (see [PLUGINS.md](PLUGINS.md#trust)).
 - A **member** sees the pages of their spaces and those shared with them, and, in the people lists, only those they
   work with. They can create shared spaces, API tokens for their own spaces, and public links to pages they can edit.
+- A **guest** only sees the pages shared with them (and their subpages), with no space of their own, no people
+  directory beyond those pages and no API tokens; they can't share nor publish. Administrators can turn guests off in
+  Administration › Guests.
 - A **public link** shows a page (and its subpages if chosen) read-only to anyone who has the address; a **public
-  form** lets them add rows. Both are revoked from where they were made.
+  form** lets them add rows. Both are revoked from where they were made, and can ask for a password or stop on a date.
 - The step of a **button** runs with the rights of the person who clicks it, not of who wrote it: look at what a
   button does before clicking one in a page someone else edits.
 
@@ -189,11 +199,123 @@ always downloaded, never displayed.
 
 To report a vulnerability, see [SECURITY.md](../SECURITY.md).
 
+## Activity log
+
+**Administration › Activity log** lists who did what on the server, latest first:
+
+- **Sign-ins**: successful ones (password, password and code, passkey, SSO), failed ones with the reason (wrong
+  password, unknown address, disabled account, wrong code…) and sign-outs.
+- **Accounts**: accounts created (first administrator, invitation, SSO, company directory), passwords changed or reset,
+  e-mail addresses changed, two-step sign-in turned on or off, passkeys added or removed, API tokens created or
+  revoked, accounts deleted.
+- **People and roles**: invitations created or cancelled, roles changed, accounts disabled or enabled (also by SCIM),
+  two-step sign-in reset by an administrator, groups made, renamed or deleted, people added to a group or taken out.
+- **Sharing and public links**: pages shared or unshared (with whom or with which group, with which access),
+  guests invited, public links and public form links created, changed (password, end date) or removed, members and
+  groups added to a space, their role changed, or removed.
+- **Deletions and spaces**: pages moved to the trash, restored or deleted for good, spaces created, emptied or deleted.
+- **Exports and backups**: pages and spaces exported, the full backup downloaded, a backup started by hand.
+- **Settings**: changes in Security, E-mail, SSO, automatic backups and plugins (the names of the settings changed,
+  never the passwords or keys), SCIM tokens made or removed.
+
+Each line has the person (their name is kept after their account is deleted), what the action was about (a page's
+title, a person, a space), a few facts (the role given, the settings changed) and the visitor's address (see
+[The visitor's address](#securing-your-instance) behind a proxy). Page content is never written in the log.
+
+Filters narrow it by family of actions, person, words (a name, an address, a page title) and days; **Export as CSV**
+downloads the lines the filters show (separated by semicolons when the browser is in French, so spreadsheets set to
+French open it as columns). **Keep the log** chooses how long lines stay: 30 days, 3 or 6 months, 1 year (the
+default), 2 years or forever; older lines are deleted every hour. The log is only added to: nobody, administrators
+included, can change or delete a line from the interface.
+
+The API offers the same for scripts run by an administrator: `GET /api/admin/audit` (parameters `category`,
+`action`, `actorId`, `q`, `from`, `to`, `limit`, and `before` with the `next` value of the previous answer) and
+`GET /api/admin/audit/export` for the CSV.
+
+## Attached files in S3-compatible storage
+
+By default attached files (images, PDFs, videos…) are kept in `/data/uploads`. A larger instance can keep them in a
+bucket instead: AWS S3, MinIO, Garage, Backblaze B2, Cloudflare R2, Scaleway, OVHcloud, Wasabi… anything that speaks
+the S3 protocol. Nothing changes for people: files are still uploaded to and read through Nootion, which checks who
+may see them. The settings are given in the environment only, never stored in the database.
+
+| Variable | Description |
+|---|---|
+| `FILES_S3_BUCKET` | The bucket's name. Setting it turns the bucket on. Make the bucket first, private (no public access). |
+| `FILES_S3_ACCESS_KEY_ID`, `FILES_S3_SECRET_ACCESS_KEY` | A key allowed to read, write, delete and list objects in this bucket only (`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` are read too). |
+| `FILES_S3_ENDPOINT` | The service's address, for anything but AWS: `http://minio:9000`, `https://<account>.r2.cloudflarestorage.com`, `https://s3.eu-central-003.backblazeb2.com`… Default: `https://s3.<region>.amazonaws.com`. |
+| `FILES_S3_REGION` | The region (default `us-east-1`; `auto` for Cloudflare R2). |
+| `FILES_S3_PREFIX` | Put before every file's name, for instance `nootion/`, so that several instances (or other things) can share a bucket. Files outside the prefix are never touched. |
+| `FILES_S3_PATH_STYLE` | `true` for addresses like `http://host/bucket/file`, `false` for `http://bucket.host/file`. Default: `true` with `FILES_S3_ENDPOINT` (MinIO, Garage and most self-hosted servers want it), `false` for AWS. |
+| `FILES_S3_REDIRECT` | `true` to send browsers straight to the bucket for downloads, with a link signed for 5 minutes, once Nootion has checked access. It saves the server's bandwidth; the bucket must then be reachable by the browsers. Default: files go through Nootion. |
+
+For example, next to a MinIO container in `docker-compose.yml`:
+
+```yaml
+    environment:
+      FILES_S3_BUCKET: nootion-files
+      FILES_S3_ENDPOINT: http://minio:9000
+      FILES_S3_ACCESS_KEY_ID: nootion
+      FILES_S3_SECRET_ACCESS_KEY: ${MINIO_NOOTION_SECRET}
+```
+
+At start-up Nootion checks that the bucket can be reached with these keys, and stops with the reason in its log if
+not (`Attached files: Bucket "nootion-files": AccessDenied…`). Once it runs, the log says
+`Attached files are kept in s3://nootion-files/…`.
+
+What changes with a bucket:
+
+- **Backups** (the download and the automatic ones) hold the database, profile pictures, icons and plugins, but not
+  the attached files: an `ATTACHED-FILES.txt` note in the .zip says which bucket holds them, and Administration ›
+  Backup says so too. Back up the bucket on its side (versioning, replication, or a copy with `rclone`). To restore,
+  unzip the backup into `/data` and start Nootion with the same `FILES_S3_*` settings.
+- Text extraction and OCR for search read each new file from the bucket once (into a temporary file).
+- Single files are sent in one request: up to 5 GB, far above `MAX_UPLOAD_MB`.
+
+### Moving existing files
+
+A command copies the files of `/data/uploads` to the bucket, or back. Files already in the destination with the same
+size are skipped, so it can be stopped and run again. The `FILES_S3_*` settings must be set for it in both
+directions (to know the bucket).
+
+To move an instance to a bucket without a moment where files are missing:
+
+1. Copy the existing files while Nootion keeps running on the folder (the settings are given to the command only):
+   ```sh
+   docker compose exec -e FILES_S3_BUCKET=nootion-files -e FILES_S3_ENDPOINT=http://minio:9000 \
+     -e FILES_S3_ACCESS_KEY_ID=nootion -e FILES_S3_SECRET_ACCESS_KEY=… nootion node dist/files-move.js to-bucket
+   ```
+2. Add the `FILES_S3_*` settings to the container and restart it: files are now read from and written to the bucket.
+3. Run the command once more, for the files added since step 1, removing each file from `/data/uploads` once its copy
+   is checked:
+   ```sh
+   docker compose exec nootion node dist/files-move.js to-bucket --remove-source
+   ```
+
+To bring files back to the data folder: run
+`docker compose exec nootion node dist/files-move.js to-folder` (with `--remove-source` to empty the bucket's
+prefix), then remove the `FILES_S3_*` settings and restart. Files added between the two are in the bucket: run the
+command once more before removing the settings, or do it with the container stopped
+(`docker compose run --rm nootion node dist/files-move.js to-folder`).
+
 ## Single sign-on (SSO)
 
 People can sign in with their company account (Microsoft Entra ID, Google Workspace, Okta, Keycloak… any OpenID
 Connect provider), set in **Administration > Single sign-on (SSO)**, and SCIM lets the provider disable those who
 leave. The server must reach the provider over HTTPS. See [SSO.md](SSO.md) for the steps in Entra ID.
+
+## Passkeys
+
+Everyone can add passkeys in **My account > Passkeys** (fingerprint, face, the phone's screen lock, a password
+manager or a security key) and then use **Sign in with a passkey** on the sign-in page, with no e-mail, password or
+code to type. A passkey counts as both steps of two-factor authentication; the password keeps working beside it.
+
+Browsers only hand out passkeys over **HTTPS** (or on `localhost`), and only to the address they were made on: the
+host name of `APP_URL` (`mynootion.example.com` for `https://mynootion.example.com`). So set `APP_URL` to the exact
+`https://…` address people type. Over plain HTTP the sign-in page shows no passkey button and My account says why;
+opened at another address than `APP_URL`, My account says which one to use. Changing the host name later makes the
+passkeys already added stop working (people add them again; their password still works). Where SSO is required for
+everyone, a passkey signs in only those who may still use a password (administrators).
 
 ## Sending e-mail
 
@@ -243,6 +365,41 @@ notifications on this device*. This uses Web Push, which also needs **HTTPS**; o
 be added to the home screen (iOS 16.4 or later). The server makes its push keys on first use and keeps them in
 `/data/vapid.json` (part of the backup): if that file is lost, each device has to turn notifications on again.
 The server must be able to reach the browsers' push services (Google, Mozilla, Apple) over HTTPS.
+
+## Importing from files
+
+Markdown, HTML, Word (.docx), text and CSV files, or a .zip holding them (a folder of notes, or an export from
+another tool), can be imported as pages. Open the import from:
+
+- *My account › Import*, choosing the space;
+- the import button next to a space's name in the sidebar;
+- a page's menu in the sidebar (**…** › *Import files*): what is imported goes under that page.
+
+Drop the files or the .zip, or choose them, then *Import*. The import runs on the server with its progress: you can
+leave the page, it carries on.
+
+How files become pages:
+
+- Each file is a page, each folder a page with its subpages. A `Page.md` beside a `Page/` folder, or
+  `Folder/Folder.md`, is the page of that folder.
+- A CSV becomes a database (comma, semicolon or tab separated); pages found beside it become the content of its
+  rows.
+- Images and attached files are copied into the pages that use them. Relative links and `[[wiki links]]` between the
+  files become links between the pages.
+- Markdown keeps its front matter (title, icon, tags), callouts (`> [!note]`), toggles, underlines, highlights
+  (`==text==`) and the language of code blocks; `%%comments%%` are left out. A space or page exported from Nootion as
+  Markdown reads back as it was.
+- HTML and Word keep headings, lists, tables, images, links, bold and italic; formatting the editor doesn't
+  have is left out.
+
+The report at the end counts the pages, databases, rows, files and links made, and lists what was **imported
+differently** (embedded content kept as a link, forms or navigation menus left out, files too large…): open a line
+to see the files concerned. **Undo the import** moves everything it made to the trash, from where it can still be
+restored.
+
+Limits: `IMPORT_MAX_MB` (500 MB by default) for the files sent at once; once uncompressed, archives may hold up to
+four times as much. Paths leaving the archive are refused. Views, comments and history of other tools are not
+imported. Behind a reverse proxy, raise its body size limit to `IMPORT_MAX_MB` (see the Nginx example above).
 
 ## Importing from Notion
 

@@ -28,7 +28,11 @@ export const WORKSPACE_ROLE_TO_PAGE_ROLE: Record<WorkspaceRole, PageRole> = {
   viewer: "viewer",
 };
 
-export const PAGE_KINDS = ["page", "database", "row"] as const;
+/**
+ * "block": the content of a synced block, shown in several pages. It lives in a hidden page of its own, under the page
+ * where it was made, absent from page trees and from search results (which show its host page instead).
+ */
+export const PAGE_KINDS = ["page", "database", "row", "block"] as const;
 export type PageKind = (typeof PAGE_KINDS)[number];
 
 export interface PageSummary {
@@ -44,7 +48,9 @@ export interface PageSummary {
 export interface PageDetail extends PageSummary {
   role: PageRole;
   /** Ancestors the user can see, from the root down to the parent. */
-  breadcrumb: { id: string; title: string; icon: string | null }[];
+  breadcrumb: { id: string; kind: PageKind; title: string; icon: string | null }[];
+  /** Databases only: the few lines shown under the title. */
+  description: string;
   /** Content uses the whole window width instead of a centered column. */
   fullWidth: boolean;
   cover: string | null;
@@ -55,6 +61,8 @@ export interface PageDetail extends PageSummary {
   home: boolean;
   /** A page template, or (for a row) a row template of its database. */
   template: boolean;
+  /** Locked: the content is read-only for everyone until someone who can edit unlocks it (for a database: its columns and views). */
+  locked: boolean;
 }
 
 /** A page the user opened lately, for "Recently visited". */
@@ -69,6 +77,8 @@ export interface PageShare {
   name: string;
   email: string;
   role: PageRole;
+  /** The person is a guest of the server (see USER_ROLES). */
+  guest: boolean;
   /** Set when the share comes from an ancestor page. */
   inheritedFrom: { id: string; title: string } | null;
 }
@@ -77,7 +87,30 @@ export interface PublicLinkInfo {
   token: string;
   includeSubpages: boolean;
   url: string;
+  /** Visitors type a password first. The password itself is never sent back. */
+  hasPassword: boolean;
+  /** When the link stops working (ISO), or null for never. */
+  expiresAt: string | null;
+  /** The end date has passed: the link shows "expired" until it is extended. */
+  expired: boolean;
 }
+
+/** Longest and shortest password a public link accepts. */
+export const PUBLIC_LINK_PASSWORD_MIN = 4;
+export const PUBLIC_LINK_PASSWORD_MAX = 200;
+
+/**
+ * Protection of a public link or a public form. Left out, a field keeps its value; `password: null` removes the
+ * password, `expiresAt: null` makes the link work forever.
+ */
+export const publicLinkProtectionInput = z.object({
+  password: z.string().min(PUBLIC_LINK_PASSWORD_MIN).max(PUBLIC_LINK_PASSWORD_MAX).nullable().optional(),
+  expiresAt: z.iso.datetime({ offset: true }).nullable().optional(),
+});
+export type PublicLinkProtectionInput = z.infer<typeof publicLinkProtectionInput>;
+
+/** What a visitor is told when a public link or form can't be opened yet: a password to type, or nothing to do. */
+export type PublicLinkLock = "password_required" | "link_expired";
 
 export interface TrashedPage {
   id: string;
@@ -114,14 +147,21 @@ export const createPageInput = z.object({
 });
 export type CreatePageInput = z.infer<typeof createPageInput>;
 
+/** Longest description of a database, in characters. */
+export const DESCRIPTION_MAX = 2000;
+
 export const updatePageInput = z.object({
   title: titleSchema.optional(),
   icon: iconSchema.optional(),
+  /** Databases only: the few lines shown under the title. */
+  description: z.string().max(DESCRIPTION_MAX).optional(),
   fullWidth: z.boolean().optional(),
   cover: coverSchema.optional(),
   coverPosition: z.number().int().min(0).max(100).optional(),
   /** Pages only: offered as a template when starting an empty page. */
   template: z.boolean().optional(),
+  /** Locks or unlocks the content (for a database: its columns and views). */
+  locked: z.boolean().optional(),
 });
 
 export const movePageInput = z.object({
@@ -134,7 +174,55 @@ export const movePageInput = z.object({
 
 export const sharePageInput = z.object({ userId: z.string().min(1), role: z.enum(PAGE_ROLES) });
 
-export const publicLinkInput = z.object({ includeSubpages: z.boolean().default(true) });
+/** What a guest can be given on a page: everything but managing it (sharing, public link). */
+export const GUEST_PAGE_ROLES = ["viewer", "commenter", "editor"] as const;
+export type GuestPageRole = (typeof GUEST_PAGE_ROLES)[number];
+
+/** "Invite a guest" from the share dialog: someone without an account, by e-mail. */
+export const inviteGuestInput = z.object({
+  email: z.string().trim().toLowerCase().email().max(254),
+  role: z.enum(GUEST_PAGE_ROLES).default("viewer"),
+});
+export type InviteGuestInput = z.infer<typeof inviteGuestInput>;
+
+/** A guest invited on a page who hasn't created their account yet. */
+export interface PendingGuest {
+  id: string;
+  email: string;
+  role: GuestPageRole;
+  expiresAt: string;
+}
+
+/** Turns the link on or changes it. Left out, `includeSubpages` keeps its value (on for a new link). */
+export const publicLinkInput = publicLinkProtectionInput.extend({ includeSubpages: z.boolean().optional() });
+export const publicLinkUnlockInput = z.object({ password: z.string().min(1).max(PUBLIC_LINK_PASSWORD_MAX) });
+
+/** A synced block, as one of the pages it is shown in sees it (GET /api/synced-blocks/:id). */
+export interface SyncedBlockInfo {
+  id: string;
+  /** The page where it was made, where its content lives. */
+  host: { id: string; title: string; icon: string | null };
+  role: PageRole;
+  locked: boolean;
+  /** Its content, as the editor's JSON. */
+  content: unknown;
+  /** Pages it is shown in, among those the user can read. */
+  pages: { id: string; title: string; icon: string | null }[];
+}
+
+/** A synced block offered by "/synced". */
+export interface SyncedBlockSummary {
+  id: string;
+  host: { id: string; title: string; icon: string | null };
+  /** The start of its text. */
+  preview: string;
+  updatedAt: string;
+}
+
+export const createSyncedBlockInput = z.object({
+  /** The blocks it starts with (those turned into a synced block); an empty paragraph when missing. */
+  content: z.array(z.unknown()).max(5000).optional(),
+});
 
 /** A page found by the search. */
 export interface SearchResult {
@@ -148,6 +236,72 @@ export interface SearchResult {
   snippet: string;
   /** Set when the match is in a file attached to the page (its name or its text). */
   file?: { id: string; name: string };
+  /** Where the words were found: the title, the content, or (rows) the values of the cells. */
+  match?: "title" | "content" | "cells";
+  /** When the page last changed (ISO). */
+  updatedAt?: string;
+}
+
+/** What a search can be narrowed to: pages, databases, database rows, attached files. */
+export const SEARCH_KINDS = ["page", "database", "row", "file"] as const;
+export type SearchKind = (typeof SEARCH_KINDS)[number];
+
+/** Relative periods offered for "edited since" ("7d": the last 7 days); a date (YYYY-MM-DD) works too. */
+export const EDITED_SINCE_PRESETS = ["1d", "7d", "30d", "365d"] as const;
+const EDITED_SINCE = /^(\d{1,4}d|\d{4}-\d{2}-\d{2})$/;
+
+/** Filters of a search, as query parameters of GET /api/search and in saved searches. */
+export const searchFiltersSchema = z.object({
+  /** A space. */
+  workspaceId: z.string().min(1).max(100).optional(),
+  kind: z.enum(SEARCH_KINDS).optional(),
+  /** Rows of one database. */
+  databaseId: z.string().min(1).max(100).optional(),
+  /** Pages created by this person. */
+  authorId: z.string().min(1).max(100).optional(),
+  /** Pages changed since: a number of days ("7d") or a date ("2026-01-31"). */
+  editedSince: z.string().regex(EDITED_SINCE).optional(),
+});
+export type SearchFilters = z.infer<typeof searchFiltersSchema>;
+
+/** The time (ms) an "edited since" filter starts from, or null when it is not valid. */
+export function editedSinceTime(value: string, now = Date.now()): number | null {
+  if (!EDITED_SINCE.test(value)) return null;
+  if (value.endsWith("d")) return now - Number(value.slice(0, -1)) * 86_400_000;
+  const time = new Date(`${value}T00:00:00`).getTime();
+  return Number.isNaN(time) ? null : time;
+}
+
+/** True when at least one filter is set. */
+export const hasSearchFilters = (f: SearchFilters) => Object.values(f).some((v) => v !== undefined && v !== "");
+
+export const savedSearchInput = z.object({
+  name: z.string().trim().min(1).max(100),
+  query: z.string().max(200).default(""),
+  filters: searchFiltersSchema.default({}),
+});
+
+export const updateSavedSearchInput = z.object({
+  name: z.string().trim().min(1).max(100).optional(),
+  query: z.string().max(200).optional(),
+  filters: searchFiltersSchema.optional(),
+});
+
+/** A search with its filters that a user saved under a name. */
+export interface SavedSearch {
+  id: string;
+  name: string;
+  query: string;
+  filters: SearchFilters;
+  createdAt: string;
+}
+
+/** A database the user can read, for the search's database filter. */
+export interface SearchDatabase {
+  id: string;
+  title: string;
+  icon: string | null;
+  workspaceId: string;
 }
 
 /** New order of the user's favorites: every favorite page id, in order. */

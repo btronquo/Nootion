@@ -15,6 +15,7 @@ import type { useDatabaseActions } from "./hooks";
 import { CoverFill } from "../components/PageCover";
 import { pageTitle } from "../lib/tree";
 import { pageIcon } from "../lib/icons";
+import { ShowMoreRows, useShownRows } from "./progressive";
 
 export interface MoreViewProps {
   data: DatabaseData;
@@ -94,10 +95,11 @@ export function ListView(props: MoreViewProps) {
   const { rows, editable, rowHref } = props;
   const navigate = useNavigate();
   const add = useAddRow(props);
+  const { limit, more } = useShownRows(`${props.data.id}|${props.view.id}`);
   return (
     <div className="text-sm">
       <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
-        {rows.map((row) => (
+        {rows.slice(0, limit).map((row) => (
           <li
             key={row.id}
             onClick={(e) => !(e.target as HTMLElement).closest("a") && navigate(rowHref(row))}
@@ -113,6 +115,7 @@ export function ListView(props: MoreViewProps) {
           </li>
         ))}
       </ul>
+      <ShowMoreRows shown={Math.min(limit, rows.length)} total={rows.length} onMore={more} />
       {!rows.length && <p className="px-2 py-3 text-neutral-400">{t("view.noRows")}</p>}
       {editable && (
         <button onClick={() => add()} className={`${newButton} mt-1`}>
@@ -123,51 +126,76 @@ export function ListView(props: MoreViewProps) {
   );
 }
 
-/** Cards in a grid, topped by the row's cover or first image. */
+/** Narrowest a card gets, by card size: there are as many cards in a row as fit in the width of the database. */
+const CARD_WIDTH = { small: 140, medium: 180, large: 260 } as const;
+
+const card =
+  "overflow-hidden rounded-lg bg-white shadow-[0_0_0_1px_rgba(15,15,15,0.08),0_2px_4px_rgba(15,15,15,0.06)] transition-colors dark:bg-neutral-800/80 dark:shadow-[0_0_0_1px_rgba(255,255,255,0.07),0_2px_4px_rgba(0,0,0,0.3)]";
+
+/** Cards in a grid, topped by the row's cover or first image, as in Notion. */
 export function GalleryView(props: MoreViewProps) {
   const { rows, editable, rowHref, view, fileUrl } = props;
   const navigate = useNavigate();
   const add = useAddRow(props);
   const preview = view.config.showPreview !== false;
+  const size = view.config.cardSize ?? "medium";
+  const { limit, more } = useShownRows(`${props.data.id}|${view.id}`, 60);
   // Files of a public page go through its link.
   const coverUrl = (cover: string) => {
     const m = /^\/api\/attachments\/(.+)$/.exec(cover);
     return m && fileUrl ? fileUrl(m[1]!) : cover;
   };
+  const coverBox = "aspect-[16/9]";
   return (
-    <div className="grid grid-cols-1 gap-3 text-sm min-[420px]:grid-cols-2 md:grid-cols-3">
-      {rows.map((row) => (
+    <div
+      className="grid gap-3 text-sm"
+      style={{ gridTemplateColumns: `repeat(auto-fill, minmax(min(100%, ${CARD_WIDTH[size]}px), 1fr))` }}
+      data-card-size={size}
+    >
+      {rows.slice(0, limit).map((row) => (
         <article
           key={row.id}
           onClick={(e) => !(e.target as HTMLElement).closest("a") && navigate(rowHref(row))}
           aria-label={row.title || t("common.untitled")}
-          className="cursor-pointer overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-sm hover:bg-neutral-50 dark:border-neutral-700 dark:bg-neutral-800 dark:hover:bg-neutral-700/70"
+          className={`${card} flex cursor-pointer flex-col hover:bg-neutral-50 dark:hover:bg-neutral-700/60`}
         >
           {preview && (
-            <div className="h-32 w-full bg-neutral-100 dark:bg-neutral-900" data-preview>
+            <div className={`${coverBox} w-full shrink-0 overflow-hidden border-b border-neutral-100 bg-neutral-50 dark:border-neutral-700/60 dark:bg-neutral-900/40`} data-preview>
               {row.cover ? (
                 <CoverFill cover={coverUrl(row.cover)} position={row.coverPosition} />
               ) : (
-                <div className="flex h-full items-center justify-center text-3xl text-neutral-300 dark:text-neutral-600">
-                  {pageIcon(row.icon) ?? <FileText size={28} />}
+                <div className="flex h-full items-center justify-center text-4xl text-neutral-300 dark:text-neutral-600">
+                  {pageIcon(row.icon) ?? <FileText size={32} strokeWidth={1.5} />}
                 </div>
               )}
             </div>
           )}
-          <div className="p-2.5">
-            <div className="truncate font-medium">
+          <div className={size === "small" ? "px-2.5 pt-2 pb-2.5" : "px-3 pt-2.5 pb-3"}>
+            <div className="line-clamp-2 font-medium leading-snug break-words">
               <RowTitle row={row} />
             </div>
-            <RowValues {...props} row={row} className="-mx-2" />
+            <div className="mt-1.5 flex flex-col gap-1 empty:hidden">
+              <RowValues {...props} row={row} className="-mx-2" />
+            </div>
           </div>
         </article>
       ))}
+      {rows.length > limit && (
+        <div className="col-span-full">
+          <ShowMoreRows shown={limit} total={rows.length} onMore={more} />
+        </div>
+      )}
       {editable && (
         <button
           onClick={() => add()}
-          className="flex min-h-24 items-center justify-center gap-1 rounded-lg border border-dashed border-neutral-300 text-neutral-400 hover:bg-neutral-50 hover:text-neutral-700 dark:border-neutral-700 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+          className={`${card} group relative flex min-h-20 flex-col text-neutral-400 opacity-70 hover:bg-neutral-50 hover:text-neutral-700 hover:opacity-100 dark:hover:bg-neutral-700/60 dark:hover:text-neutral-200`}
         >
-          <Plus size={14} /> {t("board.new")}
+          {/* As tall as a card, even alone on its row. */}
+          {preview && <div className={`${coverBox} w-full`} aria-hidden />}
+          <div className={preview ? "h-14" : "h-full"} aria-hidden />
+          <span className="absolute inset-0 flex items-center justify-center gap-1">
+            <Plus size={14} /> {t("view.newPage")}
+          </span>
         </button>
       )}
     </div>

@@ -10,8 +10,10 @@ import { ButtonBlockView } from "./ButtonBlockView";
 import { DrawingBlockView } from "./DrawingBlockView";
 import { VideoBlockView } from "./VideoBlockView";
 import { TableOfContentsView } from "./TableOfContentsView";
+import { columnsTemplate, validWidth } from "./columnResize";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { DatabaseRowsView, FavoritesListView, RecentPagesView, UpcomingEventsView } from "./HomeWidgets";
+import { TasksListView } from "../tasks/TasksWidget";
 import { ChartView } from "./widgets/Chart";
 import { ClockView, CountdownView, PomodoroView, ProgressView } from "./widgets/Time";
 import { CarouselView, HabitView, QuoteView, WeatherView } from "./widgets/Extra";
@@ -25,7 +27,7 @@ declare module "@tiptap/core" {
     callout: { setCallout: () => ReturnType };
     fileAttachment: { insertFile: (attrs: { url: string; name: string; size: number; mimeType: string }) => ReturnType };
     pageLink: { insertPageLink: (attrs: { pageId: string; title: string }) => ReturnType };
-    databaseBlock: { insertDatabase: (pageId: string) => ReturnType };
+    databaseBlock: { insertDatabase: (pageId: string) => ReturnType; insertLinkedView: () => ReturnType };
     calendarBlock: { insertCalendar: () => ReturnType };
     widget: { insertWidget: (name: WidgetName) => ReturnType };
     toggle: { insertToggle: (level?: 1 | 2 | 3) => ReturnType };
@@ -33,7 +35,7 @@ declare module "@tiptap/core" {
     buttonBlock: { insertButton: () => ReturnType };
     drawing: { insertDrawing: () => ReturnType };
     dateMention: { insertDate: (attrs: { date: string; reminder?: number | null; remindUser?: string | null }) => ReturnType };
-    userMention: { insertUserMention: (attrs: { userId: string; name: string; by: string | null }) => ReturnType };
+    userMention: { insertUserMention: (attrs: { userId: string | null; groupId?: string | null; name: string; by: string | null }) => ReturnType };
     tableOfContents: { insertTableOfContents: () => ReturnType };
   }
 }
@@ -198,24 +200,31 @@ export const DateMention = Node.create({
 /**
  * Database shown inside a page. The database itself is a child page; this block only says where it
  * appears. `publicToken` switches the view to the read-only public API.
+ *
+ * A linked view (`linked`) shows a database that lives elsewhere, with views of its own: they belong to this block,
+ * named by `linkId` in the page being edited (`pageId`). Rows, columns and access are the database's.
  */
-export const DatabaseBlock = Node.create<{ publicToken: string | null }>({
+export const DatabaseBlock = Node.create<{ publicToken: string | null; pageId: string | null }>({
   name: "databaseBlock",
   group: "block",
   atom: true,
   draggable: true,
   selectable: true,
   addOptions() {
-    return { publicToken: null };
+    return { publicToken: null, pageId: null };
   },
   addAttributes() {
-    return { pageId: { default: null } };
+    return {
+      pageId: { default: null },
+      linked: { default: false, parseHTML: (el) => el.dataset.linked === "true", renderHTML: (a) => (a.linked ? { "data-linked": "true" } : {}) },
+      linkId: { default: null, parseHTML: (el) => el.dataset.linkId || null, renderHTML: (a) => (a.linkId ? { "data-link-id": a.linkId } : {}) },
+    };
   },
   parseHTML() {
     return [{ tag: "div[data-database]", getAttrs: (el) => ({ pageId: (el as HTMLElement).dataset.database || null }) }];
   },
-  renderHTML({ node }) {
-    return ["div", { "data-database": node.attrs.pageId ?? "" }, t("common.database")];
+  renderHTML({ node, HTMLAttributes }) {
+    return ["div", mergeAttributes(HTMLAttributes, { "data-database": node.attrs.pageId ?? "" }), node.attrs.linked ? t("linkedView.name") : t("common.database")];
   },
   addNodeView() {
     // The table handles its own clicks and keys.
@@ -227,6 +236,11 @@ export const DatabaseBlock = Node.create<{ publicToken: string | null }>({
         (pageId) =>
         ({ commands }) =>
           commands.insertContent([{ type: this.name, attrs: { pageId } }, { type: "paragraph" }]),
+      insertLinkedView:
+        () =>
+        ({ commands }) =>
+          // The database is chosen in the block.
+          commands.insertContent([{ type: this.name, attrs: { pageId: null, linked: true, linkId: randomId() } }, { type: "paragraph" }]),
     };
   },
 });
@@ -284,6 +298,7 @@ export const CalendarBlock = Node.create<{ pageId: string | null; publicToken: s
 export type WidgetName =
   | "recentPages"
   | "favoritesList"
+  | "tasksList"
   | "upcomingEvents"
   | "databaseRows"
   | "chart"
@@ -345,6 +360,7 @@ function widget(name: WidgetName, view: Parameters<typeof ReactNodeViewRenderer>
 
 export const RecentPages = widget("recentPages", RecentPagesView);
 export const FavoritesList = widget("favoritesList", FavoritesListView);
+export const TasksList = widget("tasksList", TasksListView, { limit: 5 });
 export const UpcomingEvents = widget("upcomingEvents", UpcomingEventsView, { sources: [], days: 14 });
 export const DatabaseRows = widget("databaseRows", DatabaseRowsView, { databaseId: null, viewId: null, limit: 5 });
 export const Chart = widget("chart", ChartView, { databaseId: null, viewId: null, kind: "bar", groupBy: null, measure: "count" });
@@ -368,6 +384,7 @@ export const ImageCarousel = widget("imageCarousel", CarouselView, { images: [],
 export const WIDGETS = [
   RecentPages,
   FavoritesList,
+  TasksList,
   UpcomingEvents,
   DatabaseRows,
   Chart,
@@ -476,8 +493,36 @@ export const Columns = Node.create({
   parseHTML() {
     return [{ tag: "div[data-columns]" }];
   },
-  renderHTML({ HTMLAttributes }) {
-    return ["div", mergeAttributes(HTMLAttributes, { "data-columns": "", class: "columns" }), 0];
+  renderHTML({ node, HTMLAttributes }) {
+    const template = columnsTemplate(node);
+    return [
+      "div",
+      mergeAttributes(HTMLAttributes, { "data-columns": "", class: "columns" }, template ? { style: `grid-template-columns: ${template}` } : {}),
+      0,
+    ];
+  },
+  addNodeView() {
+    // The widths are kept on the columns; their parent lays them out, so it follows each change of its content. A
+    // column being resized gets its new width here straight away, without the editor reading the page back.
+    return ({ node, HTMLAttributes }) => {
+      let current = node;
+      const dom = document.createElement("div");
+      for (const [name, value] of Object.entries(mergeAttributes(HTMLAttributes, { "data-columns": "", class: "columns" })))
+        if (value !== null && value !== undefined && value !== false) dom.setAttribute(name, String(value));
+      const apply = () => (dom.style.gridTemplateColumns = columnsTemplate(current) ?? "");
+      apply();
+      return {
+        dom,
+        contentDOM: dom,
+        update(next) {
+          if (next.type !== current.type || !next.sameMarkup(current)) return false;
+          current = next;
+          apply();
+          return true;
+        },
+        ignoreMutation: (m) => m.type === "attributes" && m.target === dom && m.attributeName === "style",
+      };
+    };
   },
   addCommands() {
     return {
@@ -539,6 +584,16 @@ export const Column = Node.create({
   content: "block+",
   isolating: true,
   defining: true,
+  addAttributes() {
+    return {
+      // Share of the row's width (0 to 1), as Notion's width_ratio; none: an equal share.
+      width: {
+        default: null,
+        parseHTML: (el) => validWidth(el.getAttribute("data-width")),
+        renderHTML: (attrs) => (validWidth(attrs.width) ? { "data-width": String(attrs.width) } : {}),
+      },
+    };
+  },
   parseHTML() {
     return [{ tag: "div[data-column]" }];
   },
@@ -619,7 +674,7 @@ export const ButtonBlock = Node.create<{ pageId: string | null }>({
   },
 });
 
-/** "@Name": someone mentioned in the text, who gets a notification. `by` is who wrote it. */
+/** "@Name": someone mentioned in the text, who gets a notification; or a group (`groupId`), and everyone in it does. `by` is who wrote it. */
 export const UserMention = Node.create({
   name: "userMention",
   group: "inline",
@@ -627,18 +682,23 @@ export const UserMention = Node.create({
   atom: true,
   selectable: true,
   addAttributes() {
-    return { id: { default: null }, userId: { default: null }, name: { default: "" }, by: { default: null } };
+    return { id: { default: null }, userId: { default: null }, groupId: { default: null }, name: { default: "" }, by: { default: null } };
   },
   parseHTML() {
     return [
       {
         tag: "span[data-user-mention]",
-        getAttrs: (el) => ({ userId: (el as HTMLElement).dataset.userId || null, name: (el as HTMLElement).textContent?.replace(/^@/, "") ?? "" }),
+        getAttrs: (el) => ({
+          userId: (el as HTMLElement).dataset.userId || null,
+          groupId: (el as HTMLElement).dataset.groupId || null,
+          name: (el as HTMLElement).textContent?.replace(/^@/, "") ?? "",
+        }),
       },
     ];
   },
   renderHTML({ node }) {
-    return ["span", { "data-user-mention": "", "data-user-id": node.attrs.userId ?? "", class: "user-mention" }, `@${node.attrs.name as string}`];
+    const group = node.attrs.groupId ? { "data-group-id": node.attrs.groupId as string } : {};
+    return ["span", { "data-user-mention": "", "data-user-id": node.attrs.userId ?? "", ...group, class: "user-mention" }, `@${node.attrs.name as string}`];
   },
   renderText({ node }) {
     return `@${node.attrs.name as string}`;
@@ -646,10 +706,10 @@ export const UserMention = Node.create({
   addCommands() {
     return {
       insertUserMention:
-        ({ userId, name, by }) =>
+        ({ userId, groupId = null, name, by }) =>
         ({ commands }) =>
           commands.insertContent([
-            { type: this.name, attrs: { id: randomId(), userId, name, by } },
+            { type: this.name, attrs: { id: randomId(), userId, groupId, name, by } },
             { type: "text", text: " " },
           ]),
     };

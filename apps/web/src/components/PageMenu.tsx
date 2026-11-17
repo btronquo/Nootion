@@ -1,12 +1,12 @@
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { useQueryClient } from "@tanstack/react-query";
-import { Copy, CornerUpRight, Database, ExternalLink, FileText, Link2, Pencil, Star, Trash2 } from "lucide-react";
+import { Copy, CornerUpRight, Database, ExternalLink, FileText, FileUp, Link2, Pencil, Star, Trash2 } from "lucide-react";
+import { FileImportDialog } from "./FileImport";
 import { t, type PageSummary } from "@nootion/shared";
 import { api } from "../lib/api";
-import { copyText } from "../lib/browser";
-import { keys, useFavorites, useRefreshPages, useWorkspacePages, useWorkspaces } from "../lib/queries";
+import { usePageActions } from "../lib/pageActions";
+import { useRefreshPages, useWorkspacePages, useWorkspaces } from "../lib/queries";
 import { workspaceName } from "../lib/labels";
 import { pageTitle } from "../lib/tree";
 import { Popover } from "../database/Popover";
@@ -18,9 +18,7 @@ import { pageIcon } from "../lib/icons";
 export type MenuAnchor = HTMLElement | { x: number; y: number };
 
 export const toElement = (a: MenuAnchor): HTMLElement =>
-  a instanceof HTMLElement
-    ? a
-    : ({ getBoundingClientRect: () => new DOMRect(a.x, a.y, 0, 0), contains: () => false } as unknown as HTMLElement);
+  a instanceof HTMLElement ? a : ({ getBoundingClientRect: () => new DOMRect(a.x, a.y, 0, 0), contains: () => false } as unknown as HTMLElement);
 
 function Item({ icon, children, onClick, danger }: { icon: ReactNode; children: ReactNode; onClick: () => void; danger?: boolean }) {
   return (
@@ -59,29 +57,17 @@ export function PageMenu({
   onRename: () => void;
 }) {
   const navigate = useNavigate();
-  const qc = useQueryClient();
   const refresh = useRefreshPages();
-  const favorites = useFavorites();
+  const actions = usePageActions(page);
+  const { starred } = actions;
   const [moving, setMoving] = useState(false);
-  const starred = !!favorites.data?.some((p) => p.id === page.id);
+  const [importing, setImporting] = useState(false);
   const element = useMemo(() => toElement(anchor), [anchor]);
 
   const run = (action: () => Promise<unknown> | void) => () => {
     onClose();
     void Promise.resolve(action()).catch((e: Error) => alert(e.message));
   };
-
-  async function toggleFavorite() {
-    qc.setQueryData<PageSummary[]>(keys.favorites, (old = []) => (starred ? old.filter((p) => p.id !== page.id) : [...old, page]));
-    await api(`/favorites/${page.id}`, { method: starred ? "DELETE" : "PUT" }).catch(() => {});
-    await qc.invalidateQueries({ queryKey: keys.favorites });
-  }
-
-  async function duplicate() {
-    const { page: copy } = await api<{ page: PageSummary }>(`/pages/${page.id}/duplicate`, { method: "POST" });
-    await refresh();
-    navigate(`/page/${copy.id}`);
-  }
 
   async function trash() {
     await api(`/pages/${page.id}`, { method: "DELETE" });
@@ -91,19 +77,21 @@ export function PageMenu({
 
   // Out of the sidebar, whose drawer would hold a fixed dialog inside it.
   if (moving) return createPortal(<MoveDialog page={page} all={all} onClose={onClose} />, document.body);
+  if (importing)
+    return createPortal(<FileImportDialog workspaceId={page.workspaceId} parent={{ id: page.id, title: page.title }} onClose={onClose} />, document.body);
   return (
     <Popover anchor={element} onClose={onClose} width={260}>
       <div role="menu" aria-label={t("page.options")} data-page-menu>
-        <Item icon={<Star size={15} className={starred ? "fill-amber-400 text-amber-400" : ""} />} onClick={run(toggleFavorite)}>
+        <Item icon={<Star size={15} className={starred ? "fill-amber-400 text-amber-400" : ""} />} onClick={run(actions.toggleFavorite)}>
           {starred ? t("favorites.remove") : t("favorites.add")}
         </Item>
         <Separator />
-        <Item icon={<Link2 size={15} />} onClick={run(() => copyText(`${location.origin}/page/${page.id}`))}>
+        <Item icon={<Link2 size={15} />} onClick={run(actions.copyLink)}>
           {t("page.copyLink")}
         </Item>
         {editable && (
           <>
-            <Item icon={<Copy size={15} />} onClick={run(duplicate)}>
+            <Item icon={<Copy size={15} />} onClick={run(actions.duplicate)}>
               {t("page.duplicate")}
             </Item>
             <Item icon={<Pencil size={15} />} onClick={run(onRename)}>
@@ -112,13 +100,18 @@ export function PageMenu({
             <Item icon={<CornerUpRight size={15} />} onClick={() => setMoving(true)}>
               {t("page.moveTo")}
             </Item>
+            {page.kind === "page" && (
+              <Item icon={<FileUp size={15} />} onClick={() => setImporting(true)}>
+                {t("fileImport.menu")}
+              </Item>
+            )}
             <Item icon={<Trash2 size={15} />} onClick={run(trash)} danger>
               {t("page.trash")}
             </Item>
           </>
         )}
         <Separator />
-        <Item icon={<ExternalLink size={15} />} onClick={run(() => void window.open(`/page/${page.id}`, "_blank", "noopener"))}>
+        <Item icon={<ExternalLink size={15} />} onClick={run(actions.openInNewTab)}>
           {t("page.openNewTab")}
         </Item>
       </div>
@@ -130,7 +123,7 @@ export function PageMenu({
  * Chooses where to move a page: a page of its space, or the top of it; or, for those who organise its space,
  * another space where they can add pages (asked to confirm, since who can see it changes).
  */
-function MoveDialog({ page, all, onClose }: { page: PageSummary; all: PageSummary[]; onClose: () => void }) {
+export function MoveDialog({ page, all, onClose }: { page: PageSummary; all: PageSummary[]; onClose: () => void }) {
   const refresh = useRefreshPages();
   const spaces = useWorkspaces().data ?? [];
   const from = spaces.find((w) => w.id === page.workspaceId);
@@ -217,7 +210,12 @@ function MoveDialog({ page, all, onClose }: { page: PageSummary; all: PageSummar
         {choices.map((p) => (
           <button key={p.id} type="button" className={row} onClick={() => void move(p.id)}>
             <span className="w-4 shrink-0 text-center">
-              {pageIcon(p.icon) ?? (p.kind === "database" ? <Database size={14} className="inline text-neutral-400" /> : <FileText size={14} className="inline text-neutral-400" />)}
+              {pageIcon(p.icon) ??
+                (p.kind === "database" ? (
+                  <Database size={14} className="inline text-neutral-400" />
+                ) : (
+                  <FileText size={14} className="inline text-neutral-400" />
+                ))}
             </span>
             <span className="truncate">{pageTitle(p.title)}</span>
           </button>

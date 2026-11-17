@@ -8,6 +8,7 @@ import { hashToken, newToken } from "../auth/tokens.js";
 import { passwordResets, users } from "../db/schema.js";
 import { HttpError, parseBody, requireAdmin, requireUser } from "../http.js";
 import { passwordAllowed } from "./sso.js";
+import { audit, changedKeys, settingsTarget } from "../audit.js";
 
 const RESET_TTL_MS = 60 * 60 * 1000;
 
@@ -22,12 +23,16 @@ export const mailRoutes: FastifyPluginAsync = async (app) => {
 
   app.put("/admin/mail", async (req) => {
     requireAdmin(req);
-    return { settings: mailer.save(parseBody(mailSettingsInput, req.body)) };
+    const before = mailer.get();
+    const settings = mailer.save(parseBody(mailSettingsInput, req.body));
+    audit(db, req, { action: "settings.changed", target: settingsTarget("mail"), details: { keys: changedKeys(before, settings) } });
+    return { settings };
   });
 
   app.delete("/admin/mail", async (req) => {
     requireAdmin(req);
     mailer.remove();
+    audit(db, req, { action: "settings.changed", target: settingsTarget("mail"), details: { removed: true } });
     return { ok: true };
   });
 
@@ -117,6 +122,8 @@ export const passwordResetRoutes: FastifyPluginAsync = async (app) => {
       .run();
     // Signed out everywhere: whoever knew the old password is out.
     deleteUserSessions(db, r.userId);
+    const who = db.select().from(users).where(eq(users.id, r.userId)).get();
+    if (who) audit(db, req, { action: "account.password_reset", actor: who });
     return { ok: true };
   });
 };

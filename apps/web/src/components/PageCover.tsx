@@ -124,6 +124,7 @@ export function AddCoverButton({ pageId, onChange }: { pageId: string; onChange:
   return (
     <>
       <button
+        data-print-hide
         onClick={(e) => setPicker(e.currentTarget)}
         className="mb-2 flex items-center gap-1 rounded px-2 py-1 text-sm text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800"
       >

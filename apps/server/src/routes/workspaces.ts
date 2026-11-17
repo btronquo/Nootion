@@ -4,19 +4,25 @@ import {
   atLeast,
   createWorkspaceInput,
   setMemberInput,
+  setWorkspaceGroupInput,
   updateWorkspaceInput,
   type TrashedPage,
+  type WorkspaceGroupMember,
   type WorkspaceMember,
   type WorkspaceSummary,
 } from "@nootion/shared";
 import { and, count, desc, eq, isNotNull, ne } from "drizzle-orm";
-import { pages, users, workspaceMembers, workspaces } from "../db/schema.js";
+import { effectiveWorkspaceMembers, groups, pages, users, workspaceGroupMembers, workspaceMembers, workspaces } from "../db/schema.js";
 import { scopeAllows } from "../api-tokens.js";
 import { HttpError, notFound, parseBody, requireUser } from "../http.js";
 import { getPageRole, getWorkspaceRole, requireWorkspaceRole } from "../permissions.js";
 import { listWorkspacePages, toSummary } from "../pages.js";
 import { t } from "@nootion/shared";
 import { homePageOf } from "../home.js";
+import { findGroup, memberCounts, requireGroup } from "../groups.js";
+import { audit, personTarget } from "../audit.js";
+
+const spaceTarget = (w: { id: string; name: string }) => ({ type: "workspace" as const, id: w.id, label: w.name });
 
 const ANY_ROLE = ["owner", "editor", "commenter", "viewer"] as const;
 
@@ -39,21 +45,24 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
       .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.role, "owner"), ne(workspaceMembers.userId, exceptUserId)))
       .get()?.n ?? 0;
 
-  // Only workspaces the user is a member of are ever listed.
+  // Only workspaces the user is a member of (by themselves or through a group) are ever listed.
   app.get("/", async (req) => {
     const user = requireUser(req);
     const rows = db
-      .select({ id: workspaces.id, name: workspaces.name, kind: workspaces.kind, role: workspaceMembers.role })
-      .from(workspaceMembers)
-      .innerJoin(workspaces, eq(workspaces.id, workspaceMembers.workspaceId))
-      .where(eq(workspaceMembers.userId, user.id))
+      .selectDistinct({ id: workspaces.id, name: workspaces.name, kind: workspaces.kind, createdAt: workspaces.createdAt })
+      .from(effectiveWorkspaceMembers)
+      .innerJoin(workspaces, eq(workspaces.id, effectiveWorkspaceMembers.workspaceId))
+      .where(eq(effectiveWorkspaceMembers.userId, user.id))
       .orderBy(workspaces.createdAt)
       .all();
     // Personal space first, then shared spaces.
     const result: WorkspaceSummary[] = [...rows.filter((r) => r.kind === "personal"), ...rows.filter((r) => r.kind === "shared")]
       // With a personal token: its spaces only, with the role it has there.
       .filter((r) => scopeAllows(r.id))
-      .map((r) => ({ ...r, role: getWorkspaceRole(db, user.id, r.id) ?? r.role }));
+      .flatMap(({ id, name, kind }) => {
+        const role = getWorkspaceRole(db, user.id, id);
+        return role ? [{ id, name, kind, role }] : [];
+      });
     return { workspaces: result };
   });
 
@@ -65,6 +74,7 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
       tx.insert(workspaces).values({ id, name: input.name, kind: "shared", createdBy: user.id }).run();
       tx.insert(workspaceMembers).values({ workspaceId: id, userId: user.id, role: "owner" }).run();
     });
+    audit(db, req, { action: "workspace.created", target: { type: "workspace", id, label: input.name } });
     const workspace: WorkspaceSummary = { id, name: input.name, kind: "shared", role: "owner" };
     return { workspace };
   });
@@ -81,7 +91,9 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
   app.delete<{ Params: { id: string } }>("/:id", async (req) => {
     const user = requireUser(req);
     requireSharedOwner(user.id, req.params.id);
+    const ws = getWorkspace(req.params.id)!;
     db.delete(workspaces).where(eq(workspaces.id, req.params.id)).run();
+    audit(db, req, { action: "workspace.deleted", target: spaceTarget(ws) });
     return { ok: true };
   });
 
@@ -90,6 +102,8 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
     const user = requireUser(req);
     requireWorkspaceRole(db, user.id, req.params.id, ["owner"]);
     const deleted = db.delete(pages).where(eq(pages.workspaceId, req.params.id)).run().changes;
+    const ws = getWorkspace(req.params.id);
+    if (ws) audit(db, req, { action: "workspace.emptied", target: spaceTarget(ws), details: { pages: deleted } });
     return { ok: true, deleted };
   });
 
@@ -103,7 +117,54 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
       .where(eq(workspaceMembers.workspaceId, req.params.id))
       .orderBy(users.name)
       .all();
-    return { members };
+    // Groups the space is opened to: everyone in them has that role.
+    const rows = db
+      .select({ groupId: groups.id, name: groups.name, role: workspaceGroupMembers.role })
+      .from(workspaceGroupMembers)
+      .innerJoin(groups, eq(groups.id, workspaceGroupMembers.groupId))
+      .where(eq(workspaceGroupMembers.workspaceId, req.params.id))
+      .orderBy(groups.name)
+      .all();
+    const counts = memberCounts(
+      db,
+      rows.map((r) => r.groupId),
+    );
+    const groupMembers: WorkspaceGroupMember[] = rows.map((r) => ({ ...r, memberCount: counts.get(r.groupId) ?? 0 }));
+    return { members, groups: groupMembers };
+  });
+
+  // Opens the space to a group, or changes its role (never owner: owners are named one by one).
+  app.put<{ Params: { id: string } }>("/:id/groups", async (req) => {
+    const user = requireUser(req);
+    const input = parseBody(setWorkspaceGroupInput, req.body);
+    requireSharedOwner(user.id, req.params.id);
+    const group = requireGroup(db, input.groupId);
+    const was = db
+      .select({ role: workspaceGroupMembers.role })
+      .from(workspaceGroupMembers)
+      .where(and(eq(workspaceGroupMembers.workspaceId, req.params.id), eq(workspaceGroupMembers.groupId, input.groupId)))
+      .get()?.role;
+    if (was !== input.role) {
+      audit(db, req, { action: "workspace.member_set", target: spaceTarget(getWorkspace(req.params.id)!), details: { group: group.name, role: input.role, ...(was && { from: was }) } });
+    }
+    db.insert(workspaceGroupMembers)
+      .values({ workspaceId: req.params.id, groupId: input.groupId, role: input.role })
+      .onConflictDoUpdate({ target: [workspaceGroupMembers.workspaceId, workspaceGroupMembers.groupId], set: { role: input.role } })
+      .run();
+    return { ok: true };
+  });
+
+  app.delete<{ Params: { id: string; groupId: string } }>("/:id/groups/:groupId", async (req) => {
+    const user = requireUser(req);
+    requireSharedOwner(user.id, req.params.id);
+    const removed = db
+      .delete(workspaceGroupMembers)
+      .where(and(eq(workspaceGroupMembers.workspaceId, req.params.id), eq(workspaceGroupMembers.groupId, req.params.groupId)))
+      .run().changes;
+    if (removed) {
+      audit(db, req, { action: "workspace.member_removed", target: spaceTarget(getWorkspace(req.params.id)!), details: { group: findGroup(db, req.params.groupId)?.name ?? req.params.groupId } });
+    }
+    return { ok: true };
   });
 
   // Adds a member or changes their role.
@@ -113,8 +174,22 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
     requireSharedOwner(user.id, req.params.id);
     const target = db.select().from(users).where(eq(users.id, input.userId)).get();
     if (!target || target.disabled) throw new HttpError(404, "user_not_found", t("error.userNotFound"));
+    // A guest is never in a space: pages are shared with them one by one.
+    if (target.role === "guest") throw new HttpError(400, "guest_not_member", t("error.guestNoSpace"));
     if (input.role !== "owner" && ownerCount(req.params.id, input.userId) === 0) {
       throw new HttpError(409, "last_owner", t("error.lastOwner"));
+    }
+    const was = db
+      .select({ role: workspaceMembers.role })
+      .from(workspaceMembers)
+      .where(and(eq(workspaceMembers.workspaceId, req.params.id), eq(workspaceMembers.userId, input.userId)))
+      .get()?.role;
+    if (was !== input.role) {
+      audit(db, req, {
+        action: "workspace.member_set",
+        target: spaceTarget(getWorkspace(req.params.id)!),
+        details: { member: `${target.name} <${target.email}>`, role: input.role, ...(was && { from: was }) },
+      });
     }
     db.insert(workspaceMembers)
       .values({ workspaceId: req.params.id, userId: input.userId, role: input.role })
@@ -129,15 +204,30 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
     if (req.params.userId === user.id) {
       requireWorkspaceRole(db, user.id, req.params.id, ANY_ROLE);
       if (getWorkspace(req.params.id)!.kind === "personal") throw new HttpError(400, "personal_workspace", t("error.leavePersonal"));
+      // In the space only through a group: leaving the group is what takes them out.
+      const direct = db
+        .select({ role: workspaceMembers.role })
+        .from(workspaceMembers)
+        .where(and(eq(workspaceMembers.workspaceId, req.params.id), eq(workspaceMembers.userId, user.id)))
+        .get();
+      if (!direct) throw new HttpError(409, "member_through_group", t("error.memberThroughGroup"));
     } else {
       requireSharedOwner(user.id, req.params.id);
     }
     if (ownerCount(req.params.id, req.params.userId) === 0) {
       throw new HttpError(409, "last_owner", t("error.lastOwner"));
     }
-    db.delete(workspaceMembers)
+    const removed = db
+      .delete(workspaceMembers)
       .where(and(eq(workspaceMembers.workspaceId, req.params.id), eq(workspaceMembers.userId, req.params.userId)))
-      .run();
+      .run().changes;
+    if (removed) {
+      audit(db, req, {
+        action: "workspace.member_removed",
+        target: spaceTarget(getWorkspace(req.params.id)!),
+        details: { member: personTarget(db, req.params.userId).label ?? req.params.userId, ...(req.params.userId === user.id && { left: true }) },
+      });
+    }
     return { ok: true };
   });
 

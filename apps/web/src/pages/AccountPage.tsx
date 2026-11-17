@@ -21,6 +21,9 @@ import { Avatar } from "../components/Avatar";
 import { Button, ErrorText, Field, LanguageSelect, Rich, Select } from "../components/ui";
 import { setLocale } from "../lib/i18n";
 import { NotionImport } from "../components/NotionImport";
+import { PasskeysPanel } from "../components/Passkeys";
+import { startTour } from "../lib/onboarding";
+import { FileImportSection } from "../components/FileImport";
 import { AgentActivityList, ApiTokens, McpConnect } from "../components/ApiTokens";
 import { ConnectedServices, useConnectedServices } from "../components/ConnectedServices";
 import { clearOfflineData } from "../lib/offline";
@@ -54,25 +57,33 @@ export function AccountPage() {
       <EmailSection user={user} />
       <PasswordSection />
       <TwoFactorSection />
+      <Section title={t("passkeys.title")} id="passkeys">
+        <PasskeysPanel />
+      </Section>
       <LanguageSection user={user} />
       <ThemeSection />
       <EmailPrefsSection />
-      <ImportSection />
-      <DemoSection />
-      {!!services.data?.length && (
-        <Section title={t("services.title")} id="services">
-          <ConnectedServices accounts={services.data} />
-        </Section>
+      {/* A guest has no space to import into, and no tokens nor connected apps. */}
+      {user.role !== "guest" && (
+        <>
+          <ImportSection />
+          <DemoSection />
+          {!!services.data?.length && (
+            <Section title={t("services.title")} id="services">
+              <ConnectedServices accounts={services.data} />
+            </Section>
+          )}
+          <Section title={t("mcp.title")} id="mcp">
+            <McpConnect />
+          </Section>
+          <Section title={t("tokens.title")} id="api">
+            <div className="space-y-6">
+              <ApiTokens />
+              <AgentActivityList />
+            </div>
+          </Section>
+        </>
       )}
-      <Section title={t("mcp.title")} id="mcp">
-        <McpConnect />
-      </Section>
-      <Section title={t("tokens.title")} id="api">
-        <div className="space-y-6">
-          <ApiTokens />
-          <AgentActivityList />
-        </div>
-      </Section>
       <DeleteSection />
     </div>
   );
@@ -586,6 +597,9 @@ function DemoSection() {
       >
         ✨ {t("account.demoCreate")}
       </Button>
+      <Button variant="ghost" className="ml-2" onClick={startTour} data-tour-restart>
+        {t("tour.restart")}
+      </Button>
     </Section>
   );
 }
@@ -595,13 +609,16 @@ function ImportSection() {
     <Section title={t("account.import")} id="import">
       <p className="mb-2 text-sm text-neutral-600 dark:text-neutral-400">{t("account.importIntro")}</p>
       <ul className="mb-5 list-disc space-y-1 pl-5 text-sm text-neutral-600 dark:text-neutral-400">
-        {(["account.importNotion", "account.importCsv", "account.importBackup"] as const).map((k) => (
+        {(["account.importFiles", "account.importNotion", "account.importCsv", "account.importBackup"] as const).map((k) => (
           <li key={k}>
             <Rich text={t(k)} />
           </li>
         ))}
       </ul>
-      <NotionImport />
+      <div className="space-y-6">
+        <FileImportSection />
+        <NotionImport />
+      </div>
     </Section>
   );
 }

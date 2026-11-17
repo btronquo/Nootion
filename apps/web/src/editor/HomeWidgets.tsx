@@ -28,7 +28,7 @@ import { SourcesPanel, useSourceDatabases } from "../database/CalendarBlockView"
 import { OPTION_CLASSES } from "../database/format";
 import { useDatabase, useDatabaseActions, useDatabaseList } from "../database/hooks";
 import { Popover } from "../database/Popover";
-import { pageIcon } from "../lib/icons";
+import { PageGlyph, pageIcon } from "../lib/icons";
 
 /** Frame of a widget: a small title with an icon, optional tools on the right. */
 export function Widget({ icon, title, tools, children, name }: { icon: ReactNode; title: ReactNode; tools?: ReactNode; children: ReactNode; name: string }) {
@@ -37,7 +37,9 @@ export function Widget({ icon, title, tools, children, name }: { icon: ReactNode
       <div className="mb-2 flex items-center gap-1.5 text-sm font-medium text-neutral-500">
         {icon}
         <span className="min-w-0 truncate">{title}</span>
-        <span className="ml-auto flex items-center gap-1">{tools}</span>
+        <span className="ml-auto flex items-center gap-1" data-print-hide>
+          {tools}
+        </span>
       </div>
       {children}
     </NodeViewWrapper>
@@ -99,7 +101,9 @@ export function FavoritesListView({ extension }: NodeViewProps) {
             to={`/page/${p.id}`}
             className="flex min-w-0 items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
           >
-            <span className="w-5 shrink-0 text-center">{pageIcon(p.icon) ?? (p.kind === "database" ? "🗃" : "📄")}</span>
+            <span className="w-5 shrink-0 text-center">
+              <PageGlyph icon={p.icon} kind={p.kind} size={16} fallback="📄" />
+            </span>
             <span className="truncate">{pageTitle(p.title)}</span>
           </Link>
         ))}

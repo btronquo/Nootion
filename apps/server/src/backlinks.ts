@@ -1,4 +1,4 @@
-import { and, isNull, ne, sql } from "drizzle-orm";
+import { and, eq, isNull, ne, sql } from "drizzle-orm";
 import type { Backlink } from "@nootion/shared";
 import type { Db } from "./db/index.js";
 import { pages } from "./db/schema.js";
@@ -39,11 +39,16 @@ export function listBacklinks(db: Db, userId: string, pageId: string): Backlink[
     .orderBy(sql`${pages.updatedAt} desc`)
     .all();
   const result: Backlink[] = [];
+  const seen = new Set<string>();
   for (const p of candidates) {
     const content = p.contentJson as ProseMirrorNode | null;
     if (!content || !linksTo(content, pageId)) continue;
     if (!getPageRole(db, userId, p.id) || isTrashed(getChain(db, p.id))) continue;
-    result.push({ ...toSummary(p), excerpt: excerpt(content, pageId) ?? "" });
+    // A link in a synced block is listed under the page where the block lives.
+    const shown = p.kind === "block" && p.parentId ? db.select().from(pages).where(eq(pages.id, p.parentId)).get() : p;
+    if (!shown || shown.kind === "block" || shown.id === pageId || seen.has(shown.id)) continue;
+    seen.add(shown.id);
+    result.push({ ...toSummary(shown), excerpt: excerpt(content, pageId) ?? "" });
   }
   return result;
 }

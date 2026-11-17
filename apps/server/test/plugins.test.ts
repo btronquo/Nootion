@@ -67,9 +67,10 @@ beforeEach(async () => {
 afterEach(() => app.close());
 
 describe("plugins", () => {
-  it("lists plugins: the built-in embed is on, others are off by default", async () => {
+  it("lists plugins: the built-in embed is on, others (the AI assistant…) are off by default", async () => {
     const admin = (await boris.get("/api/admin/plugins")).json();
     expect(admin.plugins.map((p: { id: string; enabled: boolean; builtin: boolean }) => [p.id, p.enabled, p.builtin])).toEqual([
+      ["assistant", false, true],
       ["embed", true, true],
       ["google_calendar", false, true],
       ["map", false, true],

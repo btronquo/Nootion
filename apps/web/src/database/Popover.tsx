@@ -10,18 +10,37 @@ export function Popover({ anchor, onClose, children, width: wanted = 260 }: { an
 
   useLayoutEffect(() => {
     if (!anchor) return;
-    const r = anchor.getBoundingClientRect();
-    const height = ref.current?.offsetHeight ?? 200;
-    const top = r.bottom + 4 + height > window.innerHeight ? Math.max(8, r.top - height - 4) : r.bottom + 4;
-    setPos({ left: Math.max(8, Math.min(r.left, window.innerWidth - width - 8)), top });
+    const place = () => {
+      const r = anchor.getBoundingClientRect();
+      const height = ref.current?.offsetHeight ?? 200;
+      const top = r.bottom + 4 + height > window.innerHeight ? Math.max(8, r.top - height - 4) : r.bottom + 4;
+      setPos((p) => {
+        const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8));
+        return p && p.left === left && p.top === top ? p : { left, top };
+      });
+    };
+    place();
+    // The anchor can grow while the panel is open (an equation drawn as it is typed): the panel follows it.
+    // Only a real element: the block menu anchors to a fixed spot (an object with a rectangle), not observable.
+    const observer = typeof ResizeObserver === "undefined" || !(anchor instanceof Element) ? null : new ResizeObserver(place);
+    observer?.observe(anchor);
+    return () => observer?.disconnect();
   }, [anchor, width]);
 
   useEffect(() => {
+    // A popover opened from this one (a menu inside a filter) sits later in the page: it is not "outside",
+    // and it closes first on Escape.
+    const openedLater = (el: Element | null) =>
+      !!el && !!ref.current && el !== ref.current && !!(ref.current.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING);
     const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node) && !anchor?.contains(e.target as Node)) onClose();
+      const target = e.target as Node;
+      if (target instanceof Element && openedLater(target.closest(".nt-pop"))) return;
+      if (ref.current && !ref.current.contains(target) && !anchor?.contains(target)) onClose();
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
+      const pops = document.querySelectorAll(".nt-pop");
+      if (openedLater(pops[pops.length - 1] ?? null)) return;
       // Only this popover closes, not a dialog it sits in.
       e.preventDefault();
       onClose();

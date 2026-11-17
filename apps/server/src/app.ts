@@ -1,3 +1,4 @@
+import { createSearchIndexer } from "./search-index.js";
 import fs from "node:fs";
 import path from "node:path";
 import Fastify, { type FastifyInstance } from "fastify";
@@ -11,10 +12,12 @@ import { syncMentions } from "./mentions.js";
 import { attachmentRoutes } from "./routes/attachments.js";
 import { databaseRoutes } from "./routes/databases.js";
 import { cleanOrphanFiles } from "./attachments.js";
+import { configureFileStore, fileStore } from "./files.js";
 import { DEFAULT_TRUST_PROXY, type Config } from "./config.js";
 import type { Db } from "./db/index.js";
 import { findSessionUser, SESSION_COOKIE } from "./auth/sessions.js";
 import { HttpError } from "./http.js";
+import { guestForbidden, guestRefused, guestsAllowed, isGuest } from "./guests.js";
 import { requestLocale, withLocale } from "./i18n.js";
 import { t } from "@nootion/shared";
 import type { UserRow } from "./users.js";
@@ -22,7 +25,9 @@ import { setupRoutes } from "./routes/setup.js";
 import { desktopRoutes } from "./routes/desktop.js";
 import { syncRoutes } from "./routes/sync.js";
 import { authRoutes } from "./routes/auth.js";
+import { groupAdminRoutes, groupRoutes } from "./routes/groups.js";
 import { twoFactorRoutes } from "./routes/two-factor.js";
+import { passkeyRoutes } from "./routes/passkeys.js";
 import { favoriteRoutes } from "./routes/favorites.js";
 import { calendarFeedRoutes, icalRoutes } from "./routes/calendar.js";
 import { homeRoutes } from "./routes/home.js";
@@ -32,6 +37,7 @@ import { invitationRoutes } from "./routes/invitations.js";
 import { workspaceRoutes } from "./routes/workspaces.js";
 import { pageRoutes } from "./routes/pages.js";
 import { commentRoutes } from "./routes/comments.js";
+import { syncedBlockRoutes } from "./routes/synced-blocks.js";
 import { automationRoutes } from "./routes/automations.js";
 import { createAutomations, type Automations } from "./automations.js";
 import { createRecurrences, type Recurrences } from "./recurrences.js";
@@ -53,13 +59,17 @@ import { userRoutes } from "./routes/users.js";
 import { publicRoutes } from "./routes/public.js";
 import { pluginAdminRoutes, pluginRoutes } from "./routes/plugins.js";
 import { exportRoutes } from "./routes/export.js";
+import { fileImportRoutes } from "./routes/import-files.js";
 import { notionRoutes } from "./routes/notion.js";
 import { searchRoutes } from "./routes/search.js";
+import { taskRoutes } from "./routes/tasks.js";
+import { createTaskIndexer } from "./tasks.js";
 import { builtinPluginsDir, PluginManager } from "./plugins.js";
 import { createExtractor, type Extractor } from "./extract.js";
 import { createNotifier, type Notifier, type PushSender } from "./reminders.js";
 import { reminderRoutes } from "./routes/reminders.js";
 import { apiTokenRoutes } from "./routes/api-tokens.js";
+import { auditRoutes } from "./routes/audit.js";
 import { oauthDiscoveryRoutes, oauthRoutes } from "./routes/oauth.js";
 import { mcpRoutes } from "./mcp.js";
 import { ACT_AS_HEADER, INTERNAL_HEADER, INTERNAL_SECRET } from "./internal.js";
@@ -142,6 +152,8 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
   });
   app.decorate("db", opts.db);
   app.decorate("config", opts.config);
+  // Attached files: the data folder, or a bucket when FILES_S3_BUCKET is set.
+  configureFileStore(opts.config.dataDir, opts.config.files ?? null);
   const collab = createCollab(opts.db);
   app.decorate("collab", collab);
   collab.storeHooks.onStored = (pageId, json) => void syncMentions(app, pageId, json).catch((err) => app.log.warn({ err }, "Couldn't send mentions"));
@@ -157,6 +169,14 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
   app.decorate("extractor", extractor);
   app.addHook("onReady", async () => extractor.wake());
   app.addHook("onClose", async () => extractor.stop());
+  // Indexes the values of database rows for search, as rows and columns change.
+  const searchIndexer = createSearchIndexer(opts.db, app.log);
+  app.addHook("onReady", async () => searchIndexer.wake());
+  app.addHook("onClose", async () => searchIndexer.stop());
+  // Reads the to-dos of pages for "Tasks", as their content changes.
+  const taskIndexer = createTaskIndexer(opts.db, app.log);
+  app.addHook("onReady", async () => taskIndexer.wake());
+  app.addHook("onClose", async () => taskIndexer.stop());
   // Sends reminders to the devices of their users as they fall due.
   // E-mail, once administrators set a provider.
   const mailer = createMailer({ db: opts.db, appSecret: opts.config.appSecret, appUrl: opts.config.appUrl, log: app.log, sender: opts.mailSender });
@@ -248,6 +268,21 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
     const token = req.cookies[SESSION_COOKIE];
     if (token) req.user = findSessionUser(opts.db, token);
   });
+  // Guests: signed out while administrators have turned guests off, and refused what only members may do.
+  app.addHook("onRequest", async (req) => {
+    if (!isGuest(req.user)) return;
+    if (!guestsAllowed(opts.db)) {
+      if (req.tokenScope)
+        throw new HttpError(
+          401,
+          "guests_off",
+          withLocale(requestLocale(req), () => t("error.guestsOff")),
+        );
+      req.user = null;
+      return;
+    }
+    if (req.tokenScope || guestRefused(req.method, req.url)) throw withLocale(requestLocale(req), () => guestForbidden());
+  });
   // From here on (the body is parsed), t() speaks the user's language until the response is sent,
   // and permission checks stay within the token's scope for requests made with one.
   app.addHook("preValidation", (req, _reply, done) => withLocale(requestLocale(req), () => withTokenScope(req.tokenScope, done)));
@@ -308,7 +343,16 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
     if (!accountDeleted && !ACCESS_CHANGES.some((r) => r.test(url))) return;
     if (req.method === "PATCH" && url.startsWith("/api/pages/")) return; // title/icon edits
     collab.revalidateAll();
-    if (req.method === "DELETE") cleanOrphanFiles(opts.db, opts.config.dataDir);
+  });
+  // Deletions take the files of what they deleted: from the data folder before answering (quick), from a bucket in
+  // the background (it has to be listed).
+  app.addHook("onSend", async (req, reply, payload) => {
+    if (req.method !== "DELETE" || reply.statusCode >= 400) return payload;
+    const url = req.url.split("?")[0];
+    if (url !== "/api/auth/me" && !ACCESS_CHANGES.some((r) => r.test(url))) return payload;
+    const cleaning = cleanOrphanFiles(opts.db, opts.config.dataDir).catch((err) => req.log.warn({ err }, "Couldn't remove the files of deleted pages"));
+    if (fileStore(opts.config.dataDir).kind === "folder") await cleaning;
+    return payload;
   });
 
   // `desktop`: the desktop app's own Nootion, which can keep spaces in sync with a server (routes/desktop.ts).
@@ -318,12 +362,17 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
   await app.register(syncRoutes, { prefix: "/api/sync" });
   await app.register(authRoutes, { prefix: "/api/auth" });
   await app.register(twoFactorRoutes, { prefix: "/api/auth" });
+  await app.register(passkeyRoutes, { prefix: "/api/auth" });
   await app.register(adminRoutes, { prefix: "/api/admin" });
+  await app.register(groupAdminRoutes, { prefix: "/api/admin/groups" });
+  await app.register(groupRoutes, { prefix: "/api/groups" });
+  await app.register(auditRoutes, { prefix: "/api/admin/audit" });
   await app.register(invitationRoutes, { prefix: "/api/invitations" });
   await app.register(workspaceRoutes, { prefix: "/api/workspaces" });
   await app.register(pageRoutes, { prefix: "/api/pages" });
   await app.register(libraryRoutes, { prefix: "/api/pages" });
   await app.register(commentRoutes, { prefix: "/api" });
+  await app.register(syncedBlockRoutes, { prefix: "/api" });
   await app.register(automationRoutes, { prefix: "/api" });
   await app.register(recurrenceRoutes, { prefix: "/api/pages" });
   await app.register(backupRoutes, { prefix: "/api/admin/backups" });
@@ -339,6 +388,7 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
   await app.register(icalRoutes, { prefix: "/api/ical" });
   await app.register(homeRoutes, { prefix: "/api" });
   await app.register(inboxRoutes, { prefix: "/api" });
+  await app.register(taskRoutes, { prefix: "/api" });
   await app.register(liveEventRoutes, { prefix: "/api" });
   await app.register(iconRoutes, { prefix: "/api/icons" });
   await app.register(reminderRoutes, { prefix: "/api/reminders" });
@@ -356,6 +406,7 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
   await app.register(exportRoutes, { prefix: "/api" });
   await app.register(searchRoutes, { prefix: "/api/search" });
   await app.register(notionRoutes, { prefix: "/api/import/notion" });
+  await app.register(fileImportRoutes, { prefix: "/api/import/files" });
   const pluginManager = new PluginManager(opts.db, {
     dirs: [
       { path: builtinPluginsDir(), builtin: true },

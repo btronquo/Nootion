@@ -47,7 +47,13 @@ body {
 @keyframes nt-pop-in {
   from {
     opacity: 0;
-    transform: translateY(-4px) scale(0.98);
+    transform: translateY(-6px) scale(0.97);
+  }
+}
+@keyframes nt-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(var(--nt-slide, 8px));
   }
 }
 .nt-backdrop {
@@ -57,7 +63,12 @@ body {
   animation: nt-rise-in 220ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 .nt-pop {
-  animation: nt-pop-in 140ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  transform-origin: top left;
+  animation: nt-pop-in 180ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+/* A calendar month that slides in from the side it comes from. */
+.nt-slide {
+  animation: nt-slide-in 200ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
 .nt-backdrop[data-closing] {
   animation: nt-fade-out 140ms ease-in forwards;
@@ -69,6 +80,7 @@ body {
   .nt-backdrop,
   .nt-dialog,
   .nt-pop,
+  .nt-slide,
   .nt-backdrop[data-closing],
   [data-closing] .nt-dialog {
     animation: none;
@@ -81,6 +93,19 @@ body {
 }
 .comment-highlight-active {
   @apply bg-amber-200/80 dark:bg-amber-800/50;
+}
+
+/* ---------- Panel under a selection (suggestions of plugins) ---------- */
+.selection-panel-source {
+  @apply rounded-sm bg-violet-100/70 dark:bg-violet-900/40;
+}
+.selection-panel {
+  @apply my-2 cursor-default rounded-lg border border-neutral-200 bg-white p-3 text-sm leading-6 whitespace-normal shadow-md select-text dark:border-neutral-700 dark:bg-neutral-900;
+}
+@media print {
+  .selection-panel {
+    display: none;
+  }
 }
 
 /* ---------- Page content (editor and public view) ---------- */
@@ -148,23 +173,23 @@ body {
     center / contain no-repeat;
 }
 /* To-do boxes as in Notion: a bit bigger, blue when checked, with a check that pops in. */
-.nootion-content ul[data-type="taskList"] input[type="checkbox"] {
+:is(.nootion-content ul[data-type="taskList"], .nt-tasks) input[type="checkbox"] {
   @apply relative m-0 h-[18px] w-[18px] shrink-0 cursor-pointer appearance-none rounded-[4px] border-[1.5px] border-neutral-400 bg-transparent dark:border-neutral-500;
   transition:
     background-color 150ms ease,
     border-color 150ms ease,
     transform 100ms ease;
 }
-.nootion-content ul[data-type="taskList"] input[type="checkbox"]:hover {
+:is(.nootion-content ul[data-type="taskList"], .nt-tasks) input[type="checkbox"]:hover {
   @apply bg-neutral-100 dark:bg-neutral-800;
 }
-.nootion-content ul[data-type="taskList"] input[type="checkbox"]:active {
+:is(.nootion-content ul[data-type="taskList"], .nt-tasks) input[type="checkbox"]:active {
   transform: scale(0.9);
 }
-.nootion-content ul[data-type="taskList"] input[type="checkbox"]:focus-visible {
+:is(.nootion-content ul[data-type="taskList"], .nt-tasks) input[type="checkbox"]:focus-visible {
   @apply outline-2 outline-offset-2 outline-blue-500;
 }
-.nootion-content ul[data-type="taskList"] input[type="checkbox"]::after {
+:is(.nootion-content ul[data-type="taskList"], .nt-tasks) input[type="checkbox"]::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -177,18 +202,18 @@ body {
     opacity 150ms ease,
     transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.nootion-content ul[data-type="taskList"] input[type="checkbox"]:checked {
+:is(.nootion-content ul[data-type="taskList"], .nt-tasks) input[type="checkbox"]:checked {
   @apply border-[#2383e2] bg-[#2383e2];
 }
-.nootion-content ul[data-type="taskList"] input[type="checkbox"]:checked::after {
+:is(.nootion-content ul[data-type="taskList"], .nt-tasks) input[type="checkbox"]:checked::after {
   opacity: 1;
   transform: scale(1);
 }
 @media (prefers-reduced-motion: reduce) {
   .nootion-content ul[data-type="taskList"] li > div,
   .nootion-content ul[data-type="taskList"] li[data-checked="true"] > div,
-  .nootion-content ul[data-type="taskList"] input[type="checkbox"],
-  .nootion-content ul[data-type="taskList"] input[type="checkbox"]::after {
+  :is(.nootion-content ul[data-type="taskList"], .nt-tasks) input[type="checkbox"],
+  :is(.nootion-content ul[data-type="taskList"], .nt-tasks) input[type="checkbox"]::after {
     transition: none;
     animation: none;
   }
@@ -205,13 +230,221 @@ body {
 .nootion-content pre code {
   @apply bg-transparent p-0 text-inherit;
 }
+/* Code blocks: language, wrapping and copy above the code, shown on hover (always on touch screens). */
+.nootion-content .code-block {
+  @apply my-2 rounded-lg bg-neutral-100 dark:bg-neutral-800;
+}
+.nootion-content .code-block pre {
+  @apply my-0 rounded-t-none bg-transparent pt-1;
+  /* Long lines scroll sideways, unless the block wraps them. */
+  white-space: pre;
+  tab-size: 2;
+}
+/* The editor writes pre-wrap on the code itself. */
+.nootion-content .code-block pre > code {
+  white-space: inherit !important;
+}
+.nootion-content .code-block[data-wrap] pre {
+  @apply break-words whitespace-pre-wrap;
+}
+.code-block-bar {
+  @apply flex min-h-7 items-center gap-1 px-2 pt-1 select-none;
+}
+.code-block-bar .code-block-actions {
+  @apply opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 touch:opacity-100;
+}
+@media print {
+  .code-block-bar .code-block-actions {
+    display: none;
+  }
+}
+/* Mermaid diagrams: drawn under their source, which hides while the cursor is elsewhere. */
+.nootion-content .code-block[data-source-hidden] pre {
+  display: none;
+}
+.mermaid-preview {
+  @apply px-4 pb-4 select-none;
+}
+.code-block[data-source-hidden] .mermaid-preview {
+  @apply pt-1;
+}
+.mermaid-diagram {
+  @apply overflow-x-auto transition-opacity;
+}
+.mermaid-diagram svg {
+  @apply mx-auto block h-auto max-w-full;
+}
+.dark .mermaid-diagram .mermaid-light,
+.mermaid-diagram .mermaid-dark {
+  display: none;
+}
+.dark .mermaid-diagram .mermaid-dark {
+  display: block;
+}
+.mermaid-message {
+  @apply text-xs text-neutral-500 dark:text-neutral-400;
+}
+.mermaid-error {
+  @apply mt-2 text-red-600 dark:text-red-400;
+}
+.mermaid-empty {
+  @apply text-xs text-neutral-500 italic dark:text-neutral-400;
+}
+@media print {
+  /* On paper, a drawn diagram stands for its source. */
+  .nootion-content .code-block[data-diagram] pre,
+  .mermaid-empty,
+  .mermaid-message {
+    display: none;
+  }
+  /* A diagram is never cut between two sheets. */
+  .mermaid-diagram {
+    break-inside: avoid;
+    overflow: visible;
+  }
+}
+/* Equations (KaTeX): in a line, or a block of their own, centred. */
+.math-inline {
+  @apply rounded-sm px-0.5 transition-colors;
+}
+.math-block {
+  @apply my-1 block overflow-x-auto overflow-y-hidden rounded px-2 py-2 text-center transition-colors;
+}
+.math-inline.cursor-pointer:hover,
+.math-block.cursor-pointer:hover {
+  @apply bg-neutral-100 dark:bg-neutral-800;
+}
+.math-selected {
+  @apply bg-blue-100 dark:bg-blue-900/40;
+}
+.math-block .katex-display {
+  @apply m-0;
+}
+.math-source {
+  @apply font-mono text-[0.85em] text-neutral-600 dark:text-neutral-300;
+}
+.math-has-error .math-source {
+  @apply text-red-600 underline decoration-wavy decoration-red-400 dark:text-red-400;
+}
+.math-placeholder {
+  @apply text-sm text-neutral-400 italic;
+}
+.math-preview {
+  @apply min-h-8 overflow-x-auto rounded bg-neutral-50 px-2 py-1.5 dark:bg-neutral-800/60;
+}
+@media print {
+  .math-placeholder {
+    display: none;
+  }
+  .math-block {
+    break-inside: avoid;
+    overflow: visible;
+  }
+  .math-selected {
+    background: none;
+  }
+}
+/* Colours of the code, after GitHub's light and dark themes. */
+.nootion-content pre {
+  --hl-keyword: #cf222e;
+  --hl-string: #0a3069;
+  --hl-number: #0550ae;
+  --hl-comment: #6e7781;
+  --hl-function: #8250df;
+  --hl-type: #953800;
+  --hl-tag: #116329;
+  --hl-attr: #0550ae;
+  --hl-addition-bg: #dafbe1;
+  --hl-deletion-bg: #ffebe9;
+}
+.dark .nootion-content pre {
+  --hl-keyword: #ff7b72;
+  --hl-string: #a5d6ff;
+  --hl-number: #79c0ff;
+  --hl-comment: #8b949e;
+  --hl-function: #d2a8ff;
+  --hl-type: #ffa657;
+  --hl-tag: #7ee787;
+  --hl-attr: #79c0ff;
+  --hl-addition-bg: #033a16;
+  --hl-deletion-bg: #67060c;
+}
+.hljs-keyword,
+.hljs-doctag,
+.hljs-meta .hljs-keyword,
+.hljs-template-tag,
+.hljs-template-variable,
+.hljs-variable.language_,
+.hljs-type {
+  color: var(--hl-keyword);
+}
+.hljs-title,
+.hljs-title.function_,
+.hljs-title.class_ {
+  color: var(--hl-function);
+}
+.hljs-attr,
+.hljs-attribute,
+.hljs-literal,
+.hljs-meta,
+.hljs-number,
+.hljs-operator,
+.hljs-variable,
+.hljs-selector-attr,
+.hljs-selector-class,
+.hljs-selector-id {
+  color: var(--hl-number);
+}
+.hljs-regexp,
+.hljs-string,
+.hljs-meta .hljs-string {
+  color: var(--hl-string);
+}
+.hljs-built_in,
+.hljs-symbol,
+.hljs-params {
+  color: var(--hl-type);
+}
+.hljs-comment,
+.hljs-code,
+.hljs-formula {
+  color: var(--hl-comment);
+  font-style: italic;
+}
+.hljs-name,
+.hljs-quote,
+.hljs-selector-tag,
+.hljs-selector-pseudo {
+  color: var(--hl-tag);
+}
+.hljs-section {
+  color: var(--hl-number);
+  font-weight: 600;
+}
+.hljs-bullet {
+  color: var(--hl-type);
+}
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: 600;
+}
+.hljs-addition {
+  color: var(--hl-tag);
+  background-color: var(--hl-addition-bg);
+}
+.hljs-deletion {
+  color: var(--hl-keyword);
+  background-color: var(--hl-deletion-bg);
+}
 .nootion-content hr {
   @apply my-6 border-neutral-200 dark:border-neutral-700;
 }
 .nootion-content img {
   @apply my-2 max-w-full rounded-md;
 }
-.nootion-content > .ProseMirror-selectednode:not(img, [data-node-view-wrapper]),
+.nootion-content > .ProseMirror-selectednode:not(img, [data-node-view-wrapper], .node-syncedBlock),
 .nootion-content li.ProseMirror-selectednode {
   /* The block whose menu is open (or picked with its handle), as in Notion. */
   background-color: rgb(35 131 226 / 0.14);
@@ -284,7 +517,7 @@ body {
   display: none;
 }
 .nootion-content .columns {
-  @apply my-2 grid gap-6;
+  @apply my-2 grid gap-10;
   grid-auto-columns: minmax(0, 1fr);
   grid-auto-flow: column;
 }
@@ -292,7 +525,30 @@ body {
   .nootion-content .columns {
     @apply gap-2;
     grid-auto-flow: row;
+    /* The widths chosen on a wide screen don't apply when the columns are one under the other. */
+    grid-template-columns: none !important;
   }
+}
+/* The bar between two columns that resizes them (columnResize.ts): a thin line in the middle of the gap. */
+.nt-column-resize {
+  position: fixed;
+  z-index: 40;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.nt-column-resize::after {
+  content: "";
+  @apply absolute inset-y-0 left-[3px] w-0.5 rounded-full bg-neutral-300 transition-colors dark:bg-neutral-600;
+}
+.nt-column-resize:hover::after,
+.nt-column-resize.is-active::after {
+  @apply bg-blue-500;
+}
+body.nt-resizing-columns,
+body.nt-resizing-columns * {
+  cursor: col-resize !important;
+  user-select: none !important;
 }
 .nootion-content .column > :first-child {
   @apply mt-0;
@@ -309,6 +565,38 @@ body {
 }
 .nootion-content .page-link-private {
   @apply cursor-default text-neutral-400 no-underline;
+}
+/* A synced block: a thin frame on hover, and its bar ("Synced in 3 pages", copy, unsync) at its top right. */
+.nootion-content .synced-block {
+  @apply relative -mx-2 rounded-md border border-transparent px-2 py-0.5 transition-colors;
+}
+.nootion-content .synced-block:hover,
+.nootion-content .synced-block:focus-within,
+.nootion-content .ProseMirror-selectednode > [data-node-view-wrapper] > .synced-block,
+.nootion-content .synced-block-touch {
+  @apply border-orange-300 dark:border-orange-700/70;
+}
+.nootion-content .synced-block-bar {
+  @apply pointer-events-none absolute -top-3 right-2 z-10 flex items-center gap-0.5 rounded-md border border-orange-200 bg-white px-0.5 text-xs leading-5 text-orange-700 opacity-0 shadow-sm transition-opacity dark:border-orange-800 dark:bg-neutral-900 dark:text-orange-300;
+}
+.nootion-content .synced-block:hover > .synced-block-bar,
+.nootion-content .synced-block:focus-within > .synced-block-bar,
+.nootion-content .ProseMirror-selectednode > [data-node-view-wrapper] > .synced-block > .synced-block-bar,
+.nootion-content .synced-block-touch > .synced-block-bar {
+  @apply pointer-events-auto opacity-100;
+}
+/* On touch screens there is no hover: the bar stays, above the content, without covering it. */
+.nootion-content .synced-block-touch > .synced-block-bar {
+  @apply static mb-1 ml-auto w-fit;
+}
+/* The block's own editor: no minimum height, the content's spacing. */
+.nootion-content .synced-block-content {
+  @apply min-h-0;
+}
+@media print {
+  .nootion-content .synced-block {
+    @apply border-transparent;
+  }
 }
 /* A date in the text: "@tomorrow 9am". */
 .nootion-content .date-mention {
@@ -514,6 +802,13 @@ body {
 .nootion-content [data-color$="-bg"] {
   border-radius: 3px;
 }
+/* Highlighted text: the block colors' backgrounds, without the browser's yellow. */
+.nootion-content mark.nt-highlight {
+  color: inherit;
+  padding: 0 1px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
 /* A block reached by its link: shown for a moment. */
 @keyframes nt-block-flash {
   from {
@@ -526,4 +821,109 @@ body {
 .nootion-content .nt-block-flash {
   border-radius: 3px;
   animation: nt-block-flash 2.5s ease-out;
+}
+
+/*
+ * Printing, and "Save as PDF" (lib/print.ts): only the page, on white, over as many sheets as it takes. Toggles are
+ * open, rows of tables and cards are not cut across two sheets, links say where they lead, and a new sheet can start
+ * before headings (chosen in the print dialog, as attributes of <html>).
+ */
+@media print {
+  @page {
+    margin: 16mm 14mm;
+  }
+  html,
+  body,
+  #root {
+    height: auto !important;
+    overflow: visible !important;
+  }
+  body {
+    background: white !important;
+    color: black !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  /* What is there to act, not to read. */
+  .nt-backdrop,
+  [data-block-handle],
+  .nt-column-resize,
+  [data-show-more],
+  [data-print-hide],
+  [role="tablist"] > [role="tab"][aria-selected="false"],
+  .nootion-content .button-block,
+  [role="toolbar"],
+  [role="status"],
+  [data-comments-panel],
+  .nootion-content .ProseMirror-gapcursor {
+    display: none !important;
+  }
+  /* The page itself fills the sheet: no margins of the screen, no width limit. */
+  main > div > div.mx-auto {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  /* Toggles: their arrow pointing down (opened in the base layer below). */
+  .nootion-content [data-type="details"] > button::before {
+    rotate: 90deg;
+  }
+
+  /* Blocks that make no sense split across two sheets. */
+  .nootion-content pre,
+  .nootion-content blockquote,
+  .nootion-content .callout,
+  .nootion-content img,
+  .nootion-content figure,
+  .nootion-content tr,
+  [role="row"],
+  [role="listitem"],
+  [data-card] {
+    break-inside: avoid;
+  }
+  .nootion-content h1,
+  .nootion-content h2,
+  .nootion-content h3 {
+    break-after: avoid;
+  }
+  .nootion-content thead {
+    display: table-header-group;
+  }
+  img {
+    max-width: 100% !important;
+  }
+
+  /* Wide things (tables, boards, timelines) are not scrolled on paper: shown as far as the sheet goes. */
+  main .overflow-x-auto,
+  main .overflow-auto,
+  main .overflow-y-auto {
+    overflow: visible !important;
+  }
+  main .sticky {
+    position: static !important;
+  }
+
+  /* Where links lead, after them (not for links inside the workspace, nor mentions). */
+  html[data-print-links] .nootion-content a[href^="http"]::after {
+    content: " (" attr(href) ")";
+    font-size: 0.8em;
+    color: #525252;
+    word-break: break-all;
+  }
+
+  /* A new sheet before headings, if asked. */
+  html[data-print-breaks] .nootion-content > h1:not(:first-child),
+  html[data-print-breaks="h2"] .nootion-content > h2:not(:first-child) {
+    break-before: page;
+  }
+}
+
+/* Toggles open on paper. In the base layer: Tailwind's `[hidden] { display: none !important }` lives there, and an
+   important rule of an earlier layer wins over any later one. */
+@layer base {
+  @media print {
+    .nootion-content [data-type="detailsContent"][hidden] {
+      display: block !important;
+    }
+  }
 }

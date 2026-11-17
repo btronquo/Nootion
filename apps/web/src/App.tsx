@@ -5,8 +5,9 @@ import { ForgotPasswordPage, ResetPasswordPage } from "./pages/PasswordPages";
 import { LoginPage } from "./pages/LoginPage";
 import { InvitePage } from "./pages/InvitePage";
 import { AppShell } from "./components/AppShell";
-import { HomePage } from "./pages/HomePage";
+import { GuestHomePage, HomePage } from "./pages/HomePage";
 import { AdminPage } from "./pages/AdminPage";
+import { SetupAssistantPage } from "./pages/SetupAssistant";
 import { PagePage } from "./pages/PagePage";
 import { WorkspacePage } from "./pages/WorkspacePage";
 import { TrashPage } from "./pages/TrashPage";
@@ -19,6 +20,7 @@ import { PublicFormPage } from "./pages/PublicFormPage";
 import { t } from "@nootion/shared";
 import { LibraryPage } from "./pages/LibraryPage";
 import { SyncPage } from "./pages/SyncPage";
+import { TasksPage } from "./tasks/TasksPage";
 import { lazy, Suspense } from "react";
 
 // The graph (and its layout code) loads only when opened.
@@ -75,8 +77,10 @@ function PrivateApp() {
   return (
     <Routes>
       <Route path="/oauth/authorize" element={<OauthAuthorizePage />} />
+      {/* The setup assistant takes the whole screen, without the sidebar. */}
+      {user.role === "admin" && <Route path="/admin/setup" element={<SetupAssistantPage />} />}
       <Route element={<AppShell />}>
-        <Route index element={<HomePage />} />
+        <Route index element={user.role === "guest" ? <GuestHomePage /> : <HomePage />} />
         <Route path="/page/:id" element={<PagePage />} />
         <Route path="/workspace/:id" element={<WorkspacePage />} />
         <Route path="/trash" element={<TrashPage />} />
@@ -90,6 +94,7 @@ function PrivateApp() {
           }
         />
         <Route path="/reminders" element={<RemindersPage />} />
+        <Route path="/tasks" element={<TasksPage />} />
         <Route path="/capture" element={<CapturePage />} />
         <Route path="/account" element={<AccountPage />} />
         <Route path="/sync" element={<SyncPage />} />

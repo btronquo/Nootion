@@ -20,7 +20,8 @@ export function SetupPage() {
     try {
       await api("/setup", { method: "POST", body: form });
       await refresh();
-      navigate("/", { replace: true });
+      // The setup assistant comes next (it can be skipped).
+      navigate("/admin/setup", { replace: true });
     } catch (err) {
       setError(err);
     } finally {

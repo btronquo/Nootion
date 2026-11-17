@@ -1,4 +1,5 @@
 import path from "node:path";
+import { s3SettingsFromEnv, type S3Settings } from "./s3.js";
 
 export interface Config {
   port: number;
@@ -10,6 +11,8 @@ export interface Config {
   webDir: string | null;
   isProduction: boolean;
   maxUploadMb: number;
+  /** Largest import from files (all the files sent together, archives included), in MB. */
+  importMaxMb: number;
   /** Notion's API, for imports. Changed in tests only. */
   notionApiUrl: string;
   /** Pause between two requests to Notion (it allows about 3 per second). */
@@ -32,6 +35,8 @@ export interface Config {
    * app signs its user in without a password (`routes/desktop.ts`). Never set on a server.
    */
   desktop?: { token: string; userName: string } | null;
+  /** Attached files in an S3-compatible bucket (FILES_S3_*) rather than in the data folder. */
+  files?: S3Settings | null;
 }
 
 /** Proxies trusted by default: on the server itself or its private network (a public visitor can't pose as one). */
@@ -45,7 +50,12 @@ function trustProxy(value: string | undefined): boolean | string {
   return v;
 }
 
-const EXAMPLE_SECRETS = new Set(["replace-me-with-a-long-random-string", "dev-secret-do-not-use-in-production", "remplacez-moi-par-une-longue-chaine-aleatoire", "collez-ici-une-longue-chaine-aleatoire"]);
+const EXAMPLE_SECRETS = new Set([
+  "replace-me-with-a-long-random-string",
+  "dev-secret-do-not-use-in-production",
+  "remplacez-moi-par-une-longue-chaine-aleatoire",
+  "collez-ici-une-longue-chaine-aleatoire",
+]);
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const isProduction = env.NODE_ENV === "production";
@@ -67,6 +77,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     webDir: env.WEB_DIR ? path.resolve(env.WEB_DIR) : null,
     isProduction,
     maxUploadMb: Number(env.MAX_UPLOAD_MB ?? 50),
+    importMaxMb: Number(env.IMPORT_MAX_MB ?? 500),
     notionRequestInterval: Number(env.NOTION_REQUEST_INTERVAL ?? 340),
     demoPage: env.DEMO_PAGE !== "false",
     updateCheck: env.UPDATE_CHECK !== "false",
@@ -75,6 +86,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     contentSecurityPolicy: !/^(off|false|no|0)$/i.test(env.CONTENT_SECURITY_POLICY?.trim() ?? ""),
     notionApiUrl: (env.NOTION_API_URL ?? "https://api.notion.com").replace(/\/+$/, ""),
     desktop: desktopConfig(env),
+    files: s3SettingsFromEnv(env),
   };
 }
 

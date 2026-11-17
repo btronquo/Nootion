@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import {
   atLeast,
@@ -37,13 +37,14 @@ import {
   type PropertyConfig,
   type PropertyType,
   type SelectOption,
+  type ViewOwner,
 } from "@nootion/shared";
 import type { Db, DbLike } from "./db/index.js";
 import { attachments, databaseProperties, databaseViews, pages, users } from "./db/schema.js";
 import { HttpError } from "./http.js";
 import { getPageRole } from "./permissions.js";
 import type { PageMeta } from "./pages.js";
-import { t } from "@nootion/shared";
+import { currentLocale, t } from "@nootion/shared";
 
 export type PropertyRow = typeof databaseProperties.$inferSelect;
 
@@ -61,14 +62,71 @@ export function listProperties(db: DbLike, databaseId: string): DatabaseProperty
     .sort((a, b) => a.position - b.position);
 }
 
-export function listViews(db: DbLike, databaseId: string): DatabaseViewInfo[] {
+const toViewInfo = (v: typeof databaseViews.$inferSelect): DatabaseViewInfo => ({
+  id: v.id,
+  name: v.name,
+  type: (VIEW_TYPES as readonly string[]).includes(v.type) ? (v.type as ViewType) : "table",
+  config: v.config,
+  position: v.position,
+});
+
+/** Which views: those of the database itself (no owner), or those of a linked view. */
+export const viewScope = (databaseId: string, owner?: ViewOwner | null) =>
+  and(
+    eq(databaseViews.databaseId, databaseId),
+    owner ? and(eq(databaseViews.ownerPageId, owner.pageId), eq(databaseViews.ownerBlockId, owner.blockId)) : isNull(databaseViews.ownerBlockId),
+  );
+
+/** The views of a database, or with `owner` those of one of its linked views, in their order. */
+export function listViews(db: DbLike, databaseId: string, owner?: ViewOwner | null): DatabaseViewInfo[] {
   return db
     .select()
     .from(databaseViews)
-    .where(eq(databaseViews.databaseId, databaseId))
+    .where(viewScope(databaseId, owner))
     .all()
-    .map((v) => ({ id: v.id, name: v.name, type: (VIEW_TYPES as readonly string[]).includes(v.type) ? (v.type as ViewType) : "table", config: v.config, position: v.position }))
+    .map(toViewInfo)
     .sort((a, b) => a.position - b.position);
+}
+
+/** Any view of a database, its own or a linked view's (the API and exports name views by id). */
+export function findView(db: DbLike, databaseId: string, viewId: string): DatabaseViewInfo | undefined {
+  const v = db
+    .select()
+    .from(databaseViews)
+    .where(and(eq(databaseViews.id, viewId), eq(databaseViews.databaseId, databaseId)))
+    .get();
+  return v && toViewInfo(v);
+}
+
+/**
+ * The views of a linked view, made on first sight from the database's first view (its filters and sorts included):
+ * a linked view starts out showing what the database shows.
+ */
+export function ensureLinkedViews(db: Db, databaseId: string, owner: ViewOwner): DatabaseViewInfo[] {
+  const own = listViews(db, databaseId, owner);
+  if (own.length) return own;
+  const first = listViews(db, databaseId)[0];
+  db.insert(databaseViews)
+    .values({
+      id: randomUUID(),
+      databaseId,
+      name: first?.name ?? t("view.defaultTable"),
+      type: first?.type ?? "table",
+      config: (first?.config ?? {}) as Record<string, unknown>,
+      position: 0,
+      ownerPageId: owner.pageId,
+      ownerBlockId: owner.blockId,
+    })
+    .run();
+  return listViews(db, databaseId, owner);
+}
+
+/** How long the views of a linked view stay after its block left its page (undo, the page's history). */
+export const ORPHAN_VIEW_DAYS = 30;
+
+/** Removes the views of linked views whose block left its page long ago. Returns how many. */
+export function purgeOrphanViews(db: Db, now = Date.now()): number {
+  return db.$client.prepare(`DELETE FROM database_views WHERE orphaned_at IS NOT NULL AND orphaned_at < ?`).run(now - ORPHAN_VIEW_DAYS * 86_400_000).changes;
 }
 
 /** Creates the page holding the database, its title column and a first table view. */
@@ -87,11 +145,19 @@ export function createDatabase(db: Db, input: { workspaceId: string; parentId: s
 
 type RowPage = Pick<typeof pages.$inferSelect, "id" | "title" | "icon" | "props" | "cover" | "coverPosition" | "createdAt" | "updatedAt" | "createdBy" | "updatedBy" | "position">;
 
+const rowPageColumns = { id: pages.id, title: pages.title, icon: pages.icon, props: pages.props, cover: pages.cover, coverPosition: pages.coverPosition, createdAt: pages.createdAt, updatedAt: pages.updatedAt, createdBy: pages.createdBy, updatedBy: pages.updatedBy, position: pages.position };
+const liveRowOf = (databaseId: string) => and(eq(pages.parentId, databaseId), eq(pages.kind, "row"), eq(pages.template, false), isNull(pages.deletedAt));
+
+/** One row of a database (not a template, not in the trash), without reading the others. */
+export function getRowPage(db: DbLike, databaseId: string, rowId: string): RowPage | undefined {
+  return db.select(rowPageColumns).from(pages).where(and(eq(pages.id, rowId), liveRowOf(databaseId))).get();
+}
+
 export function listRowPages(db: DbLike, databaseId: string): RowPage[] {
   return db
-    .select({ id: pages.id, title: pages.title, icon: pages.icon, props: pages.props, cover: pages.cover, coverPosition: pages.coverPosition, createdAt: pages.createdAt, updatedAt: pages.updatedAt, createdBy: pages.createdBy, updatedBy: pages.updatedBy, position: pages.position })
+    .select(rowPageColumns)
     .from(pages)
-    .where(and(eq(pages.parentId, databaseId), eq(pages.kind, "row"), eq(pages.template, false), isNull(pages.deletedAt)))
+    .where(liveRowOf(databaseId))
     .all()
     .sort((a, b) => a.position - b.position || a.createdAt.getTime() - b.createdAt.getTime());
 }
@@ -155,16 +221,58 @@ export function collectPeople(
 /** Whether the reader may see the rows of a database (used for relations and rollups). */
 export type CanRead = (databaseId: string) => boolean;
 
-export function loadDatabase(db: Db, page: PageMeta, role: PageRole, canRead: CanRead): DatabaseData {
+export function loadDatabase(db: Db, page: PageMeta, role: PageRole, canRead: CanRead, linked?: DatabaseData["linked"]): DatabaseData {
   const properties = listProperties(db, page.id);
   const rows = listRowPages(db, page.id).map((r) => toRow(r, properties));
-  const views = listViews(db, page.id);
+  const views = linked ? ensureLinkedViews(db, page.id, linked) : listViews(db, page.id);
   if (views.some((v) => v.type === "gallery")) addImagePreviews(db, rows);
   const { related, rollupTargets } = enrichRows(db, properties, rows, canRead);
   const people = collectPeople(db, properties, rows, rollupTargets);
   const templates = listRowTemplates(db, page.id);
   const defaultTemplateId = templates.some((t) => t.id === page.defaultTemplateId) ? page.defaultTemplateId : null;
-  return { id: page.id, title: page.title, icon: page.icon, role, properties, views, rows, people, related, rollupTargets, templates, defaultTemplateId };
+  return { id: page.id, title: page.title, icon: page.icon, role, locked: page.locked, properties, views, rows, people, related, rollupTargets, templates, defaultTemplateId, ...(linked ? { linked } : {}) };
+}
+
+/** Formulas that read the clock give another result as time passes. */
+const READS_CLOCK = /\b(now|today)\s*\(/i;
+
+/**
+ * A short tag that changes whenever what loadDatabase answers may change: the database, its columns, views, rows and
+ * row templates, the databases its relations read, the names of people, the reader's access and language. Computed
+ * with a few aggregate queries (no row is loaded), so that the app's refresh every few seconds costs almost nothing
+ * when nothing changed, whatever the number of rows.
+ */
+export function databaseVersion(db: DbLike, page: Pick<PageMeta, "id">, role: PageRole, canRead: CanRead): string {
+  const parts: unknown[] = [role, currentLocale()];
+  const seen = new Set<string>();
+  let clock = false;
+  const visit = (databaseId: string, depth: number) => {
+    if (seen.has(databaseId)) return;
+    seen.add(databaseId);
+    parts.push(
+      databaseId,
+      db.get(sql`select sync_clock, updated_at, default_template_id, deleted_at, locked from pages where id = ${databaseId}`),
+      // Rows (with row templates and rows in the trash): any change of a row moves its sync clock (SQLite trigger).
+      db.get(sql`select count(*), total(sync_clock), max(sync_clock), max(updated_at) from pages where parent_id = ${databaseId}`),
+      db.get(sql`select count(*), total(sync_clock), max(sync_clock) from database_views where database_id = ${databaseId}`),
+    );
+    const props = listProperties(db, databaseId);
+    parts.push(props);
+    for (const p of props) {
+      if (p.type === "formula" && READS_CLOCK.test(p.config.expression ?? "")) clock = true;
+      // Relations read the rows (and formulas) of another database, one level deep.
+      if (p.type === "relation" && p.config.databaseId && depth === 0) {
+        const readable = canRead(p.config.databaseId);
+        parts.push(p.config.databaseId, readable);
+        if (readable) visit(p.config.databaseId, depth + 1);
+      }
+    }
+  };
+  visit(page.id, 0);
+  parts.push(db.get(sql`select count(*), group_concat(id || ':' || name) from users`));
+  // Formulas reading now() or today(): a new answer every minute.
+  if (clock) parts.push(Math.floor(Date.now() / 60_000));
+  return `W/"${createHash("sha1").update(JSON.stringify(parts)).digest("base64url").slice(0, 22)}"`;
 }
 
 /** Row templates of a database, in the order they were made. */
@@ -513,7 +621,7 @@ export function validateValues(db: DbLike, properties: DatabaseProperty[], rowId
 
 // --- Changing a column's type -------------------------------------------------------------
 
-export const TRUE_WORDS = new Set(["oui", "yes", "true", "vrai", "1", "x", "✓", "✔"]);
+export const TRUE_WORDS = new Set(["oui", "yes", "true", "vrai", "ja", "wahr", "sí", "si", "verdadero", "vero", "1", "x", "✓", "✔"]);
 
 export function parseNumber(s: string): number | null {
   const cleaned = s.replace(/[\s €$£%]/g, "").replace(",", ".");
@@ -701,7 +809,7 @@ export function evaluateExpression(db: Db, expression: string, row: { databaseId
     );
   }
   const properties = listProperties(db, row.databaseId);
-  const page = listRowPages(db, row.databaseId).find((r) => r.id === row.id);
+  const page = getRowPage(db, row.databaseId, row.id);
   if (!page) throw new FormulaError(t("button.noRow"));
   // A formula column for the time of the computation, filled like the others.
   const id = `expression-${randomUUID()}`;

@@ -6,10 +6,11 @@ import { requireUser } from "./http.js";
 /**
  * What the open tabs are told, so that they refetch it:
  * - "pages": the page tree of a space changed (a page added, renamed, moved, trashed…);
- * - "access": the spaces or the pages shared with you changed.
+ * - "access": the spaces or the pages shared with you changed;
+ * - "page": a page was locked or unlocked, so that open tabs show it read-only (or editable) at once.
  * Only the fact that something changed is sent, never what: the tab asks for it with its usual access checks.
  */
-export type LiveEvent = { type: "pages"; workspaceId: string } | { type: "access" };
+export type LiveEvent = { type: "pages"; workspaceId: string } | { type: "access" } | { type: "page"; pageId: string };
 
 /**
  * Tells the people concerned when the page tree changes. The changes are caught by triggers of the database itself,
@@ -21,20 +22,23 @@ export function createLiveEvents(db: Db) {
   const changedSpaces = new Set<string>();
   const changedUsers = new Set<string>();
   const renamedSpaces = new Set<string>();
+  const changedPages = new Set<string>();
   let timer: NodeJS.Timeout | null = null;
 
   const flush = () => {
     timer = null;
     const spaces = [...changedSpaces];
     const renamed = [...renamedSpaces];
+    const lockedPages = [...changedPages];
     changedSpaces.clear();
     renamedSpaces.clear();
+    changedPages.clear();
     if (!clients.size) return changedUsers.clear();
     const audience = sqlite.prepare(
-      `SELECT user_id AS userId FROM workspace_members WHERE workspace_id = ?
-       UNION SELECT pp.user_id FROM page_permissions pp JOIN pages p ON p.id = pp.page_id WHERE p.workspace_id = ?`,
+      `SELECT user_id AS userId FROM effective_workspace_members WHERE workspace_id = ?
+       UNION SELECT pp.user_id FROM effective_page_permissions pp JOIN pages p ON p.id = pp.page_id WHERE p.workspace_id = ?`,
     );
-    const members = sqlite.prepare("SELECT user_id AS userId FROM workspace_members WHERE workspace_id = ?");
+    const members = sqlite.prepare("SELECT DISTINCT user_id AS userId FROM effective_workspace_members WHERE workspace_id = ?");
     for (const id of renamed) for (const { userId } of members.all(id) as { userId: string }[]) changedUsers.add(userId);
     const users = [...changedUsers];
     changedUsers.clear();
@@ -42,11 +46,17 @@ export function createLiveEvents(db: Db) {
       for (const { userId } of audience.all(workspaceId, workspaceId) as { userId: string }[]) send(userId, { type: "pages", workspaceId });
     }
     for (const userId of users) send(userId, { type: "access" });
+    const spaceOf = sqlite.prepare("SELECT workspace_id AS workspaceId FROM pages WHERE id = ?");
+    for (const pageId of lockedPages) {
+      const row = spaceOf.get(pageId) as { workspaceId: string } | undefined;
+      if (!row) continue;
+      for (const { userId } of audience.all(row.workspaceId, row.workspaceId) as { userId: string }[]) send(userId, { type: "page", pageId });
+    }
   };
 
   const changed = (kind: string, id: string | null) => {
     if (!id) return null;
-    (kind === "space" ? changedSpaces : kind === "renamed" ? renamedSpaces : changedUsers).add(id);
+    (kind === "space" ? changedSpaces : kind === "renamed" ? renamedSpaces : kind === "page" ? changedPages : changedUsers).add(id);
     // A burst of changes (an import, a copied template) makes one message.
     timer ??= setTimeout(flush, 150);
     return null;
@@ -56,13 +66,15 @@ export function createLiveEvents(db: Db) {
   // Temporary triggers: they live with this connection, and need no migration.
   const tree = "title, icon, parent_id, position, deleted_at, workspace_id, kind";
   sqlite.exec(`
-    CREATE TEMP TRIGGER IF NOT EXISTS live_page_insert AFTER INSERT ON main.pages WHEN NEW.kind <> 'row'
+    CREATE TEMP TRIGGER IF NOT EXISTS live_page_insert AFTER INSERT ON main.pages WHEN NEW.kind NOT IN ('row', 'block')
       BEGIN SELECT nootion_changed('space', NEW.workspace_id); END;
     CREATE TEMP TRIGGER IF NOT EXISTS live_page_update AFTER UPDATE OF ${tree} ON main.pages
-      WHEN NEW.kind <> 'row' OR OLD.kind <> 'row'
+      WHEN NEW.kind NOT IN ('row', 'block') OR OLD.kind NOT IN ('row', 'block')
       BEGIN SELECT nootion_changed('space', OLD.workspace_id), nootion_changed('space', NEW.workspace_id); END;
-    CREATE TEMP TRIGGER IF NOT EXISTS live_page_delete AFTER DELETE ON main.pages WHEN OLD.kind <> 'row'
+    CREATE TEMP TRIGGER IF NOT EXISTS live_page_delete AFTER DELETE ON main.pages WHEN OLD.kind NOT IN ('row', 'block')
       BEGIN SELECT nootion_changed('space', OLD.workspace_id); END;
+    CREATE TEMP TRIGGER IF NOT EXISTS live_page_lock AFTER UPDATE OF locked ON main.pages WHEN OLD.locked IS NOT NEW.locked
+      BEGIN SELECT nootion_changed('page', NEW.id); END;
     CREATE TEMP TRIGGER IF NOT EXISTS live_space_rename AFTER UPDATE OF name ON main.workspaces
       BEGIN SELECT nootion_changed('renamed', NEW.id); END;
     CREATE TEMP TRIGGER IF NOT EXISTS live_member_insert AFTER INSERT ON main.workspace_members
@@ -77,6 +89,18 @@ export function createLiveEvents(db: Db) {
       BEGIN SELECT nootion_changed('user', NEW.user_id); END;
     CREATE TEMP TRIGGER IF NOT EXISTS live_share_delete AFTER DELETE ON main.page_permissions
       BEGIN SELECT nootion_changed('user', OLD.user_id); END;
+    CREATE TEMP TRIGGER IF NOT EXISTS live_group_member_insert AFTER INSERT ON main.group_members
+      BEGIN SELECT nootion_changed('user', NEW.user_id); END;
+    CREATE TEMP TRIGGER IF NOT EXISTS live_group_member_delete AFTER DELETE ON main.group_members
+      BEGIN SELECT nootion_changed('user', OLD.user_id); END;
+    ${["workspace_group_members", "page_group_permissions"]
+      .flatMap((table) =>
+        (["INSERT", "UPDATE", "DELETE"] as const).map(
+          (op) => `CREATE TEMP TRIGGER IF NOT EXISTS live_${table}_${op.toLowerCase()} AFTER ${op} ON main.${table}
+      BEGIN SELECT nootion_changed('user', user_id) FROM main.group_members WHERE group_id = ${op === "DELETE" ? "OLD" : "NEW"}.group_id; END;`,
+        ),
+      )
+      .join("\n    ")}
   `);
 
   function send(userId: string, event: LiveEvent) {

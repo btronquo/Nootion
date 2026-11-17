@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { blob, index, integer, primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { blob, index, type AnySQLiteColumn, integer, primaryKey, sqliteTable, sqliteView, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 const createdAt = () =>
   integer("created_at", { mode: "timestamp_ms" })
@@ -13,7 +13,8 @@ export const users = sqliteTable(
     email: text("email").notNull(),
     name: text("name").notNull(),
     passwordHash: text("password_hash").notNull(),
-    role: text("role", { enum: ["admin", "member"] })
+    // "guest": someone from outside, who only sees the pages shared with them (see guests.ts).
+    role: text("role", { enum: ["admin", "member", "guest"] })
       .notNull()
       .default("member"),
     disabled: integer("disabled", { mode: "boolean" }).notNull().default(false),
@@ -35,6 +36,8 @@ export const users = sqliteTable(
     dismissedUpdate: text("dismissed_update"),
     // The release whose "What's new" this user last closed; "" for a new account, null for one from before 3.4.
     seenVersion: text("seen_version").default(""),
+    // The guided tour of what Nootion can do is still to be shown: true for a new account, false for one from before 3.7.
+    tourPending: integer("tour_pending", { mode: "boolean" }).notNull().default(true),
     // Two-factor sign-in: the authenticator app's secret (encrypted with APP_SECRET), null while it is off.
     totpSecret: text("totp_secret"),
     // A secret shown to the user but not confirmed with a code yet.
@@ -63,6 +66,40 @@ export const loginChallenges = sqliteTable(
   },
 );
 
+/** A passkey: a key pair kept by the person's device (or password manager), which signs them in on its own. */
+export const passkeys = sqliteTable(
+  "passkeys",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    // The credential id the authenticator gave, in base64url.
+    credentialId: text("credential_id").notNull(),
+    // The public key, COSE-encoded: the private key never leaves the device.
+    publicKey: blob("public_key", { mode: "buffer" }).notNull(),
+    // The authenticator's signature counter (0 for most synced passkeys).
+    counter: integer("counter").notNull().default(0),
+    transports: text("transports", { mode: "json" }).$type<string[]>().notNull().default([]),
+    // Synced to the person's other devices (a password manager, the phone's keychain).
+    backedUp: integer("backed_up", { mode: "boolean" }).notNull().default(false),
+    name: text("name").notNull(),
+    lastUsedAt: integer("last_used_at", { mode: "timestamp_ms" }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("passkeys_credential_unique").on(t.credentialId), index("passkeys_user_idx").on(t.userId)],
+);
+
+/** A WebAuthn challenge waiting for the device's answer: adding a passkey (user known) or signing in (user not known yet). */
+export const passkeyChallenges = sqliteTable("passkey_challenges", {
+  tokenHash: text("token_hash").primaryKey(),
+  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
+  purpose: text("purpose", { enum: ["register", "login"] }).notNull(),
+  challenge: text("challenge").notNull(),
+  expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+  createdAt: createdAt(),
+});
+
 export const sessions = sqliteTable(
   "sessions",
   {
@@ -81,12 +118,15 @@ export const invitations = sqliteTable("invitations", {
   id: text("id").primaryKey(),
   tokenHash: text("token_hash").notNull().unique(),
   email: text("email"),
-  role: text("role", { enum: ["admin", "member"] })
+  role: text("role", { enum: ["admin", "member", "guest"] })
     .notNull()
     .default("member"),
   createdBy: text("created_by")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
+  // A guest's invitation: the page shared with them, and how, once their account exists.
+  pageId: text("page_id").references((): AnySQLiteColumn => pages.id, { onDelete: "cascade" }),
+  pageRole: text("page_role", { enum: ["viewer", "commenter", "editor"] }),
   expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
   usedAt: integer("used_at", { mode: "timestamp_ms" }),
   usedBy: text("used_by").references(() => users.id, { onDelete: "set null" }),
@@ -124,12 +164,15 @@ export const pages = sqliteTable(
       .notNull()
       .references(() => workspaces.id, { onDelete: "cascade" }),
     parentId: text("parent_id"),
-    // "database": the page is a database (its rows are its children). "row": a database row.
-    kind: text("kind", { enum: ["page", "database", "row"] })
+    // "database": the page is a database (its rows are its children). "row": a database row. "block": the content of a
+    // synced block, under the page where it was made (synced-blocks.ts).
+    kind: text("kind", { enum: ["page", "database", "row", "block"] })
       .notNull()
       .default("page"),
     title: text("title").notNull().default(""),
     icon: text("icon"),
+    // Databases only: a few lines shown under the title (a database page has rows, not free text).
+    description: text("description").notNull().default(""),
     fullWidth: integer("full_width", { mode: "boolean" }).notNull().default(false),
     /** Banner at the top of the page: an attachment, an image link or a built-in gradient (see coverSchema). */
     cover: text("cover"),
@@ -152,6 +195,8 @@ export const pages = sqliteTable(
     // Derived from contentState on every save: ProseMirror JSON (exports, public pages) and plain text (search).
     contentJson: text("content_json", { mode: "json" }),
     contentText: text("content_text"),
+    // Rows only: their cell values as plain text ("Customer: Dupont · Status: Paid"), for search (search-index.ts).
+    cellsText: text("cells_text"),
     // Rows only: cell values by property id.
     props: text("props", { mode: "json" }).$type<Record<string, unknown>>(),
     // Sync with another Nootion (desktop app, sync.ts): when the page last changed (ms), and when each of its fields
@@ -162,8 +207,14 @@ export const pages = sqliteTable(
     template: integer("template", { mode: "boolean" }).notNull().default(false),
     // Databases only: the row template new rows start from, if any.
     defaultTemplateId: text("default_template_id"),
+    // Locked: the content (and, for a database, its columns and views) can't be changed until someone unlocks it.
+    locked: integer("locked", { mode: "boolean" }).notNull().default(false),
   },
-  (t) => [index("pages_workspace_idx").on(t.workspaceId), index("pages_parent_idx").on(t.parentId)],
+  (t) => [
+    index("pages_workspace_idx").on(t.workspaceId),
+    // Children of a page; with the clocks, so that a database's version is read from the index alone (databaseVersion).
+    index("pages_parent_clock_idx").on(t.parentId, t.syncClock, t.updatedAt),
+  ],
 );
 
 /** Pages a user starred, in the order shown at the top of their sidebar. */
@@ -198,6 +249,86 @@ export const pagePermissions = sqliteTable(
   (t) => [primaryKey({ columns: [t.pageId, t.userId] }), index("page_permissions_user_idx").on(t.userId)],
 );
 
+/**
+ * Groups of people, made by administrators (or by the company's directory through SCIM). A space or a page is shared
+ * with a group as with a person: everyone in it gets that access, and permissions.ts takes the best of the person's
+ * own access and that of their groups. Guests are never in a group.
+ */
+export const groups = sqliteTable("groups", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  // The group's id in the company's directory, when SCIM made it.
+  scimExternalId: text("scim_external_id"),
+  // Made through SCIM: its members follow the directory.
+  scim: integer("scim", { mode: "boolean" }).notNull().default(false),
+  createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: createdAt(),
+});
+
+export const groupMembers = sqliteTable(
+  "group_members",
+  {
+    groupId: text("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.groupId, t.userId] }), index("group_members_user_idx").on(t.userId)],
+);
+
+/** A shared space opened to a group. Never "owner": the people who manage a space are named one by one. */
+export const workspaceGroupMembers = sqliteTable(
+  "workspace_group_members",
+  {
+    workspaceId: text("workspace_id")
+      .notNull()
+      .references(() => workspaces.id, { onDelete: "cascade" }),
+    groupId: text("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "cascade" }),
+    role: text("role", { enum: ["editor", "commenter", "viewer"] }).notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.workspaceId, t.groupId] }), index("workspace_group_members_group_idx").on(t.groupId)],
+);
+
+/** A page shared with a group (and its subpages, as for a person). */
+export const pageGroupPermissions = sqliteTable(
+  "page_group_permissions",
+  {
+    pageId: text("page_id")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    groupId: text("group_id")
+      .notNull()
+      .references(() => groups.id, { onDelete: "cascade" }),
+    role: text("role", { enum: ["full", "editor", "commenter", "viewer"] }).notNull(),
+    grantedBy: text("granted_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [primaryKey({ columns: [t.pageId, t.groupId] }), index("page_group_permissions_group_idx").on(t.groupId)],
+);
+
+/**
+ * Who is in a space, and who a page is shared with, counting groups: one row per person and way in (someone in a space
+ * directly and through a group has two rows; take the best role). Views made by migration 0047.
+ */
+export const effectiveWorkspaceMembers = sqliteView("effective_workspace_members", {
+  workspaceId: text("workspace_id").notNull(),
+  userId: text("user_id").notNull(),
+  role: text("role", { enum: ["owner", "editor", "commenter", "viewer"] }).notNull(),
+}).existing();
+
+export const effectivePagePermissions = sqliteView("effective_page_permissions", {
+  pageId: text("page_id").notNull(),
+  userId: text("user_id").notNull(),
+  role: text("role", { enum: ["full", "editor", "commenter", "viewer"] }).notNull(),
+}).existing();
+
 export const publicLinks = sqliteTable("public_links", {
   // One public link per page; the token is random and unguessable.
   pageId: text("page_id")
@@ -205,6 +336,9 @@ export const publicLinks = sqliteTable("public_links", {
     .references(() => pages.id, { onDelete: "cascade" }),
   token: text("token").notNull().unique(),
   includeSubpages: integer("include_subpages", { mode: "boolean" }).notNull().default(true),
+  // Optional protection: visitors type the password first (argon2 hash), and the link stops working after the date.
+  passwordHash: text("password_hash"),
+  expiresAt: integer("expires_at", { mode: "timestamp_ms" }),
   createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: createdAt(),
 });
@@ -262,8 +396,16 @@ export const databaseViews = sqliteTable(
     createdAt: createdAt(),
     /** When it last changed (ms), for sync. */
     syncClock: integer("sync_clock").notNull().default(0),
+    /**
+     * Views of a linked view: the page showing the database and the id of its block there (`linkId`). Views without
+     * an owner are those of the database itself.
+     */
+    ownerPageId: text("owner_page_id").references(() => pages.id, { onDelete: "cascade" }),
+    ownerBlockId: text("owner_block_id"),
+    /** Since when the block is no longer in its page (ms): its views go after a while, so that undo can bring them back. */
+    orphanedAt: integer("orphaned_at"),
   },
-  (t) => [index("database_views_db_idx").on(t.databaseId)],
+  (t) => [index("database_views_db_idx").on(t.databaseId), index("database_views_owner_idx").on(t.ownerPageId, t.ownerBlockId)],
 );
 
 export const plugins = sqliteTable("plugins", {
@@ -518,6 +660,9 @@ export const publicForms = sqliteTable(
     userId: text("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
+    // Same protection as public links: a password (argon2 hash) and an end date, both optional.
+    passwordHash: text("password_hash"),
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("public_forms_block_unique").on(t.pageId, t.blockId)],
@@ -654,7 +799,7 @@ export const pageMentions = sqliteTable(
     readAt: integer("read_at", { mode: "timestamp_ms" }),
     createdAt: createdAt(),
   },
-  (t) => [index("page_mentions_user_idx").on(t.userId, t.createdAt), uniqueIndex("page_mentions_unique").on(t.pageId, t.mentionId)],
+  (t) => [index("page_mentions_user_idx").on(t.userId, t.createdAt), uniqueIndex("page_mentions_unique").on(t.pageId, t.mentionId, t.userId)],
 );
 
 /** The schedule of automatic backups (one row, "default"), and how the last one went. */
@@ -781,3 +926,84 @@ export const syncLinks = sqliteTable("sync_links", {
   lastError: text("last_error"),
   createdAt: createdAt(),
 });
+
+/** Rows whose cells_text must be computed again (their cells or their database's columns changed): filled by triggers. */
+export const searchStale = sqliteTable("search_stale", {
+  pageId: text("page_id").primaryKey(),
+});
+
+/** A search with its filters, saved under a name by a user. */
+export const savedSearches = sqliteTable(
+  "saved_searches",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    query: text("query").notNull().default(""),
+    filters: text("filters", { mode: "json" }).$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: createdAt(),
+  },
+  (t) => [index("saved_searches_user_idx").on(t.userId)],
+);
+
+/**
+ * The to-dos written in pages, one row per to-do in the order of its page ("Tasks"). Derived from the content: rebuilt
+ * for a page each time its content changes (see tasks.ts), except `checkedAt`, carried over from the previous rows.
+ */
+export const pageTasks = sqliteTable(
+  "page_tasks",
+  {
+    pageId: text("page_id")
+      .notNull()
+      .references(() => pages.id, { onDelete: "cascade" }),
+    // Its rank among the to-dos of the page.
+    position: integer("position").notNull(),
+    blockId: text("block_id"),
+    // Its line, without its date.
+    text: text("text").notNull().default(""),
+    checked: integer("checked", { mode: "boolean" }).notNull().default(false),
+    // The first date written in its line.
+    date: text("date"),
+    // The people it mentions.
+    mentions: text("mentions", { mode: "json" }).$type<string[]>().notNull().default([]),
+    repeat: text("repeat"),
+    // When it was seen checked (null when it was already checked when first seen).
+    checkedAt: integer("checked_at", { mode: "timestamp_ms" }),
+  },
+  (t) => [primaryKey({ columns: [t.pageId, t.position] }), index("page_tasks_checked_idx").on(t.checked, t.checkedAt)],
+);
+
+/** Pages whose to-dos must be read again (their content changed): filled by triggers. */
+export const pageTasksStale = sqliteTable("page_tasks_stale", {
+  pageId: text("page_id").primaryKey(),
+});
+
+/**
+ * The activity log for administrators (audit.ts): who signed in, shared, published, exported, deleted, or changed a
+ * role or a setting. Only ever added to, and emptied by age. The person's name and the target's label are copied so
+ * that a line still reads after they are gone; no page content is kept.
+ */
+export const auditEvents = sqliteTable(
+  "audit_events",
+  {
+    id: text("id").primaryKey(),
+    createdAt: createdAt(),
+    actorId: text("actor_id").references(() => users.id, { onDelete: "set null" }),
+    actorName: text("actor_name"),
+    actorEmail: text("actor_email"),
+    // What was done, e.g. "auth.login", "page.shared", "settings.changed" (AUDIT_ACTIONS).
+    action: text("action").notNull(),
+    targetType: text("target_type"),
+    targetId: text("target_id"),
+    targetLabel: text("target_label"),
+    details: text("details", { mode: "json" }).$type<Record<string, unknown>>(),
+    ip: text("ip"),
+  },
+  (t) => [
+    index("audit_events_created_idx").on(t.createdAt),
+    index("audit_events_actor_idx").on(t.actorId, t.createdAt),
+    index("audit_events_action_idx").on(t.action, t.createdAt),
+  ],
+);

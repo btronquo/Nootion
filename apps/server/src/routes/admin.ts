@@ -1,22 +1,25 @@
 import { randomUUID } from "node:crypto";
 import type { FastifyPluginAsync } from "fastify";
-import { createInvitationInput, tIn, updateUserInput, type InvitationInfo, type Locale } from "@nootion/shared";
+import { createInvitationInput, tIn, updateUserInput, type GuestInfo, type InvitationInfo, type Locale } from "@nootion/shared";
 import { and, count, desc, eq, isNull, ne } from "drizzle-orm";
 import { deleteUserSessions } from "../auth/sessions.js";
 import { hashToken, newToken } from "../auth/tokens.js";
-import { invitations, users } from "../db/schema.js";
+import { invitations, pagePermissions, pages, users } from "../db/schema.js";
+import { ensurePersonalWorkspace } from "../guests.js";
 import { HttpError, notFound, parseBody, requireAdmin } from "../http.js";
 import { toPublicUser } from "../users.js";
 import { clearTwoFactor } from "./two-factor.js";
+import { audit, personTarget } from "../audit.js";
 import { t } from "@nootion/shared";
 
 export const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-function toInvitationInfo(i: typeof invitations.$inferSelect): InvitationInfo {
+function toInvitationInfo(i: typeof invitations.$inferSelect, pageTitle?: string | null): InvitationInfo {
   return {
     id: i.id,
     email: i.email,
     role: i.role,
+    page: i.pageId ? { id: i.pageId, title: pageTitle ?? "" } : null,
     expiresAt: i.expiresAt.toISOString(),
     usedAt: i.usedAt?.toISOString() ?? null,
     createdAt: i.createdAt.toISOString(),
@@ -31,6 +34,29 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   app.get("/users", async () => ({
     users: app.db.select().from(users).orderBy(users.createdAt).all().map(toPublicUser),
   }));
+
+  // Guests, in their own list: with the pages shared with them.
+  app.get("/guests", async () => {
+    const shared = app.db
+      .select({ userId: pagePermissions.userId, id: pages.id, title: pages.title, role: pagePermissions.role })
+      .from(pagePermissions)
+      .innerJoin(pages, eq(pages.id, pagePermissions.pageId))
+      .innerJoin(users, eq(users.id, pagePermissions.userId))
+      .where(and(eq(users.role, "guest"), isNull(pages.deletedAt)))
+      .orderBy(pages.title)
+      .all();
+    const guests: GuestInfo[] = app.db
+      .select()
+      .from(users)
+      .where(eq(users.role, "guest"))
+      .orderBy(users.name)
+      .all()
+      .map((u) => ({
+        ...toPublicUser(u),
+        pages: shared.filter((p) => p.userId === u.id).map(({ id, title, role }) => ({ id, title, role })),
+      }));
+    return { guests };
+  });
 
   app.patch<{ Params: { id: string } }>("/users/:id", async (req) => {
     const admin = requireAdmin(req);
@@ -52,8 +78,16 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       throw new HttpError(409, "self_disable", t("error.selfDisable"));
     }
 
-    const updated = app.db.update(users).set(input).where(eq(users.id, target.id)).returning().get();
+    // A guest made a member (or an administrator) gets the space of their own they didn't have; the pages shared
+    // with them stay shared.
+    const updated = app.db.transaction((tx) => {
+      if (target.role === "guest" && input.role) ensurePersonalWorkspace(tx, target.id);
+      return tx.update(users).set(input).where(eq(users.id, target.id)).returning().get();
+    });
     if (input.disabled) deleteUserSessions(app.db, target.id);
+    const who = personTarget(app.db, target.id);
+    if (input.role && input.role !== target.role) audit(app.db, req, { action: "user.role_changed", target: who, details: { from: target.role, to: input.role } });
+    if (input.disabled !== undefined && input.disabled !== target.disabled) audit(app.db, req, { action: input.disabled ? "user.disabled" : "user.enabled", target: who });
     return { user: toPublicUser(updated) };
   });
 
@@ -61,11 +95,20 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
   app.delete<{ Params: { id: string } }>("/users/:id/2fa", async (req) => {
     const target = app.db.select({ id: users.id }).from(users).where(eq(users.id, req.params.id)).get();
     if (!target) throw notFound();
-    return { user: toPublicUser(clearTwoFactor(app, target.id)) };
+    const updated = clearTwoFactor(app, target.id);
+    audit(app.db, req, { action: "user.two_factor_reset", target: personTarget(app.db, target.id) });
+    return { user: toPublicUser(updated) };
   });
 
   app.get("/invitations", async () => ({
-    invitations: app.db.select().from(invitations).where(isNull(invitations.usedAt)).orderBy(desc(invitations.createdAt)).all().map(toInvitationInfo),
+    invitations: app.db
+      .select({ invitation: invitations, pageTitle: pages.title })
+      .from(invitations)
+      .leftJoin(pages, eq(pages.id, invitations.pageId))
+      .where(isNull(invitations.usedAt))
+      .orderBy(desc(invitations.createdAt))
+      .all()
+      .map((r) => toInvitationInfo(r.invitation, r.pageTitle)),
   }));
 
   app.post("/invitations", async (req) => {
@@ -102,12 +145,14 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
         req.log.warn({ err }, "Couldn't send an invitation e-mail");
       }
     }
+    audit(app.db, req, { action: "user.invited", target: { type: "invitation", id: invitation.id, label: input.email ?? null }, details: { role: input.role } });
     // The token is only shown once: only its hash is stored.
     return { invitation: toInvitationInfo(invitation), url, emailed };
   });
 
   app.delete<{ Params: { id: string } }>("/invitations/:id", async (req) => {
-    app.db.delete(invitations).where(eq(invitations.id, req.params.id)).run();
+    const gone = app.db.delete(invitations).where(eq(invitations.id, req.params.id)).returning().get();
+    if (gone) audit(app.db, req, { action: "user.invitation_revoked", target: { type: "invitation", id: gone.id, label: gone.email } });
     return { ok: true };
   });
 };

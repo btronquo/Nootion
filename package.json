@@ -1,7 +1,7 @@
 {
   "name": "nootion",
   "private": true,
-  "version": "3.6.0",
+  "version": "4.0.0",
   "license": "AGPL-3.0-only",
   "packageManager": "pnpm@10.28.0",
   "scripts": {
@@ -10,6 +10,7 @@
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint .",
+    "i18n:check": "pnpm --filter @nootion/shared i18n:check",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

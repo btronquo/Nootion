@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { t, type ButtonColor, type FormField } from "@nootion/shared";
 import { api } from "../lib/api";
 import { AuthCard, Button } from "../components/ui";
 import { ButtonForm, localNow } from "../buttons/ButtonAction";
+import { lockOf, PublicLock } from "./PublicLock";
 
 interface PublicForm {
   title: string;
@@ -16,6 +17,7 @@ interface PublicForm {
 /** A button's form opened from its public link, by someone without an account. */
 export function PublicFormPage() {
   const { token = "" } = useParams();
+  const qc = useQueryClient();
   const form = useQuery({ queryKey: ["public-form", token], queryFn: () => api<PublicForm>(`/forms/${token}`), retry: false });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);
@@ -23,6 +25,9 @@ export function PublicFormPage() {
   const [done, setDone] = useState(false);
 
   if (form.isLoading) return <AuthCard title="Nootion">{t("common.loading")}</AuthCard>;
+  const lock = lockOf(form.error);
+  if (lock)
+    return <PublicLock lock={lock} unlockPath={`/forms/${token}/unlock`} onUnlocked={() => void qc.invalidateQueries({ queryKey: ["public-form", token] })} />;
   if (!form.data) {
     return (
       <AuthCard title="Nootion">

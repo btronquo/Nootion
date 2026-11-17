@@ -40,12 +40,27 @@ export const useOnline = () => useSyncExternalStore(subscribe, isOnline);
 const GATEWAY_ERRORS = new Set([502, 503, 504]);
 
 export async function api<T>(path: string, init: { method?: string; body?: unknown } = {}): Promise<T> {
+  return (await request<T>(path, init)).data as T;
+}
+
+/**
+ * A GET answered "not modified" (data: null) when the server's version is still `etag`, so that refreshing a large
+ * answer that didn't change costs neither the download nor the parsing.
+ */
+export function apiIfChanged<T>(path: string, etag: string | null | undefined) {
+  return request<T>(path, { etag });
+}
+
+async function request<T>(path: string, init: { method?: string; body?: unknown; etag?: string | null }): Promise<{ data: T | null; etag: string | null }> {
   let res: Response;
+  const headers: Record<string, string> = {};
+  if (init.body !== undefined) headers["content-type"] = "application/json";
+  if (init.etag) headers["if-none-match"] = init.etag;
   try {
     res = await fetch(`/api${path}`, {
       method: init.method ?? "GET",
       credentials: "same-origin",
-      headers: init.body !== undefined ? { "content-type": "application/json" } : undefined,
+      headers,
       body: init.body !== undefined ? JSON.stringify(init.body) : undefined,
     });
   } catch {
@@ -58,9 +73,10 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
   }
   // The service worker marks the answers it takes from its offline copy.
   setReachable(!res.headers.has("x-nootion-offline"));
+  if (res.status === 304 && init.etag) return { data: null, etag: init.etag };
   const data = res.headers.get("content-type")?.includes("application/json") ? await res.json() : null;
   if (!res.ok) {
     throw new ApiError(res.status, data?.error ?? "error", data?.message ?? t("common.errorStatus", { status: res.status }));
   }
-  return data as T;
+  return { data: data as T, etag: res.headers.get("etag") };
 }

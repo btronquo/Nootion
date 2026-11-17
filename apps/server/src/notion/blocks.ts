@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { ProseMirrorNode } from "../collab.js";
 import type { NotionBlock, NotionFile, RichText } from "./api.js";
-import { videoSource } from "@nootion/shared";
+import { OPTION_COLORS, videoSource } from "@nootion/shared";
 
 /** A Notion block with its children already loaded. */
 export type BlockTree = NotionBlock & { children?: BlockTree[] };
@@ -13,9 +13,12 @@ export interface ConvertContext {
   saveFile: (url: string, name: string) => Promise<{ url: string; name: string; size: number; mimeType: string } | null>;
   /** Notes what couldn't be imported as it was, for the import report: in which block, and what (a file's name, a block's kind…). */
   note: (what: string, detail?: { blockId?: string; info?: string }) => void;
+  /**
+   * A synced block: `originalId` is the Notion id of its original (the block itself for an original), `content` what it
+   * shows. Gives the id of the Nootion synced block to show, or null to keep its content as ordinary blocks.
+   */
+  synced?: (originalId: string, original: boolean, content: ProseMirrorNode[]) => Promise<string | null>;
 }
-
-const short = (s: string, max = 80) => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
 
 type Mark = { type: string; attrs?: Record<string, unknown> };
 
@@ -23,7 +26,7 @@ const text = (s: string, marks: Mark[] = []): ProseMirrorNode => (marks.length ?
 const paragraph = (content: ProseMirrorNode[] = []): ProseMirrorNode => (content.length ? { type: "paragraph", content } : { type: "paragraph" });
 
 /** Notion's rich text as inline nodes: marks, links, and mentions of pages turned into links to the imported pages. */
-export function richText(items: RichText[] | undefined, ctx: Pick<ConvertContext, "pageFor" | "note">, blockId?: string): ProseMirrorNode[] {
+export function richText(items: RichText[] | undefined, ctx: Pick<ConvertContext, "pageFor" | "note">): ProseMirrorNode[] {
   const out: ProseMirrorNode[] = [];
   for (const item of Array.isArray(items) ? items : []) {
     const a = item.annotations ?? { bold: false, italic: false, strikethrough: false, underline: false, code: false, color: "default" };
@@ -33,6 +36,10 @@ export function richText(items: RichText[] | undefined, ctx: Pick<ConvertContext
     if (a.strikethrough) marks.push({ type: "strike" });
     if (a.underline) marks.push({ type: "underline" });
     if (a.code) marks.push({ type: "code" });
+    // Notion's text colors ("red") and highlights ("red_background") are the nine colors Nootion has.
+    const color = /^([a-z]+?)(_background)?$/.exec(a.color ?? "");
+    if (color && (OPTION_COLORS as readonly string[]).includes(color[1]!))
+      marks.push({ type: color[2] ? "highlight" : "textColor", attrs: { color: color[1] } });
     const href = item.type === "text" ? item.text?.link?.url : item.href;
     if (item.type === "mention" && (item.mention?.type === "page" || item.mention?.type === "database")) {
       const id = item.mention.page?.id ?? item.mention.database?.id ?? "";
@@ -49,7 +56,11 @@ export function richText(items: RichText[] | undefined, ctx: Pick<ConvertContext
       out.push({ type: "dateMention", attrs: { id: randomUUID(), date: m[2] ? `${m[1]}T${m[2]}` : m[1], reminder: null, remindAt: null, remindUser: null } });
       continue;
     }
-    if (item.type === "equation") ctx.note("equation", { blockId, info: short(item.plain_text ?? "") });
+    if (item.type === "equation") {
+      const latex = item.equation?.expression ?? item.plain_text ?? "";
+      if (latex.trim()) out.push({ type: "mathInline", attrs: { latex } });
+      continue;
+    }
     // Notion's own links to its pages point to the imported page.
     const internal = href && /^\/[0-9a-f]{32}(\?|#|$)/.test(href) ? ctx.pageFor(href.slice(1, 33)) : null;
     if (internal) {
@@ -122,7 +133,7 @@ function toggle(summary: ProseMirrorNode[], content: ProseMirrorNode[], level?: 
 
 async function convertBlock(block: BlockTree, ctx: ConvertContext): Promise<ProseMirrorNode[]> {
   const data = (block[block.type] ?? {}) as { rich_text?: RichText[]; color?: string; [key: string]: unknown };
-  const inline = () => richText(data.rich_text, ctx, block.id);
+  const inline = () => richText(data.rich_text, ctx);
   const note = (what: string, info?: string) => ctx.note(what, { blockId: block.id, ...(info ? { info } : {}) });
   const children = () => convertBlocks(block.children ?? [], ctx);
 
@@ -166,12 +177,13 @@ async function convertBlock(block: BlockTree, ctx: ConvertContext): Promise<Pros
     }
     case "code": {
       const code = plainText(data.rich_text);
-      const language = typeof data.language === "string" && data.language !== "plain text" ? data.language : null;
+      // "Plain text" stays plain: a block without a language gets one guessed by the editor.
+      const language = typeof data.language === "string" && data.language ? (data.language === "plain text" ? "plaintext" : data.language) : null;
       return [{ type: "codeBlock", attrs: { language }, ...(code ? { content: [text(code)] } : {}) }];
     }
     case "equation": {
-      note("equation", short(String(data.expression ?? "")));
-      return [{ type: "codeBlock", attrs: { language: "latex" }, content: [text(String(data.expression ?? ""))] }];
+      const latex = String(data.expression ?? "");
+      return latex.trim() ? [{ type: "mathBlock", attrs: { latex } }] : [];
     }
     case "divider":
       return [{ type: "horizontalRule" }];
@@ -256,7 +268,7 @@ async function convertBlock(block: BlockTree, ctx: ConvertContext): Promise<Pros
             type: "tableRow",
             content: ((row.table_row as { cells: RichText[][] }).cells ?? []).map((cell) => ({
               type: hasHeader && i === 0 ? "tableHeader" : "tableCell",
-              content: [paragraph(richText(cell, ctx, block.id))],
+              content: [paragraph(richText(cell, ctx))],
             })),
           })),
         },
@@ -289,11 +301,18 @@ async function convertBlock(block: BlockTree, ctx: ConvertContext): Promise<Pros
     }
     case "column": {
       const nested = await children();
-      return [{ type: "column", content: nested.length ? nested : [paragraph()] }];
+      // Its width in the row, when it was resized in Notion: a share of the row (0 to 1).
+      const ratio = typeof data.width_ratio === "number" && data.width_ratio > 0 && data.width_ratio <= 1 ? data.width_ratio : null;
+      return [{ type: "column", ...(ratio ? { attrs: { width: Math.round(ratio * 10_000) / 10_000 } } : {}), content: nested.length ? nested : [paragraph()] }];
     }
-    case "synced_block":
+    case "synced_block": {
+      // The original and its copies show the same synced block; without it, the content stays as ordinary blocks.
+      const nested = await children();
+      const from = (data.synced_from as { block_id?: string } | null | undefined)?.block_id;
+      const sourceId = ctx.synced ? await ctx.synced(from ?? block.id, !from, nested) : null;
+      return sourceId ? [{ type: "syncedBlock", attrs: { sourceId } }] : nested;
+    }
     case "template":
-      // Synced blocks keep their content.
       return children();
     case "table_of_contents":
     case "breadcrumb":

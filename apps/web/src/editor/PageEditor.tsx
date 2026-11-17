@@ -12,10 +12,10 @@ import { NodeSelection } from "@tiptap/pm/state";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Bold, Code, Italic, Link as LinkIcon, MessageSquarePlus, Strikethrough, Underline } from "lucide-react";
-import type { PageDetail, PageSummary, UserDirectoryEntry } from "@nootion/shared";
+import type { GroupSummary, PageDetail, PageSummary, UserDirectoryEntry } from "@nootion/shared";
 import { markSaved } from "../lib/saved";
 import { useSession } from "../lib/session";
-import { keys, useRefreshPages, useUserDirectory } from "../lib/queries";
+import { keys, useGroups, useRefreshPages, useUserDirectory } from "../lib/queries";
 import { baseExtensions } from "./extensions";
 import { createSuggestionExtension } from "./suggestion";
 import { mentionItems, slashItems, type CommandContext } from "./commands";
@@ -24,9 +24,13 @@ import { usePlugins } from "../plugins/registry";
 import type { ClientPluginInfo } from "@nootion/shared";
 import { t } from "@nootion/shared";
 import { MobileToolbar } from "./MobileToolbar";
+import { SelectionPanels } from "./selectionPanel";
+import { PluginSelectionButtons } from "../plugins/SelectionMenus";
+import { PagePanels } from "../plugins/PagePanels";
+import { TextColorButton } from "./TextColorMenu";
 import { BlockHandle } from "./BlockHandle";
 import { BlockShortcuts } from "./blockActions";
-import { BlockFlash, EditTracking, findBlockById, flashBlock } from "./blockAttrs";
+import { BlockFlash, EditTracking, findBlockById, findTaskByRank, flashBlock } from "./blockAttrs";
 import { useIsTouch } from "../lib/mobile";
 import type { CommentThread } from "@nootion/shared";
 import { CommentHighlights, selectionAnchor, setCommentHighlights } from "../comments/highlights";
@@ -132,6 +136,7 @@ function CollabEditor({
   navigateRef.current = navigate;
   // Loaded ahead, for "@" mentions of people.
   useUserDirectory();
+  useGroups(!!user && user.role !== "guest");
   const refreshPages = useRefreshPages();
   const [synced, setSynced] = useState(provider.isSynced);
   const [connected, setConnected] = useState(true);
@@ -192,6 +197,7 @@ function CollabEditor({
       plugins,
       userId: user?.id ?? null,
       people: () => qc.getQueryData<UserDirectoryEntry[]>(keys.users) ?? [],
+      groups: () => qc.getQueryData<GroupSummary[]>(keys.groups) ?? [],
       onPageCreated: () => void refreshPages(),
       linkablePages: () => {
         const seen = new Map<string, PageSummary>();
@@ -213,6 +219,7 @@ function CollabEditor({
         createSuggestionExtension("slashCommands", "/", slashItems(ctx), t("editor.noCommand")),
         createSuggestionExtension("pageMentions", "@", mentionItems(ctx), t("editor.noPage")),
         CommentHighlights.configure({ onOpen: (id) => commentsRef.current?.onOpen(id) }),
+        SelectionPanels,
         BlockShortcuts,
         BlockFlash,
         EditTracking.configure({ user: user ? { id: user.id, name: user.name } : null }),
@@ -257,12 +264,14 @@ function CollabEditor({
     if (active) document.querySelector(`.nootion-content [data-comment-thread="${active}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [active]);
 
-  // A link to a block ("#block-…"): the page scrolls to it once the server's copy is in, and shows it for a moment.
+  // A link to a block ("#block-…", or "#task-3" for the fourth to-do, from "Tasks"): the page scrolls to it once the
+  // server's copy is in, and shows it for a moment.
   const { hash } = useLocation();
   useEffect(() => {
     const id = /^#block-([\w-]+)$/.exec(hash)?.[1];
-    if (!editor || !synced || !id) return;
-    const pos = findBlockById(editor.state.doc, id);
+    const task = /^#task-(\d+)$/.exec(hash)?.[1];
+    if (!editor || !synced || (!id && task === undefined)) return;
+    const pos = id ? findBlockById(editor.state.doc, id) : findTaskByRank(editor.state.doc, Number(task));
     if (pos !== null) return flashBlock(editor, pos);
   }, [editor, synced, hash]);
 
@@ -301,10 +310,14 @@ function CollabEditor({
         ) : null}
       </div>
       {/* On touch screens, formatting is in the bar above the keyboard, away from the system's selection menu. */}
-      {editor && canEdit && !touch && <FormatMenu editor={editor} onComment={comments?.canComment ? () => startComment(editor, comments) : undefined} />}
+      {editor && canEdit && !touch && (
+        <FormatMenu editor={editor} pageId={page.id} onComment={comments?.canComment ? () => startComment(editor, comments) : undefined} />
+      )}
       {/* People who may only comment, and phones, get a menu with just "Comment". */}
       {editor && comments?.canComment && (touch || !canEdit) && <CommentMenu editor={editor} onComment={() => startComment(editor, comments)} />}
-      {editor && canEdit && touch && <MobileToolbar editor={editor} />}
+      {editor && canEdit && touch && <MobileToolbar editor={editor} pageId={page.id} />}
+      {/* Round buttons of plugins at the bottom right (the AI assistant's chat…). */}
+      {editor && <PagePanels editor={editor} pageId={page.id} title={page.title} canEdit={canEdit} touch={touch} />}
       {editor && canEdit && <TableMenu editor={editor} />}
       {editor && editable && !touch && (
         <BlockHandle
@@ -345,7 +358,7 @@ function CommentMenu({ editor, onComment }: { editor: Editor; onComment: () => v
   );
 }
 
-function FormatMenu({ editor, onComment }: { editor: Editor; onComment?: () => void }) {
+function FormatMenu({ editor, pageId, onComment }: { editor: Editor; pageId: string; onComment?: () => void }) {
   const state = useEditorState({
     editor,
     selector: ({ editor: e }) => ({
@@ -379,6 +392,7 @@ function FormatMenu({ editor, onComment }: { editor: Editor; onComment?: () => v
       <button className={btn(state.code)} onClick={() => editor.chain().focus().toggleCode().run()} title={t("editor.code")}>
         <Code size={15} />
       </button>
+      <TextColorButton editor={editor} />
       <button
         className={btn(state.link)}
         title={t("editor.link")}
@@ -408,6 +422,8 @@ function FormatMenu({ editor, onComment }: { editor: Editor; onComment?: () => v
           </button>
         </>
       )}
+      {/* Entries that plugins add (the AI assistant…). */}
+      <PluginSelectionButtons editor={editor} pageId={pageId} />
     </BubbleMenu>
   );
 }

@@ -117,9 +117,11 @@ What `activate` receives:
 | `connectedAccount({ describe, disconnect })` | lists the user's account on another service in **My account › Connected services**: `describe(userId)` returns what to show ("ada@gmail.com") or null when not connected, `disconnect(userId)` forgets and revokes it. |
 | `redirect(url)` | return it from a route to send the browser elsewhere (a sign-in page of another service…) |
 | `appUrl` | Nootion's address (`APP_URL`), e.g. to build an OAuth redirect address |
-| `net.request(url, options)` | an http(s) request to an address **a user typed** (a link to preview, a webhook): it refuses the server's own network and throws, unless `allowPrivate: true`. Options: `method` (`GET`, `POST`), `headers`, `body`, `timeoutMs`, `maxRedirects` (0 by default, each hop is checked), `maxBytes` (how much of the answer is read, 0 by default). Resolves with `{ status, ok, url, headers, body }` (`body` is a Buffer). Use it instead of `fetch` for such addresses. |
+| `net.request(url, options)` | an http(s) request to an address **a user typed** (a link to preview, a webhook): it refuses the server's own network and throws, unless `allowPrivate: true`. Options: `method` (`GET`, `POST`), `headers`, `body`, `timeoutMs`, `maxRedirects` (0 by default, each hop is checked), `maxBytes` (how much of the answer is read, 0 by default), `stream` (hands the answer over as it arrives, in `stream`, instead of reading it; `timeoutMs` then counts until the headers, and `idleMs` of silence ends it, 60 s by default). Resolves with `{ status, ok, url, headers, body, stream }` (`body` is a Buffer). Use it instead of `fetch` for such addresses. |
 | `net.isPrivateAddress(ip)` | whether an IP address is local (loopback, private ranges, link-local, IPv4 inside IPv6…) |
 | `binary(data, contentType)` | return it from a route to send a file instead of JSON. PNG, JPEG, GIF, WebP and AVIF images are shown in the browser; anything else is downloaded. |
+| `stream(data, contentType)` | return it from a route to send text as it is written (a model's answer): `data` is a stream or an async generator of strings, `contentType` is `text/plain; charset=utf-8` by default. Each chunk reaches the browser at once; when the browser goes away, the stream is destroyed (a generator's `finally` runs). Read it in the browser with `nootion.fetch`. |
+| `markdown(text)` | page blocks, as the editor keeps them, from Markdown (headings, lists, to-dos, quotes, code, tables, links): to put text written elsewhere in a page. |
 
 A plugin must never send a user data they couldn't see themselves.
 
@@ -222,6 +224,53 @@ nootion.registerFileSource({
   pick: ({ pageId, multiple }) => nootion.ui.showDialog((close) => h(MyPicker, { pageId, multiple, close })),
 });
 ```
+
+### Entries in the menu of a selection
+
+A plugin can add a menu to the bar shown over selected text (and, on phones, a button in the bar above the
+keyboard), for people who may edit the page. An entry receives the passage, and can show a panel in the page right
+under it, while the passage stays highlighted. The panel puts its result in the page, or goes away (Escape closes it
+too):
+
+```js
+nootion.registerSelectionMenu({
+  label: "Shout",
+  icon: "📣",
+  // A line under the entries, read each time the menu opens (to say where the text goes…).
+  note: () => "Nothing leaves your server.",
+  // Hidden while it returns false.
+  visible: () => true,
+  actions: [
+    {
+      id: "upper",
+      label: "In capitals",
+      icon: "🔠",
+      run: ({ text, pageId, showPanel }) =>
+        showPanel((panel) =>
+          h("div", null, text.toUpperCase(), " ",
+            h("button", { onClick: () => panel.replace(text.toUpperCase()) }, "Replace"),
+            h("button", { onClick: () => panel.close() }, "Discard"))),
+    },
+  ],
+});
+```
+
+The panel's `replace(content)` takes the passage's place, `insertAfter(content)` goes right after it (on the same
+line when it is one paragraph), `insertBelow(content)` goes below its block; each closes the panel. `content` is plain
+text (a paragraph per blank line) or editor blocks as JSON (for instance from `nootion.markdown` on the server).
+`panel.open` turns false once it is closed, by the plugin, Escape, another panel or leaving the page.
+
+### A button at the bottom right of pages
+
+`nootion.registerPagePanel({ label, icon, visible, render })` adds a round button at the bottom right of pages (one
+per plugin), which opens a panel beside the page (over it on a phone); Escape or its ✕ closes it. `render(ctx)`
+draws its content, with `ctx.pageId`, `ctx.title()` and `ctx.text()` (the page as plain text, as it is now),
+`ctx.canEdit`, `ctx.insert(content)` (below the cursor, or at the end of the page; plain text or editor blocks) and
+`ctx.close()`.
+
+To read a route that returns `nootion.stream(…)` as it arrives, `nootion.fetch(path, { method, body, signal })` gives
+the `Response` (it throws, like `nootion.api`, when the route answers with an error); pass an `AbortController`'s
+signal to stop it. The **AI assistant** plugin uses both: [`apps/server/plugins/assistant`](../apps/server/plugins/assistant).
 
 ### The app's interface
 

@@ -227,6 +227,27 @@ describe("single sign-on", () => {
     ).toBe("/login?sso_error=no_account");
   });
 
+  it("lets a guest invited on a page sign in with the provider, and newcomers arrive as guests if chosen", async () => {
+    await boris.put("/api/admin/sso", settings({ signup: "anyone", signupRole: "guest" }));
+    const ws = (await boris.get("/api/workspaces")).json().workspaces[0].id;
+    const page = await boris.createPage(ws, "Dossier partagé");
+    const link = (await boris.post(`/api/pages/${page}/guests`, { email: "gina@dehors.fr", role: "commenter" })).json().url.split("/invite/")[1];
+    const gina = await ssoLogin({ sub: "s-gina", email: "gina@dehors.fr", name: "Gina" }, `?invite=${link}`);
+    expect((await gina.client.get("/api/auth/me")).json().user.role).toBe("guest");
+    expect((await gina.client.get(`/api/pages/${page}`)).json().page.role).toBe("commenter");
+    expect((await gina.client.get("/api/workspaces")).json().workspaces).toEqual([]);
+
+    const hugo = await ssoLogin({ sub: "s-hugo", email: "hugo@example.com" });
+    expect((await hugo.client.get("/api/auth/me")).json().user.role).toBe("guest");
+    expect((await hugo.client.get("/api/pages/shared")).json().pages).toEqual([]);
+
+    // Guests turned off: they no longer sign in, and nobody arrives as one.
+    const current = (await boris.get("/api/admin/settings")).json().settings;
+    await boris.put("/api/admin/settings", { ...current, allowGuests: false });
+    expect((await ssoLogin({ sub: "s-gina" })).location).toBe("/login?sso_error=disabled");
+    expect((await ssoLogin({ sub: "s-ines", email: "ines@example.com" })).location).toBe("/login?sso_error=no_account");
+  });
+
   it("refuses disabled accounts, a wrong state and a cancelled sign-in", async () => {
     await boris.put("/api/admin/sso", settings());
     await boris.patch(`/api/admin/users/${await alice.id()}`, {

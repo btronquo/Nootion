@@ -122,6 +122,13 @@ export const propertyConfigSchema = z
     databaseId: z.string().min(1).optional(),
     /** relation: the matching property in the related database, for two-way relations. Managed by the server. */
     twinPropertyId: z.string().min(1).nullable().optional(),
+    /**
+     * relation of a database to itself with a meaning: "parent" and its twin "children" make sub-items, "blocks" and
+     * its twin "blockedBy" make dependencies. Set by the server when the option is turned on; fixed afterwards.
+     */
+    role: z.enum(["parent", "children", "blocks", "blockedBy"]).optional(),
+    /** relation with the "blocks" role: moving a row's dates moves the rows it blocks by as many days. */
+    shiftDependents: z.boolean().optional(),
     /** rollup: relation of this database to follow */
     relationPropertyId: z.string().min(1).optional(),
     /** rollup: property of the related database to compute */
@@ -224,6 +231,8 @@ export interface ViewConfig {
   filters?: ViewFilter[];
   /** "and" (default): rows match every filter. "or": rows match at least one. */
   filterMode?: "and" | "or";
+  /** Filters shown as chips above the rows, one per column: rows match all of them, and the (advanced) filters above. */
+  simpleFilters?: ViewFilter[];
   /** Applied in order: the first sort decides, the next ones break ties. */
   sorts?: ViewSort[];
   /** Property whose values split the rows into groups (board columns). */
@@ -238,6 +247,8 @@ export interface ViewConfig {
   timelineScale?: "day" | "week" | "month";
   /** Gallery: shows the row's cover or first image at the top of its card (default true). */
   showPreview?: boolean;
+  /** Gallery: how wide the cards are (default medium); there are as many in a row as fit. */
+  cardSize?: "small" | "medium" | "large";
 }
 
 export const viewConfigSchema = z
@@ -249,6 +260,7 @@ export const viewConfigSchema = z
     calculations: z.record(z.string(), z.enum(CALC_FUNCTIONS)).optional(),
     filters: z.array(viewFilterSchema).max(50).optional(),
     filterMode: z.enum(["and", "or"]).optional(),
+    simpleFilters: z.array(viewFilterSchema).max(50).optional(),
     sorts: z.array(viewSortSchema).max(20).optional(),
     groupBy: z.string().min(1).max(64).nullable().optional(),
     collapsedGroups: z.array(z.string().max(500)).max(500).optional(),
@@ -256,6 +268,7 @@ export const viewConfigSchema = z
     calendarMode: z.enum(["month", "week"]).optional(),
     timelineScale: z.enum(["day", "week", "month"]).optional(),
     showPreview: z.boolean().optional(),
+    cardSize: z.enum(["small", "medium", "large"]).optional(),
   })
   .passthrough();
 
@@ -286,6 +299,8 @@ export interface DatabaseData {
   title: string;
   icon: string | null;
   role: PageRole;
+  /** Columns and views can't be changed (rows still can). */
+  locked: boolean;
   properties: DatabaseProperty[];
   views: DatabaseViewInfo[];
   rows: DatabaseRow[];
@@ -299,6 +314,11 @@ export interface DatabaseData {
   templates: RowTemplate[];
   /** Template new rows start from, unless another (or a blank row) is chosen. */
   defaultTemplateId: string | null;
+  /**
+   * Shown in a linked view (another page): `views` are that block's own, and these say whether the reader may change
+   * them (an editor of the page may, even if they can only read the database).
+   */
+  linked?: { pageId: string; blockId: string; canEditViews: boolean };
 }
 
 export interface RowTemplate {
@@ -363,11 +383,17 @@ export const updateViewInput = z.object({
   position: z.number().int().min(0).optional(),
 });
 
+/** Where a linked view is: the page showing the database, and its block's `linkId` there. */
+export const viewOwnerSchema = z.object({ pageId: z.string().min(1).max(100), blockId: z.string().min(1).max(100) });
+export type ViewOwner = z.infer<typeof viewOwnerSchema>;
+
 export const createViewInput = z.object({
   name: z.string().trim().min(1).max(100),
   type: z.enum(VIEW_TYPES).default("table"),
   /** Copies the settings of another view of the same database. */
   duplicateOf: z.string().min(1).optional(),
+  /** A view of a linked view: the page showing it and the block's id there. */
+  owner: viewOwnerSchema.optional(),
 });
 
 const UNSAFE_URL = /^(javascript|data|vbscript|file|blob):/i;

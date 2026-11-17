@@ -21,15 +21,17 @@ import {
   Search,
   Star,
   X,
-  Database,
-  FileText,
   Home,
   Bell,
   Inbox,
   Library,
+  ListChecks,
   Waypoints,
   RefreshCw,
+  FileUp,
 } from "lucide-react";
+import { createPortal } from "react-dom";
+import { FileImportDialog } from "./FileImport";
 import {
   disablePush,
   useReminderNotifications,
@@ -50,6 +52,7 @@ import {
 import { useSession } from "../lib/session";
 import { useUpdateStatus, useVersion } from "./UpdateNotice";
 import { WhatsNewDialog } from "./WhatsNew";
+import { OnboardingTour } from "./OnboardingTour";
 import { buildTree, pageTitle } from "../lib/tree";
 import { DRAG_TYPE, PageTree } from "./PageTree";
 import { PendingSpaceMoveDialog, readDraggedSpace, type PendingSpaceMove } from "./SpaceMove";
@@ -57,6 +60,7 @@ import { Avatar } from "./Avatar";
 import { Button, CancelButton, ErrorText, Field, Modal } from "./ui";
 import { usePlugins } from "../plugins/registry";
 import { SearchDialog, useSearchShortcut } from "./SearchDialog";
+import { useAppActions } from "./appActions";
 import {
   captureShortcutLabel,
   QuickCaptureDialog,
@@ -67,11 +71,13 @@ import { useIsTouch } from "../lib/mobile";
 import { clearOfflineData } from "../lib/offline";
 import { SyncStatus } from "./SyncStatus";
 import { useLiveEvents } from "../lib/live";
-import { pageIcon } from "../lib/icons";
+import { PageGlyph } from "../lib/icons";
 import { syncErrorText, useDesktopSync } from "../pages/SyncPage";
 
 export function AppShell() {
   const { user, refresh } = useSession();
+  // A guest only has the pages shared with them: no spaces, inbox, tasks, library or graph.
+  const guest = user?.role === "guest";
   const version = useVersion();
   const update = useUpdateStatus(user?.role === "admin").data;
   const updateWarning = !!update?.available && !update.dismissed;
@@ -121,6 +127,7 @@ export function AppShell() {
 
   const syncLinks = useDesktopSync().data;
   const syncError = syncLinks?.find((l) => l.lastError)?.lastError;
+  useAppActions({ capture: () => setCapturing(true), newSpace: () => setCreatingWorkspace(true), hasSync: !!syncLinks });
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-2 rounded-md px-2 py-1.5 text-sm ${isActive ? "bg-neutral-200/70 font-medium dark:bg-neutral-800" : "hover:bg-neutral-200/50 dark:hover:bg-neutral-800/60"}`;
@@ -147,7 +154,7 @@ export function AppShell() {
           </kbd>
         )}
       </button>
-      <button
+      {!guest && <button
         onClick={() => setCapturing(true)}
         className="mx-2 mb-1 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-neutral-600 hover:bg-neutral-200/50 dark:text-neutral-400 dark:hover:bg-neutral-800/60"
         data-quick-capture-button
@@ -158,7 +165,7 @@ export function AppShell() {
             {captureShortcutLabel()}
           </kbd>
         )}
-      </button>
+      </button>}
       <NavLink
         to="/"
         end
@@ -166,7 +173,7 @@ export function AppShell() {
           `mx-2 mb-1 flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-neutral-200/50 dark:hover:bg-neutral-800/60 ${isActive ? "bg-neutral-200/70 font-medium text-neutral-900 dark:bg-neutral-800 dark:text-neutral-100" : "text-neutral-600 dark:text-neutral-400"}`
         }
       >
-        <Home size={16} /> {t("home.title")}
+        {guest ? <Share2 size={16} /> : <Home size={16} />} {guest ? t("sidebar.shared") : t("home.title")}
       </NavLink>
       <NavLink
         to="/reminders"
@@ -184,8 +191,9 @@ export function AppShell() {
           </span>
         )}
       </NavLink>
-      {(
+      {!guest && (
         [
+          ["/tasks", <ListChecks size={16} key="i" />, t("tasks.title")],
           ["/pages", <Library size={16} key="i" />, t("library.title")],
           ["/graph", <Waypoints size={16} key="i" />, t("graph.title")],
         ] as const
@@ -206,17 +214,21 @@ export function AppShell() {
           <WorkspaceSection key={ws.id} workspace={ws} />
         ))}
         <SharedSection />
-        <button
-          onClick={() => setCreatingWorkspace(true)}
-          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-neutral-500 hover:bg-neutral-200/50 dark:hover:bg-neutral-800/60"
-        >
-          <Plus size={16} /> {t("workspace.new")}
-        </button>
+        {!guest && (
+          <button
+            onClick={() => setCreatingWorkspace(true)}
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-neutral-500 hover:bg-neutral-200/50 dark:hover:bg-neutral-800/60"
+          >
+            <Plus size={16} /> {t("workspace.new")}
+          </button>
+        )}
       </nav>
       <div className="space-y-0.5 border-t border-neutral-200 p-2 dark:border-neutral-800">
-        <NavLink to="/trash" className={linkClass}>
-          <Trash2 size={16} /> {t("trash.title")}
-        </NavLink>
+        {!guest && (
+          <NavLink to="/trash" className={linkClass}>
+            <Trash2 size={16} /> {t("trash.title")}
+          </NavLink>
+        )}
         {syncLinks && (
           <NavLink to="/sync" className={linkClass}>
             <RefreshCw size={16} /> {t("sync.title")}
@@ -290,7 +302,8 @@ export function AppShell() {
       )}
       {searching && <SearchDialog onClose={() => setSearching(false)} />}
       <WhatsNewDialog />
-      {capturing && <QuickCaptureDialog onClose={() => setCapturing(false)} />}
+      <OnboardingTour />
+      {capturing && !guest && <QuickCaptureDialog onClose={() => setCapturing(false)} />}
     </SidebarLayout>
   );
 }
@@ -323,6 +336,7 @@ function WorkspaceSection({ workspace }: { workspace: WorkspaceSummary }) {
   // A page dropped on the space's name goes to its top level, at the end; from another space, once confirmed.
   const [dropping, setDropping] = useState(false);
   const [pending, setPending] = useState<PendingSpaceMove | null>(null);
+  const [importing, setImporting] = useState(false);
 
   async function onDrop(e: React.DragEvent) {
     e.preventDefault();
@@ -390,6 +404,11 @@ function WorkspaceSection({ workspace }: { workspace: WorkspaceSummary }) {
           <Download size={13} />
         </a>
         {canEdit && (
+          <button onClick={() => setImporting(true)} className={iconBtn} title={t("fileImport.menu")} aria-label={t("fileImport.menu")} data-space-import>
+            <FileUp size={13} />
+          </button>
+        )}
+        {canEdit && (
           <button onClick={addPage} className={iconBtn} title={t("page.new")}>
             <Plus size={14} />
           </button>
@@ -397,6 +416,7 @@ function WorkspaceSection({ workspace }: { workspace: WorkspaceSummary }) {
       </SectionHeader>
       </div>
       {pending && <PendingSpaceMoveDialog move={pending} onClose={() => setPending(null)} />}
+      {importing && createPortal(<FileImportDialog workspaceId={workspace.id} onClose={() => setImporting(false)} />, document.body)}
       {pages.data && (
         <PageTree
           nodes={buildTree(pages.data)}
@@ -495,12 +515,7 @@ function FavoritesSection() {
               }
             >
               <span className="w-4 shrink-0 text-center">
-                {pageIcon(page.icon) ??
-                  (page.kind === "database" ? (
-                    <Database size={14} className="inline text-neutral-400" />
-                  ) : (
-                    <FileText size={14} className="inline text-neutral-400" />
-                  ))}
+                <PageGlyph icon={page.icon} kind={page.kind} />
               </span>
               <span className="truncate">{pageTitle(page.title)}</span>
             </NavLink>

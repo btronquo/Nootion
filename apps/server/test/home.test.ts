@@ -19,7 +19,13 @@ describe("home page", () => {
     const page = (await boris.get(`/api/pages/${id}`)).json().page;
     expect(page).toMatchObject({ title: "Accueil", home: true, role: "full" });
     const json = app.db.$client.prepare("SELECT content_json FROM pages WHERE id = ?").get(id) as { content_json: string };
-    expect(JSON.parse(json.content_json).content.map((n: { type: string }) => n.type)).toEqual(["recentPages", "upcomingEvents", "favoritesList", "paragraph"]);
+    expect(JSON.parse(json.content_json).content.map((n: { type: string }) => n.type)).toEqual([
+      "recentPages",
+      "tasksList",
+      "upcomingEvents",
+      "favoritesList",
+      "paragraph",
+    ]);
 
     const ws = await boris.personalWorkspace();
     const other = await boris.createPage(ws, "Notes");

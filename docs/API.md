@@ -66,7 +66,7 @@ Ids are UUIDs. Dates are ISO 8601.
 | `GET /api/workspaces/:id/pages` | Every page and database of a space (`id`, `parentId`, `kind`, `title`, `icon`, `position`…). Database rows are not listed: query their database. |
 | `GET /api/pages/:id` | A page's details: title, icon, cover, `kind` (`page`, `database` or `row`), your role, breadcrumb. |
 | `POST /api/pages` | Creates a page: `{ "workspaceId", "parentId": null, "title", "icon"?, "markdown"? }` (or `content`, see below). A subpage gets a link at the end of its parent, unless `"linkInParent": false`. |
-| `PATCH /api/pages/:id` | Changes `title`, `icon`, `cover` (`https://…` image), `fullWidth`. |
+| `PATCH /api/pages/:id` | Changes `title`, `icon`, `cover` (`https://…` image), `fullWidth`, `locked`. While a page is locked, changes to its content, title, icon or cover (and, for a database, to its columns, views and templates) answer `423 Locked`. |
 | `POST /api/pages/:id/move` | Moves it: `{ "parentId": "…" or null, "index"?, "workspaceId"? }`. A line holding only a link to it moves with it, from the old parent to the end of the new one. With `workspaceId`, it goes to another space with all its subpages (owners and editors of both spaces only; `parentId` must then be a page of that space, or null). |
 | `DELETE /api/pages/:id` | Moves it to the trash, with its subpages. |
 | `POST /api/pages/:id/restore` | Takes it out of the trash. |
@@ -102,6 +102,17 @@ The JSON form takes the editor's blocks only (toggles, callouts, columns, dates,
 `content` to see how they are written. A date with a reminder keeps it only if the reminder is yours. A person is
 `{ "type": "userMention", "attrs": { "id", "userId", "name" } }`: they are told once per `id`, the mention being yours.
 
+A synced block is `{ "type": "syncedBlock", "attrs": { "sourceId" } }`: the same blocks shown in several pages. Its
+content lives in a hidden page of its own (kind `block`, under the page where it was made), read and written like any
+page's (`/api/pages/:sourceId/content`), with the access of that page. In the Markdown of a page, synced blocks are
+written out as their content, or as "No access to this content" when you can't read it.
+
+| Request | What it does |
+| --- | --- |
+| `POST /api/pages/:id/synced-blocks` | Makes a synced block in the page: `{ "content"?: [ …blocks ] }` (an empty line when missing). Answers `{ "id" }`; add `{ "type": "syncedBlock", "attrs": { "sourceId": id } }` to the content of the pages that show it. |
+| `GET /api/synced-blocks/:id` | `{ "block": { "id", "host", "role", "locked", "content", "pages" } }`: where it lives, its content and the pages (you can read) that show it. 404 without access. |
+| `GET /api/synced-blocks?q=` | Synced blocks you can read whose text or page title matches, latest first: `{ "blocks": [{ "id", "host", "preview", "updatedAt" }] }`. |
+
 ## Databases
 
 A database is a page of kind `database`; its rows are pages of kind `row`, with cell values and content.
@@ -110,6 +121,7 @@ A database is a page of kind `database`; its rows are pages of kind `row`, with 
 | --- | --- |
 | `GET /api/databases` | Databases you can read. |
 | `GET /api/databases/:id` | Its columns (`properties`: `id`, `name`, `type`, `config` with select options), views, and all rows. |
+| `GET /api/databases/:id?page=…&block=…` | The same database as shown in a linked view: `views` are those of the block `block` (its `linkId`) in the page `page`, made from the database's first view the first time. |
 | `POST /api/databases/:id/query` | Rows filtered and sorted, a page at a time (below). |
 | `POST /api/databases` | Creates one: `{ "workspaceId", "parentId": null, "title" }`. |
 | `POST /api/databases/:id/rows` | Adds a row: `{ "values": { … }, "markdown"?, "after"? }`. With `after` (a row id, or `null` for first), the row is placed right after that row instead of last. |
@@ -238,8 +250,25 @@ app's Notifications, and on their devices when they turned notifications on). No
 
 ## Search
 
-`GET /api/search?q=words&limit=20` searches titles, content and attached files (PDFs, scans) of the token's
-spaces: `{ "results": [{ "id", "title", "kind", "path", "snippet", "file"? }] }`.
+`GET /api/search?q=words&limit=20` searches titles, content, the values of database rows and attached files (PDFs,
+scans) of the token's spaces: `{ "results": [{ "id", "title", "kind", "path", "snippet", "match"?, "updatedAt", "file"? }] }`.
+A row is found by its cells as well as its title: searching `dupont` finds the invoice whose "Customer" is Dupont, with
+the snippet `Customer: Dupont · Status: Paid` and `"match": "cells"`. Text, number, select, status, person, link,
+e-mail, phone, file and ID columns are searched; computed ones (formulas, rollups) are not.
+
+Filters, as more parameters (each optional; with filters and no `q`, the most recently changed pages that match):
+
+| Parameter     | Keeps                                                                 |
+| ------------- | --------------------------------------------------------------------- |
+| `workspaceId` | pages of this space                                                   |
+| `kind`        | `page`, `database`, `row` (database rows) or `file` (attached files)   |
+| `databaseId`  | rows of this database (`GET /api/search/databases` lists them)        |
+| `authorId`    | pages created (files: added) by this person                           |
+| `editedSince` | pages changed since a number of days (`7d`) or a date (`2026-01-31`)  |
+
+Saved searches, the user's own: `GET /api/search/saved`, `POST /api/search/saved` with
+`{ "name", "query", "filters": { …the parameters above } }` (the same name replaces it), `PATCH` and `DELETE
+/api/search/saved/:id`.
 
 ## Examples
 

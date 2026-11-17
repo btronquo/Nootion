@@ -7,9 +7,11 @@ import { atLeast, drawingText } from "@nootion/shared";
 import type { Db } from "./db/index.js";
 import { pages } from "./db/schema.js";
 import { findSessionUser, SESSION_COOKIE } from "./auth/sessions.js";
+import { guestsAllowed, isGuest } from "./guests.js";
 import { getPageRole } from "./permissions.js";
 import { recordSnapshot } from "./history.js";
 import { syncReminders } from "./reminders.js";
+import { isLocked } from "./locks.js";
 
 /** Name of the Y.XmlFragment holding the page body (TipTap's default). */
 export const CONTENT_FIELD = "default";
@@ -113,6 +115,7 @@ export function prosemirrorToText(node: ProseMirrorNode): string {
   if (node.type === "dateMention") return String(node.attrs?.date ?? "").replace("T", " ");
   if (node.type === "userMention") return `@${String(node.attrs?.name ?? "")}`;
   if (node.type === "drawing") return drawingText(node.attrs?.strokes);
+  if (node.type === "mathInline" || node.type === "mathBlock") return String(node.attrs?.latex ?? "");
   if (node.type === "buttonBlock") return String((node.attrs?.config as { label?: string } | undefined)?.label ?? "");
   const inner = (node.content ?? []).map(prosemirrorToText).join(BLOCK_TYPES.has(node.type) ? "" : "\n");
   return inner.replace(/\n{2,}/g, "\n");
@@ -143,8 +146,8 @@ export function createCollab(db: Db) {
     async onAuthenticate({ context, documentName, connectionConfig }) {
       const role = getPageRole(db, context.userId, documentName);
       if (!atLeast(role, "viewer")) throw new Error("forbidden");
-      // Viewers and commenters receive updates but cannot send any.
-      connectionConfig.readOnly = !atLeast(role, "editor");
+      // Viewers and commenters receive updates but cannot send any; nor can anyone while the page is locked.
+      connectionConfig.readOnly = !atLeast(role, "editor") || isLocked(db, documentName);
     },
 
     async onLoadDocument({ document, documentName }) {
@@ -205,7 +208,8 @@ export async function registerCollabRoute(app: FastifyInstance, collab: Collab) 
     const origin = req.headers.origin;
     const allowed = [app.config.appUrl, `${req.protocol}://${req.host}`];
     const token = req.cookies[SESSION_COOKIE];
-    const user = token ? findSessionUser(app.db, token) : null;
+    let user = token ? findSessionUser(app.db, token) : null;
+    if (isGuest(user) && !guestsAllowed(app.db)) user = null;
     if ((origin && !allowed.includes(origin)) || !user) {
       socket.close(4401, "unauthorized");
       return;
@@ -263,6 +267,8 @@ export async function appendContent(collab: Collab, db: Db, pageId: string, node
  * like any link). It goes before a trailing empty paragraph, so the line people type on stays last.
  */
 export async function linkChildPage(collab: Collab, db: Db, parentId: string, page: { id: string; title: string }) {
+  // A locked page's content stays as it is: the subpage is still in the sidebar.
+  if (isLocked(db, parentId)) return;
   const block = { type: "paragraph", content: [{ type: "pageLink", attrs: { pageId: page.id, title: page.title } }] };
   await editContent(collab, db, parentId, (d) =>
     d.transact(() => {
@@ -291,6 +297,7 @@ export function hasLinkLine(collab: Collab, db: Db, parentId: string, pageId: st
 
 /** Removes the lines holding only a link to a page that moved out of this one (links within text stay). */
 export async function unlinkChildPage(collab: Collab, db: Db, parentId: string, pageId: string) {
+  if (isLocked(db, parentId)) return;
   if (!hasLinkLine(collab, db, parentId, pageId)) return;
   await editContent(collab, db, parentId, (d) =>
     d.transact(() => {

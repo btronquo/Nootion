@@ -31,10 +31,12 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(req)
         .then((res) => {
-          if (res.ok) {
+          // Answers the server asks not to keep (a public link with a password or an end date) stay out of the copy.
+          const keep = !(res.headers.get("cache-control") || "").includes("no-store");
+          if (res.ok && keep) {
             const copy = res.clone();
             caches.open(API_CACHE).then((c) => c.put(req, copy));
-          } else if (res.status === 401 || res.status === 403 || res.status === 404) {
+          } else if (!keep || res.status === 401 || res.status === 403 || res.status === 404 || res.status === 410) {
             // No longer visible to this user: don't show the old copy offline.
             caches.open(API_CACHE).then((c) => c.delete(req));
           }

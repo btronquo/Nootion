@@ -1,7 +1,7 @@
 # How Nootion is built
 
-A map of the code for whoever wants to read it, fork it or write a plugin. For the original design and its
-reasons, see [PLAN.md](../PLAN.md); to run it, [DEPLOYMENT.md](DEPLOYMENT.md).
+A map of the code for whoever wants to read it, fork it or write a plugin. To run it, see
+[DEPLOYMENT.md](DEPLOYMENT.md).
 
 - [The three packages](#the-three-packages)
 - [A request, from the browser to the database](#a-request-from-the-browser-to-the-database)
@@ -47,7 +47,8 @@ automations and plugins.
 ## Who can see what
 
 `apps/server/src/permissions.ts` is the single place that decides. The role someone has on a page is the best of
-their role in the page's space and of any share on the page or one of its ancestors (shares are inherited). Pages
+their role in the page's space and of any share on the page or one of its ancestors (shares are inherited),
+given to them or to one of their groups. Pages
 in the trash are invisible. Every route that touches a page goes through it, and so do the websocket, public
 links, search results and exports. The tests in `apps/server/test/permissions.test.ts` and `security.test.ts`
 cover it.
@@ -55,10 +56,26 @@ cover it.
 Three things sit beside it:
 
 - **Public links and public forms** (`routes/public.ts`, `routes/buttons.ts`) serve people without an account, and
-  only what the link names.
+  only what the link names. Their password and end date are checked in `public-access.ts`, on every request: the
+  password is exchanged for a cookie limited to the link's addresses and signed with the link's token and password
+  hash, so a new password invalidates it.
 - **Tokens** narrow a user's rights to some spaces, read-only or not. They never widen them.
 - **The people directory** (`users.ts`) only lists those who share a space or a page with you; administrators see
   everyone.
+- **Groups** (`groups.ts`) are sets of people, made by administrators or through SCIM. A space or a page shared with
+  a group (`workspace_group_members`, `page_group_permissions`) counts for everyone in it: the views
+  `effective_workspace_members` and `effective_page_permissions` join them with the direct memberships and shares, and
+  `permissions.ts` and the lists of spaces, shared pages and people read those views, taking the best role. A group
+  is never owner of a space and never holds a guest. `groups.test.ts` covers it.
+- **Guests** (`guests.ts`) are accounts with the role `guest`, invited on a page: no personal space, never in a
+  space, so `permissions.ts` gives them only the pages shared with them. What they may not do besides (tokens,
+  looking people up, sharing, home page and inbox…) is one list of routes, refused in a hook of `app.ts` for every
+  request; `guests.test.ts` covers it. Their directory is limited to the people of those pages.
+- **The activity log** (`audit.ts`, table `audit_events`) is written by the routes concerned, after the change, with
+  one call to `audit()`: who (name and address copied, so that a line outlives the account), the action (the list is
+  `AUDIT_CATEGORIES` in `packages/shared/src/audit.ts`), the target and small facts, never page content nor secret
+  values. It is only added to, emptied by age (`purgeOldAuditEvents`, every hour), and read by administrators in
+  `routes/audit.ts`; `audit.test.ts` covers it.
 
 ## Page content and collaborative editing
 
@@ -93,6 +110,7 @@ No queue: timers in the server process, each reading what is due from the databa
 | Reminders, notifications, e-mails | `reminders.ts`, `mail.ts` |
 | Text of attached files (PDF, OCR) for search | `extract.ts` |
 | Automatic backups | `backups.ts` |
+| Old lines of the activity log, expired sessions | `audit.ts`, `auth/sessions.ts` (hourly, from `index.ts`) |
 | Plugins' scheduled tasks | `plugins.ts` |
 
 A button's steps run as the person who clicks it (for a public form, as the author of its link); an automation's or a

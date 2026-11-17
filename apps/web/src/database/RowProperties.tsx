@@ -6,6 +6,7 @@ import { Cell } from "./Cell";
 import { PropertyIcon } from "./icons";
 import { newOption } from "./OptionPicker";
 import { t } from "@nootion/shared";
+import { RowStructure } from "./subItems";
 
 interface RowData {
   properties: DatabaseProperty[];
@@ -17,7 +18,7 @@ interface RowData {
 }
 
 /** Property list shown above the content of a database row opened as a page. */
-export function RowProperties({ databaseId, rowId }: { databaseId: string; rowId: string }) {
+export function RowProperties({ databaseId, rowId, locked = false }: { databaseId: string; rowId: string; locked?: boolean }) {
   const qc = useQueryClient();
   const key = ["database-row", rowId] as const;
   const { pending } = useOfflineQueue();
@@ -41,7 +42,8 @@ export function RowProperties({ databaseId, rowId }: { databaseId: string; rowId
 
   if (!q.data) return null;
   const { properties, row, role, people, related, rollupTargets } = q.data;
-  const editable = atLeast(role, "editor");
+  // A row locked on its own keeps its cells too.
+  const editable = atLeast(role, "editor") && !locked;
 
   const createOption = (prop: DatabaseProperty) => async (name: string): Promise<SelectOption> => {
     const options = prop.config.options ?? [];
@@ -77,6 +79,7 @@ export function RowProperties({ databaseId, rowId }: { databaseId: string; rowId
             </div>
           </div>
         ))}
+      <RowStructure databaseId={databaseId} rowId={rowId} />
     </div>
   );
 }

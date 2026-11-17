@@ -7,7 +7,11 @@ import { pages, users } from "./db/schema.js";
 
 export const IMPORT_MAX_ROWS = 5000;
 
-const BOOLEAN_WORDS = new Set(["oui", "non", "yes", "no", "true", "false", "vrai", "faux", "✓", "✔"]);
+// prettier-ignore
+const BOOLEAN_WORDS = new Set([
+  "oui", "non", "yes", "no", "true", "false", "vrai", "faux", "ja", "nein", "wahr", "falsch",
+  "sí", "si", "verdadero", "falso", "vero", "✓", "✔",
+]);
 
 /** Parses CSV (RFC 4180), guessing the separator (",", ";" from French spreadsheets, or tab). */
 export function parseCsv(text: string): string[][] {

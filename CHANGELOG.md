@@ -5,6 +5,215 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-11-17
+
+### Added
+
+- Database pages are easy to tell apart: a database shows a small database mark in the corner of its icon (or the
+  database icon when it has none) in the sidebar, favourites, the breadcrumb, search and the command palette, the
+  home page's lists and backlinks. Under its title, a "Database" badge explains, when clicked, that such a page holds
+  rows rather than free text, and how to write around it (a page showing it with "/linked view"). Below it, a
+  description of a few lines ("Add a description…"), kept by the desktop sync, shown on public links, and filled in
+  from the database's own description when importing from other tools. Enter in the title moves to it. Migration
+  0050 adds `pages.description`.
+- Guided tour for new accounts: about ten cards, each with a small drawing, a short text and the keys to press,
+  show what Nootion can do (blocks and "/", databases and their views, equations and Mermaid diagrams, synced
+  blocks, the command palette and quick capture, tasks and dates written in words, working together, the AI
+  assistant when it is on, imports, PDF and the apps), then "Open the examples page". It can be skipped, is shown
+  once, and comes back from "My account › Demo page" ("Take the guided tour again") or the palette ("Guided tour of
+  Nootion"). Guests and accounts from before don't get it. Arrow keys move through it; on phones it opens from the
+  bottom.
+- Setup assistant for administrators: right after creating the first account, a full-screen assistant goes through
+  the main settings one step at a time, each step being the matching section of Administration: language and the
+  server's address and file storage, e-mail, sign-in and security (adding a passkey, single sign-on, webhooks),
+  backups, the AI assistant, the other plugins, and the team (invitations, guests). Every step can be skipped and is
+  saved at once; a summary says what is set and leads back to what isn't, then the guided tour starts. "Finish
+  later" leaves a card at the top of Administration to resume it; Administration and the palette open it again at
+  any time (`/admin/setup`). Migration 0049 adds `users.tour_pending`.
+- AI assistant, an optional plugin (off by default): once an administrator turns it on and gives a key (Anthropic,
+  OpenAI, Mistral) or the address of a model on the network (Ollama, or a server compatible with OpenAI's API), the
+  bar over selected text gets "✨ AI" with "Summarise", "Translate to…", "Improve the writing", "Continue" and
+  "Ask…" (on phones, a ✨ button in the bar above the keyboard). The answer is written as it comes in a panel under
+  the passage, which stays highlighted, then "Replace", "Insert below" (or "Insert" for a continuation), "Try again"
+  or "Discard"; Markdown of the answer becomes real blocks. A round ✨ button at the bottom right of pages opens a chat
+about the page being read (suggestions such as "Summarise this page" or "What is left to do?"), each answer with
+"Insert in the page" and "Copy"; readers of a page may chat about it too. DeepSeek, OpenRouter, Groq and other
+services compatible with OpenAI's API work with their address and key. Nothing leaves the server without a click, only the
+  selection is sent, and the menu and the panel say where the text goes. The key is kept encrypted and only the
+  configured address may be on the local network. Settings for the model, a daily limit per person, and guests
+  (refused by default). See [docs/AI_ASSISTANT.md](docs/AI_ASSISTANT.md).
+- Plugins can add entries to the menu of a selection (`registerSelectionMenu`), with a panel under the passage that
+  replaces it or inserts after or below it, add a round button at the bottom right of pages that opens a panel beside
+  them (`registerPagePanel`), send a route's answer as it is written (`nootion.stream`, read in the
+  browser with `nootion.fetch`), turn Markdown into page blocks (`nootion.markdown`), and read an outside answer as it
+  arrives (`net.request(url, { stream: true })`). See [docs/PLUGINS.md](docs/PLUGINS.md).
+- German, Spanish and Italian interfaces, besides English and French: every text, the e-mails and the server's
+  messages, with dates, numbers and plurals in the language's own format, emoji names in the icon picker and form
+  validation messages. Dates written in words in a page are understood in all five languages whatever the one chosen
+  (`@morgen um 9 Uhr`, `@el próximo viernes`, `@domani alle 15`, `@erinnere mich Freitag`), and so are yes/no words
+  when a column becomes a checkbox or a CSV is imported (`ja`, `sí`, `vero`). A language may now be partly
+  translated: the menu shows its progress ("Polski (62 %)") and the missing texts appear in English, one by one.
+  Plural forms follow each language's rules (`few`, `many`… for languages that have them). `pnpm i18n:check` lists
+  per language the missing texts and the ones to fix (placeholders, plural forms, texts removed from English), and
+  runs in the CI. Adding a language is described in [docs/TRANSLATING.md](docs/TRANSLATING.md).
+- Passkeys: in "My account > Passkeys", "Add a passkey" (after typing the password) saves one with the device's
+  fingerprint, face or screen lock, a password manager or a security key. Passkeys are listed with their name, when
+  they were added and last used, and whether they are synced to other devices; they can be renamed and removed. On
+  the sign-in page, "Sign in with a passkey" needs no e-mail, password or code: a passkey counts as both steps of
+  two-factor authentication, and the password still works beside it. Passkeys need HTTPS and the address set in
+  `APP_URL`: elsewhere the button doesn't show and My account says why. Disabled accounts, forbidden guests and
+  SSO-only rules apply as for a password; each challenge works once and for 5 minutes.
+- Groups of people: in Administration › Groups, administrators make groups (Marketing, Accounting…) and choose who is
+  in them. A shared space is opened to a group from its members list (as editor, commenter or viewer, never owner),
+  and a page is shared with a group from the share window, with its subpages, as with a person. Everyone in the group
+  gets that access at once, and loses it when taken out; someone's access is the best of their own and their
+  groups'. Typing `@` and a group's name in a page tells everyone in it who can read the page, and a to-do with
+  `@group` shows in their tasks. With SCIM, the company's directory makes and fills groups itself (`/Groups`), marked
+  "From the directory". Guests are never in a group and don't see groups. Migration 0047 adds the tables and two
+  views, `effective_workspace_members` and `effective_page_permissions`, which the permission checks read.
+- Activity log for administrators, in Administration: who signed in (and failed to, with the reason; with a password,
+  a passkey or SSO), shared what with whom or with which group, invited a guest, made or changed a public link,
+  exported a page or a space, downloaded a backup, moved to the trash or deleted, changed a role, a space member, a
+  group or a setting, added a passkey, created an API token. Each line keeps the
+  person's name, the page or person concerned, a few facts (role, settings changed, never their values when secret)
+  and the address; page content is never written. Filters by family, person, words and days, "Show more" page after
+  page, an export of the filtered lines as CSV (spreadsheet formulas made harmless), and "Keep the log" for 30 days to
+  forever (one year by default). Migration 0048 adds the `audit_events` table.
+- Attached files in S3-compatible storage (AWS S3, MinIO, Garage, Backblaze B2, Cloudflare R2…), for larger
+  instances: set `FILES_S3_BUCKET`, the keys and, outside AWS, `FILES_S3_ENDPOINT`. The data folder stays the default
+  and nothing changes for people: uploads, downloads with byte ranges (videos), copies of pages and templates,
+  exports, imports, search in files and sync all go through the bucket, and access is still checked by Nootion.
+  `FILES_S3_REDIRECT=true` sends browsers to a link signed for 5 minutes instead of streaming through the server;
+  `FILES_S3_PREFIX` lets several instances share a bucket. `node dist/files-move.js to-bucket` (or `to-folder`)
+  moves existing files, and can be run again. Backups then hold everything but the files, with a note saying which
+  bucket has them. See "Attached files in S3-compatible storage" in docs/DEPLOYMENT.md.
+- Synced blocks: the same content in several pages, edited from any of them and updated live in all. "Turn into
+  synced block" in a block's menu, then "Copy synced block" and paste it elsewhere; or "/synced" to make a new one or
+  show one already used. A thin frame and "Synced in 3 pages" show on hover, with the list of those pages. Removing a
+  copy leaves the others; "Unsync" turns a copy into ordinary blocks. People who can't read the page where it lives
+  see "No access to this content". Its content is a hidden page under that page, so history, permissions, the trash,
+  offline use and the desktop sync work as for any page. Search and backlinks lead to the page where it lives;
+  exports, public pages and the Markdown of the API write its content out; the import from other tools keeps synced
+  blocks synced instead of copying their content.
+- Guests: people from outside invited on one page. In the share window, "Invite a guest" takes an e-mail address and
+  an access (can view, comment or edit); the person gets a link by e-mail (or the link to send another way), creates
+  a guest account and sees only that page and its subpages, under "Shared with me", which is their home. Guests have
+  no space of their own, can't be added to a space, see in the people lists only those the page is shared with, and
+  can't make API tokens, connect apps, import, share or publish pages; the server refuses all of it. Pending
+  invitations are listed in the share window and can be cancelled. Administration has a "Guests" list, with the pages
+  each one sees, "Make a member" (they get a personal space and keep their shares) and a setting to forbid guests
+  (pending invitations stop working and guests are signed out until it is on again). With SSO, people without an
+  invitation can arrive as guests instead of members.
+- Public links with a password and an end date: under the address in the share window, "Ask for a password" and
+  "Stops working" (never, after 1, 7 or 30 days, or on a date). Visitors type the password once per browser, for that
+  link only (the page, its subpages, its files and databases); changing it asks them again. After the end date the
+  link shows "This link has expired", and its owner sees it greyed with "Extend by 7 days". Public forms of buttons
+  get the same two options. Passwords are hashed like account passwords, and wrong ones are limited to 10 a minute
+  for each link.
+- Linked views: "/linked view" shows an existing database in any page, with filters, sorts and views of its own that
+  don't change the database's views (for example the "Tasks" database in each project page, filtered on that
+  project). Rows, columns and access stay those of the database; the title leads to it. The page's editors may change
+  the linked view's views even if they only read the database. Its views go with the block: kept 30 days after it is
+  deleted (undo, history), copied with the page when it is duplicated or made from a template, carried by sync, and
+  exported by the API and CSV export like the database's.
+- Equations in LaTeX: `/equation` (or `$$` and a space on an empty line) adds a centred block, and `$…$` typed in a
+  line becomes an inline equation when the closing `$` is typed ("$5 and $10" stays text). Click an equation, or
+  select it and press Enter, to edit its LaTeX with a live preview that explains mistakes. Equations show on public
+  pages, in print, in the history and in the dark theme, and search finds them by their LaTeX. Markdown export writes
+  `$…$` and `$$…$$`, and the import reads them back, as well as ` ```math ` blocks; the import from other tools now
+  keeps their equations (it used to turn them into LaTeX code blocks), from their API and from their HTML exports.
+  The drawing library (KaTeX) is downloaded the first time a page shows an equation, and runs without `trust`: no
+  links nor HTML from an equation.
+- Locking a page or a database, from the page's menu ("Lock page") or the command palette. A locked page shows a
+  padlock at the top and its content, title, icon and cover are read-only for everyone until someone who can edit it
+  unlocks it (a click on the padlock). A locked database keeps its columns, views and row templates while its rows
+  can still be added and filled in. The server refuses the changes too: the API answers 423 and the live editor
+  opens the page read-only, including for people who already had it open. The lock travels with the desktop sync.
+- Sub-items and dependencies between the rows of a database, in the ⋯ menu of its toolbar ("Organise rows").
+  Sub-items add "Parent item" and "Sub-items" columns: tables show sub-items indented under their parent, folded or
+  not, with the share of them done (`1/3`); a matching sub-item keeps its parents in view when filtering; a row's page
+  lists its sub-items with a progress bar and "Add a sub-item" (also in the row menu). Dependencies add "Blocked by"
+  and "Blocking" columns: the timeline draws an arrow from each row to the rows waiting on it (red when they overlap),
+  a row's page says what it still waits on, and, if chosen, moving the end of a row's date moves the rows it blocks by
+  as many days. A row has one parent at most, and loops are refused. Both are ordinary relations of the database to
+  itself, so filters, rollups, formulas and the API work with them. See [docs/DATABASES.md](docs/DATABASES.md).
+- Tasks: one list of every to-do still unchecked in the pages you can read ("Tasks" in the sidebar, under
+  Notifications). Grouped by page, or by date (overdue, today, next 7 days, later, no date) from the first date
+  written in each to-do; filters for a space, the to-dos mentioning you and those with a date. Checking a box in the
+  list checks it in its page, live for everyone who has it open (a repeating to-do moves on as in its page); clicking
+  the text opens the page at that to-do. "Done lately" lists what was checked in the last 7 days, to undo a mistake.
+  A "Tasks" widget shows the first ones on the home page (new home pages get it) or in any page. To-dos are read
+  from the pages as they are saved; existing pages are read once after the upgrade.
+- Text colour and highlight on a selection: the selection toolbar (and the editing bar on a phone) has an "A" button
+  with the nine colours blocks already have, for the text and for a highlight behind it. Ctrl+Shift+H highlights in
+  yellow. Colours show on public pages and in the history, go through the API, and the import from other tools keeps
+  the colours of text it used to drop. In Markdown, highlights are written between `==`.
+- Import from files, in "My account › Import", from the import button of a space or from a page's menu ("Import
+  files"): drop Markdown, HTML, Word (.docx), text or CSV files, or a zip of them (a folder of notes, an export from
+  another tool). Folders become pages with their subpages ("Page.md" beside a "Page/" folder, or "Folder/Folder.md",
+  is that folder's page), a CSV becomes a database whose rows get the pages found beside it, images and files are
+  copied, and relative links and `[[wiki links]]` between the files become links between the pages. Markdown keeps
+  its front matter (title, icon, tags), callouts (`> [!note]`), toggles and underlines; the editor's own export reads
+  back as it was. The import runs in the background with its progress, lists what it imported differently, and can
+  be undone as a whole: everything it made goes to the trash. Archives are unpacked with size limits and no path
+  leaving them (`IMPORT_MAX_MB`, 500 MB by default).
+- Search in database values: searching "Dupont" also finds the invoice whose "Customer" cell says Dupont, shown as
+  "Invoices › INV-12" with "Customer: Dupont · Status: Paid" under it. Text, number, select, status, person, link,
+  e-mail, phone, file and ID columns are searched; renaming an option or a column is followed. Filters under the search
+  box narrow the results: space, type (pages, databases, database rows, files), a database, author, edited since; with
+  filters and no words, the latest changed pages that match are listed. A search with its filters can be saved under a
+  name: saved searches are listed when the search box is empty. The API and the MCP server's search take the same
+  filters.
+- Resizable columns: a bar shows in the gap between two columns side by side; drag it to share the width between
+  them, double-click it to give every column of the row the same width again. Widths are kept with the page, shared
+  with everyone editing it, and ignored on a phone, where columns are one under the other. Columns are a little
+  further apart, for the bar. The import from other tools keeps the widths of resized columns.
+- Gallery cards size: small, medium or large (in "Properties"). There are as many cards in a row as fit in the width
+  of the database, so a gallery in a narrow column shows fewer, smaller cards.
+- Command palette: Ctrl+K (⌘K) still finds pages, and the same box now lists actions too, with their shortcut:
+  new page or database (in the open page's space, or another one), quick capture, a subpage, go to Home,
+  Notifications, All pages, Graph, Trash, My account or Administration, theme and language, and the open page's own
+  actions (share, favorite, comments, history, full width, duplicate, move to, copy link, export, print). Typing ">" first
+  lists actions only; matching ignores accents, and the most recently used actions come first. With nothing typed,
+  the saved searches are listed under the actions.
+- Code blocks are coloured by their language: choose it from the menu above the block (searchable, about 35
+  languages), or leave it on "Auto" and the language is guessed as you type. "Plain text" turns colours off. A copy
+  button and a "Wrap lines" switch sit next to it; long lines otherwise scroll sideways. Each language is downloaded
+  the first time a block uses it, so pages without code load nothing more. Tab indents inside a code block. Public
+  pages show the colours too, and blocks imported from other tools or from Markdown keep their language.
+- Mermaid diagrams: `/mermaid` adds a diagram, and any code block set to "Mermaid" (or imported with that language,
+  from Markdown fences or other tools) draws it under its source. The source shows while the cursor is in the block
+  and hides when you leave it, leaving the diagram alone; click the diagram or "Edit" to change it. The drawing
+  follows typing, keeps the last good one while the source has a mistake, and says on which line the mistake is.
+  Flowcharts, sequence, class, state, Gantt, pie and the other Mermaid diagrams work, in the light and dark themes.
+  Public pages show the diagram only, and printing puts the diagram on paper instead of its source. The library is
+  downloaded the first time a page shows a diagram, and runs in strict mode (no HTML nor scripts in labels).
+- Print and save as PDF, from the page menu ("…") or with Ctrl+P (⌘P): only the page is printed, without the
+  sidebar, buttons or handles, on white even with the dark theme. Toggles are open, databases show all their rows
+  (not only the first batch) and only the view shown, rows and blocks are not cut across two sheets, and the address
+  of links is written after them. A new sheet can start before each heading 1, or each heading 1 and 2. The PDF is
+  made by the browser ("Save as PDF" printer), so nothing more runs on the server.
+- Date range filters: "is between" picks a first and a last day on a calendar, and "is relative to today" follows
+  the current date (this week, this month, this year, the past 7 days, the next 2 months…). "Is", "is before",
+  "is after"… also show a calendar.
+- Simpler filters: "+ Filter" opens a searchable list of columns and adds a chip above the rows (Date: This week,
+  Amount: > 100…). Click a chip to change its condition and value, in a small panel that opens smoothly. Chips all
+  apply together; rules combined with "and" / "or" live in the advanced filter, at the bottom of the same list.
+  Filters made by earlier versions show up as the advanced filter.
+
+### Changed
+
+- The gallery looks closer to what other tools show: wider covers, titles on up to two lines, softer cards, and a
+  "New page" card as tall as the others at the end.
+
+### Fixed
+
+- Locking a page or a database in the desktop app didn't lock it on the server after the sync (unlocking did).
+- Activity log: lines written in the same millisecond (a group taken out of a page right before someone is taken out
+  of the group…) could be listed in either order. Their ids now follow the order they were written in.
+- Clicking a block's dots to open its menu emptied the page (since equations came in, not in a released version).
+- In a subpage, the breadcrumb showed the internal code of a parent page's uploaded image icon instead of the image.
+
 ## [3.6.0] - 2026-11-12
 
 ### Added
@@ -493,6 +702,9 @@ First public version.
 - Markdown (.zip), CSV and JSON export, CSV import, full backup download.
 - Single Docker image (amd64 and arm64), data in `/data`, migrations applied at startup.
 
+[4.0.0]: ../../releases/tag/v4.0.0
+[3.6.0]: ../../releases/tag/v3.6.0
+[3.5.0]: ../../releases/tag/v3.5.0
 [3.4.0]: ../../releases/tag/v3.4.0
 [3.3.0]: ../../releases/tag/v3.3.0
 [3.2.1]: ../../releases/tag/v3.2.1

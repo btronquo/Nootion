@@ -44,6 +44,9 @@ Then:
   - *Anyone with an address in these domains*, e.g. `contoso.com`.
   - *Anyone who can sign in at the provider*: with "Assignment required" in Entra, that is the people and groups
     assigned to the app.
+- **They arrive as** (for the last two): *Member*, the default, or *Guest*: they then see nothing until a page is
+  shared with them, and an administrator can make them members later. People invited on a page as guests (see
+  [EDITOR.md](EDITOR.md#guests)) can also sign in with the provider; they stay guests.
 - **SSO session length**: 12 hours by default. After that, people go through Microsoft again: a click if they are
   still signed in there, the door closed if their account was disabled.
 - **Allow passwords too**: turn it off to make SSO the only way in. Administrators can always still sign in with
@@ -96,7 +99,7 @@ Notes:
   account.
 - Accounts made through SSO have no password. "Forgot password" sends nothing to them while passwords are off.
 
-## 3. Disable people who leave: SCIM
+## 3. Disable people who leave, and keep groups: SCIM
 
 With SCIM, Entra tells Nootion when someone is added to the app, renamed, disabled or removed. Nootion then creates
 the account, keeps its name and address up to date, or disables it and signs it out everywhere. Accounts are never
@@ -108,14 +111,17 @@ deleted this way, only disabled, so what people wrote stays; an administrator ca
    - Tenant URL: the "Tenant URL" shown in Nootion, `https://<your Nootion>/api/scim/v2`.
    - Secret token: the token.
    - **Test connection**, then **Save**.
-3. Under **Mappings**, turn **Provision Microsoft Entra ID Groups** off (Nootion has its own spaces and roles).
-   The user mappings can stay as they are: Nootion uses `userName` and `emails` (the address), `displayName` (the
-   name), `active` and `externalId`.
+3. Under **Mappings**, the user mappings can stay as they are: Nootion uses `userName` and `emails` (the address),
+   `displayName` (the name), `active` and `externalId`. Leave **Provision Microsoft Entra ID Groups** on to bring the
+   groups assigned to the app: they become Nootion groups (see [EDITOR.md](EDITOR.md#groups-of-people)), with the
+   same members, and owners can share spaces and pages with them. Nootion uses `displayName`, `externalId` and
+   `members`. Turn it off to make groups only in Nootion.
 4. Under **Settings**, scope: *Sync only assigned users and groups* (recommended).
 5. **Start provisioning.** Entra then syncs every 40 minutes or so; "Provision on demand" pushes one person at once.
 
 Accounts that already exist in Nootion are matched by their e-mail address, so turning SCIM on later is fine.
-Nootion never lets SCIM disable its last administrator.
+Nootion never lets SCIM disable its last administrator. A group removed in Entra is deleted in Nootion: what it
+opened closes, the accounts of its members stay. Guests are never put in a group.
 
 ### When Nootion isn't reachable from the internet
 

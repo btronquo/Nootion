@@ -1,9 +1,9 @@
 import type React from "react";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
-import { currentLocale, LOCALE_NAMES, LOCALES, t, type Locale } from "@nootion/shared";
+import type { InputHTMLAttributes, ReactNode } from "react";
+import { currentLocale, localeLabel, LOCALES, t, type Locale } from "@nootion/shared";
 
-export function Button({ variant = "primary", className = "", ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "ghost" | "danger" }) {
+export function Button({ variant = "primary", className = "", ...props }: React.ComponentProps<"button"> & { variant?: "primary" | "ghost" | "danger" }) {
   const styles = {
     primary: "bg-neutral-900 text-white hover:bg-neutral-700 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200",
     ghost: "text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800",
@@ -130,7 +130,7 @@ export function Select({ className = "", ...props }: React.SelectHTMLAttributes<
   return <select className={`rounded-md border border-neutral-300 bg-transparent px-2 py-1.5 text-sm dark:border-neutral-700 dark:bg-neutral-900 ${className}`} {...props} />;
 }
 
-/** Choice of the interface language, each one written in its own language. */
+/** Choice of the interface language, each one written in its own language, with its progress when unfinished. */
 export function LanguageSelect({ value = currentLocale(), onChange }: { value?: Locale; onChange: (locale: Locale) => void }) {
   return (
     <label className="block">
@@ -138,7 +138,7 @@ export function LanguageSelect({ value = currentLocale(), onChange }: { value?: 
       <Select value={value} onChange={(e) => onChange(e.target.value as Locale)} className="w-full py-2">
         {LOCALES.map((l) => (
           <option key={l} value={l}>
-            {LOCALE_NAMES[l]}
+            {localeLabel(l)}
           </option>
         ))}
       </Select>

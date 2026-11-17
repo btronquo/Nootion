@@ -4,7 +4,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { Readable } from "node:stream";
-import { pipeline } from "node:stream/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { FastifyBaseLogger, FastifyReply, FastifyRequest } from "fastify";
 import { and, eq } from "drizzle-orm";
@@ -27,9 +26,11 @@ import {
 } from "@nootion/shared";
 import type { Db } from "./db/index.js";
 import { attachments, pluginUserData, plugins } from "./db/schema.js";
-import { attachmentPath, uploadsDir } from "./attachments.js";
+import { fileStore, streamToTemp } from "./files.js";
 import { HttpError, notFound, unauthorized } from "./http.js";
 import { getPageRole, requirePageRole } from "./permissions.js";
+import { parseMarkdown } from "./markdown-in.js";
+import type { ProseMirrorNode } from "./collab.js";
 import { t } from "@nootion/shared";
 
 /** Files a plugin may ship in its assets/ folder, by extension. */
@@ -57,7 +58,7 @@ type Method = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 /** What a plugin's route handler receives. */
 export interface PluginRequest {
   /** The signed-in user, or null on public routes. */
-  user: { id: string; name: string; email: string; role: "admin" | "member" } | null;
+  user: { id: string; name: string; email: string; role: "admin" | "member" | "guest" } | null;
   params: Record<string, string>;
   query: Record<string, string>;
   body: unknown;
@@ -73,6 +74,14 @@ export class PluginRedirect {
 export class PluginBinary {
   constructor(
     readonly data: Buffer | Readable,
+    readonly contentType: string,
+  ) {}
+}
+
+/** Text a plugin's route sends as it is written (a model's answer), instead of JSON once done. */
+export class PluginStream {
+  constructor(
+    readonly data: Readable,
     readonly contentType: string,
   ) {}
 }
@@ -114,12 +123,25 @@ export interface ServerPluginApi {
   };
   /** Attaches a file to a page, as if the user had uploaded it (they must be able to edit the page). */
   attachments: {
-    create: (input: { userId: string; pageId: string; filename: string; mimeType: string; data: Buffer | Readable | ReadableStream<Uint8Array> }) => Promise<PluginAttachment>;
+    create: (input: {
+      userId: string;
+      pageId: string;
+      filename: string;
+      mimeType: string;
+      data: Buffer | Readable | ReadableStream<Uint8Array>;
+    }) => Promise<PluginAttachment>;
   };
   /** Return this from a route to send a file (an image…) instead of JSON. */
   binary: (data: Buffer | Readable, contentType: string) => PluginBinary;
   /** Return this from a route to send the browser to another address. */
   redirect: (url: string) => PluginRedirect;
+  /**
+   * Return this from a route to send text as it is written (each chunk reaches the browser at once), from a stream
+   * or an async generator of strings. When the browser goes away, the stream is destroyed (the generator returns).
+   */
+  stream: (data: Readable | AsyncIterable<string | Buffer>, contentType?: string) => PluginStream;
+  /** Page blocks (as in the editor) from Markdown: headings, lists, to-dos, quotes, code, tables, links… */
+  markdown: (text: string) => ProseMirrorNode[];
   /** Address of Nootion as people open it (APP_URL), without a trailing slash. */
   appUrl: string;
   /**
@@ -164,7 +186,6 @@ interface Installed {
   runtime: Runtime | null;
   error: string | null;
 }
-
 
 export class PluginManager {
   private installed = new Map<string, Installed>();
@@ -332,6 +353,9 @@ export class PluginManager {
       attachments: { create: (input) => this.createAttachment(input) },
       binary: (data, contentType) => new PluginBinary(data, contentType),
       redirect: (url) => new PluginRedirect(url),
+      stream: (data, contentType = "text/plain; charset=utf-8") =>
+        new PluginStream(data instanceof Readable ? data : Readable.from(data, { objectMode: false }), contentType),
+      markdown: (text) => parseMarkdown(String(text ?? "")).content ?? [],
       appUrl: this.opts.appUrl,
       net: { request: outboundRequest, isPrivateAddress },
       request: async (userId, method, apiPath, body) => {
@@ -397,28 +421,15 @@ export class PluginManager {
   private async createAttachment(input: Parameters<ServerPluginApi["attachments"]["create"]>[0]): Promise<PluginAttachment> {
     requirePageRole(this.db, input.userId, input.pageId, "editor");
     const max = this.opts.maxUploadMb * 1024 * 1024;
-    const source = Buffer.isBuffer(input.data) ? Readable.from([input.data]) : input.data instanceof Readable ? input.data : Readable.fromWeb(input.data as never);
+    const source = Buffer.isBuffer(input.data)
+      ? Readable.from([input.data])
+      : input.data instanceof Readable
+        ? input.data
+        : Readable.fromWeb(input.data as never);
     const id = randomUUID();
-    fs.mkdirSync(uploadsDir(this.opts.dataDir), { recursive: true });
-    const dest = attachmentPath(this.opts.dataDir, id);
-    const tmp = `${dest}.part`;
-    let size = 0;
-    try {
-      await pipeline(
-        source,
-        async function* (chunks: AsyncIterable<Buffer>) {
-          for await (const chunk of chunks) {
-            size += chunk.length;
-            if (size > max) throw new HttpError(413, "too_large", t("error.fileTooLarge", { max: max / 1024 / 1024 }));
-            yield chunk;
-          }
-        },
-        fs.createWriteStream(tmp),
-      );
-      fs.renameSync(tmp, dest);
-    } finally {
-      fs.rmSync(tmp, { force: true });
-    }
+    const store = fileStore(this.opts.dataDir);
+    const tmp = await streamToTemp(store, source, max, () => new HttpError(413, "too_large", t("error.fileTooLarge", { max: max / 1024 / 1024 })));
+    const size = await store.putFile(id, tmp.file);
     const filename = (input.filename || "file").replace(/[\\/\r\n]/g, "_").slice(0, 255);
     const mimeType = input.mimeType.split(";")[0]!.trim().toLowerCase() || "application/octet-stream";
     this.db.insert(attachments).values({ id, pageId: input.pageId, filename, mimeType, size, createdBy: input.userId }).run();
@@ -572,6 +583,20 @@ export class PluginManager {
         headers: req.headers,
       });
       if (result instanceof PluginRedirect) return reply.redirect(result.url);
+      if (result instanceof PluginStream) {
+        const stream = result.data;
+        // The browser left (closed the panel, stopped): the plugin stops too (and its request to another service).
+        reply.raw.on("close", () => {
+          if (!stream.destroyed) stream.destroy();
+        });
+        stream.on("error", (e) => this.opts.log.warn(`Plugin ${id}: stream: ${e instanceof Error ? e.message : e}`));
+        return reply
+          .header("content-type", result.contentType)
+          .header("cache-control", "no-store")
+          .header("x-accel-buffering", "no")
+          .header("x-content-type-options", "nosniff")
+          .send(stream);
+      }
       if (result instanceof PluginBinary) {
         const inline = INLINE_PLUGIN_TYPES.has(result.contentType);
         return reply

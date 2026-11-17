@@ -1,10 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   atLeast,
   CUSTOM_ICON_PREFIX,
+  DESCRIPTION_MAX,
   ICON_MAX_BYTES,
   NOTION_DETAILS_MAX,
   OPTION_COLORS,
@@ -25,8 +26,8 @@ import type { Db } from "../db/index.js";
 import { attachments, customIcons, databaseProperties, databaseViews, notionLinks, notionPropertyLinks, pages, users } from "../db/schema.js";
 import { imageExtension } from "../images.js";
 import { iconsDir } from "../routes/icons.js";
-import { attachmentPath, uploadsDir } from "../attachments.js";
-import { writeContent, type Collab } from "../collab.js";
+import { fileStore } from "../files.js";
+import { writeContent, type Collab, type ProseMirrorNode } from "../collab.js";
 import { assignUniqueIds, checkFormula, listProperties } from "../databases.js";
 import { nextPosition } from "../pages.js";
 import { getPageRole } from "../permissions.js";
@@ -315,10 +316,16 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
     const title = titleOf(item).slice(0, 500);
     // Image icons are copied with the files, further down.
     const icon = emojiOf(item.kind === "database" ? item.database.icon : item.page.icon);
+    // A database's description, shown under its title (only databases have one).
+    const description = item.kind === "database" ? plainText(item.database.description).slice(0, DESCRIPTION_MAX) : undefined;
     const link = links.get(id);
     if (link) {
       const changed = !!o.refresh || link.editedAt !== editedAt(item);
-      if (changed) db.update(pages).set({ title, icon, updatedAt: new Date(), updatedBy: lastEditor(item) }).where(eq(pages.id, link.pageId)).run();
+      if (changed)
+        db.update(pages)
+          .set({ title, icon, description, updatedAt: new Date(), updatedBy: lastEditor(item) })
+          .where(eq(pages.id, link.pageId))
+          .run();
       target.set(id, { id: link.pageId, title, isNew: false, changed });
       report[changed ? "updated" : "unchanged"]++;
     } else {
@@ -336,6 +343,7 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
           kind: item.kind,
           title,
           icon,
+          description,
           position: item.kind === "row" ? rowIndex.get(id)! : nextPosition(db, space, parentId),
           createdBy: (item.kind !== "database" && personId(item.page.created_by)) || o.userId,
           createdAt: new Date(created),
@@ -350,7 +358,10 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
           .run();
       }
       // Linked at once, as not finished: an import that stops halfway picks these pages up again instead of duplicating them.
-      db.insert(notionLinks).values({ workspaceId: o.workspaceId, notionId: id, pageId, notionEditedAt: null }).onConflictDoUpdate({ target: [notionLinks.workspaceId, notionLinks.notionId], set: { pageId, notionEditedAt: null } }).run();
+      db.insert(notionLinks)
+        .values({ workspaceId: o.workspaceId, notionId: id, pageId, notionEditedAt: null })
+        .onConflictDoUpdate({ target: [notionLinks.workspaceId, notionLinks.notionId], set: { pageId, notionEditedAt: null } })
+        .run();
       target.set(id, { id: pageId, title, isNew: true, changed: true });
       report[item.kind === "database" ? "databases" : item.kind === "row" ? "rows" : "pages"]++;
     }
@@ -520,7 +531,7 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
     // Formulas may use each other: added in rounds, each one once the columns it uses exist.
     let pending = schemaOf(database).filter((p) => p.type === "formula");
     const reasons = new Map<string, string>();
-    for (let progress = true; pending.length && progress; ) {
+    for (let progress = true; pending.length && progress;) {
       progress = false;
       for (const p of [...pending]) {
         try {
@@ -606,8 +617,7 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
     const file = await client.download(url, o.maxFileBytes);
     if (!file) return null;
     const id = randomUUID();
-    fs.mkdirSync(uploadsDir(o.dataDir), { recursive: true });
-    fs.writeFileSync(attachmentPath(o.dataDir, id), file.data);
+    await fileStore(o.dataDir).putBuffer(id, file.data, file.type);
     const filename = name.replace(/[\\/\r\n]/g, "_").slice(0, 255) || "file";
     db.insert(attachments).values({ id, pageId, filename, mimeType: file.type, size: file.data.length, createdBy: o.userId }).run();
     report.files++;
@@ -682,6 +692,35 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
     db.update(pages).set({ cover: value }).where(eq(pages.id, page.id)).run();
   }
 
+  // Synced blocks, by the Notion id of their original: the hidden page holding their content (synced-blocks.ts), kept
+  // from one import to the next. A copy whose original isn't imported (in a page left out) becomes the original.
+  const synced = new Map<string, { id: string; made: boolean; fallback?: { hostId: string; content: ProseMirrorNode[] } }>();
+  const placeSynced = async (key: string, entry: { id: string }, hostId: string, content: ProseMirrorNode[]) => {
+    const host = db.select({ workspaceId: pages.workspaceId }).from(pages).where(eq(pages.id, hostId)).get()!;
+    const exists = db
+      .select({ id: pages.id })
+      .from(pages)
+      .where(and(eq(pages.id, entry.id), eq(pages.kind, "block")))
+      .get();
+    if (exists) db.update(pages).set({ parentId: hostId, workspaceId: host.workspaceId, deletedAt: null }).where(eq(pages.id, entry.id)).run();
+    else db.insert(pages).values({ id: entry.id, workspaceId: host.workspaceId, parentId: hostId, kind: "block", title: "", createdBy: o.userId }).run();
+    await writeContent(o.collab, db, entry.id, { type: "doc", content: content.length ? content : [{ type: "paragraph" }] });
+    db.insert(notionLinks)
+      .values({ workspaceId: o.workspaceId, notionId: key, pageId: entry.id, notionEditedAt: null })
+      .onConflictDoUpdate({ target: [notionLinks.workspaceId, notionLinks.notionId], set: { pageId: entry.id } })
+      .run();
+  };
+  const syncedFor = (hostId: string) => async (originalId: string, original: boolean, content: ProseMirrorNode[]) => {
+    const key = `synced:${normId(originalId)}`;
+    let entry = synced.get(key);
+    if (!entry) synced.set(key, (entry = { id: links.get(key)?.pageId ?? randomUUID(), made: false }));
+    if (original && !entry.made) {
+      await placeSynced(key, entry, hostId, content);
+      entry.made = true;
+    } else if (!original && !entry.made && !entry.fallback) entry.fallback = { hostId, content };
+    return entry.id;
+  };
+
   const withContent = [...items.entries()].filter(([id, item]) => item.kind !== "database" && target.get(id)!.changed);
   step("content", withContent.length);
   for (const [id, item] of withContent) {
@@ -696,10 +735,12 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
       },
       saveFile: (url, name) => saveFile(pageId, url, name),
       note: (what, detail) => note(what, at(id, { info: detail?.info }, detail?.blockId)),
+      synced: syncedFor(pageId),
     });
     await writeContent(o.collab, db, pageId, doc);
     job.done++;
   }
+  for (const [key, entry] of synced) if (!entry.made && entry.fallback) await placeSynced(key, entry, entry.fallback.hostId, entry.fallback.content);
 
   // --- 6. Remembered for the next import, as finished ----------------------------------------------
   for (const [id, item] of items) {
@@ -864,4 +905,3 @@ async function cellValue(schema: NotionPropertySchema, v: NotionPropertyValue, p
       return null;
   }
 }
-

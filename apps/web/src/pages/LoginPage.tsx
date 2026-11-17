@@ -10,6 +10,9 @@ import { t, type SsoInfo } from "@nootion/shared";
 import { api, ApiError } from "../lib/api";
 import { useSession } from "../lib/session";
 import { AuthCard, Button, ErrorText, Field } from "../components/ui";
+import { Fingerprint } from "lucide-react";
+import { startAuthentication } from "@simplewebauthn/browser";
+import { passkeyError, passkeysBlocked } from "../components/Passkeys";
 
 export function LoginPage() {
   const { refresh } = useSession();
@@ -25,7 +28,7 @@ export function LoginPage() {
   // "Forgot password" only when the server can send its e-mail.
   const setup = useQuery({
     queryKey: ["setup-status"],
-    queryFn: () => api<{ mail?: boolean; sso?: SsoInfo | null }>("/setup"),
+    queryFn: () => api<{ mail?: boolean; sso?: SsoInfo | null; passkeys?: string | null }>("/setup"),
   });
   const [params] = useSearchParams();
   const sso = setup.data?.sso;
@@ -55,6 +58,24 @@ export function LoginPage() {
       setBusy(false);
     }
   }
+
+  // A passkey is both steps at once: no e-mail, no password, no authenticator code.
+  async function passkeySignIn() {
+    setBusy(true);
+    setError(null);
+    try {
+      const { options } = await api<{ options: Parameters<typeof startAuthentication>[0]["optionsJSON"] }>("/auth/login/passkey/options", { method: "POST" });
+      const response = await startAuthentication({ optionsJSON: options });
+      await api("/auth/login/passkey", { method: "POST", body: { response } });
+      await signedIn();
+    } catch (err) {
+      setError(passkeyError(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+  // Only where it can work: over HTTPS, at the address passkeys are tied to, in a browser that has them.
+  const passkeys = setup.data && !passkeysBlocked(setup.data.passkeys);
 
   async function submitCode(e: FormEvent) {
     e.preventDefault();
@@ -159,6 +180,15 @@ export function LoginPage() {
             {t("login.submit")}
           </Button>
         </form>
+      )}
+      {passkeys && (
+        <div className="mt-4 space-y-3" data-passkey-login>
+          {passwordForm && <p className="text-center text-xs text-neutral-500">{t("passkeys.or")}</p>}
+          <Button type="button" variant="ghost" disabled={busy} onClick={() => void passkeySignIn()} className="w-full border border-neutral-200 dark:border-neutral-700">
+            <Fingerprint size={16} /> {t("passkeys.signIn")}
+          </Button>
+          {!passwordForm && <ErrorText error={error} />}
+        </div>
       )}
       {!passwordForm && (
         <p className="text-center text-sm">

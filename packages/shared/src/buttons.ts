@@ -109,7 +109,7 @@ export function fillTemplate(text: string, vars: Record<string, string>, escape:
   });
 }
 
-const TRUE_WORDS = new Set(["true", "1", "yes", "oui", "x", "✓", "✔", "on", "vrai"]);
+const TRUE_WORDS = new Set(["true", "1", "yes", "oui", "x", "✓", "✔", "on", "vrai", "ja", "wahr", "sí", "si", "verdadero", "vero"]);
 
 /**
  * A cell value from the text a step gives for a column of this type, or undefined to leave the cell as it is

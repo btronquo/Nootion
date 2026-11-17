@@ -17,8 +17,11 @@ function matches(p: AdminPluginInfo, query: string) {
   return !q || fold([p.name, p.id, p.description, p.author ?? ""].join(" ")).includes(q);
 }
 
-/** Administration section: turn plugins on or off and fill in their settings. */
-export function PluginsAdmin() {
+/**
+ * Administration section: turn plugins on or off and fill in their settings. The setup assistant shows some of them
+ * only (`only`) or all but some (`except`).
+ */
+export function PluginsAdmin({ only, except }: { only?: string[]; except?: string[] } = {}) {
   const qc = useQueryClient();
   const [query, setQuery] = useState("");
   const list = useQuery({
@@ -30,7 +33,10 @@ export function PluginsAdmin() {
     // Pages load the blocks and code of plugins: they need the new list.
     onSettled: () => Promise.all([qc.invalidateQueries({ queryKey: ["admin", "plugins"] }), qc.invalidateQueries({ queryKey: ["plugins"] })]),
   });
-  const plugins = list.data?.plugins ?? [];
+  const plugins = useMemo(
+    () => (list.data?.plugins ?? []).filter((p) => (!only || only.includes(p.id)) && !except?.includes(p.id)),
+    [list.data, only, except],
+  );
   const shown = useMemo(() => plugins.filter((p) => matches(p, query)), [plugins, query]);
 
   return (

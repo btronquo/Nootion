@@ -1,6 +1,6 @@
 {
   "name": "@nootion/shared",
-  "version": "3.6.0",
+  "version": "4.0.0",
   "private": true,
   "type": "module",
   "license": "AGPL-3.0-only",
@@ -8,12 +8,14 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc -p ."
+    "typecheck": "tsc -p .",
+    "i18n:check": "tsx scripts/i18n-check.ts"
   },
   "dependencies": {
     "zod": "^4.1.12"
   },
   "devDependencies": {
+    "tsx": "^4.20.6",
     "typescript": "^5.9.3"
   }
 }

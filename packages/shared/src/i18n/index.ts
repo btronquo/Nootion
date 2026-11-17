@@ -1,20 +1,48 @@
+import { de } from "./de.js";
 import { en } from "./en.js";
+import { es } from "./es.js";
 import { fr } from "./fr.js";
-import type { Message, MessageKey, Messages } from "./types.js";
+import { it } from "./it.js";
+import type { Catalogue, Message, MessageKey } from "./types.js";
 
-export type { Message, MessageKey, Messages } from "./types.js";
+export type { Catalogue, Message, MessageKey, Messages, PluralForms } from "./types.js";
 
-export const LOCALES = ["en", "fr"] as const;
+/**
+ * The languages shipped. Adding one: copy en.ts to <code>.ts, translate it (a partial file works: missing texts are
+ * shown in English), add it here and below, then run `pnpm i18n:check`. See docs/TRANSLATING.md.
+ */
+export const LOCALES = ["en", "fr", "de", "es", "it"] as const;
 export type Locale = (typeof LOCALES)[number];
 export const DEFAULT_LOCALE: Locale = "en";
 
 /** Each language's name, written in that language. */
-export const LOCALE_NAMES: Record<Locale, string> = { en: "English", fr: "Français" };
+export const LOCALE_NAMES: Record<Locale, string> = { en: "English", fr: "Français", de: "Deutsch", es: "Español", it: "Italiano" };
 
-const CATALOGUES: Record<Locale, Messages> = { en, fr };
+/** English is the reference: every other catalogue may lack texts, which are then shown in English. */
+export const CATALOGUES: Record<Locale, Catalogue> = { en, fr, de, es, it };
 
 /** Locale used by Intl to format dates and numbers. */
-const INTL: Record<Locale, string> = { en: "en-US", fr: "fr-FR" };
+const INTL: Record<Locale, string> = { en: "en-US", fr: "fr-FR", de: "de-DE", es: "es-ES", it: "it-IT" };
+
+const completions = new Map<Locale, number>();
+
+/** How much of a language is translated, in percent (rounded down: 100 only when nothing is missing). */
+export function completion(locale: Locale): number {
+  let done = completions.get(locale);
+  if (done === undefined) {
+    const keys = Object.keys(en);
+    const catalogue = CATALOGUES[locale];
+    const translated = keys.filter((key) => Object.hasOwn(catalogue, key)).length;
+    completions.set(locale, (done = Math.floor((translated * 100) / keys.length)));
+  }
+  return done;
+}
+
+/** A language's name for menus, with how much of it is translated when it isn't finished: "Deutsch (87 %)". */
+export function localeLabel(locale: Locale): string {
+  const done = completion(locale);
+  return done < 100 ? `${LOCALE_NAMES[locale]} (${numberFormat({ style: "percent" }, INTL[locale]).format(done / 100)})` : LOCALE_NAMES[locale];
+}
 
 let resolveLocale: () => Locale = () => DEFAULT_LOCALE;
 
@@ -49,15 +77,39 @@ export function intlLocale(locale: Locale = currentLocale()): string {
   return INTL[locale];
 }
 
+/**
+ * Intl formatters are slow to build (much slower than to use): the ones asked for are kept, by locale and options,
+ * so that formatting thousands of cells or formula results stays fast.
+ */
+const formatters = new Map<string, Intl.NumberFormat | Intl.DateTimeFormat | Intl.Collator>();
+function cached<T extends Intl.NumberFormat | Intl.DateTimeFormat | Intl.Collator>(kind: string, locale: string, options: object | undefined, make: () => T): T {
+  const key = `${kind}|${locale}|${options ? JSON.stringify(options) : ""}`;
+  let f = formatters.get(key) as T | undefined;
+  if (!f) {
+    if (formatters.size > 500) formatters.clear();
+    formatters.set(key, (f = make()));
+  }
+  return f;
+}
+export const numberFormat = (options?: Intl.NumberFormatOptions, locale: string = intlLocale()) =>
+  cached("n", locale, options, () => new Intl.NumberFormat(locale, options));
+export const dateTimeFormat = (options?: Intl.DateTimeFormatOptions, locale: string = intlLocale()) =>
+  cached("d", locale, options, () => new Intl.DateTimeFormat(locale, options));
+export const collator = (options?: Intl.CollatorOptions, locale: string = intlLocale()) =>
+  cached("c", locale, options, () => new Intl.Collator(locale, options));
+
 const plurals = new Map<Locale, Intl.PluralRules>();
 
-function format(message: Message, locale: Locale, params?: Record<string, string | number>): string {
+/** `textLocale` is the language the message is written in (English for a missing translation), for its plural forms. */
+function format(message: Message, locale: Locale, textLocale: Locale, params?: Record<string, string | number>): string {
   let text: string;
   if (typeof message === "string") text = message;
   else {
-    let rules = plurals.get(locale);
-    if (!rules) plurals.set(locale, (rules = new Intl.PluralRules(INTL[locale])));
-    text = rules.select(Number(params?.count ?? 0)) === "one" ? message.one : message.other;
+    let rules = plurals.get(textLocale);
+    if (!rules) plurals.set(textLocale, (rules = new Intl.PluralRules(INTL[textLocale])));
+    // Each language has its own plural forms (Polish has "few" and "many", Arabic six of them): the one Intl picks for
+    // the count, or "other" when the catalogue doesn't give it.
+    text = message[rules.select(Number(params?.count ?? 0))] ?? message.other;
   }
   if (!params) return text;
   return text.replace(/\{(\w+)\}/g, (all, name: string) => {
@@ -74,7 +126,8 @@ export function t(key: MessageKey, params?: Record<string, string | number>): st
 
 /** Translates a message into a given language. */
 export function tIn(locale: Locale, key: MessageKey, params?: Record<string, string | number>): string {
-  return format(CATALOGUES[locale][key] ?? en[key], locale, params);
+  const message = CATALOGUES[locale][key];
+  return message === undefined ? format(en[key], locale, DEFAULT_LOCALE, params) : format(message, locale, locale, params);
 }
 
 /** Whether a string is a message key (for messages that travel as keys, like validation errors). */

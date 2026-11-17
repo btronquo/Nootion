@@ -1,10 +1,9 @@
-import fs from "node:fs";
 import { randomUUID } from "node:crypto";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, or } from "drizzle-orm";
 import * as Y from "yjs";
 import type { Db } from "./db/index.js";
 import { attachments, databaseProperties, databaseViews, pages } from "./db/schema.js";
-import { attachmentPath } from "./attachments.js";
+import { fileStore, holdFiles } from "./files.js";
 import { encodeContent, setProsemirrorJSON, writeContent, type Collab, type ProseMirrorNode } from "./collab.js";
 import { listDescendants } from "./pages.js";
 
@@ -69,7 +68,17 @@ export async function copyTree(
   if (into) ids.set(sourceId, into.pageId);
   const databases = sources.filter((p) => p.kind === "database").map((p) => p.id);
   const props = databases.length ? db.select().from(databaseProperties).where(inArray(databaseProperties.databaseId, databases)).all() : [];
-  const views = databases.length ? db.select().from(databaseViews).where(inArray(databaseViews.databaseId, databases)).all() : [];
+  const views = db
+    .select()
+    .from(databaseViews)
+    .where(
+      or(
+        databases.length ? inArray(databaseViews.databaseId, databases) : undefined,
+        // Linked views in the copied pages, of databases elsewhere: their filters are copied too.
+        inArray(databaseViews.ownerPageId, pageIds),
+      ),
+    )
+    .all();
   const files = db.select().from(attachments).where(inArray(attachments.pageId, pageIds)).all();
   for (const x of [...props, ...views, ...files]) ids.set(x.id, randomUUID());
 
@@ -78,86 +87,118 @@ export async function copyTree(
     value === null || value === undefined ? value : (JSON.parse(JSON.stringify(value).replace(pattern, (m) => ids.get(m)!)) as T);
 
   const contents = new Map<string, ProseMirrorNode>();
-  db.transaction((tx) => {
-    for (const p of sources) {
-      const id = ids.get(p.id)!;
-      const content = p.contentJson ? renewBlockIds(remap(p.contentJson as ProseMirrorNode)) : null;
-      if (p.id === sourceId && into) {
-        if (content) contents.set(id, content);
-        continue;
+  // Files are copied first (outside the transaction, which can't wait), and kept from the orphan cleaner until their
+  // rows are in.
+  const store = fileStore(dataDir);
+  const copied = new Set<string>();
+  const newFileIds = files.map((f) => ids.get(f.id)!);
+  const writeRows = () => {
+    db.transaction((tx) => {
+      for (const p of sources) {
+        const id = ids.get(p.id)!;
+        const content = p.contentJson ? renewBlockIds(remap(p.contentJson as ProseMirrorNode)) : null;
+        if (p.id === sourceId && into) {
+          if (content) contents.set(id, content);
+          continue;
+        }
+        let encoded: ReturnType<typeof encodeContent> | null = null;
+        if (content) {
+          const doc = new Y.Doc();
+          setProsemirrorJSON(doc, content);
+          encoded = encodeContent(doc);
+        }
+        const isRoot = p.id === sourceId;
+        tx.insert(pages)
+          .values({
+            id,
+            workspaceId: target.workspaceId,
+            parentId: isRoot ? target.parentId : ids.get(p.parentId!)!,
+            kind: p.kind,
+            title: p.title,
+            icon: p.icon,
+            description: p.description,
+            fullWidth: p.fullWidth,
+            cover: remap(p.cover),
+            coverPosition: p.coverPosition,
+            position: isRoot ? target.position : p.position,
+            createdBy: target.userId,
+            contentState: encoded?.state ?? null,
+            contentJson: encoded?.json ?? null,
+            contentText: encoded?.text ?? null,
+            props: remap(p.props),
+            template: isRoot ? (target.template ?? false) : p.template,
+            defaultTemplateId: p.defaultTemplateId ? (ids.get(p.defaultTemplateId) ?? null) : null,
+          })
+          .run();
       }
-      let encoded: ReturnType<typeof encodeContent> | null = null;
-      if (content) {
-        const doc = new Y.Doc();
-        setProsemirrorJSON(doc, content);
-        encoded = encodeContent(doc);
+      for (const prop of props) {
+        const config = { ...(prop.config as Record<string, unknown>) };
+        // A two-way relation to a database left out of the copy stays one-way.
+        if (typeof config.twinPropertyId === "string" && !ids.has(config.twinPropertyId)) config.twinPropertyId = null;
+        tx.insert(databaseProperties)
+          .values({
+            id: ids.get(prop.id)!,
+            databaseId: ids.get(prop.databaseId)!,
+            name: prop.name,
+            type: prop.type,
+            config: remap(config),
+            position: prop.position,
+          })
+          .run();
       }
-      const isRoot = p.id === sourceId;
-      tx.insert(pages)
-        .values({
-          id,
-          workspaceId: target.workspaceId,
-          parentId: isRoot ? target.parentId : ids.get(p.parentId!)!,
-          kind: p.kind,
-          title: p.title,
-          icon: p.icon,
-          fullWidth: p.fullWidth,
-          cover: remap(p.cover),
-          coverPosition: p.coverPosition,
-          position: isRoot ? target.position : p.position,
-          createdBy: target.userId,
-          contentState: encoded?.state ?? null,
-          contentJson: encoded?.json ?? null,
-          contentText: encoded?.text ?? null,
-          props: remap(p.props),
-          template: isRoot ? (target.template ?? false) : p.template,
-          defaultTemplateId: p.defaultTemplateId ? (ids.get(p.defaultTemplateId) ?? null) : null,
-        })
-        .run();
-    }
-    for (const prop of props) {
-      const config = { ...(prop.config as Record<string, unknown>) };
-      // A two-way relation to a database left out of the copy stays one-way.
-      if (typeof config.twinPropertyId === "string" && !ids.has(config.twinPropertyId)) config.twinPropertyId = null;
-      tx.insert(databaseProperties)
-        .values({
-          id: ids.get(prop.id)!,
-          databaseId: ids.get(prop.databaseId)!,
-          name: prop.name,
-          type: prop.type,
-          config: remap(config),
-          position: prop.position,
-        })
-        .run();
-    }
-    for (const v of views) {
-      tx.insert(databaseViews)
-        .values({ id: ids.get(v.id)!, databaseId: ids.get(v.databaseId)!, name: v.name, type: v.type, config: remap(v.config), position: v.position })
-        .run();
-    }
-    for (const f of files) {
-      const id = ids.get(f.id)!;
-      const from = attachmentPath(dataDir, f.id);
-      if (!fs.existsSync(from)) continue;
-      fs.copyFileSync(from, attachmentPath(dataDir, id));
-      tx.insert(attachments)
-        .values({ id, pageId: ids.get(f.pageId)!, filename: f.filename, mimeType: f.mimeType, size: f.size, createdBy: target.userId, text: f.text, textStatus: f.textStatus })
-        .run();
-    }
-    if (into) {
-      tx.update(pages)
-        .set({
-          title: into.title || root.title,
-          icon: into.icon ?? root.icon,
-          cover: into.cover ?? remap(root.cover),
-          coverPosition: into.cover ? undefined : root.coverPosition,
-          fullWidth: root.fullWidth,
-          updatedAt: new Date(),
-        })
-        .where(eq(pages.id, into.pageId))
-        .run();
-    }
+      for (const v of views) {
+        // A linked view's views go with its page: copied with it, left behind when it isn't copied.
+        if (v.ownerPageId && !ids.has(v.ownerPageId)) continue;
+        tx.insert(databaseViews)
+          .values({
+            id: ids.get(v.id)!,
+            databaseId: ids.get(v.databaseId) ?? v.databaseId,
+            name: v.name,
+            type: v.type,
+            config: remap(v.config),
+            position: v.position,
+            ownerPageId: v.ownerPageId ? ids.get(v.ownerPageId)! : null,
+            ownerBlockId: v.ownerBlockId,
+          })
+          .run();
+      }
+      for (const f of files) {
+        const id = ids.get(f.id)!;
+        if (!copied.has(f.id)) continue;
+        tx.insert(attachments)
+          .values({
+            id,
+            pageId: ids.get(f.pageId)!,
+            filename: f.filename,
+            mimeType: f.mimeType,
+            size: f.size,
+            createdBy: target.userId,
+            text: f.text,
+            textStatus: f.textStatus,
+          })
+          .run();
+      }
+      if (into) {
+        tx.update(pages)
+          .set({
+            title: into.title || root.title,
+            icon: into.icon ?? root.icon,
+            cover: into.cover ?? remap(root.cover),
+            coverPosition: into.cover ? undefined : root.coverPosition,
+            fullWidth: root.fullWidth,
+            updatedAt: new Date(),
+          })
+          .where(eq(pages.id, into.pageId))
+          .run();
+      }
+    });
+  };
+
+  await holdFiles(newFileIds, async () => {
+    for (const f of files) if (await store.copy(f.id, ids.get(f.id)!)) copied.add(f.id);
+    writeRows();
   });
+
   // The page being filled may be open in an editor: its content goes through the live document.
   for (const [pageId, content] of contents) await writeContent(collab, db, pageId, content);
   return ids.get(sourceId)!;

@@ -1,9 +1,8 @@
-import fs from "node:fs";
 import type { FastifyPluginAsync } from "fastify";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { t } from "@nootion/shared";
-import { attachmentPath, uploadsDir } from "../attachments.js";
+import { DESCRIPTION_MAX, t } from "@nootion/shared";
+import { fileStore } from "../files.js";
 import { attachments } from "../db/schema.js";
 import { HttpError, parseBody, requireUser } from "../http.js";
 import { requireWorkspaceRole } from "../permissions.js";
@@ -15,7 +14,7 @@ const page = z.object({
   id,
   workspaceId: id,
   parentId: id.nullable(),
-  kind: z.enum(["page", "database", "row"]),
+  kind: z.enum(["page", "database", "row", "block"]),
   title: z.string().max(2000),
   icon: z.string().max(10_000).nullable(),
   fullWidth: z.boolean(),
@@ -29,6 +28,9 @@ const page = z.object({
   props: z.record(z.string(), z.unknown()).nullable(),
   template: z.boolean(),
   defaultTemplateId: id.nullable(),
+  // Absent from older peers.
+  locked: z.boolean().optional(),
+  description: z.string().max(DESCRIPTION_MAX).optional(),
   fieldClock: z.record(z.string(), ms),
   content: z.string().nullable(),
 });
@@ -124,10 +126,7 @@ export const syncRoutes: FastifyPluginAsync = async (app) => {
     if (!Buffer.isBuffer(req.body)) throw new HttpError(400, "no_file", t("error.noFile"));
     // An attachment never changes: one that exists keeps its file.
     if (app.db.select({ id: attachments.id }).from(attachments).where(eq(attachments.id, id)).get()) return { ok: true };
-    fs.mkdirSync(uploadsDir(app.config.dataDir), { recursive: true });
-    const dest = attachmentPath(app.config.dataDir, id);
-    fs.writeFileSync(`${dest}.part`, req.body);
-    fs.renameSync(`${dest}.part`, dest);
+    await fileStore(app.config.dataDir).putBuffer(id, req.body);
     return { ok: true };
   });
 };

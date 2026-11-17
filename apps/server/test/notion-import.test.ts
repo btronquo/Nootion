@@ -78,6 +78,9 @@ describe("Notion import", () => {
     expect((await detail(home.id)).cover).toMatch(/^\/api\/attachments\/[0-9a-f-]{36}$/);
     expect((await detail(byTitle("Notes").id)).cover).toBe("https://www.notion.so/images/page-cover/gradients_8.png");
     expect((await detail(byTitle("Tasks").id)).cover).toBeNull();
+    // A database's description is kept, shown under its title.
+    expect((await detail(byTitle("Projects").id)).description).toBe("Every project, by client.");
+    expect((await detail(byTitle("Tasks").id)).description).toBe("");
     // Icons: emojis as they are, Notion's images as icons of the server; images elsewhere are left out.
     expect((await detail(home.id)).icon).toBe("🏠");
     expect((await detail(byTitle("Projects").id)).icon).toMatch(/^icon:[0-9a-f-]{36}$/);
@@ -119,6 +122,8 @@ describe("Notion import", () => {
     expect(JSON.stringify(toggles[1])).toContain("Under the heading");
     const columns = doc.content!.find((n) => n.type === "columns")!;
     expect(columns.content!.map((c) => c.content![0]!.content![0]!.text)).toEqual(["Left", "Right"]);
+    // Their widths, as resized in Notion.
+    expect(columns.content!.map((c) => c.attrs?.width)).toEqual([0.3, 0.7]);
     expect(json).toContain("https://example.org/doc.pdf");
     // Callouts keep every block inside; one without an icon stays without one.
     const callouts = doc.content!.filter((n) => n.type === "callout");
@@ -209,6 +214,34 @@ describe("Notion import", () => {
     const tasks = await getDb(after.find((p) => p.title === "Tasks")!.id);
     expect(tasks.rows).toHaveLength(2);
     expect(tasks.properties.filter((p) => p.name === "Price")).toHaveLength(1);
+  });
+
+  it("keeps synced blocks synced: the original and its copies show the same block", async () => {
+    await runImport();
+    const pagesNow = await tree();
+    const home = pagesNow.find((p) => p.title === "Home")!;
+    const notes = pagesNow.find((p) => p.title === "Notes")!;
+    const syncedIn = (id: string) =>
+      (content(id).content ?? []).filter((n) => n.type === "syncedBlock").map((n) => n.attrs!.sourceId as string);
+    const [original] = syncedIn(home.id);
+    const [copy, orphan] = syncedIn(notes.id);
+    expect(original).toBeTruthy();
+    expect(copy).toBe(original);
+    // Its content lives in a hidden page under Home, not in the tree.
+    const hidden = app.db.select().from(pages).where(eq(pages.id, original!)).get()!;
+    expect(hidden).toMatchObject({ kind: "block", parentId: home.id });
+    expect(JSON.stringify(hidden.contentJson)).toContain("Shared notice");
+    expect(pagesNow.map((p) => p.id)).not.toContain(original);
+    // A copy whose original wasn't imported becomes the original, under the page it was in.
+    const elsewhere = app.db.select().from(pages).where(eq(pages.id, orphan!)).get()!;
+    expect(elsewhere).toMatchObject({ kind: "block", parentId: notes.id });
+    expect(JSON.stringify(elsewhere.contentJson)).toContain("From elsewhere");
+
+    // Imported again: the same synced blocks, no new hidden pages.
+    notion.editNotes("Second notes.");
+    await runImport({});
+    expect(syncedIn(notes.id)).toEqual([original, orphan]);
+    expect(app.db.select().from(pages).where(eq(pages.kind, "block")).all()).toHaveLength(2);
   });
 
   it("turns status columns imported as selects by older versions into status columns", async () => {

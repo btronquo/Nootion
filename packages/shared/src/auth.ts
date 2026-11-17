@@ -1,8 +1,12 @@
 import { z } from "zod";
 import { LOCALES, t, type Locale } from "./i18n/index.js";
 
-export const USER_ROLES = ["admin", "member"] as const;
+/** A guest only sees the pages shared with them: no space of their own, no shared spaces, no directory, no tokens. */
+export const USER_ROLES = ["admin", "member", "guest"] as const;
 export type UserRole = (typeof USER_ROLES)[number];
+/** The roles an administrator gives: a guest is always invited from a page, and stops being one by becoming a member. */
+export const MEMBER_ROLES = ["admin", "member"] as const;
+export type MemberRole = (typeof MEMBER_ROLES)[number];
 
 export const emailSchema = z.string().trim().toLowerCase().email().max(254);
 export const passwordSchema = z
@@ -47,9 +51,42 @@ export interface TwoFactorSetup {
   qrSvg: string;
 }
 
+/** Adding a passkey asks for the password again, as turning two-factor sign-in on does. */
+export const passkeyOptionsInput = z.object({ password: z.string().min(1).max(256) });
+
+/** The device's answer (WebAuthn JSON), checked on the server; the name tells passkeys apart in the list. */
+export const passkeyAddInput = z.object({
+  name: z.string().trim().max(100).optional(),
+  response: z.record(z.string(), z.unknown()),
+});
+
+export const passkeyRenameInput = z.object({ name: z.string().trim().min(1).max(100) });
+
+/** Signing in with a passkey: the device's signed answer to the challenge. */
+export const passkeyLoginInput = z.object({ response: z.record(z.string(), z.unknown()) });
+
+/** A passkey, as its owner sees it in the list. */
+export interface PasskeyInfo {
+  id: string;
+  name: string;
+  /** Synced to the person's other devices (a password manager, the phone's keychain). */
+  backedUp: boolean;
+  lastUsedAt: string | null;
+  createdAt: string;
+}
+
+/** What the account page shows about passkeys. */
+export interface PasskeysStatus {
+  /** Passkeys need HTTPS (or localhost) and the address set in APP_URL. */
+  available: boolean;
+  /** The address passkeys are tied to (the origin of APP_URL). */
+  origin: string;
+  passkeys: PasskeyInfo[];
+}
+
 export const createInvitationInput = z.object({
   email: emailSchema.optional(),
-  role: z.enum(USER_ROLES).default("member"),
+  role: z.enum(MEMBER_ROLES).default("member"),
 });
 export type CreateInvitationInput = z.infer<typeof createInvitationInput>;
 
@@ -62,7 +99,7 @@ export const acceptInvitationInput = z.object({
 export type AcceptInvitationInput = z.infer<typeof acceptInvitationInput>;
 
 export const updateUserInput = z.object({
-  role: z.enum(USER_ROLES).optional(),
+  role: z.enum(MEMBER_ROLES).optional(),
   disabled: z.boolean().optional(),
 });
 export type UpdateUserInput = z.infer<typeof updateUserInput>;
@@ -104,7 +141,14 @@ export interface InvitationInfo {
   id: string;
   email: string | null;
   role: UserRole;
+  /** A guest's invitation: the page shared with them once they have an account. */
+  page: { id: string; title: string } | null;
   expiresAt: string;
   usedAt: string | null;
   createdAt: string;
+}
+
+/** A guest, as administrators see them: with the pages shared with them. */
+export interface GuestInfo extends PublicUser {
+  pages: { id: string; title: string; role: "full" | "editor" | "commenter" | "viewer" }[];
 }

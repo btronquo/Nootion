@@ -1,0 +1,157 @@
+{
+  "id": "assistant",
+  "name": {
+    "en": "AI assistant",
+    "fr": "Assistant IA",
+    "de": "KI-Assistent",
+    "es": "Asistente de IA",
+    "it": "Assistente IA"
+  },
+  "version": "1.1.0",
+  "description": {
+    "en": "Summarise, translate, improve or continue a passage, or ask a question about it, from the menu of a selection. With your own key (Anthropic, OpenAI, Mistral) or a model on your network (Ollama). A ✨ button at the bottom right of pages opens a chat about the page. Nothing is sent without a click, and the menu says where the text goes.",
+    "fr": "Résumer, traduire, améliorer ou continuer un passage, ou poser une question à son sujet, depuis le menu d'une sélection. Avec votre propre clé (Anthropic, OpenAI, Mistral) ou un modèle de votre réseau (Ollama). Un bouton ✨ en bas à droite des pages ouvre un chat sur la page. Rien n'est envoyé sans un clic, et le menu dit où part le texte.",
+    "de": "Einen Abschnitt zusammenfassen, übersetzen, verbessern oder fortsetzen oder eine Frage dazu stellen, über das Menü einer Auswahl. Mit Ihrem eigenen Schlüssel (Anthropic, OpenAI, Mistral) oder einem Modell in Ihrem Netzwerk (Ollama). Eine ✨-Schaltfläche unten rechts auf den Seiten öffnet einen Chat zur Seite. Nichts wird ohne Klick gesendet, und das Menü zeigt, wohin der Text geht.",
+    "es": "Resumir, traducir, mejorar o continuar un pasaje, o hacer una pregunta sobre él, desde el menú de una selección. Con su propia clave (Anthropic, OpenAI, Mistral) o un modelo de su red (Ollama). Un botón ✨ abajo a la derecha de las páginas abre un chat sobre la página. No se envía nada sin un clic, y el menú indica adónde va el texto.",
+    "it": "Riassumere, tradurre, migliorare o continuare un passaggio, o fare una domanda su di esso, dal menu di una selezione. Con la propria chiave (Anthropic, OpenAI, Mistral) o un modello della propria rete (Ollama). Un pulsante ✨ in basso a destra delle pagine apre una chat sulla pagina. Nulla viene inviato senza un clic e il menu indica dove va il testo."
+  },
+  "author": "Nootion",
+  "server": "server.js",
+  "client": "client.js",
+  "settings": [
+    {
+      "key": "provider",
+      "label": {
+        "en": "Service",
+        "fr": "Service",
+        "de": "Dienst",
+        "es": "Servicio",
+        "it": "Servizio"
+      },
+      "type": "select",
+      "default": "anthropic",
+      "options": [
+        {
+          "value": "anthropic",
+          "label": "Anthropic (Claude)"
+        },
+        {
+          "value": "openai",
+          "label": {
+            "en": "OpenAI, or a compatible server",
+            "fr": "OpenAI, ou un serveur compatible",
+            "de": "OpenAI oder ein kompatibler Server",
+            "es": "OpenAI, o un servidor compatible",
+            "it": "OpenAI, o un server compatibile"
+          }
+        },
+        {
+          "value": "mistral",
+          "label": "Mistral AI"
+        },
+        {
+          "value": "ollama",
+          "label": {
+            "en": "Ollama (local model)",
+            "fr": "Ollama (modèle local)",
+            "de": "Ollama (lokales Modell)",
+            "es": "Ollama (modelo local)",
+            "it": "Ollama (modello locale)"
+          }
+        }
+      ]
+    },
+    {
+      "key": "apiKey",
+      "label": {
+        "en": "API key",
+        "fr": "Clé d'API",
+        "de": "API-Schlüssel",
+        "es": "Clave de API",
+        "it": "Chiave API"
+      },
+      "type": "password",
+      "help": {
+        "en": "Kept encrypted on the server and never shown again. Not needed for Ollama.",
+        "fr": "Gardée chiffrée sur le serveur et jamais réaffichée. Inutile pour Ollama.",
+        "de": "Verschlüsselt auf dem Server gespeichert und nie wieder angezeigt. Für Ollama nicht nötig.",
+        "es": "Se guarda cifrada en el servidor y no se vuelve a mostrar. No hace falta para Ollama.",
+        "it": "Conservata cifrata sul server e mai più mostrata. Non serve per Ollama."
+      }
+    },
+    {
+      "key": "model",
+      "label": {
+        "en": "Model",
+        "fr": "Modèle",
+        "de": "Modell",
+        "es": "Modelo",
+        "it": "Modello"
+      },
+      "type": "text",
+      "help": {
+        "en": "Leave empty for the default: claude-opus-5-5 (Anthropic), gpt-5-mini (OpenAI), mistral-small-latest (Mistral), llama3.2 (Ollama).",
+        "fr": "Laisser vide pour le modèle par défaut : claude-opus-5-5 (Anthropic), gpt-5-mini (OpenAI), mistral-small-latest (Mistral), llama3.2 (Ollama).",
+        "de": "Leer lassen für das Standardmodell: claude-opus-5-5 (Anthropic), gpt-5-mini (OpenAI), mistral-small-latest (Mistral), llama3.2 (Ollama).",
+        "es": "Déjelo vacío para el modelo predeterminado: claude-opus-5-5 (Anthropic), gpt-5-mini (OpenAI), mistral-small-latest (Mistral), llama3.2 (Ollama).",
+        "it": "Lasciare vuoto per il modello predefinito: claude-opus-5-5 (Anthropic), gpt-5-mini (OpenAI), mistral-small-latest (Mistral), llama3.2 (Ollama)."
+      }
+    },
+    {
+      "key": "address",
+      "label": {
+        "en": "Address of the model",
+        "fr": "Adresse du modèle",
+        "de": "Adresse des Modells",
+        "es": "Dirección del modelo",
+        "it": "Indirizzo del modello"
+      },
+      "type": "text",
+      "help": {
+        "en": "Ollama: its address (http://localhost:11434 when empty, or http://nas.local:11434…). OpenAI: the address of a compatible server (LM Studio, vLLM… e.g. http://192.168.1.20:1234/v1), or empty for OpenAI itself. Only this address may be on your local network.",
+        "fr": "Ollama : son adresse (http://localhost:11434 si vide, ou http://nas.local:11434…). OpenAI : l'adresse d'un serveur compatible (LM Studio, vLLM… par ex. http://192.168.1.20:1234/v1), ou vide pour OpenAI lui-même. Seule cette adresse peut être sur votre réseau local.",
+        "de": "Ollama: seine Adresse (http://localhost:11434 wenn leer, oder http://nas.local:11434…). OpenAI: die Adresse eines kompatiblen Servers (LM Studio, vLLM… z. B. http://192.168.1.20:1234/v1), oder leer für OpenAI selbst. Nur diese Adresse darf in Ihrem lokalen Netzwerk liegen.",
+        "es": "Ollama: su dirección (http://localhost:11434 si está vacío, o http://nas.local:11434…). OpenAI: la dirección de un servidor compatible (LM Studio, vLLM… p. ej. http://192.168.1.20:1234/v1), o vacío para el propio OpenAI. Solo esta dirección puede estar en su red local.",
+        "it": "Ollama: il suo indirizzo (http://localhost:11434 se vuoto, o http://nas.local:11434…). OpenAI: l'indirizzo di un server compatibile (LM Studio, vLLM… es. http://192.168.1.20:1234/v1), o vuoto per OpenAI stesso. Solo questo indirizzo può trovarsi nella rete locale."
+      }
+    },
+    {
+      "key": "dailyLimit",
+      "label": {
+        "en": "Requests per person per day",
+        "fr": "Demandes par personne et par jour",
+        "de": "Anfragen pro Person und Tag",
+        "es": "Solicitudes por persona y día",
+        "it": "Richieste per persona al giorno"
+      },
+      "type": "number",
+      "default": 0,
+      "help": {
+        "en": "0: no limit. The count starts again at midnight (time of the server).",
+        "fr": "0 : pas de limite. Le compte repart à zéro à minuit (heure du serveur).",
+        "de": "0: keine Grenze. Die Zählung beginnt um Mitternacht neu (Zeit des Servers).",
+        "es": "0: sin límite. La cuenta vuelve a cero a medianoche (hora del servidor).",
+        "it": "0: nessun limite. Il conteggio riparte a mezzanotte (ora del server)."
+      }
+    },
+    {
+      "key": "allowGuests",
+      "label": {
+        "en": "Guests may use it too",
+        "fr": "Les invités peuvent aussi l'utiliser",
+        "de": "Auch Gäste dürfen ihn nutzen",
+        "es": "Los invitados también pueden usarlo",
+        "it": "Anche gli ospiti possono usarlo"
+      },
+      "type": "boolean",
+      "default": false,
+      "help": {
+        "en": "Off: only members of this Nootion, not people invited from outside on a page.",
+        "fr": "Désactivé : seulement les membres de ce Nootion, pas les personnes invitées de l'extérieur sur une page.",
+        "de": "Aus: nur Mitglieder dieses Nootion, nicht von außen auf eine Seite eingeladene Personen.",
+        "es": "Desactivado: solo los miembros de este Nootion, no las personas invitadas desde fuera a una página.",
+        "it": "Disattivato: solo i membri di questo Nootion, non le persone invitate dall'esterno su una pagina."
+      }
+    }
+  ]
+}

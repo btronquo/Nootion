@@ -1,12 +1,12 @@
 import type { FastifyPluginAsync } from "fastify";
-import { eq, inArray } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 import type { LibraryPage, PageGraph } from "@nootion/shared";
 import type { Db } from "../db/index.js";
-import { pagePermissions, pages, users, workspaceMembers, workspaces } from "../db/schema.js";
+import { pages, users, workspaces } from "../db/schema.js";
 import { requireUser } from "../http.js";
 import { scopeAllows } from "../api-tokens.js";
-import { getChain, isTrashed } from "../permissions.js";
-import { getPageMeta, listDescendants, listWorkspacePages, notRow, toSummary, type PageMeta } from "../pages.js";
+import { getChain, isTrashed, memberWorkspaceIds, sharedPageIdsOf } from "../permissions.js";
+import { getPageMeta, listDescendants, listWorkspacePages, inTree, toSummary, type PageMeta } from "../pages.js";
 import { homePageOf } from "../home.js";
 import type { ProseMirrorNode } from "../collab.js";
 
@@ -15,15 +15,13 @@ import type { ProseMirrorNode } from "../collab.js";
  * (with their subpages). Their own home page is left out, as in the sidebar.
  */
 export function readablePages(db: Db, userId: string): PageMeta[] {
-  const memberOf = db.select({ id: workspaceMembers.workspaceId }).from(workspaceMembers).where(eq(workspaceMembers.userId, userId)).all();
   const byId = new Map<string, PageMeta>();
-  for (const { id } of memberOf) for (const p of listWorkspacePages(db, id)) byId.set(p.id, p);
-  const grants = db.select({ pageId: pagePermissions.pageId }).from(pagePermissions).where(eq(pagePermissions.userId, userId)).all();
-  for (const { pageId } of grants) {
+  for (const id of memberWorkspaceIds(db, userId)) for (const p of listWorkspacePages(db, id)) byId.set(p.id, p);
+  for (const pageId of sharedPageIdsOf(db, userId)) {
     if (byId.has(pageId) || isTrashed(getChain(db, pageId))) continue;
     const root = getPageMeta(db, pageId);
-    if (root && notRow(root)) byId.set(root.id, root);
-    for (const d of listDescendants(db, pageId).filter(notRow)) byId.set(d.id, d);
+    if (root && inTree(root)) byId.set(root.id, root);
+    for (const d of listDescendants(db, pageId).filter(inTree)) byId.set(d.id, d);
   }
   const home = homePageOf(db, userId);
   if (home) byId.delete(home);

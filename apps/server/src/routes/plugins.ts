@@ -2,6 +2,7 @@ import fs from "node:fs";
 import type { FastifyPluginAsync } from "fastify";
 import { updatePluginInput } from "@nootion/shared";
 import { notFound, parseBody, requireAdmin, requireUser } from "../http.js";
+import { audit, settingsTarget } from "../audit.js";
 
 /** Plugins as every page sees them, their browser code, and their own API routes. */
 export const pluginRoutes: FastifyPluginAsync = async (app) => {
@@ -41,7 +42,9 @@ export const pluginAdminRoutes: FastifyPluginAsync = async (app) => {
   });
   app.get("/", async () => ({ plugins: app.plugins.adminList(), broken: app.plugins.broken }));
   app.patch<{ Params: { id: string } }>("/:id", async (req) => {
-    await app.plugins.update(req.params.id, parseBody(updatePluginInput, req.body));
+    const input = parseBody(updatePluginInput, req.body);
+    await app.plugins.update(req.params.id, input);
+    audit(app.db, req, { action: "settings.changed", target: settingsTarget("plugins", req.params.id), details: { keys: Object.keys(input).sort() } });
     return { plugin: app.plugins.adminList().find((p) => p.id === req.params.id) };
   });
 };

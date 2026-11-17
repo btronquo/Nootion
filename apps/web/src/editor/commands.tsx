@@ -39,8 +39,13 @@ import {
   MessageSquareQuote,
   Brush,
   Film,
+  Workflow,
+  Sigma,
+  Radical,
+  RefreshCw,
+  Users,
 } from "lucide-react";
-import { currentLocale, parseNaturalDate, pluginNodeName, type ClientPluginInfo, type PageSummary, type UserDirectoryEntry } from "@nootion/shared";
+import { currentLocale, parseNaturalDate, pluginNodeName, type ClientPluginInfo, type GroupSummary, type PageSummary, type UserDirectoryEntry } from "@nootion/shared";
 import { formatMentionDate } from "../lib/reminders";
 import { api } from "../lib/api";
 import { pageTitle } from "../lib/tree";
@@ -64,11 +69,14 @@ export interface CommandContext {
   userId: string | null;
   /** People who can be mentioned with "@". */
   people: () => UserDirectoryEntry[];
+  /** Groups who can be mentioned with "@" (everyone in them is told). */
+  groups?: () => GroupSummary[];
 }
 
 const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
-export function slashItems(ctx: CommandContext) {
+/** `omit`: titles of commands left out (inside a synced block). */
+export function slashItems(ctx: CommandContext, omit: ReadonlySet<string> = new Set()) {
   const del = (e: Editor, r: Range) => e.chain().focus().deleteRange(r);
   const all = [
     item("Text", t("command.text"), <Text size={16} />, (e, r) => del(e, r).setParagraph().run(), "paragraph"),
@@ -88,6 +96,21 @@ export function slashItems(ctx: CommandContext) {
     item("2 columns", t("command.columns2"), <Columns2 size={16} />, (e, r) => del(e, r).insertColumns(2).run(), "columns side layout"),
     item("3 columns", t("command.columns3"), <Columns3 size={16} />, (e, r) => del(e, r).insertColumns(3).run(), "columns side layout"),
     item("Code", t("command.code"), <Code size={16} />, (e, r) => del(e, r).toggleCodeBlock().run(), "codeblock"),
+    item(
+      "Mermaid",
+      t("command.mermaid"),
+      <Workflow size={16} />,
+      (e, r) => del(e, r).setCodeBlock({ language: "mermaid" }).insertContent({ type: "text", text: t("mermaid.sample") }).run(),
+      "diagram flowchart chart sequence graph gantt schema",
+    ),
+    item("Equation", t("command.equation"), <Sigma size={16} />, (e, r) => del(e, r).insertMathBlock().run(), "math maths latex formula formule katex équation tex"),
+    item(
+      "Inline equation",
+      t("command.inlineEquation"),
+      <Radical size={16} />,
+      (e, r) => del(e, r).insertMathInline().run(),
+      "math maths latex formula formule katex équation tex inline ligne",
+    ),
     item("Table", t("command.table"), <Table size={16} />, (e, r) => del(e, r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(), "grid"),
     item("Divider", t("command.divider"), <Minus size={16} />, (e, r) => del(e, r).setHorizontalRule().run(), "hr separator"),
     item(
@@ -141,6 +164,20 @@ export function slashItems(ctx: CommandContext) {
       "db table",
     ),
     item(
+      "Linked view",
+      t("command.linkedView"),
+      <Link2 size={16} />,
+      (e, r) => del(e, r).insertLinkedView().run(),
+      "linked database view existing filtered vue liée base existante filtrée lien",
+    ),
+    item(
+      "Synced block",
+      t("command.synced"),
+      <RefreshCw size={16} />,
+      (e, r) => del(e, r).insertSyncedBlock().run(),
+      "synced sync bloc synchronisé synchroniser copie partagé shared reuse réutiliser",
+    ),
+    item(
       "Button",
       t("command.button"),
       <MousePointerClick size={16} />,
@@ -164,6 +201,7 @@ export function slashItems(ctx: CommandContext) {
     item("Calendar", t("command.calendar"), <CalendarDays size={16} />, (e, r) => del(e, r).insertCalendar().run(), "agenda events dates ical"),
     item("Recent pages", t("command.recentPages"), <Clock size={16} />, (e, r) => del(e, r).insertWidget("recentPages").run(), "widget visited history home"),
     item("Favorites", t("command.favoritesList"), <Star size={16} />, (e, r) => del(e, r).insertWidget("favoritesList").run(), "widget starred home"),
+    item("Tasks", t("command.tasksList"), <ListChecks size={16} />, (e, r) => del(e, r).insertWidget("tasksList").run(), "widget to-do todo checklist tâches home"),
     item(
       "Upcoming events",
       t("command.upcomingEvents"),
@@ -248,7 +286,7 @@ export function slashItems(ctx: CommandContext) {
           ),
         ),
       ),
-  ];
+  ].filter((i) => !omit.has(i.title));
   return ({ query }: { query: string }) => {
     const q = norm(query).trim();
     // Typing on past a non-matching command closes the menu.
@@ -301,7 +339,15 @@ export function mentionItems(ctx: CommandContext) {
           e.chain().focus().deleteRange(r).insertUserMention({ userId: u.id, name: u.name, by: ctx.userId }).run(),
         ),
       );
+    const groups = (ctx.groups?.() ?? [])
+      .filter((g) => norm(g.name).includes(q))
+      .slice(0, q ? 3 : 2)
+      .map((g) =>
+        item(g.name, t("group.mention", { count: g.memberCount }), <Users size={16} />, (e, r) =>
+          e.chain().focus().deleteRange(r).insertUserMention({ userId: null, groupId: g.id, name: g.name, by: ctx.userId }).run(),
+        ),
+      );
     // A date typed comes first; with nothing typed yet, today's date comes after the pages.
-    return q.trim() ? [...date(query), ...people, ...pages] : [...people, ...pages, ...date("today")];
+    return q.trim() ? [...date(query), ...people, ...groups, ...pages] : [...people, ...groups, ...pages, ...date("today")];
   };
 }

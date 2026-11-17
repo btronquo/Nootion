@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { calendarDateProp, daysBetween, intlLocale, localDay, rowDays, shiftDate, t, type DatabaseRow, type DateValue } from "@nootion/shared";
+import { calendarDateProp, dependencyProps, daysBetween, intlLocale, localDay, rowDays, shiftDate, t, type DatabaseRow, type DateValue } from "@nootion/shared";
 import { RowTitle, type MoreViewProps } from "./MoreViews";
+import { ShowMoreRows, useShownRows } from "./progressive";
 
 type Scale = "day" | "week" | "month";
 
@@ -24,13 +25,16 @@ type Drag = { rowId: string; kind: "move" | "start" | "end"; x: number; delta: n
  * change the start or the end; a row without a date gets one by clicking on its line.
  */
 export function TimelineView(props: MoreViewProps) {
-  const { data, actions, view, rows, editable, rowHref } = props;
+  const { data, actions, view, rows: allRows, editable, rowHref } = props;
   const navigate = useNavigate();
+  // A line per row: thousands of rows are shown a batch at a time.
+  const { limit, more } = useShownRows(`${data.id}|${view.id}`);
+  const rows = allRows.length > limit ? allRows.slice(0, limit) : allRows;
   const prop = calendarDateProp(data.properties, view.config.dateProperty);
   const [localScale, setLocalScale] = useState<Scale>("week");
   const scale = actions ? (view.config.timelineScale ?? "week") : localScale;
   const setScale = (s: Scale) =>
-    actions && editable ? actions.updateView.mutate({ viewId: view.id, config: { ...view.config, timelineScale: s } }) : setLocalScale(s);
+    actions && editable && !data.locked ? actions.updateView.mutate({ viewId: view.id, config: { ...view.config, timelineScale: s } }) : setLocalScale(s);
   const { px, span } = SCALES[scale];
   const today = localDay(new Date());
   // First day shown: a little before today, then moved by the arrows.
@@ -39,6 +43,8 @@ export function TimelineView(props: MoreViewProps) {
   const scroller = useRef<HTMLDivElement>(null);
   const dragRef = useRef<Drag | null>(null);
   const editableDates = editable && prop?.type === "date" && !!actions;
+  const deps = dependencyProps(data.properties);
+  const arrows = useDependencyArrows(scroller, deps ? deps.blocks.id : null, rows, [drag, from, scale]);
 
   const days = useMemo(() => Array.from({ length: span }, (_, i) => addDays(from, i)), [from, span]);
   const ticks = useMemo(() => {
@@ -152,7 +158,31 @@ export function TimelineView(props: MoreViewProps) {
         </button>
       </div>
       <div ref={scroller} className="thin-scroll overflow-x-auto rounded border border-neutral-200 dark:border-neutral-800" data-timeline>
-        <div className="w-max min-w-full">
+        <div className="relative w-max min-w-full">
+          {arrows.length > 0 && (
+            // Dependencies: an arrow from the end of a row's bar to the start of each row waiting on it.
+            <svg className="pointer-events-none absolute inset-0 h-full w-full overflow-visible" aria-hidden data-dependency-arrows>
+              <defs>
+                <marker id="dep-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M0,0 L8,4 L0,8 z" className="fill-neutral-400 dark:fill-neutral-500" />
+                </marker>
+                <marker id="dep-arrow-late" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                  <path d="M0,0 L8,4 L0,8 z" className="fill-red-500" />
+                </marker>
+              </defs>
+              {arrows.map((a) => (
+                <path
+                  key={a.key}
+                  d={a.d}
+                  fill="none"
+                  strokeWidth={1.5}
+                  className={a.late ? "stroke-red-500" : "stroke-neutral-400 dark:stroke-neutral-500"}
+                  markerEnd={`url(#${a.late ? "dep-arrow-late" : "dep-arrow"})`}
+                  data-late={a.late || undefined}
+                />
+              ))}
+            </svg>
+          )}
           {/* Months, then days, weeks or months. */}
           <div className="flex border-b border-neutral-200 text-xs text-neutral-500 dark:border-neutral-800">
             <div className={`${titleCol} py-1`} />
@@ -252,9 +282,54 @@ export function TimelineView(props: MoreViewProps) {
               </div>
             );
           })}
+          <ShowMoreRows shown={rows.length} total={allRows.length} onMore={more} className="sticky left-0" />
           {!rows.length && <p className="px-2 py-3 text-neutral-400">{t("view.noRows")}</p>}
         </div>
       </div>
     </div>
   );
+}
+
+interface Arrow {
+  key: string;
+  d: string;
+  /** The row waiting starts before the one it waits on ends. */
+  late: boolean;
+}
+
+/** Arrows between the bars shown, measured on the page after each render (bars move while being dragged). */
+function useDependencyArrows(scroller: React.RefObject<HTMLDivElement | null>, blocksId: string | null, rows: DatabaseRow[], deps: unknown[]): Arrow[] {
+  const [arrows, setArrows] = useState<Arrow[]>([]);
+  useLayoutEffect(() => {
+    const root = scroller.current?.firstElementChild as HTMLElement | null;
+    if (!root || !blocksId) {
+      if (arrows.length) setArrows([]);
+      return;
+    }
+    const box = root.getBoundingClientRect();
+    const bars = new Map<string, DOMRect>();
+    root.querySelectorAll<HTMLElement>("[data-bar]").forEach((el) => bars.set(el.dataset.bar!, el.getBoundingClientRect()));
+    const next: Arrow[] = [];
+    for (const row of rows) {
+      const from = bars.get(row.id);
+      if (!from) continue;
+      for (const id of (row.values[blocksId] as string[] | null) ?? []) {
+        const to = bars.get(id);
+        if (!to) continue;
+        const x1 = from.right - box.left;
+        const y1 = from.top + from.height / 2 - box.top;
+        const x2 = to.left - box.left;
+        const y2 = to.top + to.height / 2 - box.top;
+        const d =
+          x2 - x1 >= 16
+            ? `M${x1},${y1} H${x1 + 8} V${y2} H${x2 - 1}`
+            : // Not enough room: round the bars, between the two lines.
+              `M${x1},${y1} H${x1 + 8} V${(y1 + y2) / 2} H${x2 - 10} V${y2} H${x2 - 1}`;
+        next.push({ key: `${row.id}>${id}`, d, late: to.left < from.right - 1 });
+      }
+    }
+    if (JSON.stringify(next) !== JSON.stringify(arrows)) setArrows(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [blocksId, rows, ...deps]);
+  return arrows;
 }
