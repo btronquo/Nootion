@@ -222,6 +222,39 @@ describe("passkeys", () => {
     expect(gone.res.json().error).toBe("passkey_unknown");
   });
 
+  it("go to the activity log: added, removed, sign-ins and refused sign-ins", async () => {
+    const admin = await setupAdmin(app);
+    const member = await inviteUser(app, admin, { name: "Alice", email: "alice@example.com", password: "motdepasse-alice" });
+    const device = new FakeAuthenticator();
+    expect((await addPasskey(member, device, "Portable", "motdepasse-alice")).statusCode).toBe(200);
+    expect((await passkeyLogin(device)).res.statusCode).toBe(200);
+    const aliceId = await member.id();
+    const id = (await member.get("/api/auth/passkeys")).json().passkeys[0].id;
+    await admin.patch(`/api/admin/users/${aliceId}`, { disabled: true });
+    expect((await passkeyLogin(device)).res.statusCode).toBe(403);
+    await admin.patch(`/api/admin/users/${aliceId}`, { disabled: false });
+    const relog = await new Client(app).post("/api/auth/login", { email: "alice@example.com", password: "motdepasse-alice" });
+    const alice = new Client(app);
+    alice.cookie = `nootion_session=${relog.cookies.find((k) => k.name === "nootion_session")!.value}`;
+    expect((await alice.delete(`/api/auth/passkeys/${id}`)).statusCode).toBe(200);
+
+    const events = (await admin.get(`/api/admin/audit?actorId=${aliceId}`)).json().events as { action: string; details: Record<string, unknown> }[];
+    const mine = events.filter((e) => e.action !== "user.disabled" && e.action !== "user.enabled").reverse();
+    expect(mine.map((e) => e.action)).toEqual([
+      "account.created",
+      "account.passkey_added",
+      "auth.login",
+      "auth.login_failed",
+      "auth.login",
+      "account.passkey_removed",
+    ]);
+    expect(mine[1]!.details).toMatchObject({ name: "Portable" });
+    expect(mine[2]!.details).toMatchObject({ method: "passkey" });
+    expect(mine[3]!.details).toMatchObject({ method: "passkey", reason: "disabled" });
+    expect(mine[4]!.details).toMatchObject({ method: "password" });
+    expect(mine[5]!.details).toMatchObject({ name: "Portable" });
+  });
+
   it("are off when the server isn't reached over HTTPS", async () => {
     app = await makeApp(undefined, { APP_URL: "http://nootion.lan:3000" });
     const admin = await setupAdmin(app);

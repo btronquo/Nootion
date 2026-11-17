@@ -13,7 +13,7 @@ export interface AuditEntry {
   action: AuditAction;
   /** Who did it; the signed-in person by default. `null` for someone unknown (a failed sign-in). */
   actor?: Person | null;
-  target?: { type: "page" | "workspace" | "user" | "invitation" | "token" | "settings" | "form"; id?: string | null; label?: string | null };
+  target?: { type: "page" | "workspace" | "user" | "group" | "invitation" | "token" | "settings" | "form"; id?: string | null; label?: string | null };
   /** Small facts about the change (a role, the settings changed): never page content. */
   details?: Record<string, unknown>;
 }

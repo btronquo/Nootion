@@ -1,7 +1,8 @@
 import type { FastifyPluginAsync } from "fastify";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { createGroupInput, groupMemberInput, t, updateGroupInput } from "@nootion/shared";
-import { groups, users } from "../db/schema.js";
+import { audit, personTarget } from "../audit.js";
+import { groupMembers, groups, users } from "../db/schema.js";
 import { HttpError, parseBody, requireAdmin, requireUser } from "../http.js";
 import { addGroupMembers, assertNameFree, createGroup, listGroupDetails, listGroups, removeGroupMembers, requireGroup } from "../groups.js";
 
@@ -26,6 +27,7 @@ export const groupAdminRoutes: FastifyPluginAsync = async (app) => {
     const admin = requireAdmin(req);
     const input = parseBody(createGroupInput, req.body);
     const group = createGroup(db, { name: input.name, description: input.description, createdBy: admin.id });
+    audit(db, req, { action: "group.created", target: groupTarget(group) });
     return { group: listGroupDetails(db, admin.id).find((g) => g.id === group.id)! };
   });
 
@@ -37,6 +39,8 @@ export const groupAdminRoutes: FastifyPluginAsync = async (app) => {
     if (input.name !== undefined) set.name = input.name;
     if (input.description !== undefined) set.description = input.description;
     if (Object.keys(set).length) db.update(groups).set(set).where(eq(groups.id, group.id)).run();
+    if (set.name !== undefined && set.name !== group.name)
+      audit(db, req, { action: "group.renamed", target: groupTarget({ id: group.id, name: set.name }), details: { from: group.name } });
     return { ok: true };
   });
 
@@ -44,6 +48,7 @@ export const groupAdminRoutes: FastifyPluginAsync = async (app) => {
   app.delete<{ Params: { id: string } }>("/:id", async (req) => {
     const group = requireGroup(db, req.params.id);
     db.delete(groups).where(eq(groups.id, group.id)).run();
+    audit(db, req, { action: "group.deleted", target: groupTarget(group) });
     return { ok: true };
   });
 
@@ -53,13 +58,28 @@ export const groupAdminRoutes: FastifyPluginAsync = async (app) => {
     const target = db.select({ role: users.role, disabled: users.disabled }).from(users).where(eq(users.id, input.userId)).get();
     if (!target || target.disabled) throw new HttpError(404, "user_not_found", t("error.userNotFound"));
     if (target.role === "guest") throw new HttpError(400, "guest_no_group", t("error.guestNoGroup"));
-    addGroupMembers(db, group.id, [input.userId]);
+    const already = db
+      .select({ userId: groupMembers.userId })
+      .from(groupMembers)
+      .where(and(eq(groupMembers.groupId, group.id), eq(groupMembers.userId, input.userId)))
+      .get();
+    if (addGroupMembers(db, group.id, [input.userId]).length && !already) {
+      audit(db, req, { action: "group.member_added", target: groupTarget(group), details: { member: personTarget(db, input.userId).label ?? input.userId } });
+    }
     return { ok: true };
   });
 
   app.delete<{ Params: { id: string; userId: string } }>("/:id/members/:userId", async (req) => {
     const group = requireGroup(db, req.params.id);
-    removeGroupMembers(db, group.id, [req.params.userId]);
+    if (removeGroupMembers(db, group.id, [req.params.userId])) {
+      audit(db, req, {
+        action: "group.member_removed",
+        target: groupTarget(group),
+        details: { member: personTarget(db, req.params.userId).label ?? req.params.userId },
+      });
+    }
     return { ok: true };
   });
 };
+
+const groupTarget = (group: { id: string; name: string }) => ({ type: "group" as const, id: group.id, label: group.name });

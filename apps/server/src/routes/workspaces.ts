@@ -19,7 +19,7 @@ import { getPageRole, getWorkspaceRole, requireWorkspaceRole } from "../permissi
 import { listWorkspacePages, toSummary } from "../pages.js";
 import { t } from "@nootion/shared";
 import { homePageOf } from "../home.js";
-import { memberCounts, requireGroup } from "../groups.js";
+import { findGroup, memberCounts, requireGroup } from "../groups.js";
 import { audit, personTarget } from "../audit.js";
 
 const spaceTarget = (w: { id: string; name: string }) => ({ type: "workspace" as const, id: w.id, label: w.name });
@@ -138,7 +138,15 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
     const user = requireUser(req);
     const input = parseBody(setWorkspaceGroupInput, req.body);
     requireSharedOwner(user.id, req.params.id);
-    requireGroup(db, input.groupId);
+    const group = requireGroup(db, input.groupId);
+    const was = db
+      .select({ role: workspaceGroupMembers.role })
+      .from(workspaceGroupMembers)
+      .where(and(eq(workspaceGroupMembers.workspaceId, req.params.id), eq(workspaceGroupMembers.groupId, input.groupId)))
+      .get()?.role;
+    if (was !== input.role) {
+      audit(db, req, { action: "workspace.member_set", target: spaceTarget(getWorkspace(req.params.id)!), details: { group: group.name, role: input.role, ...(was && { from: was }) } });
+    }
     db.insert(workspaceGroupMembers)
       .values({ workspaceId: req.params.id, groupId: input.groupId, role: input.role })
       .onConflictDoUpdate({ target: [workspaceGroupMembers.workspaceId, workspaceGroupMembers.groupId], set: { role: input.role } })
@@ -149,9 +157,13 @@ export const workspaceRoutes: FastifyPluginAsync = async (app) => {
   app.delete<{ Params: { id: string; groupId: string } }>("/:id/groups/:groupId", async (req) => {
     const user = requireUser(req);
     requireSharedOwner(user.id, req.params.id);
-    db.delete(workspaceGroupMembers)
+    const removed = db
+      .delete(workspaceGroupMembers)
       .where(and(eq(workspaceGroupMembers.workspaceId, req.params.id), eq(workspaceGroupMembers.groupId, req.params.groupId)))
-      .run();
+      .run().changes;
+    if (removed) {
+      audit(db, req, { action: "workspace.member_removed", target: spaceTarget(getWorkspace(req.params.id)!), details: { group: findGroup(db, req.params.groupId)?.name ?? req.params.groupId } });
+    }
     return { ok: true };
   });
 

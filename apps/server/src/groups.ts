@@ -65,11 +65,13 @@ export function addGroupMembers(db: DbLike, groupId: string, userIds: string[]):
   return ok;
 }
 
-export function removeGroupMembers(db: Db, groupId: string, userIds: string[]) {
-  if (!userIds.length) return;
-  db.delete(groupMembers)
+/** Takes these people out of the group; returns how many were in it. */
+export function removeGroupMembers(db: Db, groupId: string, userIds: string[]): number {
+  if (!userIds.length) return 0;
+  return db
+    .delete(groupMembers)
     .where(and(eq(groupMembers.groupId, groupId), inArray(groupMembers.userId, userIds)))
-    .run();
+    .run().changes;
 }
 
 /** Makes the group's members exactly these people (guests left out). */

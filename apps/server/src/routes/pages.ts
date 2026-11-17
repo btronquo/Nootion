@@ -25,7 +25,7 @@ import { guestsAllowed, guestsOff, isGuest } from "../guests.js";
 import { INVITATION_TTL_MS } from "./admin.js";
 import { protectionInfo, protectionUpdate } from "../public-access.js";
 import { attachments, effectivePagePermissions, groups, invitations, pageGroupPermissions, pagePermissions, pages, publicLinks, users } from "../db/schema.js";
-import { memberCounts, requireGroup } from "../groups.js";
+import { findGroup, memberCounts, requireGroup } from "../groups.js";
 import { HttpError, notFound, parseBody, requireUser } from "../http.js";
 import {
   CAN_CREATE_ROOT_PAGES,
@@ -501,8 +501,14 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
   app.put<{ Params: { id: string } }>("/:id/group-shares", async (req) => {
     const user = requireUser(req);
     const input = parseBody(sharePageGroupInput, req.body);
-    requirePageRole(db, user.id, req.params.id, "full");
-    requireGroup(db, input.groupId);
+    const { page } = requirePageRole(db, user.id, req.params.id, "full");
+    const group = requireGroup(db, input.groupId);
+    const was = db
+      .select({ role: pageGroupPermissions.role })
+      .from(pageGroupPermissions)
+      .where(and(eq(pageGroupPermissions.pageId, req.params.id), eq(pageGroupPermissions.groupId, input.groupId)))
+      .get()?.role;
+    if (was !== input.role) audit(db, req, { action: "page.shared", target: pageTarget(page), details: { group: group.name, role: input.role, ...(was && { from: was }) } });
     db.insert(pageGroupPermissions)
       .values({ pageId: req.params.id, groupId: input.groupId, role: input.role, grantedBy: user.id })
       .onConflictDoUpdate({ target: [pageGroupPermissions.pageId, pageGroupPermissions.groupId], set: { role: input.role, grantedBy: user.id } })
@@ -512,10 +518,12 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
 
   app.delete<{ Params: { id: string; groupId: string } }>("/:id/group-shares/:groupId", async (req) => {
     const user = requireUser(req);
-    requirePageRole(db, user.id, req.params.id, "full");
-    db.delete(pageGroupPermissions)
+    const { page } = requirePageRole(db, user.id, req.params.id, "full");
+    const removed = db
+      .delete(pageGroupPermissions)
       .where(and(eq(pageGroupPermissions.pageId, req.params.id), eq(pageGroupPermissions.groupId, req.params.groupId)))
-      .run();
+      .run().changes;
+    if (removed) audit(db, req, { action: "page.unshared", target: pageTarget(page), details: { group: findGroup(db, req.params.groupId)?.name ?? req.params.groupId } });
     return { ok: true };
   });
 

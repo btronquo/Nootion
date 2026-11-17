@@ -80,8 +80,13 @@ export function auditDetails(e: AuditEvent): string[] {
   if (e.action === "auth.login_failed" && d.email) out.push(t("audit.detail.email", { value: String(d.email) }));
   if (d.with) out.push(t("audit.detail.with", { value: String(d.with) }));
   if (d.member) out.push(t("audit.detail.member", { value: String(d.member) }));
+  if (d.group) out.push(t("audit.detail.group", { value: String(d.group) }));
+  if (e.action.startsWith("account.passkey_") && d.name) out.push(t("audit.detail.name", { value: String(d.name) }));
+  if (e.action === "group.renamed" && d.from) out.push(t("audit.detail.renamedFrom", { value: String(d.from) }));
   if (e.action === "account.email_changed") out.push(t("audit.detail.emailChange", { from: String(d.from), to: String(d.to) }));
-  else if (d.from && d.to) out.push(t("audit.detail.roleChange", { from: roleLabel(d.from), to: roleLabel(d.to) }));
+  else if (e.action === "group.renamed") {
+    // Its old name is said above.
+  } else if (d.from && d.to) out.push(t("audit.detail.roleChange", { from: roleLabel(d.from), to: roleLabel(d.to) }));
   else if (d.role && e.action !== "account.created") out.push(t("audit.detail.role", { value: roleLabel(d.role) }));
   else if (d.from && d.role) out.push(t("audit.detail.roleChange", { from: roleLabel(d.from), to: roleLabel(d.role) }));
   if (e.action === "page.guest_invited" && d.email) out.push(t("audit.detail.email", { value: String(d.email) }));

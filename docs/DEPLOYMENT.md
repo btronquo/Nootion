@@ -198,15 +198,16 @@ To report a vulnerability, see [SECURITY.md](../SECURITY.md).
 
 **Administration › Activity log** lists who did what on the server, latest first:
 
-- **Sign-ins**: successful ones (password, password and code, SSO), failed ones with the reason (wrong password,
-  unknown address, disabled account, wrong code…) and sign-outs.
+- **Sign-ins**: successful ones (password, password and code, passkey, SSO), failed ones with the reason (wrong
+  password, unknown address, disabled account, wrong code…) and sign-outs.
 - **Accounts**: accounts created (first administrator, invitation, SSO, company directory), passwords changed or reset,
-  e-mail addresses changed, two-step sign-in turned on or off, API tokens created or revoked, accounts deleted.
+  e-mail addresses changed, two-step sign-in turned on or off, passkeys added or removed, API tokens created or
+  revoked, accounts deleted.
 - **People and roles**: invitations created or cancelled, roles changed, accounts disabled or enabled (also by SCIM),
-  two-step sign-in reset by an administrator.
-- **Sharing and public links**: pages shared or unshared (with whom, with which access), guests invited, public links
-  and public form links created, changed (password, end date) or removed, members added to a space, their role
-  changed, or removed.
+  two-step sign-in reset by an administrator, groups made, renamed or deleted, people added to a group or taken out.
+- **Sharing and public links**: pages shared or unshared (with whom or with which group, with which access),
+  guests invited, public links and public form links created, changed (password, end date) or removed, members and
+  groups added to a space, their role changed, or removed.
 - **Deletions and spaces**: pages moved to the trash, restored or deleted for good, spaces created, emptied or deleted.
 - **Exports and backups**: pages and spaces exported, the full backup downloaded, a backup started by hand.
 - **Settings**: changes in Security, E-mail, SSO, automatic backups and plugins (the names of the settings changed,
