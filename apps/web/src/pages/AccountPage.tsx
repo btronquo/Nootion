@@ -22,6 +22,7 @@ import { Button, ErrorText, Field, LanguageSelect, Rich, Select } from "../compo
 import { setLocale } from "../lib/i18n";
 import { NotionImport } from "../components/NotionImport";
 import { PasskeysPanel } from "../components/Passkeys";
+import { startTour } from "../lib/onboarding";
 import { FileImportSection } from "../components/FileImport";
 import { AgentActivityList, ApiTokens, McpConnect } from "../components/ApiTokens";
 import { ConnectedServices, useConnectedServices } from "../components/ConnectedServices";
@@ -595,6 +596,9 @@ function DemoSection() {
         }}
       >
         ✨ {t("account.demoCreate")}
+      </Button>
+      <Button variant="ghost" className="ml-2" onClick={startTour} data-tour-restart>
+        {t("tour.restart")}
       </Button>
     </Section>
   );

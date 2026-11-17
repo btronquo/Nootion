@@ -72,6 +72,11 @@ docker compose up -d
 ```
 
 Open `APP_URL` in the browser: the page that creates the administrator account shows up, with a choice of language.
+Once the account exists, the setup assistant goes through the main settings one step at a time: e-mail, sign-in and
+security (passkeys, single sign-on), backups, the AI assistant, plugins and the team. Every step can be skipped and
+everything stays in Administration; "Finish later" leaves a card there to resume it, and `/admin/setup` opens it
+again at any time. Settings that come from variables (`APP_URL`, `FILES_S3_*`) are shown, not changed, by the
+assistant. Each new account then gets a short guided tour of the features, which My account opens again.
 
 [`docker-compose.yml`](../docker-compose.yml) keeps the data in a named Docker volume, `nootion-data`.
 To keep it in a folder of the host instead (easier to back up), replace the volume with
