@@ -10,6 +10,7 @@ import {
 } from "@simplewebauthn/server";
 import { passkeyAddInput, passkeyLoginInput, passkeyOptionsInput, passkeyRenameInput, t, type PasskeyInfo, type PasskeysStatus } from "@nootion/shared";
 import { and, asc, count, eq, lt } from "drizzle-orm";
+import { audit } from "../audit.js";
 import { verifyPassword } from "../auth/password.js";
 import { hashToken, newToken } from "../auth/tokens.js";
 import { passkeyChallenges, passkeys, users } from "../db/schema.js";
@@ -152,6 +153,7 @@ export const passkeyRoutes: FastifyPluginAsync = async (app) => {
       })
       .returning()
       .get();
+    audit(db, req, { action: "account.passkey_added", details: { name: row.name, synced: credentialBackedUp } });
     return { passkey: info(row) };
   });
 
@@ -173,9 +175,10 @@ export const passkeyRoutes: FastifyPluginAsync = async (app) => {
     const row = db
       .delete(passkeys)
       .where(and(eq(passkeys.id, req.params.id), eq(passkeys.userId, user.id)))
-      .returning({ id: passkeys.id })
+      .returning({ id: passkeys.id, name: passkeys.name })
       .get();
     if (!row) throw new HttpError(404, "not_found", t("passkeys.notFound"));
+    audit(db, req, { action: "account.passkey_removed", details: { name: row.name } });
     return { ok: true };
   });
 
@@ -215,15 +218,28 @@ export const passkeyRoutes: FastifyPluginAsync = async (app) => {
     }
     if (!verified.verified) throw new HttpError(401, "passkey_failed", t("passkeys.failed"));
     const user = db.select().from(users).where(eq(users.id, passkey.userId)).get();
-    if (!user || user.disabled) throw new HttpError(403, "disabled", t("error.accountDisabled"));
+    if (!user) throw new HttpError(403, "disabled", t("error.accountDisabled"));
+    // Signed in or refused, it goes to the activity log as a password sign-in does.
+    const refused = (reason: string) => audit(db, req, { action: "auth.login_failed", actor: user, details: { email: user.email, method: "passkey", reason } });
+    if (user.disabled) {
+      refused("disabled");
+      throw new HttpError(403, "disabled", t("error.accountDisabled"));
+    }
     // Where the company's SSO is required, a passkey doesn't go around it any more than a password does.
-    if (!passwordAllowed(app, user.role)) throw new HttpError(403, "sso_only", ssoOnlyMessage());
-    if (isGuest(user) && !guestsAllowed(db)) throw guestsOff();
+    if (!passwordAllowed(app, user.role)) {
+      refused("sso_only");
+      throw new HttpError(403, "sso_only", ssoOnlyMessage());
+    }
+    if (isGuest(user) && !guestsAllowed(db)) {
+      refused("guests_off");
+      throw guestsOff();
+    }
     db.update(passkeys)
       .set({ counter: verified.authenticationInfo.newCounter, backedUp: verified.authenticationInfo.credentialBackedUp, lastUsedAt: new Date() })
       .where(eq(passkeys.id, passkey.id))
       .run();
     startSession(app, reply, user.id);
+    audit(db, req, { action: "auth.login", actor: user, details: { method: "passkey" } });
     return { user: toPublicUser(user) };
   });
 };

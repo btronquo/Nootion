@@ -250,6 +250,48 @@ describe("a page shared with a group", () => {
   });
 });
 
+describe("groups in the activity log", () => {
+  it("records groups made, renamed, filled, emptied and deleted, and what they are shared with", async () => {
+    const group = await makeGroup("Marketing", [aliceId]);
+    await boris.put(`/api/admin/groups/${group}/members`, { userId: aliceId }); // already in it: no new line
+    await boris.patch(`/api/admin/groups/${group}`, { name: "Communication" });
+    const ws = await space("Club");
+    await boris.put(`/api/workspaces/${ws}/groups`, { groupId: group, role: "viewer" });
+    await boris.put(`/api/workspaces/${ws}/groups`, { groupId: group, role: "viewer" }); // unchanged: no new line
+    await boris.put(`/api/workspaces/${ws}/groups`, { groupId: group, role: "editor" });
+    await boris.delete(`/api/workspaces/${ws}/groups/${group}`);
+    const page = await boris.createPage(await boris.personalWorkspace(), "Compte rendu");
+    await boris.put(`/api/pages/${page}/group-shares`, { groupId: group, role: "commenter" });
+    await boris.delete(`/api/pages/${page}/group-shares/${group}`);
+    await boris.delete(`/api/admin/groups/${group}/members/${aliceId}`);
+    await boris.delete(`/api/admin/groups/${group}/members/${aliceId}`); // not in it any more: no new line
+    await boris.delete(`/api/admin/groups/${group}`);
+
+    const events = (await boris.get("/api/admin/audit?limit=200")).json().events as {
+      action: string;
+      target: { type: string; label: string } | null;
+      details: Record<string, unknown> | null;
+    }[];
+    const lines = events
+      .filter((e) => e.action.startsWith("group.") || e.details?.group)
+      .reverse()
+      .map((e) => [e.action, e.target?.label, e.details?.group ?? e.details?.member ?? e.details?.from ?? null, e.details?.role ?? null]);
+    expect(lines).toEqual([
+      ["group.created", "Marketing", null, null],
+      ["group.member_added", "Marketing", "Alice <alice@example.com>", null],
+      ["group.renamed", "Communication", "Marketing", null],
+      ["workspace.member_set", "Club", "Communication", "viewer"],
+      ["workspace.member_set", "Club", "Communication", "editor"],
+      ["workspace.member_removed", "Club", "Communication", null],
+      ["page.shared", "Compte rendu", "Communication", "commenter"],
+      ["page.unshared", "Compte rendu", "Communication", null],
+      ["group.member_removed", "Communication", "Alice <alice@example.com>", null],
+      ["group.deleted", "Communication", null, null],
+    ]);
+    expect(events.find((e) => e.action === "group.created")!.target!.type).toBe("group");
+  });
+});
+
 describe("SCIM groups", () => {
   let idp: FakeOidc;
   let token: string;
