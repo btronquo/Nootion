@@ -45,6 +45,7 @@ export const PAGE_FIELDS = [
   "template",
   "defaultTemplateId",
   "locked",
+  "description",
 ] as const;
 type PageField = (typeof PAGE_FIELDS)[number];
 
@@ -68,6 +69,8 @@ export interface SyncPage {
   defaultTemplateId: string | null;
   /** Absent from peers older than the lock. */
   locked?: boolean;
+  /** Absent from peers older than database descriptions. */
+  description?: string;
   fieldClock: Record<string, number>;
   /** The Yjs document, base64. */
   content: string | null;
@@ -192,6 +195,7 @@ const toSyncPage = (r: typeof pages.$inferSelect): SyncPage => ({
   kind: r.kind,
   title: r.title,
   icon: r.icon,
+  description: r.description,
   fullWidth: r.fullWidth,
   cover: r.cover,
   coverPosition: r.coverPosition,
@@ -630,6 +634,7 @@ export async function applyChanges(
                   template: p.template,
                   defaultTemplateId: p.defaultTemplateId,
                   locked: p.locked ?? false,
+                  description: p.description ?? "",
                   fieldClock: p.fieldClock,
                   syncClock: Math.max(0, ...Object.values(p.fieldClock)),
                 })
@@ -655,6 +660,7 @@ export async function applyChanges(
               if ("template" in f) set.template = f.template as boolean;
               if ("defaultTemplateId" in f) set.defaultTemplateId = f.defaultTemplateId as string | null;
               if ("locked" in f) set.locked = Boolean(f.locked);
+              if ("description" in f) set.description = (f.description as string | undefined) ?? "";
               tx.update(pages).set(set).where(eq(pages.id, p.id)).run();
               applied++;
             }

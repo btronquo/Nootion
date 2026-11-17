@@ -314,8 +314,9 @@ export const pageRoutes: FastifyPluginAsync = async (app) => {
     const input = parseBody(updatePageInput, req.body);
     const { page: current } = requirePageRole(db, user.id, req.params.id, "editor");
     if (input.template !== undefined && current.kind !== "page") throw new HttpError(400, "not_a_page", t("error.templateKind"));
+    if (input.description !== undefined && current.kind !== "database") throw new HttpError(400, "not_a_database", t("error.descriptionKind"));
     // A locked page keeps its title, icon and cover; the same request may unlock it first.
-    const touchesContent = input.title !== undefined || input.icon !== undefined || input.cover !== undefined || input.coverPosition !== undefined;
+    const touchesContent = input.title !== undefined || input.icon !== undefined || input.description !== undefined || input.cover !== undefined || input.coverPosition !== undefined;
     if (current.locked && input.locked !== false && touchesContent) throw lockedError(current.kind);
     // An uploaded cover must be a file of this page: its access follows the page's.
     const coverFile = input.cover?.match(/^\/api\/attachments\/(.+)$/)?.[1];

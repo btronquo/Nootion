@@ -50,7 +50,8 @@ import { useSession } from "../lib/session";
 import { CommentsPanel, type DraftAnchor } from "../comments/CommentsPanel";
 import { useComments } from "../comments/queries";
 import { nextRunText, recurrenceText, RecurrenceDialog, useRecurrence } from "../components/RecurrenceDialog";
-import { pageIcon } from "../lib/icons";
+import { PageGlyph, pageIcon } from "../lib/icons";
+import { DatabaseIntro } from "../components/DatabaseIntro";
 
 /** A page, by the id in the address (or the one given, for the home page). */
 export function PagePage({ id: given }: { id?: string }) {
@@ -133,6 +134,7 @@ function PageView({ page }: { page: PageDetail }) {
   async function save(patch: {
     title?: string;
     icon?: string | null;
+    description?: string;
     fullWidth?: boolean;
     cover?: string | null;
     coverPosition?: number;
@@ -184,13 +186,13 @@ function PageView({ page }: { page: PageDetail }) {
             // On phones, only the parent page is shown, as a way back.
             <span key={b.id} className={`min-w-0 items-center gap-1 ${b === page.breadcrumb[page.breadcrumb.length - 1] ? "flex" : "hidden md:flex"}`}>
               <Link to={`/page/${b.id}`} className="truncate rounded px-1 hover:bg-neutral-100 dark:hover:bg-neutral-800">
-                {pageIcon(b.icon)} {pageTitle(b.title)}
+                <PageGlyph icon={b.icon} kind={b.kind} generic={false} /> {pageTitle(b.title)}
               </Link>
               <ChevronRight size={14} className="shrink-0" />
             </span>
           ))}
           <span className="truncate px-1 text-neutral-800 dark:text-neutral-200">
-            {pageIcon(page.icon)} {pageTitle(title)}
+            <PageGlyph icon={page.icon} kind={page.kind} generic={false} /> {pageTitle(title)}
           </span>
         </nav>
         <div className="flex shrink-0 items-center gap-1">
@@ -275,7 +277,8 @@ function PageView({ page }: { page: PageDetail }) {
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
-                document.querySelector<HTMLElement>(".nootion-content")?.focus();
+                // A database has no text: Enter goes to its description.
+                document.querySelector<HTMLElement>(page.kind === "database" ? "[data-database-description]" : ".nootion-content")?.focus();
               }
             }}
             placeholder={page.template ? t("template.untitled") : t("common.untitled")}
@@ -283,6 +286,7 @@ function PageView({ page }: { page: PageDetail }) {
             className="w-full resize-none overflow-hidden bg-transparent text-3xl font-bold sm:text-4xl outline-none placeholder:text-neutral-300 dark:placeholder:text-neutral-600"
           />
         )}
+        {page.kind === "database" && <DatabaseIntro page={page} canEdit={canEdit} onSave={(description) => save({ description })} />}
         {page.template && <TemplateBanner page={page} canEdit={canEdit} />}
         {page.kind === "row" && page.parentId && <RowProperties databaseId={page.parentId} rowId={page.id} locked={page.locked} />}
         {offerTemplates && empty && <TemplatePicker page={page} />}

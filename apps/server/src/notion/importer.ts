@@ -5,6 +5,7 @@ import { and, eq } from "drizzle-orm";
 import {
   atLeast,
   CUSTOM_ICON_PREFIX,
+  DESCRIPTION_MAX,
   ICON_MAX_BYTES,
   NOTION_DETAILS_MAX,
   OPTION_COLORS,
@@ -315,12 +316,14 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
     const title = titleOf(item).slice(0, 500);
     // Image icons are copied with the files, further down.
     const icon = emojiOf(item.kind === "database" ? item.database.icon : item.page.icon);
+    // A database's description, shown under its title (only databases have one).
+    const description = item.kind === "database" ? plainText(item.database.description).slice(0, DESCRIPTION_MAX) : undefined;
     const link = links.get(id);
     if (link) {
       const changed = !!o.refresh || link.editedAt !== editedAt(item);
       if (changed)
         db.update(pages)
-          .set({ title, icon, updatedAt: new Date(), updatedBy: lastEditor(item) })
+          .set({ title, icon, description, updatedAt: new Date(), updatedBy: lastEditor(item) })
           .where(eq(pages.id, link.pageId))
           .run();
       target.set(id, { id: link.pageId, title, isNew: false, changed });
@@ -340,6 +343,7 @@ export async function runNotionImport(o: ImportOptions): Promise<void> {
           kind: item.kind,
           title,
           icon,
+          description,
           position: item.kind === "row" ? rowIndex.get(id)! : nextPosition(db, space, parentId),
           createdBy: (item.kind !== "database" && personId(item.page.created_by)) || o.userId,
           createdAt: new Date(created),

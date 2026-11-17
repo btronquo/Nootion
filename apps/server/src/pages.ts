@@ -15,6 +15,7 @@ export function toDetail(p: PageMeta, role: PageRole, breadcrumb: PageDetail["br
     ...toSummary(p),
     role,
     breadcrumb,
+    description: p.description,
     fullWidth: p.fullWidth,
     cover: p.cover,
     coverPosition: p.coverPosition,
@@ -63,6 +64,7 @@ export const pageMeta = {
   kind: pages.kind,
   title: pages.title,
   icon: pages.icon,
+  description: pages.description,
   fullWidth: pages.fullWidth,
   cover: pages.cover,
   coverPosition: pages.coverPosition,
@@ -155,7 +157,7 @@ export function breadcrumbFor(chain: ChainEntry[], canSee: (entry: ChainEntry) =
     .slice(1)
     .reverse()
     .filter(canSee)
-    .map((c) => ({ id: c.id, title: c.title, icon: c.icon }));
+    .map((c) => ({ id: c.id, kind: c.kind, title: c.title, icon: c.icon }));
 }
 
 export const orderByPosition = [asc(pages.position), asc(pages.createdAt)];

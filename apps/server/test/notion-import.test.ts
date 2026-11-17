@@ -78,6 +78,9 @@ describe("Notion import", () => {
     expect((await detail(home.id)).cover).toMatch(/^\/api\/attachments\/[0-9a-f-]{36}$/);
     expect((await detail(byTitle("Notes").id)).cover).toBe("https://www.notion.so/images/page-cover/gradients_8.png");
     expect((await detail(byTitle("Tasks").id)).cover).toBeNull();
+    // A database's description is kept, shown under its title.
+    expect((await detail(byTitle("Projects").id)).description).toBe("Every project, by client.");
+    expect((await detail(byTitle("Tasks").id)).description).toBe("");
     // Icons: emojis as they are, Notion's images as icons of the server; images elsewhere are left out.
     expect((await detail(home.id)).icon).toBe("🏠");
     expect((await detail(byTitle("Projects").id)).icon).toMatch(/^icon:[0-9a-f-]{36}$/);

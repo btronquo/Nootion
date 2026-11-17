@@ -138,6 +138,7 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
     return {
       ...toSummary(p),
       updatedAt: p.updatedAt.toISOString(),
+      description: p.description,
       fullWidth: p.fullWidth,
       cover: p.cover?.replace(/^\/api\/attachments\//, `/api/public/${link.token}/attachments/`) ?? null,
       coverPosition: p.coverPosition,

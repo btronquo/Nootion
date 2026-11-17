@@ -116,6 +116,7 @@ export async function copyTree(
             kind: p.kind,
             title: p.title,
             icon: p.icon,
+            description: p.description,
             fullWidth: p.fullWidth,
             cover: remap(p.cover),
             coverPosition: p.coverPosition,

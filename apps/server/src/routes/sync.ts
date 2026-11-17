@@ -1,7 +1,7 @@
 import type { FastifyPluginAsync } from "fastify";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { t } from "@nootion/shared";
+import { DESCRIPTION_MAX, t } from "@nootion/shared";
 import { fileStore } from "../files.js";
 import { attachments } from "../db/schema.js";
 import { HttpError, parseBody, requireUser } from "../http.js";
@@ -28,6 +28,9 @@ const page = z.object({
   props: z.record(z.string(), z.unknown()).nullable(),
   template: z.boolean(),
   defaultTemplateId: id.nullable(),
+  // Absent from older peers.
+  locked: z.boolean().optional(),
+  description: z.string().max(DESCRIPTION_MAX).optional(),
   fieldClock: z.record(z.string(), ms),
   content: z.string().nullable(),
 });
