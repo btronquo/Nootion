@@ -7,13 +7,13 @@
     "es": "Asistente de IA",
     "it": "Assistente IA"
   },
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": {
-    "en": "Summarise, translate, improve or continue a passage, or ask a question about it, from the menu of a selection. With your own key (Anthropic, OpenAI, Mistral) or a model on your network (Ollama). Nothing is sent without a click, and the menu says where the text goes.",
-    "fr": "Résumer, traduire, améliorer ou continuer un passage, ou poser une question à son sujet, depuis le menu d'une sélection. Avec votre propre clé (Anthropic, OpenAI, Mistral) ou un modèle de votre réseau (Ollama). Rien n'est envoyé sans un clic, et le menu dit où part le texte.",
-    "de": "Einen Abschnitt zusammenfassen, übersetzen, verbessern oder fortsetzen oder eine Frage dazu stellen, über das Menü einer Auswahl. Mit Ihrem eigenen Schlüssel (Anthropic, OpenAI, Mistral) oder einem Modell in Ihrem Netzwerk (Ollama). Nichts wird ohne Klick gesendet, und das Menü zeigt, wohin der Text geht.",
-    "es": "Resumir, traducir, mejorar o continuar un pasaje, o hacer una pregunta sobre él, desde el menú de una selección. Con su propia clave (Anthropic, OpenAI, Mistral) o un modelo de su red (Ollama). No se envía nada sin un clic, y el menú indica adónde va el texto.",
-    "it": "Riassumere, tradurre, migliorare o continuare un passaggio, o fare una domanda su di esso, dal menu di una selezione. Con la propria chiave (Anthropic, OpenAI, Mistral) o un modello della propria rete (Ollama). Nulla viene inviato senza un clic e il menu indica dove va il testo."
+    "en": "Summarise, translate, improve or continue a passage, or ask a question about it, from the menu of a selection. With your own key (Anthropic, OpenAI, Mistral) or a model on your network (Ollama). A ✨ button at the bottom right of pages opens a chat about the page. Nothing is sent without a click, and the menu says where the text goes.",
+    "fr": "Résumer, traduire, améliorer ou continuer un passage, ou poser une question à son sujet, depuis le menu d'une sélection. Avec votre propre clé (Anthropic, OpenAI, Mistral) ou un modèle de votre réseau (Ollama). Un bouton ✨ en bas à droite des pages ouvre un chat sur la page. Rien n'est envoyé sans un clic, et le menu dit où part le texte.",
+    "de": "Einen Abschnitt zusammenfassen, übersetzen, verbessern oder fortsetzen oder eine Frage dazu stellen, über das Menü einer Auswahl. Mit Ihrem eigenen Schlüssel (Anthropic, OpenAI, Mistral) oder einem Modell in Ihrem Netzwerk (Ollama). Eine ✨-Schaltfläche unten rechts auf den Seiten öffnet einen Chat zur Seite. Nichts wird ohne Klick gesendet, und das Menü zeigt, wohin der Text geht.",
+    "es": "Resumir, traducir, mejorar o continuar un pasaje, o hacer una pregunta sobre él, desde el menú de una selección. Con su propia clave (Anthropic, OpenAI, Mistral) o un modelo de su red (Ollama). Un botón ✨ abajo a la derecha de las páginas abre un chat sobre la página. No se envía nada sin un clic, y el menú indica adónde va el texto.",
+    "it": "Riassumere, tradurre, migliorare o continuare un passaggio, o fare una domanda su di esso, dal menu di una selezione. Con la propria chiave (Anthropic, OpenAI, Mistral) o un modello della propria rete (Ollama). Un pulsante ✨ in basso a destra delle pagine apre una chat sulla pagina. Nulla viene inviato senza un clic e il menu indica dove va il testo."
   },
   "author": "Nootion",
   "server": "server.js",
@@ -21,11 +21,20 @@
   "settings": [
     {
       "key": "provider",
-      "label": { "en": "Service", "fr": "Service", "de": "Dienst", "es": "Servicio", "it": "Servizio" },
+      "label": {
+        "en": "Service",
+        "fr": "Service",
+        "de": "Dienst",
+        "es": "Servicio",
+        "it": "Servizio"
+      },
       "type": "select",
       "default": "anthropic",
       "options": [
-        { "value": "anthropic", "label": "Anthropic (Claude)" },
+        {
+          "value": "anthropic",
+          "label": "Anthropic (Claude)"
+        },
         {
           "value": "openai",
           "label": {
@@ -36,7 +45,10 @@
             "it": "OpenAI, o un server compatibile"
           }
         },
-        { "value": "mistral", "label": "Mistral AI" },
+        {
+          "value": "mistral",
+          "label": "Mistral AI"
+        },
         {
           "value": "ollama",
           "label": {
@@ -51,7 +63,13 @@
     },
     {
       "key": "apiKey",
-      "label": { "en": "API key", "fr": "Clé d'API", "de": "API-Schlüssel", "es": "Clave de API", "it": "Chiave API" },
+      "label": {
+        "en": "API key",
+        "fr": "Clé d'API",
+        "de": "API-Schlüssel",
+        "es": "Clave de API",
+        "it": "Chiave API"
+      },
       "type": "password",
       "help": {
         "en": "Kept encrypted on the server and never shown again. Not needed for Ollama.",
@@ -63,7 +81,13 @@
     },
     {
       "key": "model",
-      "label": { "en": "Model", "fr": "Modèle", "de": "Modell", "es": "Modelo", "it": "Modello" },
+      "label": {
+        "en": "Model",
+        "fr": "Modèle",
+        "de": "Modell",
+        "es": "Modelo",
+        "it": "Modello"
+      },
       "type": "text",
       "help": {
         "en": "Leave empty for the default: claude-opus-5-5 (Anthropic), gpt-5-mini (OpenAI), mistral-small-latest (Mistral), llama3.2 (Ollama).",

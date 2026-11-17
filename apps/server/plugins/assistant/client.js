@@ -31,6 +31,21 @@ const TEXTS = {
     stopped: "Stopped.",
     empty: "The model gave no answer.",
     escape: "Esc to close",
+    chat: "AI assistant",
+    chatHello: "Ask anything about this page: a summary, what is left to do, a draft to add…",
+    chatHint: "Ask about this page…",
+    chatSent: "This page is sent to {name} ({model}) with each question.",
+    chatSentLocal: "This page is sent to the model at {host} ({model}) with each question.",
+    chatCut: "Only the beginning of the page is sent ({max} characters).",
+    insertPage: "Insert in the page",
+    copy: "Copy",
+    copied: "Copied",
+    newChat: "New conversation",
+    you: "You",
+    s1: "Summarise this page",
+    s2: "What is left to do?",
+    s3: "Suggest a plan for this page",
+    s4: "Write a conclusion",
   },
   fr: {
     menu: "IA",
@@ -61,6 +76,21 @@ const TEXTS = {
     stopped: "Arrêté.",
     empty: "Le modèle n'a rien répondu.",
     escape: "Échap pour fermer",
+    chat: "Assistant IA",
+    chatHello: "Posez une question sur cette page : un résumé, ce qui reste à faire, un brouillon à ajouter…",
+    chatHint: "Une question sur cette page…",
+    chatSent: "Cette page est envoyée à {name} ({model}) avec chaque question.",
+    chatSentLocal: "Cette page est envoyée au modèle de {host} ({model}) avec chaque question.",
+    chatCut: "Seul le début de la page est envoyé ({max} caractères).",
+    insertPage: "Insérer dans la page",
+    copy: "Copier",
+    copied: "Copié",
+    newChat: "Nouvelle conversation",
+    you: "Vous",
+    s1: "Résume cette page",
+    s2: "Qu'est-ce qui reste à faire ?",
+    s3: "Propose un plan pour cette page",
+    s4: "Écris une conclusion",
   },
   de: {
     menu: "KI",
@@ -91,6 +121,21 @@ const TEXTS = {
     stopped: "Gestoppt.",
     empty: "Das Modell hat nichts geantwortet.",
     escape: "Esc zum Schließen",
+    chat: "KI-Assistent",
+    chatHello: "Fragen Sie etwas zu dieser Seite: eine Zusammenfassung, was noch zu tun ist, einen Entwurf zum Einfügen…",
+    chatHint: "Eine Frage zu dieser Seite…",
+    chatSent: "Diese Seite wird mit jeder Frage an {name} gesendet ({model}).",
+    chatSentLocal: "Diese Seite wird mit jeder Frage an das Modell unter {host} gesendet ({model}).",
+    chatCut: "Nur der Anfang der Seite wird gesendet ({max} Zeichen).",
+    insertPage: "In die Seite einfügen",
+    copy: "Kopieren",
+    copied: "Kopiert",
+    newChat: "Neue Unterhaltung",
+    you: "Sie",
+    s1: "Fasse diese Seite zusammen",
+    s2: "Was ist noch zu tun?",
+    s3: "Schlage eine Gliederung für diese Seite vor",
+    s4: "Schreibe ein Fazit",
   },
   es: {
     menu: "IA",
@@ -121,6 +166,21 @@ const TEXTS = {
     stopped: "Detenido.",
     empty: "El modelo no respondió nada.",
     escape: "Esc para cerrar",
+    chat: "Asistente de IA",
+    chatHello: "Pregunte lo que quiera sobre esta página: un resumen, lo que queda por hacer, un borrador para añadir…",
+    chatHint: "Una pregunta sobre esta página…",
+    chatSent: "Esta página se envía a {name} ({model}) con cada pregunta.",
+    chatSentLocal: "Esta página se envía al modelo de {host} ({model}) con cada pregunta.",
+    chatCut: "Solo se envía el principio de la página ({max} caracteres).",
+    insertPage: "Insertar en la página",
+    copy: "Copiar",
+    copied: "Copiado",
+    newChat: "Nueva conversación",
+    you: "Usted",
+    s1: "Resume esta página",
+    s2: "¿Qué queda por hacer?",
+    s3: "Propón un esquema para esta página",
+    s4: "Escribe una conclusión",
   },
   it: {
     menu: "IA",
@@ -151,12 +211,31 @@ const TEXTS = {
     stopped: "Interrotto.",
     empty: "Il modello non ha risposto nulla.",
     escape: "Esc per chiudere",
+    chat: "Assistente IA",
+    chatHello: "Chiedi qualsiasi cosa su questa pagina: un riassunto, cosa resta da fare, una bozza da aggiungere…",
+    chatHint: "Una domanda su questa pagina…",
+    chatSent: "Questa pagina viene inviata a {name} ({model}) con ogni domanda.",
+    chatSentLocal: "Questa pagina viene inviata al modello su {host} ({model}) con ogni domanda.",
+    chatCut: "Viene inviato solo l'inizio della pagina ({max} caratteri).",
+    insertPage: "Inserisci nella pagina",
+    copy: "Copia",
+    copied: "Copiato",
+    newChat: "Nuova conversazione",
+    you: "Tu",
+    s1: "Riassumi questa pagina",
+    s2: "Cosa resta da fare?",
+    s3: "Proponi una struttura per questa pagina",
+    s4: "Scrivi una conclusione",
   },
 };
 
 /** Languages offered for a translation (any other may be typed). */
 const LANGUAGES = ["en", "fr", "de", "es", "it", "pt", "nl", "pl", "sv", "da", "ro", "el", "tr", "ru", "uk", "ar", "he", "hi", "zh", "ja", "ko"];
 const ERROR_MARK = "\u0000";
+/** Longest page sent with a question (characters), as the server allows. */
+const MAX_PAGE = 30000;
+/** Conversations, per page, while the app is open. */
+const chats = new Map();
 const LAST_LANGUAGE = "nootion-assistant-language";
 
 const CSS = `
@@ -187,6 +266,23 @@ const CSS = `
 @keyframes ai-blink { 50% { opacity: 0; } }
 .ai-cursor { display: inline-block; width: 7px; height: 1em; vertical-align: text-bottom; background: #8b5cf6; animation: ai-blink 1s steps(1) infinite; margin-left: 1px; }
 @media (max-width: 640px) { .ai-btn { padding: 8px 12px; font-size: 14px; } .ai-answer { font-size: 16px; } }
+.ai-chat { display: flex; flex-direction: column; height: 100%; font-size: 14px; }
+.ai-chat-list { flex: 1; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.ai-msg-user { align-self: flex-end; max-width: 85%; background: #7c3aed; color: #fff; border-radius: 14px 14px 4px 14px; padding: 6px 11px; white-space: pre-wrap; word-break: break-word; }
+.ai-msg-bot { align-self: flex-start; max-width: 100%; }
+.ai-msg-bot .ai-answer { font-size: 14px; max-height: none; overflow: visible; }
+.ai-msg-bot .ai-state { color: #737373; font-size: 12px; }
+.ai-msg-tools { display: flex; gap: 4px; margin-top: 4px; }
+.ai-msg-tools .ai-btn { font-size: 12px; padding: 2px 8px; }
+.ai-hello { color: #737373; margin-bottom: 4px; }
+.ai-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ai-chip { border: 1px solid rgba(124,58,237,.35); color: inherit; background: rgba(124,58,237,.06); border-radius: 999px; padding: 4px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+.ai-chip:hover { background: rgba(124,58,237,.14); }
+.ai-chat-foot { border-top: 1px solid rgba(128,128,128,.2); padding: 8px 12px 10px; }
+.ai-chat-form { display: flex; gap: 6px; align-items: flex-end; }
+.ai-chat-form textarea { flex: 1; resize: none; max-height: 140px; min-height: 38px; }
+.ai-chat-foot .ai-note { margin-top: 6px; }
+@media (max-width: 640px) { .ai-chat { font-size: 16px; } .ai-chat-form textarea { font-size: 16px; } }
 `;
 
 /**
@@ -476,6 +572,191 @@ export async function activate(nootion) {
       h("div", { className: "ai-note" }, h("span", null, destination()), h("span", null, T.escape)),
     );
   }
+
+  /** The chat of the round button: questions about the page open, answers to insert in it. */
+  function Chat({ ctx }) {
+    const [messages, setMessages] = React.useState(() => chats.get(ctx.pageId) ?? []);
+    const [draft, setDraft] = React.useState("");
+    const [running, setRunning] = React.useState(false);
+    const [copied, setCopied] = React.useState(-1);
+    const controller = React.useRef(null);
+    const list = React.useRef(null);
+    const box = React.useRef(null);
+
+    React.useEffect(() => {
+      chats.set(ctx.pageId, messages);
+      list.current?.scrollTo({ top: list.current.scrollHeight });
+    }, [messages]);
+    React.useEffect(() => {
+      box.current?.focus({ preventScroll: true });
+      return () => controller.current?.abort();
+    }, []);
+
+    const pageText = () => ctx.text();
+    const ask = async (question) => {
+      const q = question.trim();
+      if (!q || running) return;
+      const history = [...messages.filter((m) => !m.error), { role: "user", content: q }];
+      setMessages([...messages, { role: "user", content: q }, { role: "assistant", content: "", pending: true }]);
+      setDraft("");
+      setRunning(true);
+      const c = new AbortController();
+      controller.current = c;
+      const update = (patch) =>
+        setMessages((all) => {
+          const next = all.slice();
+          next[next.length - 1] = { ...next[next.length - 1], ...patch };
+          return next;
+        });
+      try {
+        const res = await nootion.fetch("/chat", {
+          method: "POST",
+          signal: c.signal,
+          body: {
+            pageId: ctx.pageId,
+            title: ctx.title(),
+            text: pageText().slice(0, MAX_PAGE),
+            messages: history.map(({ role, content }) => ({ role, content })),
+          },
+        });
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let all = "";
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          all += decoder.decode(value, { stream: true });
+          const cut = all.indexOf(ERROR_MARK);
+          update({ content: cut >= 0 ? all.slice(0, cut) : all });
+        }
+        const cut = all.indexOf(ERROR_MARK);
+        const text = cut >= 0 ? all.slice(0, cut) : all;
+        update({ content: text, pending: false, error: cut >= 0 ? all.slice(cut + 1) : text.trim() ? null : T.empty });
+      } catch (e) {
+        if (c.signal.aborted) update({ pending: false, error: null, stopped: true });
+        else update({ pending: false, error: e instanceof Error ? e.message : String(e) });
+      } finally {
+        if (controller.current === c) controller.current = null;
+        setRunning(false);
+        void refresh();
+      }
+    };
+    const insert = async (text) => {
+      let content = text.trim();
+      try {
+        const res = await nootion.api("/content", { method: "POST", body: { text: content } });
+        if (Array.isArray(res.content) && res.content.length) content = res.content;
+      } catch {
+        // Plain text then.
+      }
+      ctx.insert(content);
+    };
+    const copy = async (text, i) => {
+      try {
+        await navigator.clipboard.writeText(text);
+        setCopied(i);
+        setTimeout(() => setCopied(-1), 1500);
+      } catch {
+        // No clipboard here.
+      }
+    };
+
+    const note = !info?.configured
+      ? T.notConfigured
+      : fill(info.local ? T.chatSentLocal : T.chatSent, { name: info.provider, host: info.host, model: info.model }) +
+        (info.limit ? ` ${fill(T.usage, { used: info.used, limit: info.limit })}` : "") +
+        (pageText().length > MAX_PAGE ? ` ${fill(T.chatCut, { max: MAX_PAGE.toLocaleString(nootion.locale) })}` : "");
+
+    return h(
+      "div",
+      { className: "ai-chat", "data-assistant-chat": "" },
+      h(
+        "div",
+        { className: "ai-chat-list", ref: list, "aria-live": "polite" },
+        !messages.length &&
+          h(
+            React.Fragment,
+            null,
+            h("div", { className: "ai-hello" }, T.chatHello),
+            h(
+              "div",
+              { className: "ai-chips" },
+              [T.s1, T.s2, T.s3, T.s4].map((s) => h("button", { key: s, type: "button", className: "ai-chip", onClick: () => ask(s) }, s)),
+            ),
+          ),
+        messages.map((m, i) =>
+          m.role === "user"
+            ? h("div", { key: i, className: "ai-msg-user", "aria-label": T.you }, m.content)
+            : h(
+                "div",
+                { key: i, className: "ai-msg-bot" },
+                h("div", { className: "ai-answer" }, preview(h, m.content), m.pending && h("span", { className: "ai-cursor", "aria-hidden": true })),
+                m.stopped && h("div", { className: "ai-state" }, T.stopped),
+                m.error && h("div", { className: "ai-error", role: "alert" }, m.error),
+                !m.pending &&
+                  m.content.trim() &&
+                  h(
+                    "div",
+                    { className: "ai-msg-tools" },
+                    ctx.canEdit && h("button", { type: "button", className: "ai-btn", onClick: () => insert(m.content) }, T.insertPage),
+                    h("button", { type: "button", className: "ai-btn", onClick: () => copy(m.content, i) }, copied === i ? T.copied : T.copy),
+                  ),
+              ),
+        ),
+      ),
+      h(
+        "div",
+        { className: "ai-chat-foot" },
+        h(
+          "form",
+          {
+            className: "ai-chat-form",
+            onSubmit: (e) => {
+              e.preventDefault();
+              void ask(draft);
+            },
+          },
+          h("textarea", {
+            ref: box,
+            className: "ai-input",
+            rows: 1,
+            value: draft,
+            placeholder: T.chatHint,
+            "aria-label": T.chatHint,
+            onChange: (e) => {
+              setDraft(e.target.value);
+              e.target.style.height = "auto";
+              e.target.style.height = `${e.target.scrollHeight}px`;
+            },
+            onKeyDown: (e) => {
+              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                void ask(draft);
+              }
+            },
+          }),
+          running
+            ? h("button", { type: "button", className: "ai-btn", onClick: () => controller.current?.abort() }, T.stop)
+            : h("button", { type: "submit", className: "ai-btn ai-primary", disabled: !draft.trim() || !info?.configured }, T.send),
+        ),
+        h(
+          "div",
+          { className: "ai-note" },
+          h("span", null, note),
+          messages.length > 0 &&
+            !running &&
+            h("button", { type: "button", className: "ai-btn", style: { fontSize: 12, padding: "1px 8px" }, onClick: () => setMessages([]) }, T.newChat),
+        ),
+      ),
+    );
+  }
+
+  nootion.registerPagePanel({
+    label: T.chat,
+    icon: "✨",
+    visible: () => !!info?.available,
+    render: (ctx) => h(Chat, { key: ctx.pageId, ctx }),
+  });
 
   const entry = (id, icon) => ({
     id,

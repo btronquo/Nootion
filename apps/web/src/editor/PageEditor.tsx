@@ -26,6 +26,7 @@ import { t } from "@nootion/shared";
 import { MobileToolbar } from "./MobileToolbar";
 import { SelectionPanels } from "./selectionPanel";
 import { PluginSelectionButtons } from "../plugins/SelectionMenus";
+import { PagePanels } from "../plugins/PagePanels";
 import { TextColorButton } from "./TextColorMenu";
 import { BlockHandle } from "./BlockHandle";
 import { BlockShortcuts } from "./blockActions";
@@ -315,6 +316,8 @@ function CollabEditor({
       {/* People who may only comment, and phones, get a menu with just "Comment". */}
       {editor && comments?.canComment && (touch || !canEdit) && <CommentMenu editor={editor} onComment={() => startComment(editor, comments)} />}
       {editor && canEdit && touch && <MobileToolbar editor={editor} pageId={page.id} />}
+      {/* Round buttons of plugins at the bottom right (the AI assistant's chat…). */}
+      {editor && <PagePanels editor={editor} pageId={page.id} title={page.title} canEdit={canEdit} touch={touch} />}
       {editor && canEdit && <TableMenu editor={editor} />}
       {editor && editable && !touch && (
         <BlockHandle

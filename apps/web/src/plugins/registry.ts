@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { currentLocale, FormulaError, t, registerFormulaFunction, type ClientPluginInfo, type Locale } from "@nootion/shared";
 import { api, ApiError } from "../lib/api";
 import type { SelectionPanel } from "../editor/selectionPanel";
+import type { JSONContent } from "@tiptap/core";
 import { Button, Modal } from "../components/ui";
 import type { UploadedFile } from "../editor/upload";
 
@@ -70,6 +71,31 @@ export interface PluginSelectionMenu {
   actions: { id: string; label: string; icon?: string; run: (ctx: SelectionActionContext) => unknown }[];
 }
 
+/** What a plugin's page panel receives. */
+export interface PagePanelContext {
+  /** The page open. */
+  pageId: string;
+  /** Its title, and its text as plain text (blocks separated by a blank line), as they are now. */
+  title: () => string;
+  text: () => string;
+  /** False when the person may only read the page. */
+  canEdit: boolean;
+  /** Puts content in the page below the cursor, or at its end (plain text, or editor blocks as JSON). */
+  insert: (content: string | JSONContent[]) => void;
+  /** Closes the panel. */
+  close: () => void;
+}
+
+/** A round button at the bottom right of pages, which opens a panel beside the page (a chat…). */
+export interface PluginPagePanel {
+  label: string;
+  /** An emoji. */
+  icon?: string;
+  /** Hides the button while it returns false. */
+  visible?: () => boolean;
+  render: (ctx: PagePanelContext) => React.ReactNode;
+}
+
 /** The object given to a plugin's browser code: `export function activate(nootion) { … }`. */
 export interface ClientPluginApi {
   id: string;
@@ -84,6 +110,8 @@ export interface ClientPluginApi {
   fetch: (path: string, init?: { method?: string; body?: unknown; signal?: AbortSignal }) => Promise<Response>;
   /** Adds entries to the menu shown on a selection (one menu per plugin: a second call replaces the first). */
   registerSelectionMenu: (menu: PluginSelectionMenu) => void;
+  /** Adds a round button at the bottom right of pages, opening a panel beside the page (one per plugin). */
+  registerPagePanel: (panel: PluginPagePanel) => void;
   /** Renders a block declared in the manifest. */
   registerBlock: (blockId: string, component: React.ComponentType<PluginBlockProps>) => void;
   /** Draws and edits the cells of a column type declared in the manifest. */
@@ -125,6 +153,11 @@ const enabled = new Set<string>();
 const sources = new Map<string, PluginFileSource>();
 const cells = new Map<string, React.ComponentType<PluginPropertyCellProps>>();
 const selectionMenuList = new Map<string, PluginSelectionMenu>();
+const pagePanelList = new Map<string, PluginPagePanel>();
+
+/** Page panels of enabled plugins, those that want to be shown now. */
+export const pagePanels = () =>
+  [...pagePanelList.entries()].filter(([id, p]) => enabled.has(id) && (p.visible?.() ?? true)).map(([id, panel]) => ({ id, panel }));
 
 /** Selection menus of enabled plugins, those that want to be shown now. */
 export const selectionMenus = () =>
@@ -169,6 +202,9 @@ async function loadClient(p: ClientPluginInfo) {
     fetch: (path, init) => pluginFetch(p.id, path, init),
     registerSelectionMenu: (menu) => {
       selectionMenuList.set(p.id, menu);
+    },
+    registerPagePanel: (panel) => {
+      pagePanelList.set(p.id, panel);
     },
     registerBlock: (blockId, component) => {
       renderers.set(`${p.id}.${blockId}`, component);

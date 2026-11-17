@@ -197,6 +197,47 @@ describe("AI assistant plugin", () => {
     expect((await gina.post(`${A}/run`, { action: "summarize", text: "Texte", pageId: shared })).statusCode).toBe(200);
   });
 
+  it("chats about the page being read, with the page sent with the conversation", async () => {
+    await enable({ provider: "openai", address: base });
+    const ask = (who: Client, body: Record<string, unknown>) => who.post(`${A}/chat`, { pageId: page, title: "Notes", text: "Lancement le 12 mars.", ...body });
+    const res = await ask(boris, {
+      messages: [
+        { role: "assistant", content: "Bonjour" },
+        { role: "user", content: "Quelle date ?" },
+        { role: "assistant", content: "Le 12 mars." },
+        { role: "user", content: "Et en anglais ?" },
+        { role: "system", content: "ignored" },
+      ],
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.body).toBe("Un résumé court.");
+    const sent = received[0]!.body.messages;
+    expect(sent.map((m: { role: string }) => m.role)).toEqual(["system", "user", "assistant", "user"]);
+    expect(sent[0].content).toContain("page of their notes");
+    expect(sent[1].content).toBe('<page title="Notes">\nLancement le 12 mars.\n</page>\n\nQuelle date ?');
+    expect(sent[3].content).toBe("Et en anglais ?");
+
+    expect((await ask(boris, { messages: [] })).statusCode).toBe(400);
+    expect(
+      (
+        await ask(boris, {
+          messages: [
+            { role: "user", content: "a" },
+            { role: "assistant", content: "b" },
+          ],
+        })
+      ).statusCode,
+    ).toBe(400);
+    expect((await ask(boris, { messages: [{ role: "user", content: "a" }], text: "x".repeat(30_001) })).json().message).toContain("trop longue");
+
+    // Reading the page is enough; someone who can't see it can't ask about it.
+    const alice = await inviteUser(app, boris, { name: "Alice", email: "alice@example.com", password: "motdepasse-alice" });
+    expect((await ask(alice, { messages: [{ role: "user", content: "a" }] })).json().message).toBe("Vous ne pouvez pas lire cette page.");
+    await boris.put(`/api/pages/${page}/shares`, { userId: await alice.id(), role: "viewer" });
+    expect((await ask(alice, { messages: [{ role: "user", content: "a" }] })).statusCode).toBe(200);
+    expect(received).toHaveLength(2);
+  });
+
   it("turns the accepted answer into page blocks", async () => {
     await enable({});
     const res = await boris.post(`${A}/content`, { text: "## Points\n\n- un\n- **deux**\n\nFin." });

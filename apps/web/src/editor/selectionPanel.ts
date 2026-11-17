@@ -196,3 +196,15 @@ export function selectedText(editor: Editor): string {
   const { from, to } = editor.state.selection;
   return editor.state.doc.textBetween(from, to, "\n\n", " ").trim();
 }
+
+/**
+ * Puts content in the page below the block holding the cursor (at the end of the page when the cursor was never put
+ * in it), and shows it.
+ */
+export function insertIntoPage(editor: Editor, content: PanelContent) {
+  const blocks = blocksOf(content);
+  if (!blocks.length || editor.isDestroyed) return;
+  const { to } = editor.state.selection;
+  const at = to <= 1 ? editor.state.doc.content.size : blockEnd(editor.state.doc, to);
+  editor.chain().focus().insertContentAt(at, blocks).scrollIntoView().run();
+}

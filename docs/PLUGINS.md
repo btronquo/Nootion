@@ -260,6 +260,14 @@ line when it is one paragraph), `insertBelow(content)` goes below its block; eac
 text (a paragraph per blank line) or editor blocks as JSON (for instance from `nootion.markdown` on the server).
 `panel.open` turns false once it is closed, by the plugin, Escape, another panel or leaving the page.
 
+### A button at the bottom right of pages
+
+`nootion.registerPagePanel({ label, icon, visible, render })` adds a round button at the bottom right of pages (one
+per plugin), which opens a panel beside the page (over it on a phone); Escape or its ✕ closes it. `render(ctx)`
+draws its content, with `ctx.pageId`, `ctx.title()` and `ctx.text()` (the page as plain text, as it is now),
+`ctx.canEdit`, `ctx.insert(content)` (below the cursor, or at the end of the page; plain text or editor blocks) and
+`ctx.close()`.
+
 To read a route that returns `nootion.stream(…)` as it arrives, `nootion.fetch(path, { method, body, signal })` gives
 the `Response` (it throws, like `nootion.api`, when the route answers with an error); pass an `AbortController`'s
 signal to stop it. The **AI assistant** plugin uses both: [`apps/server/plugins/assistant`](../apps/server/plugins/assistant).
