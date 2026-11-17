@@ -7,6 +7,7 @@ import { InvitePage } from "./pages/InvitePage";
 import { AppShell } from "./components/AppShell";
 import { GuestHomePage, HomePage } from "./pages/HomePage";
 import { AdminPage } from "./pages/AdminPage";
+import { SetupAssistantPage } from "./pages/SetupAssistant";
 import { PagePage } from "./pages/PagePage";
 import { WorkspacePage } from "./pages/WorkspacePage";
 import { TrashPage } from "./pages/TrashPage";
@@ -76,6 +77,8 @@ function PrivateApp() {
   return (
     <Routes>
       <Route path="/oauth/authorize" element={<OauthAuthorizePage />} />
+      {/* The setup assistant takes the whole screen, without the sidebar. */}
+      {user.role === "admin" && <Route path="/admin/setup" element={<SetupAssistantPage />} />}
       <Route element={<AppShell />}>
         <Route index element={user.role === "guest" ? <GuestHomePage /> : <HomePage />} />
         <Route path="/page/:id" element={<PagePage />} />

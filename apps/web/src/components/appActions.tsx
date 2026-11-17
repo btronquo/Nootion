@@ -14,6 +14,8 @@ import {
   Plus,
   RefreshCw,
   Settings,
+  Sparkles,
+  Wand2,
   Sun,
   Trash2,
   User,
@@ -28,6 +30,7 @@ import { keys, useRefreshPages, useWorkspaces } from "../lib/queries";
 import { useSession } from "../lib/session";
 import { setTheme, type ThemeChoice } from "../lib/theme";
 import { captureShortcutLabel } from "./QuickCapture";
+import { startTour } from "../lib/onboarding";
 
 const canAddPages = (w: WorkspaceSummary) => w.role === "owner" || w.role === "editor";
 
@@ -135,6 +138,27 @@ export function useAppActions({ capture, newSpace, hasSync }: { capture: () => v
         <Settings size={16} />,
         () => user?.role === "admin",
       ),
+    );
+
+    actions.push(
+      {
+        id: "tour",
+        title: () => t("tour.paletteAction"),
+        keywords: () => t("tour.paletteKeywords"),
+        section: "go",
+        icon: <Sparkles size={16} />,
+        when: () => !guest,
+        run: startTour,
+      },
+      {
+        id: "setup-assistant",
+        title: () => t("setupWizard.paletteAction"),
+        keywords: () => t("setupWizard.paletteKeywords"),
+        section: "go",
+        icon: <Wand2 size={16} />,
+        when: () => user?.role === "admin",
+        run: () => navigate("/admin/setup"),
+      },
     );
 
     const themes: [ThemeChoice, () => string, React.ReactNode][] = [

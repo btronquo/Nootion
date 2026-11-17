@@ -7,6 +7,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Guided tour for new accounts: about ten cards, each with a small drawing, a short text and the keys to press,
+  show what Nootion can do (blocks and "/", databases and their views, equations and Mermaid diagrams, synced
+  blocks, the command palette and quick capture, tasks and dates written in words, working together, the AI
+  assistant when it is on, imports, PDF and the apps), then "Open the examples page". It can be skipped, is shown
+  once, and comes back from "My account › Demo page" ("Take the guided tour again") or the palette ("Guided tour of
+  Nootion"). Guests and accounts from before don't get it. Arrow keys move through it; on phones it opens from the
+  bottom.
+- Setup assistant for administrators: right after creating the first account, a full-screen assistant goes through
+  the main settings one step at a time, each step being the matching section of Administration: language and the
+  server's address and file storage, e-mail, sign-in and security (adding a passkey, single sign-on, webhooks),
+  backups, the AI assistant, the other plugins, and the team (invitations, guests). Every step can be skipped and is
+  saved at once; a summary says what is set and leads back to what isn't, then the guided tour starts. "Finish
+  later" leaves a card at the top of Administration to resume it; Administration and the palette open it again at
+  any time (`/admin/setup`). Migration 0049 adds `users.tour_pending`.
 - AI assistant, an optional plugin (off by default): once an administrator turns it on and gives a key (Anthropic,
   OpenAI, Mistral) or the address of a model on the network (Ollama, or a server compatible with OpenAI's API), the
   bar over selected text gets "✨ AI" with "Summarise", "Translate to…", "Improve the writing", "Continue" and

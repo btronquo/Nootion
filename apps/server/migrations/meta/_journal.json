@@ -330,6 +330,13 @@
       "when": 1794899114743,
       "tag": "0048_activity_log",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "6",
+      "when": 1794916405184,
+      "tag": "0049_onboarding",
+      "breakpoints": true
     }
   ]
 }

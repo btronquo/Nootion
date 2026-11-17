@@ -29,5 +29,6 @@ export * from "./sso.js";
 export * from "./settings.js";
 export * from "./audit.js";
 export * from "./updates.js";
+export * from "./onboarding.js";
 export * from "./i18n/index.js";
 import "./i18n/zod.js";

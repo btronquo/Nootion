@@ -54,6 +54,7 @@ import {
 import { useSession } from "../lib/session";
 import { useUpdateStatus, useVersion } from "./UpdateNotice";
 import { WhatsNewDialog } from "./WhatsNew";
+import { OnboardingTour } from "./OnboardingTour";
 import { buildTree, pageTitle } from "../lib/tree";
 import { DRAG_TYPE, PageTree } from "./PageTree";
 import { PendingSpaceMoveDialog, readDraggedSpace, type PendingSpaceMove } from "./SpaceMove";
@@ -303,6 +304,7 @@ export function AppShell() {
       )}
       {searching && <SearchDialog onClose={() => setSearching(false)} />}
       <WhatsNewDialog />
+      <OnboardingTour />
       {capturing && !guest && <QuickCaptureDialog onClose={() => setCapturing(false)} />}
     </SidebarLayout>
   );

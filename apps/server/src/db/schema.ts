@@ -36,6 +36,8 @@ export const users = sqliteTable(
     dismissedUpdate: text("dismissed_update"),
     // The release whose "What's new" this user last closed; "" for a new account, null for one from before 3.4.
     seenVersion: text("seen_version").default(""),
+    // The guided tour of what Nootion can do is still to be shown: true for a new account, false for one from before 3.7.
+    tourPending: integer("tour_pending", { mode: "boolean" }).notNull().default(true),
     // Two-factor sign-in: the authenticator app's secret (encrypted with APP_SECRET), null while it is off.
     totpSecret: text("totp_secret"),
     // A secret shown to the user but not confirmed with a code yet.

@@ -69,7 +69,9 @@ offline use and the Notion import.
 
 ### Accounts and spaces
 
-- First launch: creation of the administrator account.
+- First launch: creation of the administrator account, then a setup assistant for the main settings (e-mail, sign-in,
+  backups, AI assistant, plugins, team), which can be skipped and opened again from Administration.
+- A guided tour of the features for each new account, shown once and available again from My account or the palette.
 - Sign in / sign out, secure sessions (httpOnly cookie, argon2 password hashes).
 - Two-factor authentication with an authenticator app (6-digit codes), with recovery codes; administrators can
   turn it off for someone who lost their phone.
