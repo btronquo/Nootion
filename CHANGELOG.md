@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-11-17
+
 ### Added
 
 - Database pages are easy to tell apart: a database shows a small database mark in the corner of its icon (or the
@@ -700,6 +702,9 @@ First public version.
 - Markdown (.zip), CSV and JSON export, CSV import, full backup download.
 - Single Docker image (amd64 and arm64), data in `/data`, migrations applied at startup.
 
+[4.0.0]: ../../releases/tag/v4.0.0
+[3.6.0]: ../../releases/tag/v3.6.0
+[3.5.0]: ../../releases/tag/v3.5.0
 [3.4.0]: ../../releases/tag/v3.4.0
 [3.3.0]: ../../releases/tag/v3.3.0
 [3.2.1]: ../../releases/tag/v3.2.1
