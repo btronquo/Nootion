@@ -36,6 +36,9 @@ function connect(c: Client, pageId: string, origin?: string) {
   class CookieWebSocket extends WebSocket {
     constructor(url: string, protocols?: string | string[]) {
       super(url, protocols, { headers: { cookie, ...(origin ? { origin } : {}) } });
+      // A refused session keeps reconnecting: closing it in afterEach while a new attempt is still connecting makes
+      // ws emit "closed before the connection was established", with no listener left once the provider is destroyed.
+      this.on("error", () => {});
     }
   }
   const doc = new Y.Doc();
