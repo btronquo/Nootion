@@ -47,7 +47,8 @@ automations and plugins.
 ## Who can see what
 
 `apps/server/src/permissions.ts` is the single place that decides. The role someone has on a page is the best of
-their role in the page's space and of any share on the page or one of its ancestors (shares are inherited). Pages
+their role in the page's space and of any share on the page or one of its ancestors (shares are inherited),
+given to them or to one of their groups. Pages
 in the trash are invisible. Every route that touches a page goes through it, and so do the websocket, public
 links, search results and exports. The tests in `apps/server/test/permissions.test.ts` and `security.test.ts`
 cover it.
@@ -61,6 +62,11 @@ Three things sit beside it:
 - **Tokens** narrow a user's rights to some spaces, read-only or not. They never widen them.
 - **The people directory** (`users.ts`) only lists those who share a space or a page with you; administrators see
   everyone.
+- **Groups** (`groups.ts`) are sets of people, made by administrators or through SCIM. A space or a page shared with
+  a group (`workspace_group_members`, `page_group_permissions`) counts for everyone in it: the views
+  `effective_workspace_members` and `effective_page_permissions` join them with the direct memberships and shares, and
+  `permissions.ts` and the lists of spaces, shared pages and people read those views, taking the best role. A group
+  is never owner of a space and never holds a guest. `groups.test.ts` covers it.
 - **Guests** (`guests.ts`) are accounts with the role `guest`, invited on a page: no personal space, never in a
   space, so `permissions.ts` gives them only the pages shared with them. What they may not do besides (tokens,
   looking people up, sharing, home page and inbox…) is one list of routes, refused in a hook of `app.ts` for every

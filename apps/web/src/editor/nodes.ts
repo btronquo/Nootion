@@ -35,7 +35,7 @@ declare module "@tiptap/core" {
     buttonBlock: { insertButton: () => ReturnType };
     drawing: { insertDrawing: () => ReturnType };
     dateMention: { insertDate: (attrs: { date: string; reminder?: number | null; remindUser?: string | null }) => ReturnType };
-    userMention: { insertUserMention: (attrs: { userId: string; name: string; by: string | null }) => ReturnType };
+    userMention: { insertUserMention: (attrs: { userId: string | null; groupId?: string | null; name: string; by: string | null }) => ReturnType };
     tableOfContents: { insertTableOfContents: () => ReturnType };
   }
 }
@@ -674,7 +674,7 @@ export const ButtonBlock = Node.create<{ pageId: string | null }>({
   },
 });
 
-/** "@Name": someone mentioned in the text, who gets a notification. `by` is who wrote it. */
+/** "@Name": someone mentioned in the text, who gets a notification; or a group (`groupId`), and everyone in it does. `by` is who wrote it. */
 export const UserMention = Node.create({
   name: "userMention",
   group: "inline",
@@ -682,18 +682,23 @@ export const UserMention = Node.create({
   atom: true,
   selectable: true,
   addAttributes() {
-    return { id: { default: null }, userId: { default: null }, name: { default: "" }, by: { default: null } };
+    return { id: { default: null }, userId: { default: null }, groupId: { default: null }, name: { default: "" }, by: { default: null } };
   },
   parseHTML() {
     return [
       {
         tag: "span[data-user-mention]",
-        getAttrs: (el) => ({ userId: (el as HTMLElement).dataset.userId || null, name: (el as HTMLElement).textContent?.replace(/^@/, "") ?? "" }),
+        getAttrs: (el) => ({
+          userId: (el as HTMLElement).dataset.userId || null,
+          groupId: (el as HTMLElement).dataset.groupId || null,
+          name: (el as HTMLElement).textContent?.replace(/^@/, "") ?? "",
+        }),
       },
     ];
   },
   renderHTML({ node }) {
-    return ["span", { "data-user-mention": "", "data-user-id": node.attrs.userId ?? "", class: "user-mention" }, `@${node.attrs.name as string}`];
+    const group = node.attrs.groupId ? { "data-group-id": node.attrs.groupId as string } : {};
+    return ["span", { "data-user-mention": "", "data-user-id": node.attrs.userId ?? "", ...group, class: "user-mention" }, `@${node.attrs.name as string}`];
   },
   renderText({ node }) {
     return `@${node.attrs.name as string}`;
@@ -701,10 +706,10 @@ export const UserMention = Node.create({
   addCommands() {
     return {
       insertUserMention:
-        ({ userId, name, by }) =>
+        ({ userId, groupId = null, name, by }) =>
         ({ commands }) =>
           commands.insertContent([
-            { type: this.name, attrs: { id: randomId(), userId, name, by } },
+            { type: this.name, attrs: { id: randomId(), userId, groupId, name, by } },
             { type: "text", text: " " },
           ]),
     };

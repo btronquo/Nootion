@@ -43,8 +43,9 @@ import {
   Sigma,
   Radical,
   RefreshCw,
+  Users,
 } from "lucide-react";
-import { currentLocale, parseNaturalDate, pluginNodeName, type ClientPluginInfo, type PageSummary, type UserDirectoryEntry } from "@nootion/shared";
+import { currentLocale, parseNaturalDate, pluginNodeName, type ClientPluginInfo, type GroupSummary, type PageSummary, type UserDirectoryEntry } from "@nootion/shared";
 import { formatMentionDate } from "../lib/reminders";
 import { api } from "../lib/api";
 import { pageTitle } from "../lib/tree";
@@ -68,6 +69,8 @@ export interface CommandContext {
   userId: string | null;
   /** People who can be mentioned with "@". */
   people: () => UserDirectoryEntry[];
+  /** Groups who can be mentioned with "@" (everyone in them is told). */
+  groups?: () => GroupSummary[];
 }
 
 const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
@@ -336,7 +339,15 @@ export function mentionItems(ctx: CommandContext) {
           e.chain().focus().deleteRange(r).insertUserMention({ userId: u.id, name: u.name, by: ctx.userId }).run(),
         ),
       );
+    const groups = (ctx.groups?.() ?? [])
+      .filter((g) => norm(g.name).includes(q))
+      .slice(0, q ? 3 : 2)
+      .map((g) =>
+        item(g.name, t("group.mention", { count: g.memberCount }), <Users size={16} />, (e, r) =>
+          e.chain().focus().deleteRange(r).insertUserMention({ userId: null, groupId: g.id, name: g.name, by: ctx.userId }).run(),
+        ),
+      );
     // A date typed comes first; with nothing typed yet, today's date comes after the pages.
-    return q.trim() ? [...date(query), ...people, ...pages] : [...people, ...pages, ...date("today")];
+    return q.trim() ? [...date(query), ...people, ...groups, ...pages] : [...people, ...groups, ...pages, ...date("today")];
   };
 }

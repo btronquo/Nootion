@@ -78,6 +78,8 @@ offline use and the Notion import.
 - Guests: people from outside invited on one page from its share window, who only see the pages shared with them
   (no spaces, no people directory, no API tokens); administrators list them apart, make them members or forbid them.
 - A private personal space for each user, and shared spaces with roles (owner, editor, commenter, viewer).
+- Groups of people made by administrators (or by the company's directory through SCIM): share a space or a page with
+  a whole group, and `@group` in a page tells everyone in it.
 - Pages move between spaces with their subpages (drag and drop in the sidebar, or "Move to…"): write a draft in
   your personal space, then share it by moving it into a shared space.
 - Single sign-on with Microsoft Entra ID, Google, Okta, Keycloak or any OpenID Connect provider, and SCIM so that

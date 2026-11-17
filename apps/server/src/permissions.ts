@@ -1,7 +1,7 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { atLeast, maxRole, WORKSPACE_ROLE_TO_PAGE_ROLE, type PageRole, type WorkspaceRole } from "@nootion/shared";
 import type { Db } from "./db/index.js";
-import { pagePermissions, workspaceMembers } from "./db/schema.js";
+import { effectivePagePermissions, effectiveWorkspaceMembers, groupMembers } from "./db/schema.js";
 import { notFound } from "./http.js";
 import { getPageMeta } from "./pages.js";
 import { currentTokenScope, scopeAllows } from "./api-tokens.js";
@@ -10,8 +10,9 @@ import { currentTokenScope, scopeAllows } from "./api-tokens.js";
  * Single source of truth for who can see what. Every route that touches a page goes through here.
  *
  * Effective role on a page = the best of:
- *  - the user's role in the page's workspace (mapped to a page role),
- *  - any share granted to the user on the page or on one of its ancestors (shares are inherited).
+ *  - the user's role in the page's workspace (mapped to a page role), given to them or to one of their groups,
+ *  - any share granted to the user or to one of their groups on the page or on one of its ancestors (shares are
+ *    inherited).
  * A page in the trash (itself or through an ancestor) is invisible unless explicitly asked for.
  */
 
@@ -39,16 +40,57 @@ export function getChain(db: Db, pageId: string): ChainEntry[] {
   `);
 }
 
+const WORKSPACE_RANK: Record<WorkspaceRole, number> = { viewer: 1, commenter: 2, editor: 3, owner: 4 };
+
+/** The better of two space roles. */
+export function bestWorkspaceRole(a: WorkspaceRole | null, b: WorkspaceRole | null): WorkspaceRole | null {
+  if (!a) return b;
+  if (!b) return a;
+  return WORKSPACE_RANK[a] >= WORKSPACE_RANK[b] ? a : b;
+}
+
 export function getWorkspaceRole(db: Db, userId: string, workspaceId: string): WorkspaceRole | null {
   // A request made with a personal token only reaches the token's spaces, and only reads with a read-only one.
   if (!scopeAllows(workspaceId)) return null;
-  const row = db
-    .select({ role: workspaceMembers.role })
-    .from(workspaceMembers)
-    .where(and(eq(workspaceMembers.workspaceId, workspaceId), eq(workspaceMembers.userId, userId)))
-    .get();
-  if (row && currentTokenScope()?.readOnly) return "viewer";
-  return row?.role ?? null;
+  // Given to the person, or to one of their groups: the best one counts.
+  const rows = db
+    .select({ role: effectiveWorkspaceMembers.role })
+    .from(effectiveWorkspaceMembers)
+    .where(and(eq(effectiveWorkspaceMembers.workspaceId, workspaceId), eq(effectiveWorkspaceMembers.userId, userId)))
+    .all();
+  const role = rows.reduce<WorkspaceRole | null>((best, r) => bestWorkspaceRole(best, r.role), null);
+  if (role && currentTokenScope()?.readOnly) return "viewer";
+  return role;
+}
+
+/** The spaces a user is in, by themselves or through a group. */
+export function memberWorkspaceIds(db: Db, userId: string): string[] {
+  return db
+    .selectDistinct({ id: effectiveWorkspaceMembers.workspaceId })
+    .from(effectiveWorkspaceMembers)
+    .where(eq(effectiveWorkspaceMembers.userId, userId))
+    .all()
+    .map((r) => r.id);
+}
+
+/** The pages shared with a user, or with one of their groups (their subpages not listed). */
+export function sharedPageIdsOf(db: Db, userId: string): string[] {
+  return db
+    .selectDistinct({ id: effectivePagePermissions.pageId })
+    .from(effectivePagePermissions)
+    .where(eq(effectivePagePermissions.userId, userId))
+    .all()
+    .map((r) => r.id);
+}
+
+/** The groups a user is in. */
+export function groupIdsOf(db: Db, userId: string): string[] {
+  return db
+    .select({ id: groupMembers.groupId })
+    .from(groupMembers)
+    .where(eq(groupMembers.userId, userId))
+    .all()
+    .map((r) => r.id);
 }
 
 export function roleFromChain(db: Db, userId: string, chain: ChainEntry[]): PageRole | null {
@@ -56,9 +98,9 @@ export function roleFromChain(db: Db, userId: string, chain: ChainEntry[]): Page
   const wsRole = getWorkspaceRole(db, userId, chain[0].workspaceId);
   let role: PageRole | null = wsRole ? WORKSPACE_ROLE_TO_PAGE_ROLE[wsRole] : null;
   const shares = db
-    .select({ role: pagePermissions.role })
-    .from(pagePermissions)
-    .where(and(eq(pagePermissions.userId, userId), inArray(pagePermissions.pageId, chain.map((c) => c.id))))
+    .select({ role: effectivePagePermissions.role })
+    .from(effectivePagePermissions)
+    .where(and(eq(effectivePagePermissions.userId, userId), inArray(effectivePagePermissions.pageId, chain.map((c) => c.id))))
     .all();
   for (const s of shares) role = maxRole(role, s.role);
   if (role && currentTokenScope()?.readOnly) return "viewer";

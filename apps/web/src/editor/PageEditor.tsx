@@ -12,10 +12,10 @@ import { NodeSelection } from "@tiptap/pm/state";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Bold, Code, Italic, Link as LinkIcon, MessageSquarePlus, Strikethrough, Underline } from "lucide-react";
-import type { PageDetail, PageSummary, UserDirectoryEntry } from "@nootion/shared";
+import type { GroupSummary, PageDetail, PageSummary, UserDirectoryEntry } from "@nootion/shared";
 import { markSaved } from "../lib/saved";
 import { useSession } from "../lib/session";
-import { keys, useRefreshPages, useUserDirectory } from "../lib/queries";
+import { keys, useGroups, useRefreshPages, useUserDirectory } from "../lib/queries";
 import { baseExtensions } from "./extensions";
 import { createSuggestionExtension } from "./suggestion";
 import { mentionItems, slashItems, type CommandContext } from "./commands";
@@ -133,6 +133,7 @@ function CollabEditor({
   navigateRef.current = navigate;
   // Loaded ahead, for "@" mentions of people.
   useUserDirectory();
+  useGroups(!!user && user.role !== "guest");
   const refreshPages = useRefreshPages();
   const [synced, setSynced] = useState(provider.isSynced);
   const [connected, setConnected] = useState(true);
@@ -193,6 +194,7 @@ function CollabEditor({
       plugins,
       userId: user?.id ?? null,
       people: () => qc.getQueryData<UserDirectoryEntry[]>(keys.users) ?? [],
+      groups: () => qc.getQueryData<GroupSummary[]>(keys.groups) ?? [],
       onPageCreated: () => void refreshPages(),
       linkablePages: () => {
         const seen = new Map<string, PageSummary>();
