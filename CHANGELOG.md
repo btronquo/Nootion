@@ -7,6 +7,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- German, Spanish and Italian interfaces, besides English and French: every text, the e-mails and the server's
+  messages, with dates, numbers and plurals in the language's own format, emoji names in the icon picker and form
+  validation messages. Dates written in words in a page are understood in all five languages whatever the one chosen
+  (`@morgen um 9 Uhr`, `@el próximo viernes`, `@domani alle 15`, `@erinnere mich Freitag`), and so are yes/no words
+  when a column becomes a checkbox or a CSV is imported (`ja`, `sí`, `vero`). A language may now be partly
+  translated: the menu shows its progress ("Polski (62 %)") and the missing texts appear in English, one by one.
+  Plural forms follow each language's rules (`few`, `many`… for languages that have them). `pnpm i18n:check` lists
+  per language the missing texts and the ones to fix (placeholders, plural forms, texts removed from English), and
+  runs in the CI. Adding a language is described in [docs/TRANSLATING.md](docs/TRANSLATING.md).
 - Passkeys: in "My account > Passkeys", "Add a passkey" (after typing the password) saves one with the device's
   fingerprint, face or screen lock, a password manager or a security key. Passkeys are listed with their name, when
   they were added and last used, and whether they are synced to other devices; they can be renamed and removed. On

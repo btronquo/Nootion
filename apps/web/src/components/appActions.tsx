@@ -19,7 +19,7 @@ import {
   User,
   Waypoints,
 } from "lucide-react";
-import { LOCALE_NAMES, LOCALES, currentLocale, t, type Locale, type PageDetail, type PageSummary, type WorkspaceSummary } from "@nootion/shared";
+import { localeLabel, LOCALES, currentLocale, t, type Locale, type PageDetail, type PageSummary, type WorkspaceSummary } from "@nootion/shared";
 import { api } from "../lib/api";
 import { useRegisterActions, type Action } from "../lib/actions";
 import { setLocale } from "../lib/i18n";
@@ -156,7 +156,7 @@ export function useAppActions({ capture, newSpace, hasSync }: { capture: () => v
     for (const locale of LOCALES) {
       actions.push({
         id: `language:${locale}`,
-        title: () => t("palette.language", { language: LOCALE_NAMES[locale] }),
+        title: () => t("palette.language", { language: localeLabel(locale) }),
         keywords: () => `${t("palette.kwLanguage")} language langue`,
         section: "settings",
         icon: <Globe size={16} />,

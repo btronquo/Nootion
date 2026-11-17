@@ -621,7 +621,7 @@ export function validateValues(db: DbLike, properties: DatabaseProperty[], rowId
 
 // --- Changing a column's type -------------------------------------------------------------
 
-export const TRUE_WORDS = new Set(["oui", "yes", "true", "vrai", "1", "x", "✓", "✔"]);
+export const TRUE_WORDS = new Set(["oui", "yes", "true", "vrai", "ja", "wahr", "sí", "si", "verdadero", "vero", "1", "x", "✓", "✔"]);
 
 export function parseNumber(s: string): number | null {
   const cleaned = s.replace(/[\s €$£%]/g, "").replace(",", ".");

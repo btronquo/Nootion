@@ -109,18 +109,18 @@ To try the image locally before publishing: `docker build -f docker/Dockerfile -
 
 ## Translations
 
-To ask for a new language, open an issue. For reference, here is how the interface texts work:
+The interface is translated into English, French, German, Spanish and Italian. To add a language or finish one, see
+[docs/TRANSLATING.md](docs/TRANSLATING.md); a partial translation is welcome, missing texts are shown in English.
+For reference, here is how the interface texts work:
 
 Every text shown to users goes through `t("key")` (from `@nootion/shared`), never a literal string.
 The catalogues live in `packages/shared/src/i18n/`:
 
 - `en.ts` is the reference: add new keys there first.
-- `fr.ts` must have exactly the same keys (TypeScript and a test check it).
-- `{name}` placeholders are filled from the second argument of `t()`; a message with `{ one, other }` forms is
-  chosen by the `count` parameter.
-
-To add a language: copy `fr.ts` to `<code>.ts`, translate it, then add the code to `LOCALES`, `LOCALE_NAMES`
-and the catalogues in `packages/shared/src/i18n/index.ts` (and Zod's locale in `i18n/zod.ts` if it has one).
+- `fr.ts` must have exactly the same keys (TypeScript and a test check it). The other languages may lack keys:
+  `pnpm i18n:check` lists, per language, what is missing and what must be fixed.
+- `{name}` placeholders are filled from the second argument of `t()`; a message with plural forms (`{ one, other }`,
+  plus `few`, `many`… where a language has them) is chosen by the `count` parameter.
 
 ## License
 
