@@ -21,6 +21,7 @@ import { Avatar } from "../components/Avatar";
 import { Button, ErrorText, Field, LanguageSelect, Rich, Select } from "../components/ui";
 import { setLocale } from "../lib/i18n";
 import { NotionImport } from "../components/NotionImport";
+import { PasskeysPanel } from "../components/Passkeys";
 import { FileImportSection } from "../components/FileImport";
 import { AgentActivityList, ApiTokens, McpConnect } from "../components/ApiTokens";
 import { ConnectedServices, useConnectedServices } from "../components/ConnectedServices";
@@ -55,6 +56,9 @@ export function AccountPage() {
       <EmailSection user={user} />
       <PasswordSection />
       <TwoFactorSection />
+      <Section title={t("passkeys.title")} id="passkeys">
+        <PasskeysPanel />
+      </Section>
       <LanguageSection user={user} />
       <ThemeSection />
       <EmailPrefsSection />

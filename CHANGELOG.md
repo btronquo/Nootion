@@ -7,6 +7,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Passkeys: in "My account > Passkeys", "Add a passkey" (after typing the password) saves one with the device's
+  fingerprint, face or screen lock, a password manager or a security key. Passkeys are listed with their name, when
+  they were added and last used, and whether they are synced to other devices; they can be renamed and removed. On
+  the sign-in page, "Sign in with a passkey" needs no e-mail, password or code: a passkey counts as both steps of
+  two-factor authentication, and the password still works beside it. Passkeys need HTTPS and the address set in
+  `APP_URL`: elsewhere the button doesn't show and My account says why. Disabled accounts, forbidden guests and
+  SSO-only rules apply as for a password; each challenge works once and for 5 minutes.
 - Synced blocks: the same content in several pages, edited from any of them and updated live in all. "Turn into
   synced block" in a block's menu, then "Copy synced block" and paste it elsewhere; or "/synced" to make a new one or
   show one already used. A thin frame and "Synced in 3 pages" show on hover, with the list of those pages. Removing a

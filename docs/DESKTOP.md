@@ -26,8 +26,8 @@ installer weighs a few megabytes.
   Who has access to a space is still managed on the server.
 - **Several servers.** Each one is kept with a name; *Nootion > Switch server…* (Ctrl/Cmd+Shift+O) goes back to the
   list. The last server opens by itself at start.
-- **Like the browser, in its own window.** The interface is the server's own web app: sign-in (password, SSO, 2FA),
-  updates of the server and the offline mode work as in a browser. Sessions are kept between launches.
+- **Like the browser, in its own window.** The interface is the server's own web app: sign-in (password, SSO, 2FA,
+  passkeys where the system's web view offers them, as on Windows), updates of the server and the offline mode work as in a browser. Sessions are kept between launches.
 - **Native touches.** Menus in French or English (from the system's language), copy and paste shortcuts on macOS,
   zoom (Ctrl/Cmd + = / - / 0), reload, one window only (launching again brings it to the front), size and position
   remembered, links that open a new tab go to the default browser.
