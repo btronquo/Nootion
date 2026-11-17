@@ -95,6 +95,19 @@ body {
   @apply bg-amber-200/80 dark:bg-amber-800/50;
 }
 
+/* ---------- Panel under a selection (suggestions of plugins) ---------- */
+.selection-panel-source {
+  @apply rounded-sm bg-violet-100/70 dark:bg-violet-900/40;
+}
+.selection-panel {
+  @apply my-2 cursor-default rounded-lg border border-neutral-200 bg-white p-3 text-sm leading-6 whitespace-normal shadow-md select-text dark:border-neutral-700 dark:bg-neutral-900;
+}
+@media print {
+  .selection-panel {
+    display: none;
+  }
+}
+
 /* ---------- Page content (editor and public view) ---------- */
 .nootion-content {
   @apply min-h-[40vh] text-[16px] leading-7 outline-none;

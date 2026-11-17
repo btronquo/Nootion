@@ -77,6 +77,12 @@ export interface OutboundOptions {
   maxRedirects?: number;
   /** How much of the answer is read. Default: nothing (status and headers only). */
   maxBytes?: number;
+  /**
+   * Hands the answer over as it arrives (`stream`) instead of reading it: for answers written over time (a model
+   * writing its text). `timeoutMs` then counts until the headers; after that, `idleMs` of silence ends it (default 60 s).
+   */
+  stream?: boolean;
+  idleMs?: number;
 }
 
 export interface OutboundResponse {
@@ -86,6 +92,8 @@ export interface OutboundResponse {
   url: URL;
   headers: http.IncomingHttpHeaders;
   body: Buffer;
+  /** With `stream`: the answer, to read (or destroy) as it arrives. `body` is then empty. */
+  stream?: http.IncomingMessage;
 }
 
 function requestOnce(url: URL, opts: OutboundOptions, deadline: number): Promise<OutboundResponse> {
@@ -114,6 +122,12 @@ function requestOnce(url: URL, opts: OutboundOptions, deadline: number): Promise
         agent: false,
       },
       (res) => {
+        if (opts.stream) {
+          clearTimeout(timer);
+          res.setTimeout(opts.idleMs ?? 60_000, () => res.destroy(new Error("timeout")));
+          const status = res.statusCode ?? 0;
+          return resolve({ status, ok: status >= 200 && status < 300, url, headers: res.headers, body: Buffer.alloc(0), stream: res });
+        }
         const max = opts.maxBytes ?? 0;
         const chunks: Buffer[] = [];
         let size = 0;
@@ -157,6 +171,7 @@ export async function outboundRequest(target: string | URL, opts: OutboundOption
     const res = await requestOnce(url, opts, deadline);
     const location = res.headers.location;
     if (res.status < 300 || res.status >= 400 || !location || hop >= (opts.maxRedirects ?? 0)) return res;
+    res.stream?.destroy();
     url = new URL(location, url);
   }
 }

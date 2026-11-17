@@ -22,6 +22,8 @@ import {
 import { t } from "@nootion/shared";
 import { TextColorPanel } from "./TextColorMenu";
 import { selectionColors } from "./textColors";
+import { selectionMenus } from "../plugins/registry";
+import { runSelectionAction, SelectionMenuEntries } from "../plugins/SelectionMenus";
 
 const LIST_ITEMS = ["listItem", "taskItem"];
 
@@ -83,7 +85,7 @@ function useKeyboardInset() {
  * Editing bar for touch screens, shown above the keyboard while the page is being edited:
  * the "/" menu, formatting, lists, indentation, moving blocks, undo.
  */
-export function MobileToolbar({ editor }: { editor: Editor }) {
+export function MobileToolbar({ editor, pageId }: { editor: Editor; pageId?: string }) {
   const inset = useKeyboardInset();
   const state = useEditorState({
     editor,
@@ -98,11 +100,14 @@ export function MobileToolbar({ editor }: { editor: Editor }) {
       canUndo: e.can().undo?.() ?? false,
       canRedo: e.can().redo?.() ?? false,
       colored: Object.values(selectionColors(e)).some(Boolean),
+      selected: !e.state.selection.empty,
     }),
   });
   // Tapping a button blurs the editor for a moment: wait before hiding the bar.
   const [focused, setFocused] = useState(editor.isFocused);
   const [colors, setColors] = useState(false);
+  // The open plugin menu (the AI assistant…), shown above the bar like the colours.
+  const [menuOpen, setMenuOpen] = useState<string | null>(null);
   useEffect(() => {
     let timer: number | undefined;
     const onFocus = () => {
@@ -123,10 +128,13 @@ export function MobileToolbar({ editor }: { editor: Editor }) {
   // The colors close with the bar.
   useEffect(() => {
     if (!focused) setColors(false);
-  }, [focused]);
+    if (!focused || !state.selected) setMenuOpen(null);
+  }, [focused, state.selected]);
   if (!focused) return null;
 
   const listItem = editor.isActive("taskItem") ? "taskItem" : "listItem";
+  const menus = pageId ? selectionMenus() : [];
+  const openMenu = menus.find((m) => m.id === menuOpen);
   const run = (fn: () => unknown) => () => void fn();
   return (
     <div
@@ -144,6 +152,20 @@ export function MobileToolbar({ editor }: { editor: Editor }) {
           className="fixed left-2 z-40 rounded-lg border border-neutral-200 bg-white shadow-lg dark:border-neutral-700 dark:bg-neutral-900"
         >
           <TextColorPanel editor={editor} onPicked={() => setColors(false)} />
+        </div>
+      )}
+      {openMenu && pageId && (
+        <div
+          style={{ bottom: inset + 52 }}
+          className="fixed right-2 left-2 z-40 rounded-lg border border-neutral-200 bg-white shadow-lg dark:border-neutral-700 dark:bg-neutral-900"
+        >
+          <SelectionMenuEntries
+            menu={openMenu.menu}
+            onPick={(a) => {
+              setMenuOpen(null);
+              runSelectionAction(editor, pageId, openMenu.menu, a);
+            }}
+          />
         </div>
       )}
       <ToolButton label={t("toolbar.insert")} onClick={run(() => openBlockMenu(editor))}>
@@ -175,6 +197,21 @@ export function MobileToolbar({ editor }: { editor: Editor }) {
       <ToolButton label={t("editor.textColor")} active={colors || state.colored} onClick={() => setColors((o) => !o)}>
         <Baseline size={18} />
       </ToolButton>
+      {/* Plugins' selection menus, once some text is selected. */}
+      {state.selected &&
+        menus.map(({ id, menu }) => (
+          <ToolButton
+            key={id}
+            label={menu.label}
+            active={menuOpen === id}
+            onClick={() => {
+              setColors(false);
+              setMenuOpen((o) => (o === id ? null : id));
+            }}
+          >
+            <span className="text-lg leading-none">{menu.icon ?? "🧩"}</span>
+          </ToolButton>
+        ))}
       <ToolButton label={t("toolbar.heading")} active={state.heading} onClick={run(() => editor.chain().focus().toggleHeading({ level: 2 }).run())}>
         <Heading2 size={18} />
       </ToolButton>

@@ -2,7 +2,8 @@ import * as React from "react";
 import { createRoot } from "react-dom/client";
 import { useQuery } from "@tanstack/react-query";
 import { currentLocale, FormulaError, t, registerFormulaFunction, type ClientPluginInfo, type Locale } from "@nootion/shared";
-import { api } from "../lib/api";
+import { api, ApiError } from "../lib/api";
+import type { SelectionPanel } from "../editor/selectionPanel";
 import { Button, Modal } from "../components/ui";
 import type { UploadedFile } from "../editor/upload";
 
@@ -42,6 +43,33 @@ export interface PluginFileSource {
   pick: (ctx: { pageId: string; multiple: boolean }) => Promise<UploadedFile[] | undefined | null>;
 }
 
+/** What an entry of the selection menu receives when it is chosen. */
+export interface SelectionActionContext {
+  /** The selected passage, as plain text (blocks separated by a blank line). */
+  text: string;
+  /** The page being edited. */
+  pageId: string;
+  /**
+   * Shows a panel in the page, right under the passage (which stays highlighted), and draws `render`'s result in it.
+   * The panel puts its result in the page with `replace`, `insertAfter` or `insertBelow` (plain text, or editor blocks
+   * as JSON), or goes away with `close`; Escape closes it too.
+   */
+  showPanel: (render: (panel: SelectionPanel) => React.ReactNode) => SelectionPanel;
+}
+
+/** Entries a plugin adds to the menu shown on a selection, for people who may edit the page. */
+export interface PluginSelectionMenu {
+  /** Name of the menu button. */
+  label: string;
+  /** An emoji. */
+  icon?: string;
+  /** A line under the entries (to say where the text goes…), read each time the menu opens. */
+  note?: () => string | null | undefined;
+  /** Hides the menu while it returns false (the plugin isn't set up…). */
+  visible?: () => boolean;
+  actions: { id: string; label: string; icon?: string; run: (ctx: SelectionActionContext) => unknown }[];
+}
+
 /** The object given to a plugin's browser code: `export function activate(nootion) { … }`. */
 export interface ClientPluginApi {
   id: string;
@@ -49,6 +77,13 @@ export interface ClientPluginApi {
   React: typeof React;
   /** Calls one of the plugin's server routes: api("/preview?url=…"). */
   api: <T = unknown>(path: string, init?: { method?: string; body?: unknown }) => Promise<T>;
+  /**
+   * Calls one of the plugin's server routes and hands over the answer as it arrives (for a route that returns
+   * `nootion.stream(…)`): read `response.body`. Throws, like `api`, when the route answers with an error.
+   */
+  fetch: (path: string, init?: { method?: string; body?: unknown; signal?: AbortSignal }) => Promise<Response>;
+  /** Adds entries to the menu shown on a selection (one menu per plugin: a second call replaces the first). */
+  registerSelectionMenu: (menu: PluginSelectionMenu) => void;
   /** Renders a block declared in the manifest. */
   registerBlock: (blockId: string, component: React.ComponentType<PluginBlockProps>) => void;
   /** Draws and edits the cells of a column type declared in the manifest. */
@@ -89,6 +124,33 @@ const formulaStubs = new Map<string, () => void>();
 const enabled = new Set<string>();
 const sources = new Map<string, PluginFileSource>();
 const cells = new Map<string, React.ComponentType<PluginPropertyCellProps>>();
+const selectionMenuList = new Map<string, PluginSelectionMenu>();
+
+/** Selection menus of enabled plugins, those that want to be shown now. */
+export const selectionMenus = () =>
+  [...selectionMenuList.entries()].filter(([id, m]) => enabled.has(id) && m.actions.length && (m.visible?.() ?? true)).map(([id, menu]) => ({ id, menu }));
+
+/** A plugin route, its answer handed over as it arrives. */
+async function pluginFetch(pluginId: string, path: string, init: { method?: string; body?: unknown; signal?: AbortSignal } = {}): Promise<Response> {
+  let res: Response;
+  try {
+    res = await fetch(`/api/plugins/${pluginId}${path}`, {
+      method: init.method ?? (init.body === undefined ? "GET" : "POST"),
+      credentials: "same-origin",
+      headers: init.body === undefined ? {} : { "content-type": "application/json" },
+      body: init.body === undefined ? undefined : JSON.stringify(init.body),
+      signal: init.signal,
+    });
+  } catch (e) {
+    if (init.signal?.aborted) throw e;
+    throw new ApiError(0, "offline", t("offline.unavailable"));
+  }
+  if (!res.ok) {
+    const data = res.headers.get("content-type")?.includes("application/json") ? await res.json().catch(() => null) : null;
+    throw new ApiError(res.status, data?.error ?? "error", data?.message ?? t("common.errorStatus", { status: res.status }));
+  }
+  return res;
+}
 
 /** Places to pick files from, of enabled plugins. */
 export const fileSources = () => [...sources.entries()].filter(([id]) => enabled.has(id)).map(([, s]) => s);
@@ -104,6 +166,10 @@ async function loadClient(p: ClientPluginInfo) {
     React,
     locale: currentLocale(),
     api: (path, init) => api(`/plugins/${p.id}${path}`, init),
+    fetch: (path, init) => pluginFetch(p.id, path, init),
+    registerSelectionMenu: (menu) => {
+      selectionMenuList.set(p.id, menu);
+    },
     registerBlock: (blockId, component) => {
       renderers.set(`${p.id}.${blockId}`, component);
     },
