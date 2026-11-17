@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 import { asc, eq } from "drizzle-orm";
 import type { Db } from "./db/index.js";
 import { attachments } from "./db/schema.js";
-import { attachmentPath } from "./attachments.js";
+import { fileStore } from "./files.js";
 
 const run = promisify(execFile);
 
@@ -127,16 +127,16 @@ export function createExtractor(db: Db, dataDir: string, log: { warn: (o: unknow
           .all()
           .find((a) => !skipped.has(a.id));
         if (!next) break;
-        const file = attachmentPath(dataDir, next.id);
         let status: "done" | "unsupported" | "failed" = "failed";
         let text: string | null = null;
         try {
-          if (fs.existsSync(file)) {
-            const result = await extractText(file, next.mimeType, next.filename, available);
-            if (result.missing) {
-              skipped.add(next.id);
-              continue;
-            }
+          // From a bucket, the file is brought to the disk for the time of the reading.
+          const result = await fileStore(dataDir).withLocalFile(next.id, (file) => extractText(file, next.mimeType, next.filename, available));
+          if (result?.missing) {
+            skipped.add(next.id);
+            continue;
+          }
+          if (result) {
             text = result.text;
             status = text === null ? "unsupported" : "done";
           }

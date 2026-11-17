@@ -1,9 +1,9 @@
 import fs from "node:fs";
 import { randomUUID } from "node:crypto";
-import { pipeline } from "node:stream/promises";
 import type { FastifyPluginAsync } from "fastify";
 import { eq } from "drizzle-orm";
-import { attachmentPath, sendAttachment, uploadsDir } from "../attachments.js";
+import { sendAttachment } from "../attachments.js";
+import { fileStore, streamToTemp } from "../files.js";
 import { attachments } from "../db/schema.js";
 import { HttpError, notFound, requireUser } from "../http.js";
 import { requirePageRole } from "../permissions.js";
@@ -19,17 +19,14 @@ export const attachmentRoutes: FastifyPluginAsync = async (app) => {
     const file = await req.file();
     if (!file) throw new HttpError(400, "no_file", t("error.noFile"));
     const id = randomUUID();
-    fs.mkdirSync(uploadsDir(dataDir), { recursive: true });
-    const dest = attachmentPath(dataDir, id);
-    const tmp = `${dest}.part`;
-    try {
-      await pipeline(file.file, fs.createWriteStream(tmp));
-      if (file.file.truncated) throw new HttpError(413, "too_large", t("error.fileTooLarge", { max: app.config.maxUploadMb }));
-      fs.renameSync(tmp, dest);
-    } finally {
-      fs.rmSync(tmp, { force: true });
+    const store = fileStore(dataDir);
+    const tooLarge = () => new HttpError(413, "too_large", t("error.fileTooLarge", { max: app.config.maxUploadMb }));
+    const tmp = await streamToTemp(store, file.file, Infinity, tooLarge);
+    if (file.file.truncated) {
+      await fs.promises.rm(tmp.file, { force: true });
+      throw tooLarge();
     }
-    const size = fs.statSync(dest).size;
+    const size = await store.putFile(id, tmp.file, file.mimetype || "application/octet-stream");
     const filename = (file.filename || "file").replace(/[\\/\r\n]/g, "_").slice(0, 255);
     const row = db
       .insert(attachments)

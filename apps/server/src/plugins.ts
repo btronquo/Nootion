@@ -4,7 +4,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { Readable } from "node:stream";
-import { pipeline } from "node:stream/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { FastifyBaseLogger, FastifyReply, FastifyRequest } from "fastify";
 import { and, eq } from "drizzle-orm";
@@ -27,7 +26,7 @@ import {
 } from "@nootion/shared";
 import type { Db } from "./db/index.js";
 import { attachments, pluginUserData, plugins } from "./db/schema.js";
-import { attachmentPath, uploadsDir } from "./attachments.js";
+import { fileStore, streamToTemp } from "./files.js";
 import { HttpError, notFound, unauthorized } from "./http.js";
 import { getPageRole, requirePageRole } from "./permissions.js";
 import { t } from "@nootion/shared";
@@ -114,7 +113,13 @@ export interface ServerPluginApi {
   };
   /** Attaches a file to a page, as if the user had uploaded it (they must be able to edit the page). */
   attachments: {
-    create: (input: { userId: string; pageId: string; filename: string; mimeType: string; data: Buffer | Readable | ReadableStream<Uint8Array> }) => Promise<PluginAttachment>;
+    create: (input: {
+      userId: string;
+      pageId: string;
+      filename: string;
+      mimeType: string;
+      data: Buffer | Readable | ReadableStream<Uint8Array>;
+    }) => Promise<PluginAttachment>;
   };
   /** Return this from a route to send a file (an image…) instead of JSON. */
   binary: (data: Buffer | Readable, contentType: string) => PluginBinary;
@@ -164,7 +169,6 @@ interface Installed {
   runtime: Runtime | null;
   error: string | null;
 }
-
 
 export class PluginManager {
   private installed = new Map<string, Installed>();
@@ -397,28 +401,15 @@ export class PluginManager {
   private async createAttachment(input: Parameters<ServerPluginApi["attachments"]["create"]>[0]): Promise<PluginAttachment> {
     requirePageRole(this.db, input.userId, input.pageId, "editor");
     const max = this.opts.maxUploadMb * 1024 * 1024;
-    const source = Buffer.isBuffer(input.data) ? Readable.from([input.data]) : input.data instanceof Readable ? input.data : Readable.fromWeb(input.data as never);
+    const source = Buffer.isBuffer(input.data)
+      ? Readable.from([input.data])
+      : input.data instanceof Readable
+        ? input.data
+        : Readable.fromWeb(input.data as never);
     const id = randomUUID();
-    fs.mkdirSync(uploadsDir(this.opts.dataDir), { recursive: true });
-    const dest = attachmentPath(this.opts.dataDir, id);
-    const tmp = `${dest}.part`;
-    let size = 0;
-    try {
-      await pipeline(
-        source,
-        async function* (chunks: AsyncIterable<Buffer>) {
-          for await (const chunk of chunks) {
-            size += chunk.length;
-            if (size > max) throw new HttpError(413, "too_large", t("error.fileTooLarge", { max: max / 1024 / 1024 }));
-            yield chunk;
-          }
-        },
-        fs.createWriteStream(tmp),
-      );
-      fs.renameSync(tmp, dest);
-    } finally {
-      fs.rmSync(tmp, { force: true });
-    }
+    const store = fileStore(this.opts.dataDir);
+    const tmp = await streamToTemp(store, source, max, () => new HttpError(413, "too_large", t("error.fileTooLarge", { max: max / 1024 / 1024 })));
+    const size = await store.putFile(id, tmp.file);
     const filename = (input.filename || "file").replace(/[\\/\r\n]/g, "_").slice(0, 255);
     const mimeType = input.mimeType.split(";")[0]!.trim().toLowerCase() || "application/octet-stream";
     this.db.insert(attachments).values({ id, pageId: input.pageId, filename, mimeType, size, createdBy: input.userId }).run();

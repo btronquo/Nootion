@@ -6,7 +6,7 @@ All data lives in the folder mounted on `/data`:
 | Path in `/data` | Content |
 |---|---|
 | `nootion.db` (+ `-wal`, `-shm` while the app runs) | The SQLite database: accounts, pages, databases, shares |
-| `uploads/` | Files attached to pages and database rows (images, PDFs…). One file per attachment, named by its id. |
+| `uploads/` | Files attached to pages and database rows (images, PDFs…). One file per attachment, named by its id. Empty when they are kept in a bucket (see [Attached files in S3-compatible storage](#attached-files-in-s3-compatible-storage)). |
 | `avatars/` | Profile pictures |
 | `icons/` | Page icons uploaded by people |
 | `vapid.json` | The keys that sign notifications sent to phones and computers (made at the first start) |
@@ -46,6 +46,7 @@ They go to:
 | `TRUST_PROXY` | no | Which reverse proxies are believed about the visitor's address (`X-Forwarded-For`, `X-Forwarded-Proto`). Default: proxies on the server itself or its private network (10.x, 172.16–31.x, 192.168.x, fc00::/7). `true` trusts any, `false` none, or give a list of addresses and ranges (`203.0.113.4, 198.51.100.0/24`). See [Securing your instance](#securing-your-instance). |
 | `CONTENT_SECURITY_POLICY` | no | `off` to stop sending the Content-Security-Policy with the interface (only needed for a hand-installed plugin that loads scripts from another site). |
 | `API_RATE_LIMIT` | no | Requests a personal API token can make per minute (default `300`). See [API.md](API.md). |
+| `FILES_S3_BUCKET` … | no | Keeps attached files in an S3-compatible bucket instead of `/data/uploads`. See [Attached files in S3-compatible storage](#attached-files-in-s3-compatible-storage). |
 
 If Nootion sits behind an HTTPS reverse proxy, put the `https://…` URL in `APP_URL`: the session cookie then becomes `Secure`
 (examples for Caddy and Nginx in [Securing your instance](#securing-your-instance)).
@@ -224,6 +225,72 @@ included, can change or delete a line from the interface.
 The API offers the same for scripts run by an administrator: `GET /api/admin/audit` (parameters `category`,
 `action`, `actorId`, `q`, `from`, `to`, `limit`, and `before` with the `next` value of the previous answer) and
 `GET /api/admin/audit/export` for the CSV.
+
+## Attached files in S3-compatible storage
+
+By default attached files (images, PDFs, videos…) are kept in `/data/uploads`. A larger instance can keep them in a
+bucket instead: AWS S3, MinIO, Garage, Backblaze B2, Cloudflare R2, Scaleway, OVHcloud, Wasabi… anything that speaks
+the S3 protocol. Nothing changes for people: files are still uploaded to and read through Nootion, which checks who
+may see them. The settings are given in the environment only, never stored in the database.
+
+| Variable | Description |
+|---|---|
+| `FILES_S3_BUCKET` | The bucket's name. Setting it turns the bucket on. Make the bucket first, private (no public access). |
+| `FILES_S3_ACCESS_KEY_ID`, `FILES_S3_SECRET_ACCESS_KEY` | A key allowed to read, write, delete and list objects in this bucket only (`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` are read too). |
+| `FILES_S3_ENDPOINT` | The service's address, for anything but AWS: `http://minio:9000`, `https://<account>.r2.cloudflarestorage.com`, `https://s3.eu-central-003.backblazeb2.com`… Default: `https://s3.<region>.amazonaws.com`. |
+| `FILES_S3_REGION` | The region (default `us-east-1`; `auto` for Cloudflare R2). |
+| `FILES_S3_PREFIX` | Put before every file's name, for instance `nootion/`, so that several instances (or other things) can share a bucket. Files outside the prefix are never touched. |
+| `FILES_S3_PATH_STYLE` | `true` for addresses like `http://host/bucket/file`, `false` for `http://bucket.host/file`. Default: `true` with `FILES_S3_ENDPOINT` (MinIO, Garage and most self-hosted servers want it), `false` for AWS. |
+| `FILES_S3_REDIRECT` | `true` to send browsers straight to the bucket for downloads, with a link signed for 5 minutes, once Nootion has checked access. It saves the server's bandwidth; the bucket must then be reachable by the browsers. Default: files go through Nootion. |
+
+For example, next to a MinIO container in `docker-compose.yml`:
+
+```yaml
+    environment:
+      FILES_S3_BUCKET: nootion-files
+      FILES_S3_ENDPOINT: http://minio:9000
+      FILES_S3_ACCESS_KEY_ID: nootion
+      FILES_S3_SECRET_ACCESS_KEY: ${MINIO_NOOTION_SECRET}
+```
+
+At start-up Nootion checks that the bucket can be reached with these keys, and stops with the reason in its log if
+not (`Attached files: Bucket "nootion-files": AccessDenied…`). Once it runs, the log says
+`Attached files are kept in s3://nootion-files/…`.
+
+What changes with a bucket:
+
+- **Backups** (the download and the automatic ones) hold the database, profile pictures, icons and plugins, but not
+  the attached files: an `ATTACHED-FILES.txt` note in the .zip says which bucket holds them, and Administration ›
+  Backup says so too. Back up the bucket on its side (versioning, replication, or a copy with `rclone`). To restore,
+  unzip the backup into `/data` and start Nootion with the same `FILES_S3_*` settings.
+- Text extraction and OCR for search read each new file from the bucket once (into a temporary file).
+- Single files are sent in one request: up to 5 GB, far above `MAX_UPLOAD_MB`.
+
+### Moving existing files
+
+A command copies the files of `/data/uploads` to the bucket, or back. Files already in the destination with the same
+size are skipped, so it can be stopped and run again. The `FILES_S3_*` settings must be set for it in both
+directions (to know the bucket).
+
+To move an instance to a bucket without a moment where files are missing:
+
+1. Copy the existing files while Nootion keeps running on the folder (the settings are given to the command only):
+   ```sh
+   docker compose exec -e FILES_S3_BUCKET=nootion-files -e FILES_S3_ENDPOINT=http://minio:9000 \
+     -e FILES_S3_ACCESS_KEY_ID=nootion -e FILES_S3_SECRET_ACCESS_KEY=… nootion node dist/files-move.js to-bucket
+   ```
+2. Add the `FILES_S3_*` settings to the container and restart it: files are now read from and written to the bucket.
+3. Run the command once more, for the files added since step 1, removing each file from `/data/uploads` once its copy
+   is checked:
+   ```sh
+   docker compose exec nootion node dist/files-move.js to-bucket --remove-source
+   ```
+
+To bring files back to the data folder: run
+`docker compose exec nootion node dist/files-move.js to-folder` (with `--remove-source` to empty the bucket's
+prefix), then remove the `FILES_S3_*` settings and restart. Files added between the two are in the bucket: run the
+command once more before removing the settings, or do it with the container stopped
+(`docker compose run --rm nootion node dist/files-move.js to-folder`).
 
 ## Single sign-on (SSO)
 

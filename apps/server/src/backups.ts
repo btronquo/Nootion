@@ -10,6 +10,7 @@ import { backupScheduleInput, nextOccurrence, t, type BackupSchedule, type Backu
 import { HttpError } from "./http.js";
 import { backupSchedules } from "./db/schema.js";
 import { decryptSecret, encryptSecret, secretKey } from "./secrets.js";
+import { fileStore } from "./files.js";
 
 const ROW = "default";
 /** The copies this feature makes, and deletes when there are too many: nothing else in the folder is touched. */
@@ -34,7 +35,19 @@ export async function fullBackupZip(app: FastifyInstance) {
       else if (entry.isFile() && !entry.name.endsWith(".part")) zip.addFile(full, `${prefix}/${entry.name}`);
     }
   };
-  for (const dir of ["uploads", "avatars", "icons", "plugins", "plugin-data"]) addDir(path.join(dataDir, dir), dir);
+  // Attached files kept in a bucket aren't copied: the bucket has its own copies (versioning, replication). A note says
+  // where they are, so that a restore points the server at the same bucket.
+  const files = fileStore(dataDir);
+  const dirs = files.kind === "s3" ? ["avatars", "icons", "plugins", "plugin-data"] : ["uploads", "avatars", "icons", "plugins", "plugin-data"];
+  for (const dir of dirs) addDir(path.join(dataDir, dir), dir);
+  if (files.kind === "s3")
+    zip.addBuffer(
+      Buffer.from(
+        `The attached files of this Nootion are not in this backup: they are kept in ${files.describe()}.\n` +
+          "To restore, unzip this backup into the data folder and start Nootion with the same FILES_S3_* settings.\n",
+      ),
+      "ATTACHED-FILES.txt",
+    );
   // The keys devices receive reminders with: without them, each device would have to turn notifications on again.
   if (fs.existsSync(path.join(dataDir, "vapid.json"))) zip.addFile(path.join(dataDir, "vapid.json"), "vapid.json");
   zip.end();

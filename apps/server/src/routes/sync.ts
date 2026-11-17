@@ -1,9 +1,8 @@
-import fs from "node:fs";
 import type { FastifyPluginAsync } from "fastify";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { t } from "@nootion/shared";
-import { attachmentPath, uploadsDir } from "../attachments.js";
+import { fileStore } from "../files.js";
 import { attachments } from "../db/schema.js";
 import { HttpError, parseBody, requireUser } from "../http.js";
 import { requireWorkspaceRole } from "../permissions.js";
@@ -124,10 +123,7 @@ export const syncRoutes: FastifyPluginAsync = async (app) => {
     if (!Buffer.isBuffer(req.body)) throw new HttpError(400, "no_file", t("error.noFile"));
     // An attachment never changes: one that exists keeps its file.
     if (app.db.select({ id: attachments.id }).from(attachments).where(eq(attachments.id, id)).get()) return { ok: true };
-    fs.mkdirSync(uploadsDir(app.config.dataDir), { recursive: true });
-    const dest = attachmentPath(app.config.dataDir, id);
-    fs.writeFileSync(`${dest}.part`, req.body);
-    fs.renameSync(`${dest}.part`, dest);
+    await fileStore(app.config.dataDir).putBuffer(id, req.body);
     return { ok: true };
   });
 };

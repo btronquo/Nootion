@@ -77,6 +77,8 @@ export const en = {
   "admin.backup": "Backup",
   "admin.backupHelp":
     "Downloads all of Nootion in a .zip file: the database (accounts, pages, databases), attached files, profile pictures and plugins. To restore, stop the container and unzip it in place of the <b>/data</b> folder.",
+  "admin.backupFilesInBucket":
+    "Attached files are kept in <b>{bucket}</b>: backups hold everything else and a note saying where the files are. Back up the bucket on its side (versioning, replication).",
   "admin.createLink": "Create link",
   "admin.disable": "Disable",
   "admin.downloadBackup": "Download a backup",

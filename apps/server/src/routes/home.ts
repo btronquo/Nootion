@@ -14,7 +14,7 @@ export const homeRoutes: FastifyPluginAsync = async (app) => {
     const pageId = ensureHomePage(db, user.id);
     if (first && app.config.demoPage !== false) {
       try {
-        createDemo(db, app.config.dataDir, user.id);
+        await createDemo(db, app.config.dataDir, user.id);
       } catch (err) {
         req.log.error(err, "demo page not created");
       }
@@ -23,7 +23,7 @@ export const homeRoutes: FastifyPluginAsync = async (app) => {
   });
 
   // The demo page again, on request (from the account page).
-  app.post("/demo", async (req) => ({ pageId: createDemo(db, app.config.dataDir, requireUser(req).id) }));
+  app.post("/demo", async (req) => ({ pageId: await createDemo(db, app.config.dataDir, requireUser(req).id) }));
 
   app.get<{ Querystring: { limit?: string } }>("/recent", async (req) => {
     const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 12));

@@ -81,6 +81,8 @@ export const fr: Messages = {
   "admin.createLink": "Créer le lien",
   "admin.disable": "Désactiver",
   "admin.downloadBackup": "Télécharger une sauvegarde",
+  "admin.backupFilesInBucket":
+    "Les fichiers joints sont gardés dans <b>{bucket}</b> : les sauvegardes contiennent tout le reste et une note qui dit où sont les fichiers. Sauvegardez le bucket de son côté (versions, réplication).",
   "admin.enable": "Réactiver",
   "admin.expiresOn": "expire le {date}",
   "admin.invite": "Inviter quelqu'un",

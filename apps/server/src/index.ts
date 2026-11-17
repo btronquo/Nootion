@@ -3,6 +3,7 @@ import { buildApp } from "./app.js";
 import { purgeExpiredSessions } from "./auth/sessions.js";
 import { purgeOldAuditEvents } from "./audit.js";
 import { cleanOrphanFiles } from "./attachments.js";
+import { fileStore } from "./files.js";
 import { purgeOrphanViews } from "./databases.js";
 import { loadConfig } from "./config.js";
 import { openDb } from "./db/index.js";
@@ -11,8 +12,18 @@ const config = loadConfig();
 const db = openDb(path.join(config.dataDir, "nootion.db"));
 const app = await buildApp({ db, config, logger: true });
 
+// A bucket that can't be reached is said at once, rather than at the first upload.
+const files = fileStore(config.dataDir);
+try {
+  await files.check();
+} catch (err) {
+  app.log.error(`Attached files: ${(err as Error).message}`);
+  process.exit(1);
+}
+if (files.kind === "s3") app.log.info(`Attached files are kept in ${files.describe()}`);
+
 purgeExpiredSessions(db);
-cleanOrphanFiles(db, config.dataDir);
+void cleanOrphanFiles(db, config.dataDir).catch((err) => app.log.warn({ err }, "Couldn't remove orphan files"));
 purgeOrphanViews(db);
 purgeOldAuditEvents(db);
 setInterval(() => {

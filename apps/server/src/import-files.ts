@@ -8,7 +8,7 @@ import { parse as parseHtmlDom } from "node-html-parser";
 import { FILE_IMPORT_DETAILS_MAX, t, type CellValue, type FileImportJob, type NotionImportDetail } from "@nootion/shared";
 import type { Db } from "./db/index.js";
 import { attachments, databaseProperties, databaseViews, pages } from "./db/schema.js";
-import { attachmentPath, uploadsDir } from "./attachments.js";
+import { fileStore } from "./files.js";
 import { appendContent, writeContent, type Collab, type ProseMirrorNode } from "./collab.js";
 import { assignUniqueIds } from "./databases.js";
 import { nextPosition } from "./pages.js";
@@ -605,13 +605,31 @@ export async function runFileImport(o: FileImportOptions): Promise<void> {
 
   // Each file is copied once per page that shows it (a file belongs to one page, for its permissions).
   const copies = new Map<string, ImportedFile>();
+  // The conversions are synchronous: a file's row is added at once, the file itself is stored by `storeFiles` right
+  // after (its row keeps it from the orphan cleaner meanwhile).
+  const store = fileStore(o.dataDir);
+  let toStore: { id: string; data: Buffer | null; disk?: string; mimeType: string }[] = [];
+  const storeFiles = async () => {
+    const batch = toStore;
+    toStore = [];
+    for (const [i, f] of batch.entries()) {
+      try {
+        if (f.disk) {
+          const tmp = store.tempPath();
+          await fs.promises.copyFile(f.disk, tmp);
+          await store.putFile(f.id, tmp, f.mimeType);
+        } else await store.putBuffer(f.id, f.data!, f.mimeType);
+      } catch (e) {
+        for (const g of batch.slice(i)) db.delete(attachments).where(eq(attachments.id, g.id)).run();
+        throw e;
+      }
+    }
+  };
   const saveFile = (pageId: string, name: string, mimeType: string, data: Buffer | null, disk?: string, cacheKey?: string): ImportedFile | null => {
     const ck = cacheKey ? `${pageId}\n${cacheKey}` : null;
     if (ck && copies.has(ck)) return copies.get(ck)!;
     const id = randomUUID();
-    fs.mkdirSync(uploadsDir(o.dataDir), { recursive: true });
-    if (disk) fs.copyFileSync(disk, attachmentPath(o.dataDir, id));
-    else fs.writeFileSync(attachmentPath(o.dataDir, id), data!);
+    toStore.push({ id, data, disk, mimeType });
     const size = disk ? fs.statSync(disk).size : data!.length;
     const filename = name.replace(/[\\/\r\n]/g, "_").slice(0, 255) || "file";
     db.insert(attachments).values({ id, pageId, filename, mimeType, size, createdBy: o.userId }).run();
@@ -712,6 +730,7 @@ export async function runFileImport(o: FileImportOptions): Promise<void> {
           doc = parseHtml(result.value, { ...htmlOptions, title: n.title ?? n.name }).doc;
         }
       }
+      await storeFiles();
       if (n.file)
         await writeContent(
           o.collab,
@@ -745,6 +764,7 @@ export async function runFileImport(o: FileImportOptions): Promise<void> {
             : { type: "fileAttachment", attrs: { url: file.url, name: file.name, size: file.size, mimeType: file.mimeType } },
       );
     }
+    await storeFiles();
     if (blocks.length) await appendContent(o.collab, db, n.pageId!, blocks);
   }
   for (const f of allFiles) if (!used.has(f.path) && !byPath.get(key(f.path))?.node) note("fileUnused", { where: f.path });

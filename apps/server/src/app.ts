@@ -12,6 +12,7 @@ import { syncMentions } from "./mentions.js";
 import { attachmentRoutes } from "./routes/attachments.js";
 import { databaseRoutes } from "./routes/databases.js";
 import { cleanOrphanFiles } from "./attachments.js";
+import { configureFileStore, fileStore } from "./files.js";
 import { DEFAULT_TRUST_PROXY, type Config } from "./config.js";
 import type { Db } from "./db/index.js";
 import { findSessionUser, SESSION_COOKIE } from "./auth/sessions.js";
@@ -151,6 +152,8 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
   });
   app.decorate("db", opts.db);
   app.decorate("config", opts.config);
+  // Attached files: the data folder, or a bucket when FILES_S3_BUCKET is set.
+  configureFileStore(opts.config.dataDir, opts.config.files ?? null);
   const collab = createCollab(opts.db);
   app.decorate("collab", collab);
   collab.storeHooks.onStored = (pageId, json) => void syncMentions(app, pageId, json).catch((err) => app.log.warn({ err }, "Couldn't send mentions"));
@@ -269,7 +272,12 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
   app.addHook("onRequest", async (req) => {
     if (!isGuest(req.user)) return;
     if (!guestsAllowed(opts.db)) {
-      if (req.tokenScope) throw new HttpError(401, "guests_off", withLocale(requestLocale(req), () => t("error.guestsOff")));
+      if (req.tokenScope)
+        throw new HttpError(
+          401,
+          "guests_off",
+          withLocale(requestLocale(req), () => t("error.guestsOff")),
+        );
       req.user = null;
       return;
     }
@@ -335,7 +343,16 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
     if (!accountDeleted && !ACCESS_CHANGES.some((r) => r.test(url))) return;
     if (req.method === "PATCH" && url.startsWith("/api/pages/")) return; // title/icon edits
     collab.revalidateAll();
-    if (req.method === "DELETE") cleanOrphanFiles(opts.db, opts.config.dataDir);
+  });
+  // Deletions take the files of what they deleted: from the data folder before answering (quick), from a bucket in
+  // the background (it has to be listed).
+  app.addHook("onSend", async (req, reply, payload) => {
+    if (req.method !== "DELETE" || reply.statusCode >= 400) return payload;
+    const url = req.url.split("?")[0];
+    if (url !== "/api/auth/me" && !ACCESS_CHANGES.some((r) => r.test(url))) return payload;
+    const cleaning = cleanOrphanFiles(opts.db, opts.config.dataDir).catch((err) => req.log.warn({ err }, "Couldn't remove the files of deleted pages"));
+    if (fileStore(opts.config.dataDir).kind === "folder") await cleaning;
+    return payload;
   });
 
   // `desktop`: the desktop app's own Nootion, which can keep spaces in sync with a server (routes/desktop.ts).

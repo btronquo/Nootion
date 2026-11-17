@@ -199,6 +199,11 @@ export function AdminPage() {
     queryKey: ["admin", "users"],
     queryFn: () => api<{ users: PublicUser[] }>("/admin/users"),
   });
+  // Attached files kept in a bucket (FILES_S3_BUCKET), which backups leave out.
+  const filesBucket = useQuery({
+    queryKey: ["admin", "backups", "files"],
+    queryFn: async () => (await api<{ filesBucket: string | null }>("/admin/backups/schedule")).filesBucket,
+  });
   const invitations = useQuery({
     queryKey: ["admin", "invitations"],
     queryFn: () => api<{ invitations: InvitationInfo[] }>("/admin/invitations"),
@@ -466,6 +471,11 @@ export function AdminPage() {
               <p className="mb-3 text-sm text-neutral-500">
                 <Rich text={t("admin.backupHelp")} />
               </p>
+              {filesBucket.data && (
+                <p className="mb-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                  <Rich text={t("admin.backupFilesInBucket", { bucket: filesBucket.data })} />
+                </p>
+              )}
               <a
                 href="/api/admin/backup"
                 download
