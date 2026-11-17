@@ -301,7 +301,11 @@ export function fakeNotion() {
               external: { url: "/images/page-cover/gradients_8.png" },
             }),
             database(IDS.tasks, { type: "page_id", page_id: IDS.home }, "Tasks", tasksSchema, true),
-            { ...database(IDS.projects, { type: "workspace", workspace: true }, "Projects", projectsSchema, false), icon: { type: "file", file: { url: `${base}/files/pic.png?icon=1` } } },
+            {
+              ...database(IDS.projects, { type: "workspace", workspace: true }, "Projects", projectsSchema, false),
+              icon: { type: "file", file: { url: `${base}/files/pic.png?icon=1` } },
+              description: [rt("Every project, "), rt("by client.")],
+            },
             wiki(),
             ...tasksRows(),
           ],

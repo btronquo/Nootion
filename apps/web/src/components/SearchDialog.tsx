@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bookmark, BookmarkPlus, ChevronDown, ChevronRight, Database, FileText, Paperclip, Rows3, Search, X } from "lucide-react";
+import { Bookmark, BookmarkPlus, ChevronDown, ChevronRight, Paperclip, Search, X } from "lucide-react";
 import {
   EDITED_SINCE_PRESETS,
   SEARCH_KINDS,
@@ -14,7 +14,7 @@ import {
 } from "@nootion/shared";
 import { api } from "../lib/api";
 import { useClosing } from "./ui";
-import { pageIcon } from "../lib/icons";
+import { PageGlyph } from "../lib/icons";
 import { useUserDirectory, useWorkspaces } from "../lib/queries";
 import { useSession } from "../lib/session";
 import { currentActions, matchActions, recentActions, runAction, type Action } from "../lib/actions";
@@ -105,11 +105,7 @@ function FilterSelect({
 }
 
 function ResultIcon({ r }: { r: SearchResult }) {
-  const icon = pageIcon(r.icon);
-  if (icon) return <>{icon}</>;
-  if (r.kind === "database") return <Database size={16} className="inline text-neutral-400" />;
-  if (r.kind === "row") return <Rows3 size={16} className="inline text-neutral-400" />;
-  return <FileText size={16} className="inline text-neutral-400" />;
+  return <PageGlyph icon={r.icon} kind={r.kind} size={16} />;
 }
 
 /** Actions listed with nothing typed, or above the pages found. */

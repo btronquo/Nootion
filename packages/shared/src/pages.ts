@@ -48,7 +48,9 @@ export interface PageSummary {
 export interface PageDetail extends PageSummary {
   role: PageRole;
   /** Ancestors the user can see, from the root down to the parent. */
-  breadcrumb: { id: string; title: string; icon: string | null }[];
+  breadcrumb: { id: string; kind: PageKind; title: string; icon: string | null }[];
+  /** Databases only: the few lines shown under the title. */
+  description: string;
   /** Content uses the whole window width instead of a centered column. */
   fullWidth: boolean;
   cover: string | null;
@@ -145,9 +147,14 @@ export const createPageInput = z.object({
 });
 export type CreatePageInput = z.infer<typeof createPageInput>;
 
+/** Longest description of a database, in characters. */
+export const DESCRIPTION_MAX = 2000;
+
 export const updatePageInput = z.object({
   title: titleSchema.optional(),
   icon: iconSchema.optional(),
+  /** Databases only: the few lines shown under the title. */
+  description: z.string().max(DESCRIPTION_MAX).optional(),
   fullWidth: z.boolean().optional(),
   cover: coverSchema.optional(),
   coverPosition: z.number().int().min(0).max(100).optional(),

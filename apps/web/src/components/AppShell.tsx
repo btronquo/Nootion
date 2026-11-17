@@ -21,8 +21,6 @@ import {
   Search,
   Star,
   X,
-  Database,
-  FileText,
   Home,
   Bell,
   Inbox,
@@ -73,7 +71,7 @@ import { useIsTouch } from "../lib/mobile";
 import { clearOfflineData } from "../lib/offline";
 import { SyncStatus } from "./SyncStatus";
 import { useLiveEvents } from "../lib/live";
-import { pageIcon } from "../lib/icons";
+import { PageGlyph } from "../lib/icons";
 import { syncErrorText, useDesktopSync } from "../pages/SyncPage";
 
 export function AppShell() {
@@ -517,12 +515,7 @@ function FavoritesSection() {
               }
             >
               <span className="w-4 shrink-0 text-center">
-                {pageIcon(page.icon) ??
-                  (page.kind === "database" ? (
-                    <Database size={14} className="inline text-neutral-400" />
-                  ) : (
-                    <FileText size={14} className="inline text-neutral-400" />
-                  ))}
+                <PageGlyph icon={page.icon} kind={page.kind} />
               </span>
               <span className="truncate">{pageTitle(page.title)}</span>
             </NavLink>

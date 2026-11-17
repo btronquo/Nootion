@@ -1,5 +1,5 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
-import { atLeast, maxRole, WORKSPACE_ROLE_TO_PAGE_ROLE, type PageRole, type WorkspaceRole } from "@nootion/shared";
+import { atLeast, maxRole, WORKSPACE_ROLE_TO_PAGE_ROLE, type PageKind, type PageRole, type WorkspaceRole } from "@nootion/shared";
 import type { Db } from "./db/index.js";
 import { effectivePagePermissions, effectiveWorkspaceMembers, groupMembers } from "./db/schema.js";
 import { notFound } from "./http.js";
@@ -20,6 +20,7 @@ export interface ChainEntry {
   id: string;
   parentId: string | null;
   workspaceId: string;
+  kind: PageKind;
   title: string;
   icon: string | null;
   deletedAt: number | null;
@@ -28,14 +29,14 @@ export interface ChainEntry {
 /** The page followed by its ancestors, up to the root. Empty if the page does not exist. */
 export function getChain(db: Db, pageId: string): ChainEntry[] {
   return db.all<ChainEntry>(sql`
-    WITH RECURSIVE chain(id, parent_id, workspace_id, title, icon, deleted_at, depth) AS (
-      SELECT id, parent_id, workspace_id, title, icon, deleted_at, 0 FROM pages WHERE id = ${pageId}
+    WITH RECURSIVE chain(id, parent_id, workspace_id, kind, title, icon, deleted_at, depth) AS (
+      SELECT id, parent_id, workspace_id, kind, title, icon, deleted_at, 0 FROM pages WHERE id = ${pageId}
       UNION ALL
-      SELECT p.id, p.parent_id, p.workspace_id, p.title, p.icon, p.deleted_at, chain.depth + 1
+      SELECT p.id, p.parent_id, p.workspace_id, p.kind, p.title, p.icon, p.deleted_at, chain.depth + 1
       FROM pages p JOIN chain ON p.id = chain.parent_id
       WHERE chain.depth < 1000
     )
-    SELECT id, parent_id AS parentId, workspace_id AS workspaceId, title, icon, deleted_at AS deletedAt
+    SELECT id, parent_id AS parentId, workspace_id AS workspaceId, kind, title, icon, deleted_at AS deletedAt
     FROM chain ORDER BY depth
   `);
 }

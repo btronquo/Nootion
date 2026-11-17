@@ -171,6 +171,8 @@ export const pages = sqliteTable(
       .default("page"),
     title: text("title").notNull().default(""),
     icon: text("icon"),
+    // Databases only: a few lines shown under the title (a database page has rows, not free text).
+    description: text("description").notNull().default(""),
     fullWidth: integer("full_width", { mode: "boolean" }).notNull().default(false),
     /** Banner at the top of the page: an attachment, an image link or a built-in gradient (see coverSchema). */
     cover: text("cover"),

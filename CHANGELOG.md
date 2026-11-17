@@ -7,6 +7,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- Database pages are easy to tell apart: a database shows a small database mark in the corner of its icon (or the
+  database icon when it has none) in the sidebar, favourites, the breadcrumb, search and the command palette, the
+  home page's lists and backlinks. Under its title, a "Database" badge explains, when clicked, that such a page holds
+  rows rather than free text, and how to write around it (a page showing it with "/linked view"). Below it, a
+  description of a few lines ("Add a description…"), kept by the desktop sync, shown on public links, and filled in
+  from the database's own description when importing from other tools. Enter in the title moves to it. Migration
+  0050 adds `pages.description`.
 - Guided tour for new accounts: about ten cards, each with a small drawing, a short text and the keys to press,
   show what Nootion can do (blocks and "/", databases and their views, equations and Mermaid diagrams, synced
   blocks, the command palette and quick capture, tasks and dates written in words, working together, the AI
@@ -199,6 +206,7 @@ services compatible with OpenAI's API work with their address and key. Nothing l
 
 ### Fixed
 
+- Locking a page or a database in the desktop app didn't lock it on the server after the sync (unlocking did).
 - Activity log: lines written in the same millisecond (a group taken out of a page right before someone is taken out
   of the group…) could be listed in either order. Their ids now follow the order they were written in.
 - Clicking a block's dots to open its menu emptied the page (since equations came in, not in a released version).
