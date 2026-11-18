@@ -83,7 +83,7 @@ async fn probe_url(base: url::Url) -> Result<ProbeOk, ProbeError> {
     let health = base.join("/api/health").map_err(|e| ProbeError::new("invalid_url", e.to_string()))?;
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(10))
-        .user_agent(concat!("Nootion-Desktop/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("Nootion-Desktop/", env!("NOOTION_DESKTOP_VERSION")))
         .build()
         .map_err(|e| ProbeError::new("unreachable", e.to_string()))?;
     let res = client.get(health.clone()).send().await.map_err(|e| {

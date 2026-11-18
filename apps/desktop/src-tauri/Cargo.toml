@@ -1,6 +1,6 @@
 [package]
 name = "nootion-desktop"
-version = "3.5.0"
+version = "0.0.0" # unused: the version is apps/desktop/package.json's (build.rs)
 description = "Nootion for Windows, macOS and Linux"
 license = "AGPL-3.0-only"
 edition = "2021"
@@ -12,6 +12,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2.5", features = [] }
+serde_json = "1"
 
 [dependencies]
 tauri = { version = "2.12", features = [] }
