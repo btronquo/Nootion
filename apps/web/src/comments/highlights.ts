@@ -90,6 +90,12 @@ export const CommentHighlights = Extension.create<{ onOpen: (threadId: string) =
               if (!th.anchor || th.resolvedAt) continue;
               const range = resolve(state, th.anchor);
               if (!range) continue;
+              // An image (or another block without text) commented as a whole: the block shows it itself.
+              const node = state.doc.nodeAt(range.from);
+              if (node && node.isLeaf && !node.isInline && range.to - range.from === node.nodeSize) {
+                decorations.push(Decoration.node(range.from, range.to, {}, { commentThread: th.id, active: th.id === active }));
+                continue;
+              }
               decorations.push(
                 Decoration.inline(range.from, range.to, {
                   class: `comment-highlight${th.id === active ? " comment-highlight-active" : ""}`,

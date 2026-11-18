@@ -1,5 +1,5 @@
 import { Extension } from "@tiptap/core";
-import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { NodeSelection, Plugin, PluginKey } from "@tiptap/pm/state";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { ChevronLeft, ChevronRight, ExternalLink, X } from "lucide-react";
@@ -24,6 +24,12 @@ export const ImageViewer = Extension.create({
             const target = event.target as HTMLElement | null;
             // Only the image blocks: blocks drawn by their own components (widgets, carousels...) handle their own clicks.
             if (!(target instanceof HTMLImageElement) || !isImageBlock(target, view.dom)) return false;
+            // On a touch screen, where nothing shows on hover, a first tap picks the image (for its bar and handles),
+            // and a second one opens it.
+            if (view.editable && window.matchMedia?.("(hover: none)").matches) {
+              const sel = view.state.selection;
+              if (!(sel instanceof NodeSelection && view.nodeDOM(sel.from)?.contains(target))) return false;
+            }
             const imgs = pageImages(view.dom);
             event.preventDefault();
             openImageViewer(
@@ -44,12 +50,11 @@ function pageImages(root: HTMLElement): HTMLImageElement[] {
 }
 
 /**
- * An image of the content itself, not one inside a block drawn by its own component, nor a link.
- * (ProseMirror marks the image itself contenteditable="false", and the whole read-only view too.)
+ * An image block of this editor, not an image inside a block drawn by its own component (widgets, carousels…), nor
+ * one of an editor nested in it (a synced block), nor a link.
  */
 function isImageBlock(img: HTMLImageElement, root: HTMLElement): boolean {
-  const drawn = img.parentElement?.closest('[contenteditable="false"]');
-  return !!img.src && root.contains(img) && (!drawn || drawn === root) && !img.closest("a[href]");
+  return !!img.src && img.hasAttribute("data-image-img") && img.closest(".ProseMirror") === root && !img.closest("a[href]");
 }
 
 let host: { root: Root; el: HTMLElement } | null = null;
