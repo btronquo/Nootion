@@ -5,6 +5,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed
+
+- Desktop app on Windows: "On this computer" opens again. The local space no longer stops at start with
+  "EISDIR: illegal operation on a directory, lstat 'C:'" in server.log: the app now gives the built-in server its
+  folders in the usual Windows form (`C:\...`) rather than the `\\?\C:\...` form Node can't start from (#50).
+
 ## [4.0.0] - 2026-11-17
 
 ### Added

@@ -90,6 +90,26 @@ pub fn available(app: &AppHandle) -> bool {
     server_dir(app).is_ok()
 }
 
+/// `\\?\C:\...` (Windows' "verbatim" form) as `C:\...`, and `\\?\UNC\server\share` as `\\server\share`.
+/// Windows hands out such paths (the app's folders, its resources), and Node can't start from one: it fails with
+/// "EISDIR: illegal operation on a directory, lstat 'C:'" before running a line. Other paths are left as they are.
+fn without_verbatim_prefix(path: &str) -> Option<String> {
+    if let Some(rest) = path.strip_prefix(r"\\?\UNC\") {
+        return Some(format!(r"\\{rest}"));
+    }
+    let rest = path.strip_prefix(r"\\?\")?;
+    let b = rest.as_bytes();
+    (b.len() >= 2 && b[0].is_ascii_alphabetic() && b[1] == b':').then(|| rest.to_string())
+}
+
+/// A path as given to the Node server: in the usual Windows form, which Node understands.
+fn for_node(path: &Path) -> PathBuf {
+    match path.to_str().and_then(without_verbatim_prefix) {
+        Some(plain) => PathBuf::from(plain),
+        None => path.to_path_buf(),
+    }
+}
+
 fn user_name() -> String {
     std::env::var("USERNAME").or_else(|_| std::env::var("USER")).unwrap_or_else(|_| "Nootion".into())
 }
@@ -131,10 +151,11 @@ impl Local {
         let secret = settings.secret.get_or_insert_with(|| random_hex(32)).clone();
         save_settings(&settings_path, &settings)?;
 
-        let server = server_dir(app)?;
+        let server = for_node(&server_dir(app)?);
+        let data = for_node(&data);
         let token = random_hex(32);
         let log = fs::OpenOptions::new().create(true).append(true).open(base.join("server.log")).map_err(|e| e.to_string())?;
-        let mut cmd = Command::new(node_binary());
+        let mut cmd = Command::new(for_node(&node_binary()));
         cmd.arg(server.join("dist").join("index.js"))
             .current_dir(&server)
             .env("NODE_ENV", "production")
@@ -231,6 +252,23 @@ mod tests {
         let s = load_settings(&path);
         assert_eq!((s.port, s.secret.as_deref()), (Some(41234), Some("s")));
         let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn verbatim_paths() {
+        let plain = |p: &str| without_verbatim_prefix(p);
+        assert_eq!(
+            plain(r"\\?\C:\Users\Ana\AppData\Local\Nootion\local-server").as_deref(),
+            Some(r"C:\Users\Ana\AppData\Local\Nootion\local-server")
+        );
+        assert_eq!(plain(r"\\?\d:\Nootion").as_deref(), Some(r"d:\Nootion"));
+        assert_eq!(plain(r"\\?\UNC\nas\share\Nootion").as_deref(), Some(r"\\nas\share\Nootion"));
+        // Already plain, or a verbatim path with no drive letter: left alone.
+        assert_eq!(plain(r"C:\Users\Ana"), None);
+        assert_eq!(plain("/home/ana/.local/share/nootion"), None);
+        assert_eq!(plain(r"\\?\Volume{0b1f}\Nootion"), None);
+        assert_eq!(for_node(Path::new("/opt/Nootion/local-server")), PathBuf::from("/opt/Nootion/local-server"));
+        assert_eq!(for_node(Path::new(r"\\?\C:\Nootion")), PathBuf::from(r"C:\Nootion"));
     }
 
     #[test]
