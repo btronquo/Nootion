@@ -10,6 +10,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - Desktop app on Windows: "On this computer" opens again. The local space no longer stops at start with
   "EISDIR: illegal operation on a directory, lstat 'C:'" in server.log: the app now gives the built-in server its
   folders in the usual Windows form (`C:\...`) rather than the `\\?\C:\...` form Node can't start from (#50).
+- Desktop app: the server picker showed "Nootion for desktop 3.5.0" whatever the version installed, and the local
+  space believed it ran 3.5.0, so its "What's new" window missed the notes of later versions. The app now takes its
+  version from the same place as its installers.
 
 ## [4.0.0] - 2026-11-17
 

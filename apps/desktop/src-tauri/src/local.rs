@@ -166,7 +166,7 @@ impl Local {
             .env("DATA_DIR", &data)
             .env("WEB_DIR", server.join("web"))
             .env("UPDATE_CHECK", "false")
-            .env("NOOTION_VERSION", env!("CARGO_PKG_VERSION"))
+            .env("NOOTION_VERSION", env!("NOOTION_DESKTOP_VERSION"))
             .env("TRUST_PROXY", "false")
             .env("NOOTION_DESKTOP_TOKEN", &token)
             .env("NOOTION_DESKTOP_USER", user_name())
