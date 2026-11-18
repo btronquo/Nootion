@@ -5,7 +5,7 @@
 **Your pages, wikis and real databases, on your own server.**<br>
 An open-source, self-hosted workspace that fits in a single Docker container.
 
-[![Version 4.0.0](https://img.shields.io/badge/version-4.0.0-7c3aed)](CHANGELOG.md)
+[![Version 4.1.0](https://img.shields.io/badge/version-4.1.0-7c3aed)](CHANGELOG.md)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
 [![CI](https://github.com/btronquo/Nootion/actions/workflows/ci.yml/badge.svg)](https://github.com/btronquo/Nootion/actions/workflows/ci.yml)
 [![Docker image](https://img.shields.io/badge/docker-ghcr.io%2Fbtronquo%2Fnootion-2496ED?logo=docker&logoColor=white)](https://github.com/btronquo/Nootion/pkgs/container/nootion)
@@ -22,7 +22,7 @@ An open-source, self-hosted workspace that fits in a single Docker container.
 
 </div>
 
-> Version 4.0.0. See [CHANGELOG.md](CHANGELOG.md) for what changed.
+> Version 4.1.0. See [CHANGELOG.md](CHANGELOG.md) for what changed.
 
 ![A Nootion page with its sidebar, a callout, a table of contents and formatted text](docs/screenshots/editor.png)
 
@@ -160,7 +160,8 @@ on a phone, offline use and imports.
 - Columns side by side with a bar to resize them.
 - Print a page or save it as PDF (Ctrl+P): only the page, toggles open, every row of its databases, optional new
   sheet before headings. See [docs/EDITOR.md](docs/EDITOR.md).
-- Images open full screen when clicked, to go through a page's images.
+- Images: a handle on each side to resize them, and a bar to align, caption, comment, crop (free or 1:1, 4:3,
+  16:9, 3:4, the file stays whole), download or reset them. They open full screen to go through a page's images.
 - Videos (`/video`): YouTube, Vimeo, Dailymotion, Loom, PeerTube, Twitch or Google Drive links, or video files.
 - Drawing block (`/drawing`): pen, highlighter, shapes, arrows and text boxes, saved with the page, with a
   full-screen whiteboard and an SVG download.

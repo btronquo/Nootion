@@ -2,7 +2,6 @@ import type { AnyExtension } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { TaskList } from "@tiptap/extension-list";
 import { TableKit } from "@tiptap/extension-table";
-import Image from "@tiptap/extension-image";
 import { Placeholder } from "@tiptap/extensions";
 import type { ClientPluginInfo } from "@nootion/shared";
 import { DetailsContent, DetailsSummary } from "@tiptap/extension-details";
@@ -30,6 +29,7 @@ import { HandleTargets } from "./handleTargets";
 import { ColumnResize } from "./columnResize";
 import { LinkClicks } from "./linkClicks";
 import { ImageViewer } from "./imageViewer";
+import { NootionImage } from "./imageBlock";
 import { Highlight, TextColor } from "./textColors";
 import { NootionCodeBlock } from "./codeBlock";
 import { MathBlock, MathInline } from "./mathNodes";
@@ -70,7 +70,7 @@ export function baseExtensions(opts: {
     RepeatingTaskItem.configure({ nested: true }),
     TaskRepeatExtension,
     TableKit.configure({ table: { resizable: true } }),
-    Image,
+    NootionImage,
     ImageViewer,
     Callout,
     Toggle,

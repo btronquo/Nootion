@@ -245,6 +245,11 @@ function CollabEditor({
   );
   const editorRef = useMemo(() => ({ current: null as Editor | null }), []);
   editorRef.current = editor;
+  // Image blocks offer "Comment" and open their threads from their badge.
+  if (editor?.storage.image) {
+    editor.storage.image.onComment = comments?.canComment ? (pos) => commentsRef.current && commentBlock(editor, pos, commentsRef.current) : null;
+    editor.storage.image.openThread = comments ? (id) => commentsRef.current?.onOpen(id) : null;
+  }
 
   // Offline, a page never opened on this device can't be edited: typing into an empty copy would duplicate its content
   // once merged with the server's.
@@ -335,6 +340,15 @@ function CollabEditor({
 function startComment(editor: Editor, comments: EditorComments) {
   const draft = selectionAnchor(editor);
   if (draft) comments.onComment(draft);
+}
+
+/** A comment on a whole block without text (an image): the block is picked, and named in the comment. */
+function commentBlock(editor: Editor, pos: number, comments: EditorComments) {
+  editor.chain().setNodeSelection(pos).run();
+  const draft = selectionAnchor(editor);
+  if (!draft) return;
+  const caption = String(editor.state.doc.nodeAt(pos)?.attrs.caption ?? "").trim();
+  comments.onComment({ ...draft, quote: caption ? `${t("image.quote")} · ${caption}` : t("image.quote") });
 }
 
 const bubbleShown = ({ editor: e, from, to }: { editor: Editor; from: number; to: number }) =>

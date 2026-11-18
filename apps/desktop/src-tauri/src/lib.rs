@@ -55,7 +55,7 @@ fn launcher_state(app: AppHandle, state: State<'_, AppState>) -> LauncherState {
         profiles: p.sorted(),
         last: p.last.clone(),
         french: french(),
-        version: env!("CARGO_PKG_VERSION"),
+        version: env!("NOOTION_DESKTOP_VERSION"),
         local_available: local::available(&app),
     }
 }

@@ -197,9 +197,9 @@ async function convertBlock(block: BlockTree, ctx: ConvertContext): Promise<Pros
           note("fileMissing", fileName(url, "image"));
           return [];
         }
-        return [{ type: "image", attrs: { src: saved.url, alt: caption || null } }];
+        return [{ type: "image", attrs: { src: saved.url, alt: caption || null, caption: caption || null } }];
       }
-      return url ? [{ type: "image", attrs: { src: url, alt: caption || null } }] : [];
+      return url ? [{ type: "image", attrs: { src: url, alt: caption || null, caption: caption || null } }] : [];
     }
     case "video": {
       // In a video block: a file of the export, or a video site's link (YouTube…).

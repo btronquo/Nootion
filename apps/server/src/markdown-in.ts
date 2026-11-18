@@ -151,6 +151,26 @@ const paragraph = (src: string, o: Opts = BASIC): ProseMirrorNode => {
 
 const LIST_ITEM = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/;
 
+/** An image's width, alignment, caption and crop, as the editor keeps them: invalid values are dropped. */
+function imageLayout(attrs: Record<string, unknown>) {
+  const num = (v: unknown) => typeof v === "number" && Number.isFinite(v);
+  const crop = attrs.crop as Record<string, unknown> | null | undefined;
+  const cropOk =
+    !!crop &&
+    typeof crop === "object" &&
+    ["x", "y", "w", "h", "r"].every((k) => num(crop[k])) &&
+    (crop.r as number) > 0 &&
+    ["x", "y", "w", "h"].every((k) => (crop[k] as number) >= 0 && (crop[k] as number) <= 1);
+  const checked: Record<string, unknown> = {
+    width: num(attrs.width) && (attrs.width as number) >= 48 ? Math.round(attrs.width as number) : null,
+    align: attrs.align === "center" || attrs.align === "right" ? attrs.align : null,
+    caption: typeof attrs.caption === "string" ? attrs.caption.slice(0, 2000) : null,
+    crop: cropOk ? { x: crop.x, y: crop.y, w: crop.w, h: crop.h, r: crop.r } : null,
+  };
+  // Only the ones it was given: images without them stay as they are.
+  return Object.fromEntries(Object.entries(checked).filter(([key]) => key in attrs));
+}
+
 /** Blocks of Markdown: headings, paragraphs, lists and to-do lists, quotes, code, tables, images, dividers. */
 export function parseMarkdown(markdown: string, options?: MarkdownInOptions): ProseMirrorNode {
   return { type: "doc", content: parseBlocks(markdown.replace(/\r\n?/g, "\n").split("\n"), opts(options)) };
@@ -410,6 +430,7 @@ export function checkContent(json: unknown, userId: string, maxNodes = 20_000): 
       if (n.type === "userMention") attrs = { ...attrs, id: typeof attrs.id === "string" && attrs.id ? attrs.id : randomUUID(), by: userId };
       // An equation is its LaTeX, as text: never longer than the editor draws.
       if (n.type === "mathInline" || n.type === "mathBlock") attrs = { latex: typeof attrs.latex === "string" ? attrs.latex.slice(0, MAX_LATEX) : "" };
+      if (n.type === "image") attrs = { ...attrs, ...imageLayout(attrs) };
       if (n.type === "dateMention") {
         attrs.id = randomUUID();
         if (attrs.remindUser !== userId) attrs = { ...attrs, reminder: null, remindAt: null, remindUser: null };
