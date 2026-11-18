@@ -130,8 +130,11 @@ function block(n: ProseMirrorNode, links: MarkdownLinks): string {
       return n.attrs?.latex ? `$$\n${String(n.attrs.latex).trim()}\n$$` : "";
     case "horizontalRule":
       return "---";
-    case "image":
-      return inline([n], links);
+    case "image": {
+      // The caption, in italics under the image.
+      const caption = typeof n.attrs?.caption === "string" ? n.attrs.caption.trim() : "";
+      return caption ? `${inline([n], links)}\n*${escapeText(caption)}*` : inline([n], links);
+    }
     case "table": {
       const rows = (n.content ?? []).map((r) => (r.content ?? []).map((c) => cellText(c, links)));
       if (!rows.length) return "";

@@ -444,7 +444,7 @@ body {
 .nootion-content img {
   @apply my-2 max-w-full rounded-md;
 }
-.nootion-content > .ProseMirror-selectednode:not(img, [data-node-view-wrapper], .node-syncedBlock),
+.nootion-content > .ProseMirror-selectednode:not(img, [data-node-view-wrapper], .node-syncedBlock, .node-image),
 .nootion-content li.ProseMirror-selectednode {
   /* The block whose menu is open (or picked with its handle), as in Notion. */
   background-color: rgb(35 131 226 / 0.14);
@@ -452,6 +452,173 @@ body {
 }
 .nootion-content img.ProseMirror-selectednode {
   @apply outline-2 outline-blue-500;
+}
+
+/* ---------- Image blocks: width set by their side handles, alignment, caption, crop, bar on hover ---------- */
+.nootion-content .image-block {
+  @apply my-2 flex;
+}
+.nootion-content .image-block[data-align="center"] {
+  @apply justify-center;
+}
+.nootion-content .image-block[data-align="right"] {
+  @apply justify-end;
+}
+.nootion-content .image-inner {
+  @apply flex max-w-full min-w-0 flex-col;
+}
+.nootion-content .image-frame {
+  @apply relative max-w-full rounded-md;
+}
+.nootion-content .image-frame img {
+  @apply my-0 block max-w-full;
+}
+.nootion-content .image-crop {
+  @apply relative w-full overflow-hidden rounded-md;
+}
+.nootion-content .image-crop img {
+  @apply absolute max-w-none rounded-none;
+}
+.nootion-content .image-block[data-selected] .image-frame {
+  @apply outline-2 outline-offset-2 outline-blue-500;
+}
+.nootion-content .image-frame-commented {
+  @apply outline-2 outline-offset-2 outline-amber-400 dark:outline-amber-500;
+}
+.nootion-content .image-toolbar {
+  @apply absolute top-2 right-2 z-10 flex items-center gap-0.5 rounded-md border border-neutral-200 bg-white/95 p-0.5 opacity-0 shadow-md backdrop-blur-sm transition-opacity duration-150 dark:border-neutral-700 dark:bg-neutral-900/95;
+  pointer-events: none;
+}
+.nootion-content .image-handle {
+  /* A wide strip to grab, with a thin bar drawn in its middle. */
+  @apply absolute top-0 bottom-0 z-10 flex w-4 cursor-col-resize items-center justify-center opacity-0 transition-opacity duration-150;
+  touch-action: none;
+  pointer-events: none;
+}
+.nootion-content .image-handle[data-side="left"] {
+  @apply left-0;
+}
+.nootion-content .image-handle[data-side="right"] {
+  @apply right-0;
+}
+.nootion-content .image-handle::after {
+  content: "";
+  @apply h-12 max-h-[50%] w-1.5 rounded-full border border-white/80 bg-neutral-900/60 shadow;
+}
+.nootion-content .image-handle:hover::after {
+  @apply bg-neutral-900/80;
+}
+/* Shown on hover, or while the image is picked, being resized, or has a menu open. */
+@media (hover: hover) {
+  .nootion-content .image-frame:hover .image-toolbar,
+  .nootion-content .image-frame:hover .image-handle {
+    @apply opacity-100;
+    pointer-events: auto;
+  }
+}
+.nootion-content .image-block[data-active] .image-toolbar,
+.nootion-content .image-block[data-active] .image-handle,
+.nootion-content .image-toolbar:focus-within {
+  @apply opacity-100;
+  pointer-events: auto;
+}
+/* Fingers need bigger strips. */
+@media (hover: none) {
+  .nootion-content .image-handle {
+    @apply w-7;
+  }
+  .nootion-content .image-handle::after {
+    @apply w-2;
+  }
+}
+.nootion-content .image-comments {
+  @apply absolute right-2 bottom-2 z-10 flex items-center gap-1 rounded-full bg-amber-300 px-2 py-1 text-xs font-medium text-neutral-900 shadow hover:bg-amber-400 dark:bg-amber-500;
+}
+.nootion-content .image-caption {
+  @apply mt-1.5 w-full resize-none overflow-hidden border-0 bg-transparent p-0 text-sm leading-snug text-neutral-500 outline-none placeholder:text-neutral-400 dark:text-neutral-400 dark:placeholder:text-neutral-500;
+}
+.nootion-content .image-block[data-align="center"] .image-caption {
+  @apply text-center;
+}
+.nootion-content .image-block[data-align="right"] .image-caption {
+  @apply text-right;
+}
+@media print {
+  .nootion-content .image-toolbar,
+  .nootion-content .image-handle,
+  .nootion-content .image-comments {
+    display: none !important;
+  }
+  .nootion-content .image-crop img {
+    max-width: none !important;
+  }
+  .nootion-content .image-frame {
+    outline: none !important;
+  }
+}
+.crop-handle {
+  @apply absolute z-10 block h-5 w-5;
+  touch-action: none;
+}
+.crop-handle::after {
+  content: "";
+  @apply absolute inset-1 rounded-sm border-2 border-neutral-900/40 bg-white;
+}
+.crop-handle[data-handle="nw"] {
+  @apply -top-2.5 -left-2.5 cursor-nwse-resize;
+}
+.crop-handle[data-handle="ne"] {
+  @apply -top-2.5 -right-2.5 cursor-nesw-resize;
+}
+.crop-handle[data-handle="sw"] {
+  @apply -bottom-2.5 -left-2.5 cursor-nesw-resize;
+}
+.crop-handle[data-handle="se"] {
+  @apply -right-2.5 -bottom-2.5 cursor-nwse-resize;
+}
+.crop-handle[data-handle="n"] {
+  @apply -top-2.5 left-1/2 -translate-x-1/2 cursor-ns-resize;
+}
+.crop-handle[data-handle="s"] {
+  @apply -bottom-2.5 left-1/2 -translate-x-1/2 cursor-ns-resize;
+}
+.crop-handle[data-handle="e"] {
+  @apply top-1/2 -right-2.5 -translate-y-1/2 cursor-ew-resize;
+}
+.crop-handle[data-handle="w"] {
+  @apply top-1/2 -left-2.5 -translate-y-1/2 cursor-ew-resize;
+}
+@media (hover: none) {
+  .crop-handle {
+    @apply h-8 w-8;
+  }
+  .crop-handle::after {
+    @apply inset-2;
+  }
+  .crop-handle[data-handle="nw"] {
+    @apply -top-4 -left-4;
+  }
+  .crop-handle[data-handle="ne"] {
+    @apply -top-4 -right-4;
+  }
+  .crop-handle[data-handle="sw"] {
+    @apply -bottom-4 -left-4;
+  }
+  .crop-handle[data-handle="se"] {
+    @apply -right-4 -bottom-4;
+  }
+  .crop-handle[data-handle="n"] {
+    @apply -top-4;
+  }
+  .crop-handle[data-handle="s"] {
+    @apply -bottom-4;
+  }
+  .crop-handle[data-handle="e"] {
+    @apply -right-4;
+  }
+  .crop-handle[data-handle="w"] {
+    @apply -left-4;
+  }
 }
 /* The emoji sits in the left margin; the blocks of the callout go one under the other. */
 .nootion-content .callout {
