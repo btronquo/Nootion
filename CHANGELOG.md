@@ -5,6 +5,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [4.1.0] - 2026-11-18
+
+### Added
+
+- Images can be resized and arranged in the page. On hover (or after a first tap on a touch screen), an image shows a
+  handle on each side to set its width, kept in the page, and a bar to align it (left, centre, right), add a caption,
+  comment on it, crop it (free or 1:1, 4:3, 16:9, 3:4: the file itself is kept whole, so a crop can be changed
+  later), see it full screen, download it, go back to its original size or delete it. A commented image shows a
+  badge that opens its thread. Captions are exported to Markdown and come with images imported from other tools.
+
 ### Fixed
 
 - Desktop app on Windows: "On this computer" opens again. The local space no longer stops at start with
@@ -711,6 +721,7 @@ First public version.
 - Markdown (.zip), CSV and JSON export, CSV import, full backup download.
 - Single Docker image (amd64 and arm64), data in `/data`, migrations applied at startup.
 
+[4.1.0]: ../../releases/tag/v4.1.0
 [4.0.0]: ../../releases/tag/v4.0.0
 [3.6.0]: ../../releases/tag/v3.6.0
 [3.5.0]: ../../releases/tag/v3.5.0
