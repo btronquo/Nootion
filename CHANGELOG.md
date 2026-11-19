@@ -13,7 +13,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   formatting toolbar rises from the selected text, and the colour and plugin menus pop in. Buttons, links and menu
   entries change colour softly on hover. The handles beside a block fade in, and a dragged block shows where it will
   land with a soft blue line. A page that loads shows grey lines where its title and text will be, rather than an
-  empty screen.
+  empty screen. The comments panel slides in from the right and back out when closed, and the page scrolls smoothly
+  to where a link, the table of contents or a comment takes it.
 
 ## [4.1.0] - 2026-11-18
 

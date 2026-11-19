@@ -102,6 +102,8 @@ function PageView({ page }: { page: PageDetail }) {
   const canComment = atLeast(page.role, "commenter");
   const [search, setSearch] = useSearchParams();
   const [commentsOpen, setCommentsOpen] = useState(() => !!search.get("comment"));
+  // The panel's own close, with its animation.
+  const closeComments = useRef<(() => void) | null>(null);
   const [activeThread, setActiveThread] = useState<string | null>(() => search.get("comment"));
   const [draft, setDraft] = useState<DraftAnchor | null>(null);
   const threads = useComments(page.id, hasComments);
@@ -202,7 +204,7 @@ function PageView({ page }: { page: PageDetail }) {
           {hasComments && (
             <Button
               variant="ghost"
-              onClick={() => setCommentsOpen((o) => !o)}
+              onClick={() => (commentsOpen ? (closeComments.current ?? (() => setCommentsOpen(false)))() : setCommentsOpen(true))}
               title={t("comments.title")}
               aria-label={t("comments.title")}
               aria-pressed={commentsOpen}
@@ -393,6 +395,7 @@ function PageView({ page }: { page: PageDetail }) {
       )}
       {hasComments && commentsOpen && (
         <CommentsPanel
+          closeRef={closeComments}
           pageId={page.id}
           canComment={canComment}
           active={activeThread}

@@ -117,6 +117,33 @@ body {
   animation: nt-sink-out 140ms var(--nt-ease-in) forwards;
 }
 
+/* The comments panel slides in from the right edge, and back out when closed. */
+@keyframes nt-panel-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+@keyframes nt-panel-out {
+  to {
+    transform: translateX(100%);
+  }
+}
+.nt-panel-right {
+  animation: nt-panel-in 280ms var(--nt-ease-out) backwards;
+}
+.nt-panel-right[data-closing] {
+  animation: nt-panel-out 200ms var(--nt-ease-in) forwards;
+}
+
+/* Smooth scrolling: the page (and the comments) glide to where a link, the table of contents or a search takes
+   them, and follow the text being typed softly. Only when motion isn't reduced. */
+@media (prefers-reduced-motion: no-preference) {
+  main,
+  .nt-smooth-scroll {
+    scroll-behavior: smooth;
+  }
+}
+
 /* Hovers and presses: colours change smoothly rather than at once, everywhere. In the base layer, so that any
    transition set on an element (Tailwind's classes) still wins. */
 @layer base {
@@ -175,6 +202,8 @@ body {
   .nt-fade,
   .nt-unfold,
   .nt-slide,
+  .nt-panel-right,
+  .nt-panel-right[data-closing],
   .nt-skeleton,
   .nt-skeleton-bar,
   .nt-dropcursor,
