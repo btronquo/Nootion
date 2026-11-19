@@ -19,9 +19,25 @@ body {
 }
 
 /* ---------- Motion ----------
-   Short, quiet animations: overlays fade, dialogs rise a little, menus pop.
+   Short, quiet animations: overlays fade, dialogs rise a little, menus pop, lists unfold.
+   One set of durations and curves for the whole interface, so that everything moves the same way:
+   - fast (120 ms): hovers, presses, colours;
+   - base (180 ms): menus, popovers, toolbars;
+   - slow (240 ms): dialogs, the sidebar, page changes.
    Closing ones play while the element has data-closing, before it unmounts.
-   "backwards" leaves no transform once done, so fixed children stay fixed. */
+   "backwards" leaves no transform once done, so fixed children stay fixed.
+   With "reduce motion" asked by the system, nothing moves (see the end of this section). */
+:root {
+  --nt-dur-fast: 120ms;
+  --nt-dur-base: 180ms;
+  --nt-dur-slow: 240ms;
+  /* Comes in quickly and settles softly. */
+  --nt-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  /* Leaves without lingering. */
+  --nt-ease-in: cubic-bezier(0.4, 0, 1, 1);
+  /* For the sidebar and other things that move across the screen. */
+  --nt-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+}
 @keyframes nt-fade-in {
   from {
     opacity: 0;
@@ -50,40 +66,126 @@ body {
     transform: translateY(-6px) scale(0.97);
   }
 }
+/* A toolbar above the selection: it comes up from the text. */
+@keyframes nt-pop-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.97);
+  }
+}
 @keyframes nt-slide-in {
   from {
     opacity: 0;
     transform: translateX(var(--nt-slide, 8px));
   }
 }
+/* Sub-pages of the sidebar, rows that appear: they unfold from just above. */
+@keyframes nt-unfold {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
 .nt-backdrop {
-  animation: nt-fade-in 180ms ease-out backwards;
+  animation: nt-fade-in var(--nt-dur-base) ease-out backwards;
 }
 .nt-dialog {
-  animation: nt-rise-in 220ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation: nt-rise-in var(--nt-dur-slow) var(--nt-ease-out) backwards;
 }
 .nt-pop {
   transform-origin: top left;
-  animation: nt-pop-in 180ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation: nt-pop-in var(--nt-dur-base) var(--nt-ease-out) backwards;
+}
+.nt-pop-up {
+  transform-origin: bottom center;
+  animation: nt-pop-up var(--nt-dur-base) var(--nt-ease-out) backwards;
+}
+.nt-fade {
+  animation: nt-fade-in var(--nt-dur-slow) ease-out backwards;
+}
+.nt-unfold {
+  animation: nt-unfold var(--nt-dur-base) var(--nt-ease-out) backwards;
 }
 /* A calendar month that slides in from the side it comes from. */
 .nt-slide {
-  animation: nt-slide-in 200ms cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  animation: nt-slide-in var(--nt-dur-base) var(--nt-ease-out) backwards;
 }
 .nt-backdrop[data-closing] {
-  animation: nt-fade-out 140ms ease-in forwards;
+  animation: nt-fade-out 140ms var(--nt-ease-in) forwards;
 }
 [data-closing] .nt-dialog {
-  animation: nt-sink-out 140ms ease-in forwards;
+  animation: nt-sink-out 140ms var(--nt-ease-in) forwards;
 }
+
+/* Hovers and presses: colours change smoothly rather than at once, everywhere. In the base layer, so that any
+   transition set on an element (Tailwind's classes) still wins. */
+@layer base {
+  button,
+  a,
+  summary,
+  [role="button"],
+  [role="menuitem"],
+  [role="option"],
+  [role="tab"] {
+    transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow;
+    transition-duration: var(--nt-dur-fast);
+    transition-timing-function: ease-out;
+  }
+}
+
+/* Loading: grey shapes where the content will be, shimmering gently, rather than an empty screen.
+   They only show after a moment, so that a quick load doesn't flash them. */
+@keyframes nt-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+.nt-skeleton {
+  animation: nt-fade-in var(--nt-dur-slow) ease-out 150ms backwards;
+}
+.nt-skeleton-bar {
+  @apply rounded-md bg-neutral-200/70 dark:bg-neutral-800;
+  background-image: linear-gradient(90deg, transparent 0%, rgb(255 255 255 / 0.55) 50%, transparent 100%);
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: nt-shimmer 1.4s ease-in-out infinite;
+}
+.dark .nt-skeleton-bar {
+  background-image: linear-gradient(90deg, transparent 0%, rgb(255 255 255 / 0.06) 50%, transparent 100%);
+}
+
+/* The handles beside the block under the mouse fade in (tiptap shows them by clearing "visibility: hidden"). */
+.drag-handle {
+  transition: opacity var(--nt-dur-fast) ease-out;
+}
+.drag-handle[style*="visibility: hidden"] {
+  opacity: 0;
+}
+/* Where a dragged block will land: a soft blue line rather than a thin black one. */
+.nt-dropcursor {
+  @apply rounded-full bg-blue-500/60 dark:bg-blue-400/60;
+  animation: nt-fade-in var(--nt-dur-fast) ease-out backwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .nt-backdrop,
   .nt-dialog,
   .nt-pop,
+  .nt-pop-up,
+  .nt-fade,
+  .nt-unfold,
   .nt-slide,
+  .nt-skeleton,
+  .nt-skeleton-bar,
+  .nt-dropcursor,
   .nt-backdrop[data-closing],
   [data-closing] .nt-dialog {
     animation: none;
+  }
+  :root {
+    --nt-dur-fast: 0ms;
+    --nt-dur-base: 0ms;
+    --nt-dur-slow: 0ms;
   }
 }
 
@@ -648,7 +750,7 @@ body {
 }
 .nootion-content [data-type="details"] > button::before {
   content: "▶";
-  @apply text-[10px] transition-transform;
+  @apply text-[10px] transition-transform duration-(--nt-dur-base) ease-(--nt-ease-out);
 }
 .nootion-content [data-type="details"].is-open > button::before {
   @apply rotate-90;
@@ -682,6 +784,10 @@ body {
 }
 .nootion-content [data-type="detailsContent"][hidden] {
   display: none;
+}
+/* A toggle that opens unfolds its content (an animation starts again each time it stops being hidden). */
+.nootion-content [data-type="details"].is-open > div > [data-type="detailsContent"] {
+  animation: nt-unfold var(--nt-dur-base) var(--nt-ease-out) backwards;
 }
 .nootion-content .columns {
   @apply my-2 grid gap-10;

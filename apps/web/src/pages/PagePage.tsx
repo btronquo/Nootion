@@ -52,13 +52,14 @@ import { useComments } from "../comments/queries";
 import { nextRunText, recurrenceText, RecurrenceDialog, useRecurrence } from "../components/RecurrenceDialog";
 import { PageGlyph, pageIcon } from "../lib/icons";
 import { DatabaseIntro } from "../components/DatabaseIntro";
+import { PageSkeleton } from "../components/Skeleton";
 
 /** A page, by the id in the address (or the one given, for the home page). */
 export function PagePage({ id: given }: { id?: string }) {
   const { id: param = "" } = useParams();
   const id = given ?? param;
   const page = usePage(id);
-  if (page.isLoading) return null;
+  if (page.isLoading) return <PageSkeleton />;
   if (page.isError || !page.data) {
     return (
       <div className="mx-auto max-w-3xl px-5 py-8 sm:px-8 sm:py-16 text-neutral-500">

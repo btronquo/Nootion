@@ -10,11 +10,12 @@ import { Database, FileText } from "lucide-react";
 import { useSharedPages } from "../lib/queries";
 import { pageIcon } from "../lib/icons";
 import { pageTitle } from "../lib/tree";
+import { PageSkeleton } from "../components/Skeleton";
 
 /** The user's home page: an ordinary page of widgets, created on first visit. Offline, a plain welcome. */
 export function HomePage() {
   const home = useQuery({ queryKey: ["home"], queryFn: async () => (await api<{ pageId: string }>("/home")).pageId, staleTime: Infinity, retry: 1 });
-  if (home.isLoading) return null;
+  if (home.isLoading) return <PageSkeleton />;
   if (home.data) return <PagePage id={home.data} />;
   return <Welcome />;
 }

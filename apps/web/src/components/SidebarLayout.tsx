@@ -23,6 +23,9 @@ interface SidebarState {
 }
 const SidebarContext = createContext<SidebarState | null>(null);
 const COLLAPSED_KEY = "nootion-sidebar-collapsed";
+/** How long the page takes to fade in (--nt-dur-slow in index.css). */
+const SLIDE_MS = 240;
+const reducedMotion = () => !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
 const WIDTH_KEY = "nootion-sidebar-width";
 const DEFAULT_WIDTH = 256;
@@ -65,19 +68,28 @@ export function SidebarLayout({
   const [width, setWidth] = useState(readWidth);
   const [resizing, setResizing] = useState(false);
   const [peeking, setPeeking] = useState(false);
+  // Put away, it floats as a card over the content when hovered; it only takes that shape once it has slid out,
+  // so that putting it away is one smooth movement.
+  const [floating, setFloating] = useState(collapsed);
+  useEffect(() => {
+    if (!collapsed) return setFloating(false);
+    // Normally when the slide ends (onTransitionEnd below); this in case no slide plays (a narrow window).
+    const timer = window.setTimeout(() => setFloating(true), reducedMotion() ? 0 : 1000);
+    return () => window.clearTimeout(timer);
+  }, [collapsed]);
   const hideTimer = useRef<number | undefined>(undefined);
   const location = useLocation();
   const main = useRef<HTMLElement>(null);
   useEffect(() => setOpen(false), [location.pathname]);
   // A gentle fade when moving to another page; nothing is remounted for it.
   useEffect(() => {
-    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    if (reducedMotion()) return;
     main.current?.animate?.(
       [
         { opacity: 0, transform: "translateY(4px)" },
         { opacity: 1, transform: "none" },
       ],
-      { duration: 240, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
+      { duration: SLIDE_MS, easing: "cubic-bezier(0.16, 1, 0.3, 1)" },
     );
   }, [location.pathname]);
   useEffect(() => {
@@ -182,9 +194,11 @@ export function SidebarLayout({
 
   // On phones it takes the visible height (above the browser's toolbars) and scrolls as a whole, so that its
   // footer (account, administration) can always be reached; on wide screens only its page list scrolls.
+  // On wide screens it is always fixed, and a spacer beside the content takes its width: putting it away, the spacer
+  // narrows while the sidebar slides out, so the content glides over instead of jumping.
   const desktop = collapsed
-    ? `md:top-12 md:bottom-3 md:rounded-r-xl md:border md:border-l-0 md:shadow-2xl ${peeking ? "md:translate-x-0" : "md:-translate-x-full"}`
-    : "md:static md:z-auto md:translate-x-0 md:transition-none";
+    ? `${floating ? "md:top-12 md:bottom-3 md:rounded-r-xl md:border md:border-l-0 md:shadow-2xl" : "md:bottom-0"} ${peeking ? "md:translate-x-0" : "md:-translate-x-full"}`
+    : "md:bottom-0 md:z-30 md:translate-x-0";
   return (
     <SidebarContext.Provider value={state}>
       {/* overflow-hidden: the fade-in nudges the page down 4px, which must not make the window scroll. */}
@@ -213,7 +227,8 @@ export function SidebarLayout({
           inert={collapsed && !peeking && !open ? true : undefined}
           onMouseEnter={collapsed ? () => peek(true) : undefined}
           onMouseLeave={collapsed ? () => peek(false) : undefined}
-          className={`print:hidden group/sidebar fixed top-0 left-0 z-50 flex h-dvh w-72 max-w-[85vw] shrink-0 flex-col overflow-y-auto border-r pb-[env(safe-area-inset-bottom)] md:h-auto md:overflow-visible md:pb-0 border-neutral-200 bg-neutral-50 transition-transform duration-200 md:w-(--sidebar-w) dark:border-neutral-800 dark:bg-neutral-950 ${open ? "translate-x-0 shadow-2xl" : "-translate-x-full"} ${desktop}`}
+          onTransitionEnd={(e) => collapsed && e.target === e.currentTarget && e.propertyName === "transform" && setFloating(true)}
+          className={`print:hidden group/sidebar fixed top-0 left-0 z-50 flex h-dvh w-72 max-w-[85vw] shrink-0 flex-col overflow-y-auto border-r pb-[env(safe-area-inset-bottom)] md:h-auto md:overflow-visible md:pb-0 border-neutral-200 bg-neutral-50 transition-transform duration-(--nt-dur-slow) ease-(--nt-ease-in-out) md:w-(--sidebar-w) dark:border-neutral-800 dark:bg-neutral-950 ${open ? "translate-x-0 shadow-2xl" : "-translate-x-full"} ${desktop}`}
         >
           <button
             onClick={toggle}
@@ -249,6 +264,10 @@ export function SidebarLayout({
             />
           </div>
         </aside>
+        <div
+          className={`hidden shrink-0 md:block print:hidden ${resizing ? "" : "transition-[width] duration-(--nt-dur-slow) ease-(--nt-ease-in-out)"} ${collapsed ? "w-0" : "w-(--sidebar-w)"}`}
+          aria-hidden
+        />
         <main ref={main} className="min-w-0 flex-1 overflow-y-auto print:overflow-visible">
           {children}
         </main>

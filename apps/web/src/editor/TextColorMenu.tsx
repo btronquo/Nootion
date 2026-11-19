@@ -99,7 +99,7 @@ export function TextColorButton({ editor }: { editor: Editor }) {
         <ChevronDown size={11} className="text-neutral-500" />
       </button>
       {open && (
-        <div className="absolute top-full left-0 z-50 mt-1.5 rounded-lg border border-neutral-200 bg-white shadow-lg dark:border-neutral-700 dark:bg-neutral-900">
+        <div className="nt-pop absolute top-full left-0 z-50 mt-1.5 rounded-lg border border-neutral-200 bg-white shadow-lg dark:border-neutral-700 dark:bg-neutral-900">
           <TextColorPanel editor={editor} onPicked={() => setOpen(false)} />
         </div>
       )}

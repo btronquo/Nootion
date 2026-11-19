@@ -62,7 +62,7 @@ export function PagePanels({ editor, pageId, title, canEdit, touch }: { editor: 
               setOpen(null);
             }
           }}
-          className="fixed z-40 flex flex-col overflow-hidden border-neutral-200 bg-white shadow-2xl max-md:inset-x-0 max-md:bottom-0 max-md:h-[85dvh] max-md:rounded-t-2xl max-md:border-t md:right-5 md:bottom-5 md:h-[min(640px,calc(100dvh-6rem))] md:w-[400px] md:rounded-xl md:border dark:border-neutral-700 dark:bg-neutral-900 print:hidden"
+          className="nt-dialog fixed z-40 flex flex-col overflow-hidden border-neutral-200 bg-white shadow-2xl max-md:inset-x-0 max-md:bottom-0 max-md:h-[85dvh] max-md:rounded-t-2xl max-md:border-t md:right-5 md:bottom-5 md:h-[min(640px,calc(100dvh-6rem))] md:w-[400px] md:rounded-xl md:border dark:border-neutral-700 dark:bg-neutral-900 print:hidden"
         >
           <div className="flex items-center gap-2 border-b border-neutral-200 px-4 py-2.5 dark:border-neutral-800">
             <span className="text-lg">{current.panel.icon}</span>
