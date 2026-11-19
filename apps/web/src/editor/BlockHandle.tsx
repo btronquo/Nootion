@@ -2,12 +2,13 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Editor } from "@tiptap/react";
 import { DragHandle } from "@tiptap/extension-drag-handle-react";
 import type { Middleware } from "@floating-ui/dom";
-import { TextSelection } from "@tiptap/pm/state";
+import { TextSelection, type Transaction } from "@tiptap/pm/state";
 import {
   ArrowDown,
   ArrowUp,
   Check,
   CheckSquare,
+  ClipboardCopy,
   ChevronLeft,
   ChevronRight,
   Code,
@@ -30,6 +31,7 @@ import {
   Text,
   Trash2,
   RefreshCw,
+  Scissors,
   Unlink,
 } from "lucide-react";
 import { OPTION_COLORS, TASK_REPEAT_CHOICES, parseTaskRepeat, t, type MessageKey, type OptionColor } from "@nootion/shared";
@@ -42,6 +44,7 @@ import { canColor, ensureBlockId, lastEdit, setBlockColor, type BlockColor } fro
 import { setTaskRepeat, taskRepeatLabel } from "./taskRepeat";
 import { TaskRepeatDialog } from "./TaskRepeatDialog";
 import { canTurnIntoSynced, copySyncedBlock, turnIntoSynced, unsyncBlock } from "./syncedBlock";
+import { blockRange, blocksIn, deleteRange, duplicateRange, extendTo, moveRange, selectBlocks, type BlockRange } from "./blockSelection";
 
 /**
  * The handles shown left of the block under the mouse, as in Notion: "+" adds a block below it (the "/" menu opens),
@@ -64,6 +67,8 @@ export function BlockHandle({
   const [menu, setMenu] = useState<{
     block: Block;
     anchor: HTMLElement;
+    /** The selected blocks, when this one is among several. */
+    group?: BlockRange;
   } | null>(null);
   // The "Custom…" repeat of a to-do, at its position.
   const [repeating, setRepeating] = useState<{ pos: number; repeat: string | null } | null>(null);
@@ -93,18 +98,33 @@ export function BlockHandle({
       .run();
   }
 
-  function openMenu() {
+  function openMenu(e: React.MouseEvent) {
     const block = current.current;
     if (!block || !grip.current) return;
+    const sel = editor.state.selection;
+    // Shift+click: the block joins the selected ones (or is selected alone).
+    if (e.shiftKey) {
+      const next = extendTo(editor.state.doc, sel, block.pos + 1);
+      const { tr } = editor.state;
+      if (next) tr.setSelection(next);
+      else selectBlocks(tr, block.pos, block.pos + block.node.nodeSize);
+      editor.view.dispatch(tr);
+      editor.view.focus();
+      return;
+    }
+    // One of several selected blocks: the menu acts on all of them.
+    const range = blockRange(sel);
+    const group =
+      range && block.pos >= range.from && block.pos + block.node.nodeSize <= range.to && blocksIn(editor.state.doc, range).length > 1 ? range : undefined;
     // Not focused: the menu's search takes the keys (the editor's focus would come back a frame later).
-    editor.commands.setNodeSelection(block.pos);
+    if (!group) editor.commands.setNodeSelection(block.pos);
     // A fixed spot: the handle moves away with the mouse.
     const r = grip.current.getBoundingClientRect();
     const anchor = {
       getBoundingClientRect: () => r,
       contains: () => false,
     } as unknown as HTMLElement;
-    setMenu({ block, anchor });
+    setMenu({ block, anchor, group });
   }
 
   // Beside the first line of a callout, the handle sat over its emoji: it goes left of the emoji then.
@@ -141,16 +161,27 @@ export function BlockHandle({
           editor={editor}
           pageId={pageId}
           block={menu.block}
+          group={menu.group}
           anchor={menu.anchor}
           onComment={onComment}
           personName={personName}
           onCustomRepeat={(pos, repeat) => setRepeating({ pos, repeat })}
-          onClose={() => setMenu(null)}
+          onClose={() => {
+            // Several blocks: still selected, the keys (Ctrl+C, Delete…) go on acting on them.
+            if (menu.group && !editor.isDestroyed) editor.view.focus();
+            setMenu(null);
+          }}
         />
       )}
       {repeating && <TaskRepeatDialog initial={repeating.repeat} onSave={(r) => setTaskRepeat(editor, repeating.pos, r)} onClose={() => setRepeating(null)} />}
     </>
   );
+}
+
+/** The same blocks are still selected (the page may have changed under an open menu)? */
+function sameGroup(editor: Editor, group: BlockRange): boolean {
+  const now = blockRange(editor.state.selection);
+  return !!now && now.from === group.from && now.to === group.to;
 }
 
 /** Where a callout draws its emoji (index.css: `top-4 left-4`, `text-xl leading-7`). */
@@ -225,6 +256,7 @@ function BlockMenu({
   editor,
   pageId,
   block,
+  group,
   anchor,
   onComment,
   personName,
@@ -234,6 +266,7 @@ function BlockMenu({
   editor: Editor;
   pageId: string;
   block: Block;
+  group?: BlockRange;
   anchor: HTMLElement;
   onComment?: () => void;
   personName?: (id: string) => string | undefined;
@@ -254,39 +287,42 @@ function BlockMenu({
 
   // The page changed under the menu (someone else's edit): it no longer points at the right block.
   useEffect(() => {
-    const check = () => !stillThere(editor, block) && onClose();
+    const check = () => !(group ? sameGroup(editor, group) : stillThere(editor, block)) && onClose();
     editor.on("update", check);
     return () => {
       editor.off("update", check);
     };
-  }, [editor, block, onClose]);
+  }, [editor, block, group, onClose]);
 
   const act = (fn: () => void) => () => {
     onClose();
-    if (stillThere(editor, block)) fn();
+    if (group ? sameGroup(editor, group) : stillThere(editor, block)) fn();
   };
   const open = (which: Sub) => () => (setSub(which), setActive(0), setQuery(""));
   const kind = currentKind(block);
-  const kinds: Action[] = canTurnInto(block)
-    ? KINDS.map((k) => ({
-        id: `into-${k.kind}`,
-        label: k.label(),
-        icon: k.icon,
-        checked: kind === k.kind,
-        run: act(() => turnInto(editor, block, k.kind)),
-      }))
-    : [];
+  const kinds: Action[] =
+    !group && canTurnInto(block)
+      ? KINDS.map((k) => ({
+          id: `into-${k.kind}`,
+          label: k.label(),
+          icon: k.icon,
+          checked: kind === k.kind,
+          run: act(() => turnInto(editor, block, k.kind)),
+        }))
+      : [];
   const color = (block.node.attrs.color as BlockColor | null) ?? null;
+  // Of several blocks: those that take a color.
+  const colored = group ? blocksIn(editor.state.doc, group).filter((b) => canColor(b.node)) : [block];
   const colorItem = (c: BlockColor | null, label: string, section?: string): Action => ({
     id: `color-${c ?? "none"}${section === t("block.background") ? "-bg" : ""}`,
     label,
     icon: <Swatch color={c} />,
     checked: color === c && (c !== null || section === t("block.textColor")),
     section,
-    run: act(() => setBlockColor(editor, block.pos, c)),
+    run: act(() => colored.forEach((b) => setBlockColor(editor, b.pos, c))),
   });
   const colorName = (c: OptionColor) => t(`color.${c}` as MessageKey);
-  const colors: Action[] = canColor(block.node)
+  const colors: Action[] = (group ? colored.length > 0 : canColor(block.node))
     ? [
         colorItem(null, t("block.defaultColor"), t("block.textColor")),
         ...OPTION_COLORS.map((c) => colorItem(c, colorName(c))),
@@ -296,8 +332,9 @@ function BlockMenu({
     : [];
 
   // A to-do, or a list of a single to-do (the handle can point at either).
-  const task =
-    block.node.type.name === "taskItem"
+  const task = group
+    ? null
+    : block.node.type.name === "taskItem"
       ? { node: block.node, pos: block.pos }
       : block.node.type.name === "taskList" && block.node.childCount === 1
         ? { node: block.node.firstChild!, pos: block.pos + 1 }
@@ -331,90 +368,121 @@ function BlockMenu({
       ]
     : [];
 
-  const actions: Action[] = [
-    ...(kinds.length ? [{ id: "turn", label: t("block.turnInto"), icon: <Repeat2 size={16} />, sub: "turn" as const, run: open("turn") }] : []),
+  const run = (make: (r: BlockRange) => Transaction | null) =>
+    act(() => {
+      const tr = group && make(group);
+      if (tr) editor.view.dispatch(tr.scrollIntoView());
+      editor.view.focus();
+    });
+  // The browser's own copy and cut, which the editor answers with the selected blocks.
+  const clipboard = (command: "copy" | "cut") =>
+    act(() => {
+      editor.view.focus();
+      document.execCommand(command);
+    });
+  const groupActions: Action[] = [
     ...(colors.length ? [{ id: "color", label: t("block.color"), icon: <Palette size={16} />, sub: "color" as const, run: open("color") }] : []),
-    ...(repeats.length
-      ? [
-          {
-            id: "repeat",
-            label: t("task.repeat"),
-            icon: <Repeat size={16} />,
-            keys: parseTaskRepeat(repeat) ? taskRepeatLabel(parseTaskRepeat(repeat)!) : undefined,
-            sub: "repeat" as const,
-            run: open("repeat"),
-          },
-        ]
-      : []),
-    {
-      id: "link",
-      label: copied ? t("block.linkCopied") : t("block.copyLink"),
-      icon: copied ? <Check size={16} /> : <Link size={16} />,
-      run: () => {
-        if (!stillThere(editor, block)) return onClose();
-        const id = ensureBlockId(editor, block.pos);
-        if (!id) return onClose();
-        void copyText(`${window.location.origin}/page/${pageId}#block-${id}`).then((ok) => {
-          if (!ok) return onClose();
-          setCopied(true);
-          window.setTimeout(onClose, 700);
-        });
-      },
-    },
-    ...(block.node.type.name === "syncedBlock" && block.node.attrs.sourceId
-      ? [
-          { id: "synced-copy", label: t("synced.copy"), icon: <Copy size={16} />, run: act(() => copySyncedBlock(editor, block.pos)) },
-          {
-            id: "synced-unsync",
-            label: t("synced.unsync"),
-            icon: <Unlink size={16} />,
-            run: act(() => void unsyncBlock(editor, block.node, () => block.pos).catch((err: Error) => alert(err.message))),
-          },
-        ]
-      : canTurnIntoSynced(editor, block)
-        ? [
-            {
-              id: "synced-turn",
-              label: t("synced.turnInto"),
-              icon: <RefreshCw size={16} />,
-              run: act(() => void turnIntoSynced(editor, pageId, block).catch((err: Error) => alert(`${t("synced.failed")} ${err.message}`))),
-            },
-          ]
-        : []),
-    { id: "duplicate", label: t("block.duplicate"), icon: <Copy size={16} />, keys: `${mod}D`, run: act(() => duplicateBlock(editor, block)) },
-    { id: "up", label: t("block.moveUp"), icon: <ArrowUp size={16} />, keys: `${mod}${shift}↑`, run: act(() => moveBlock(editor, block, -1)) },
-    { id: "down", label: t("block.moveDown"), icon: <ArrowDown size={16} />, keys: `${mod}${shift}↓`, run: act(() => moveBlock(editor, block, 1)) },
-    ...(onComment && block.node.textContent.trim()
-      ? [
-          {
-            id: "comment",
-            label: t("block.comment"),
-            icon: <MessageSquare size={16} />,
-            run: act(() => {
-              // The block's text, as if selected by hand.
-              const { pos, node } = block;
-              editor
-                .chain()
-                .focus()
-                .command(({ tr }) => {
-                  tr.setSelection(TextSelection.between(tr.doc.resolve(pos + 1), tr.doc.resolve(pos + node.nodeSize - 1)));
-                  return true;
-                })
-                .run();
-              onComment();
-            }),
-          },
-        ]
-      : []),
+    { id: "copy", label: t("block.copy"), icon: <ClipboardCopy size={16} />, keys: `${mod}C`, run: clipboard("copy") },
+    { id: "cut", label: t("block.cut"), icon: <Scissors size={16} />, keys: `${mod}X`, run: clipboard("cut") },
+    { id: "duplicate", label: t("block.duplicate"), icon: <Copy size={16} />, keys: `${mod}D`, run: run((r) => duplicateRange(editor.state, r)) },
+    { id: "up", label: t("block.moveUp"), icon: <ArrowUp size={16} />, keys: `${mod}${shift}↑`, run: run((r) => moveRange(editor.state, r, -1)) },
+    { id: "down", label: t("block.moveDown"), icon: <ArrowDown size={16} />, keys: `${mod}${shift}↓`, run: run((r) => moveRange(editor.state, r, 1)) },
     {
       id: "delete",
       label: t("block.delete"),
       icon: <Trash2 size={16} />,
       keys: isMac() ? "⌫" : t("block.deleteKey"),
       danger: true,
-      run: act(() => deleteBlock(editor, block)),
+      run: run((r) => deleteRange(editor.state, r)),
     },
   ];
+
+  const actions: Action[] = group
+    ? groupActions
+    : [
+        ...(kinds.length ? [{ id: "turn", label: t("block.turnInto"), icon: <Repeat2 size={16} />, sub: "turn" as const, run: open("turn") }] : []),
+        ...(colors.length ? [{ id: "color", label: t("block.color"), icon: <Palette size={16} />, sub: "color" as const, run: open("color") }] : []),
+        ...(repeats.length
+          ? [
+              {
+                id: "repeat",
+                label: t("task.repeat"),
+                icon: <Repeat size={16} />,
+                keys: parseTaskRepeat(repeat) ? taskRepeatLabel(parseTaskRepeat(repeat)!) : undefined,
+                sub: "repeat" as const,
+                run: open("repeat"),
+              },
+            ]
+          : []),
+        {
+          id: "link",
+          label: copied ? t("block.linkCopied") : t("block.copyLink"),
+          icon: copied ? <Check size={16} /> : <Link size={16} />,
+          run: () => {
+            if (!stillThere(editor, block)) return onClose();
+            const id = ensureBlockId(editor, block.pos);
+            if (!id) return onClose();
+            void copyText(`${window.location.origin}/page/${pageId}#block-${id}`).then((ok) => {
+              if (!ok) return onClose();
+              setCopied(true);
+              window.setTimeout(onClose, 700);
+            });
+          },
+        },
+        ...(block.node.type.name === "syncedBlock" && block.node.attrs.sourceId
+          ? [
+              { id: "synced-copy", label: t("synced.copy"), icon: <Copy size={16} />, run: act(() => copySyncedBlock(editor, block.pos)) },
+              {
+                id: "synced-unsync",
+                label: t("synced.unsync"),
+                icon: <Unlink size={16} />,
+                run: act(() => void unsyncBlock(editor, block.node, () => block.pos).catch((err: Error) => alert(err.message))),
+              },
+            ]
+          : canTurnIntoSynced(editor, block)
+            ? [
+                {
+                  id: "synced-turn",
+                  label: t("synced.turnInto"),
+                  icon: <RefreshCw size={16} />,
+                  run: act(() => void turnIntoSynced(editor, pageId, block).catch((err: Error) => alert(`${t("synced.failed")} ${err.message}`))),
+                },
+              ]
+            : []),
+        { id: "duplicate", label: t("block.duplicate"), icon: <Copy size={16} />, keys: `${mod}D`, run: act(() => duplicateBlock(editor, block)) },
+        { id: "up", label: t("block.moveUp"), icon: <ArrowUp size={16} />, keys: `${mod}${shift}↑`, run: act(() => moveBlock(editor, block, -1)) },
+        { id: "down", label: t("block.moveDown"), icon: <ArrowDown size={16} />, keys: `${mod}${shift}↓`, run: act(() => moveBlock(editor, block, 1)) },
+        ...(onComment && block.node.textContent.trim()
+          ? [
+              {
+                id: "comment",
+                label: t("block.comment"),
+                icon: <MessageSquare size={16} />,
+                run: act(() => {
+                  // The block's text, as if selected by hand.
+                  const { pos, node } = block;
+                  editor
+                    .chain()
+                    .focus()
+                    .command(({ tr }) => {
+                      tr.setSelection(TextSelection.between(tr.doc.resolve(pos + 1), tr.doc.resolve(pos + node.nodeSize - 1)));
+                      return true;
+                    })
+                    .run();
+                  onComment();
+                }),
+              },
+            ]
+          : []),
+        {
+          id: "delete",
+          label: t("block.delete"),
+          icon: <Trash2 size={16} />,
+          keys: isMac() ? "⌫" : t("block.deleteKey"),
+          danger: true,
+          run: act(() => deleteBlock(editor, block)),
+        },
+      ];
 
   // Typing searches every action, those of the submenus included.
   const shown = useMemo(() => {
@@ -435,7 +503,7 @@ function BlockMenu({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, sub, block, copied]);
   const index = Math.min(active, Math.max(0, shown.length - 1));
-  const edit = lastEdit(block.node);
+  const edit = group ? null : lastEdit(block.node);
 
   return (
     <Popover anchor={anchor} onClose={onClose} width={260}>
@@ -458,6 +526,11 @@ function BlockMenu({
           }
         }}
       >
+        {group && (
+          <p className="px-2 pt-1 pb-1.5 text-xs font-medium text-neutral-500" data-group-count>
+            {t("block.selected", { count: blocksIn(editor.state.doc, group).length })}
+          </p>
+        )}
         <input
           ref={search}
           value={query}
@@ -478,7 +551,9 @@ function BlockMenu({
         <div className={sub === "color" && !query ? "max-h-80 overflow-y-auto" : undefined}>
           {shown.map((a, i) => (
             <div key={a.id}>
-              {(a.id === "link" || a.id === "comment" || a.id === "delete") && !query && <div className="my-1 h-px bg-neutral-200 dark:bg-neutral-800" />}
+              {(a.id === "link" || a.id === "comment" || a.id === "delete" || (group && a.id === "copy")) && !query && (
+                <div className="my-1 h-px bg-neutral-200 dark:bg-neutral-800" />
+              )}
               {a.section && <p className="px-2 pt-2 pb-1 text-xs font-medium text-neutral-500">{a.section}</p>}
               <button
                 type="button"

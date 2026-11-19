@@ -585,6 +585,63 @@ body {
   @apply outline-2 outline-blue-500;
 }
 
+/* ---------- Several blocks selected (blockSelection.ts): drawn as in Notion, a soft blue behind each ---------- */
+.nootion-content .nt-block-selected {
+  background-color: rgb(35 131 226 / 0.14);
+  border-radius: 3px;
+  /* A little wider than the text, so that the blocks read as one band. */
+  box-shadow: 0 0 0 2px rgb(35 131 226 / 0.14);
+  animation: nt-block-select var(--nt-dur-fast) ease-out backwards;
+}
+.dark .nootion-content .nt-block-selected {
+  background-color: rgb(35 131 226 / 0.22);
+  box-shadow: 0 0 0 2px rgb(35 131 226 / 0.22);
+}
+@keyframes nt-block-select {
+  from {
+    background-color: transparent;
+    box-shadow: 0 0 0 2px transparent;
+  }
+}
+/* No caret nor text highlight over selected blocks. */
+.nootion-content.nt-blocks-selected {
+  caret-color: transparent;
+}
+.nootion-content.nt-blocks-selected ::selection {
+  background: transparent;
+}
+/* The rectangle drawn from the margin. */
+.nt-marquee {
+  position: fixed;
+  z-index: 40;
+  pointer-events: none;
+  border: 1px solid rgb(35 131 226 / 0.5);
+  background-color: rgb(35 131 226 / 0.1);
+  border-radius: 2px;
+  animation: nt-fade-in var(--nt-dur-fast) ease-out backwards;
+}
+.nt-marquee.nt-marquee-out {
+  animation: nt-fade-out 140ms var(--nt-ease-in) forwards;
+}
+body.nt-marquee-active {
+  user-select: none;
+  -webkit-user-select: none;
+}
+body.nt-marquee-active .drag-handle {
+  visibility: hidden;
+}
+/* The selected blocks following the pointer while dragged. */
+.nt-drag-image {
+  opacity: 0.85;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nootion-content .nt-block-selected,
+  .nt-marquee,
+  .nt-marquee.nt-marquee-out {
+    animation: none;
+  }
+}
+
 /* ---------- Image blocks: width set by their side handles, alignment, caption, crop, bar on hover ---------- */
 .nootion-content .image-block {
   @apply my-2 flex;

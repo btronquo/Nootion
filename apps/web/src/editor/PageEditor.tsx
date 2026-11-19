@@ -30,6 +30,7 @@ import { PagePanels } from "../plugins/PagePanels";
 import { TextColorButton } from "./TextColorMenu";
 import { BlockHandle } from "./BlockHandle";
 import { BlockShortcuts } from "./blockActions";
+import { BlockSelection, BlockSelectionKeys, blockRange } from "./blockSelection";
 import { BlockFlash, EditTracking, findBlockById, findTaskByRank, flashBlock } from "./blockAttrs";
 import { useIsTouch } from "../lib/mobile";
 import type { CommentThread } from "@nootion/shared";
@@ -222,6 +223,8 @@ function CollabEditor({
         CommentHighlights.configure({ onOpen: (id) => commentsRef.current?.onOpen(id) }),
         SelectionPanels,
         BlockShortcuts,
+        BlockSelection,
+        BlockSelectionKeys,
         BlockFlash,
         EditTracking.configure({ user: user ? { id: user.id, name: user.name } : null }),
       ],
@@ -357,7 +360,12 @@ function commentBlock(editor: Editor, pos: number, comments: EditorComments) {
 }
 
 const bubbleShown = ({ editor: e, from, to }: { editor: Editor; from: number; to: number }) =>
-  from !== to && !(e.state.selection instanceof NodeSelection) && !e.isActive("image") && !e.isActive("fileAttachment") && !e.isActive("pageLink");
+  from !== to &&
+  !(e.state.selection instanceof NodeSelection) &&
+  !blockRange(e.state.selection) &&
+  !e.isActive("image") &&
+  !e.isActive("fileAttachment") &&
+  !e.isActive("pageLink");
 
 function CommentMenu({ editor, onComment }: { editor: Editor; onComment: () => void }) {
   return (

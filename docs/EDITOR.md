@@ -1,10 +1,38 @@
 # Writing, finding and printing
 
-This page explains, for everyday users, the editor and search features that are not obvious at first sight: text
-colours, code blocks, equations, the list of all your to-dos, locking a page or a database, the command palette,
+This page explains, for everyday users, the editor and search features that are not obvious at first sight:
+selecting several blocks, text colours, code blocks, equations, the list of all your to-dos, locking a page or a database, the command palette,
 search filters and saved searches, and printing a page or saving it as PDF. Importing Markdown, HTML, Word or CSV
 files is described in
 [DEPLOYMENT.md](DEPLOYMENT.md#importing-from-files).
+
+## Selecting several blocks
+
+Several blocks can be selected at once, to copy, cut, delete, duplicate or move them together. Selected blocks are
+shown on a light blue background.
+
+- **Draw a rectangle**: press in the margin of the page (left or right of the text, or below it) and drag over the
+  blocks. Inside a list, the rectangle selects the items it touches.
+- **Escape**: while typing, selects the block the cursor is in. **Shift+↑** and **Shift+↓** then add the block above
+  or below (or take it back off). **Escape** again unselects them.
+- **Shift+click**: with blocks selected, a click with Shift held on another block (or on its handle ⋮⋮) selects
+  everything in between.
+- **Ctrl+A** (⌘A): a first press selects the text of the block, a second one every block of the page.
+
+With blocks selected:
+
+| Action | Keys |
+| --- | --- |
+| Copy, cut, paste over them | Ctrl+C, Ctrl+X, Ctrl+V |
+| Delete | Delete or Backspace |
+| Duplicate | Ctrl+D |
+| Move up or down | Ctrl+Shift+↑ / ↓ |
+| Select the block above or below instead | ↑ / ↓ |
+| Go back to typing, at the end of the last one | Enter |
+
+Typing a letter does not replace the selected blocks. To move them elsewhere on the page, drag the handle (⋮⋮) of any
+of them: they all follow. A click on that handle opens a menu for all of them: colour, copy, cut, duplicate, move up
+or down, delete. On Mac, use ⌘ instead of Ctrl.
 
 ## Text colour and highlight
 

@@ -5,6 +5,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+
+- Several blocks can be selected at once, to copy, cut, paste over, delete, duplicate or move them together: draw a
+  rectangle from the margin of the page, press Escape while typing (then Shift+↑/↓ to add blocks), Shift+click
+  another block, or press Ctrl+A twice. Dragging the handle of one of them moves them all, and a click on it opens a
+  menu for all of them (colour, copy, cut, duplicate, move, delete). Typing doesn't replace them. Details in
+  [docs/EDITOR.md](docs/EDITOR.md#selecting-several-blocks).
+
 ### Changed
 
 - The interface moves more smoothly, with one set of short durations and curves everywhere (120 to 240 ms, nothing
