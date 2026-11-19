@@ -56,6 +56,8 @@ export function baseExtensions(opts: {
       undoRedo: opts.collaborative ? false : undefined,
       link: { openOnClick: !opts.collaborative, autolink: true, HTMLAttributes: { rel: "noopener noreferrer nofollow", target: "_blank" } },
       heading: { levels: [1, 2, 3] },
+      // Where a dragged block will land: drawn by .nt-dropcursor (index.css).
+      dropcursor: { color: false, width: 3, class: "nt-dropcursor" },
       // Replaced below by the one with colours and a language menu.
       codeBlock: false,
       // A synced block ends with its last block, without the empty line pages keep at their end.

@@ -81,7 +81,7 @@ export function PluginSelectionButtons({ editor, pageId }: { editor: Editor; pag
             <ChevronDown size={13} />
           </button>
           {open === id && (
-            <div className="absolute top-full left-0 z-50 mt-1.5 rounded-lg border border-neutral-200 bg-white shadow-lg dark:border-neutral-700 dark:bg-neutral-900">
+            <div className="nt-pop absolute top-full left-0 z-50 mt-1.5 rounded-lg border border-neutral-200 bg-white shadow-lg dark:border-neutral-700 dark:bg-neutral-900">
               <SelectionMenuEntries
                 menu={menu}
                 onPick={(a) => {

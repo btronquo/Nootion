@@ -149,7 +149,7 @@ export function MobileToolbar({ editor, pageId }: { editor: Editor; pageId?: str
       {colors && (
         <div
           style={{ bottom: inset + 52 }}
-          className="fixed left-2 z-40 rounded-lg border border-neutral-200 bg-white shadow-lg dark:border-neutral-700 dark:bg-neutral-900"
+          className="nt-pop-up fixed left-2 z-40 rounded-lg border border-neutral-200 bg-white shadow-lg dark:border-neutral-700 dark:bg-neutral-900"
         >
           <TextColorPanel editor={editor} onPicked={() => setColors(false)} />
         </div>
@@ -157,7 +157,7 @@ export function MobileToolbar({ editor, pageId }: { editor: Editor; pageId?: str
       {openMenu && pageId && (
         <div
           style={{ bottom: inset + 52 }}
-          className="fixed right-2 left-2 z-40 rounded-lg border border-neutral-200 bg-white shadow-lg dark:border-neutral-700 dark:bg-neutral-900"
+          className="nt-pop-up fixed right-2 left-2 z-40 rounded-lg border border-neutral-200 bg-white shadow-lg dark:border-neutral-700 dark:bg-neutral-900"
         >
           <SelectionMenuEntries
             menu={openMenu.menu}

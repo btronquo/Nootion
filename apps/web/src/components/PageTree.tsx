@@ -133,7 +133,7 @@ function PageTreeItem({ node, depth, workspaceId, editable, all }: TreeProps & {
           onClick={() => setOpen(!open)}
           aria-label={open ? t("tree.collapse") : t("tree.expand")}
         >
-          <ChevronRight size={14} className={`transition ${open ? "rotate-90" : ""} ${children.length ? "" : "opacity-30"}`} />
+          <ChevronRight size={14} className={`transition-transform duration-(--nt-dur-base) ease-(--nt-ease-out) ${open ? "rotate-90" : ""} ${children.length ? "" : "opacity-30"}`} />
         </button>
         {renaming ? (
           <input
@@ -181,7 +181,7 @@ function PageTreeItem({ node, depth, workspaceId, editable, all }: TreeProps & {
       {pending && <PendingSpaceMoveDialog move={pending} onClose={() => setPending(null)} />}
       {menu && <PageMenu page={page} all={all} anchor={menu} editable={editable} onClose={() => setMenu(null)} onRename={() => setRenaming(true)} />}
       {open && children.length > 0 && (
-        <ul>
+        <ul className="nt-unfold">
           {children.map((c) => (
             <PageTreeItem key={c.page.id} node={c} depth={depth + 1} workspaceId={workspaceId} editable={editable} all={all} nodes={[]} />
           ))}

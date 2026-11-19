@@ -35,6 +35,7 @@ import { useIsTouch } from "../lib/mobile";
 import type { CommentThread } from "@nootion/shared";
 import { CommentHighlights, selectionAnchor, setCommentHighlights } from "../comments/highlights";
 import type { DraftAnchor } from "../comments/CommentsPanel";
+import { SkeletonLines } from "../components/Skeleton";
 
 /** What the editor needs to show comments: the threads, the open one, and what to do on a click or a new comment. */
 export interface EditorComments {
@@ -255,6 +256,8 @@ function CollabEditor({
   // once merged with the server's.
   const online = useOnline();
   const editable = canEdit && (online || synced || hasLocal !== false);
+  // Nothing to show yet (the server hasn't answered, and this device doesn't have the page): its lines to come.
+  const waiting = !synced && hasLocal !== true && connected;
   useEffect(() => {
     editor?.setEditable(editable);
   }, [editor, editable]);
@@ -332,7 +335,9 @@ function CollabEditor({
           personName={(id) => qc.getQueryData<UserDirectoryEntry[]>(keys.users)?.find((u) => u.id === id)?.name}
         />
       )}
-      <EditorContent editor={editor} />
+      {waiting && <SkeletonLines count={5} className="pt-1" />}
+      {/* Shown once its content is there, fading in (the animation plays again when it stops being hidden). */}
+      <EditorContent editor={editor} className={waiting ? "hidden" : "nt-fade"} />
     </div>
   );
 }
@@ -359,7 +364,7 @@ function CommentMenu({ editor, onComment }: { editor: Editor; onComment: () => v
     <BubbleMenu
       editor={editor}
       shouldShow={bubbleShown}
-      className="flex items-center rounded-lg border border-neutral-200 bg-white p-1 shadow-lg dark:border-neutral-700 dark:bg-neutral-900"
+      className="nt-pop-up flex items-center rounded-lg border border-neutral-200 bg-white p-1 shadow-lg dark:border-neutral-700 dark:bg-neutral-900"
     >
       <button
         className="flex items-center gap-1.5 rounded px-2 py-1 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-800"
@@ -389,7 +394,7 @@ function FormatMenu({ editor, pageId, onComment }: { editor: Editor; pageId: str
     <BubbleMenu
       editor={editor}
       shouldShow={bubbleShown}
-      className="flex items-center gap-0.5 rounded-lg border border-neutral-200 bg-white p-1 shadow-lg dark:border-neutral-700 dark:bg-neutral-900"
+      className="nt-pop-up flex items-center gap-0.5 rounded-lg border border-neutral-200 bg-white p-1 shadow-lg dark:border-neutral-700 dark:bg-neutral-900"
     >
       <button className={btn(state.bold)} onClick={() => editor.chain().focus().toggleBold().run()} title={t("editor.bold")}>
         <Bold size={15} />

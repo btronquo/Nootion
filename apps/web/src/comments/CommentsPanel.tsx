@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MutableRefObject } from "react";
 import { Check, MessageSquare, MoreHorizontal, RotateCcw, X } from "lucide-react";
 import { intlLocale, t, type CommentInfo, type CommentThread, type UserDirectoryEntry } from "@nootion/shared";
 import { api } from "../lib/api";
@@ -6,7 +6,7 @@ import { useUserDirectory } from "../lib/queries";
 import { useSession } from "../lib/session";
 import { Avatar } from "../components/Avatar";
 import { Popover } from "../database/Popover";
-import { Button } from "../components/ui";
+import { Button, useClosing } from "../components/ui";
 import { useComments, useThreadUpdate } from "./queries";
 
 /** A passage picked in the page, waiting for its first comment. */
@@ -27,6 +27,7 @@ export function CommentsPanel({
   draft,
   onDraftDone,
   onClose,
+  closeRef,
 }: {
   pageId: string;
   canComment: boolean;
@@ -35,7 +36,18 @@ export function CommentsPanel({
   draft: DraftAnchor | null;
   onDraftDone: () => void;
   onClose: () => void;
+  /** Filled with the animated close, to close from outside (the page's comments button). */
+  closeRef?: MutableRefObject<(() => void) | null>;
 }) {
+  // It slides in from the right, and back out before it goes.
+  const { closing, close } = useClosing(onClose, 200);
+  useEffect(() => {
+    if (!closeRef) return;
+    closeRef.current = close;
+    return () => {
+      closeRef.current = null;
+    };
+  }, [closeRef, close]);
   const threads = useComments(pageId);
   const update = useThreadUpdate(pageId);
   const [showResolved, setShowResolved] = useState(false);
@@ -49,7 +61,8 @@ export function CommentsPanel({
   return (
     <aside
       aria-label={t("comments.title")}
-      className="nt-pop fixed inset-y-0 right-0 z-40 flex w-full flex-col border-l border-neutral-200 bg-white shadow-xl sm:w-96 dark:border-neutral-800 dark:bg-neutral-900"
+      className="nt-panel-right fixed inset-y-0 right-0 z-40 flex w-full flex-col border-l border-neutral-200 bg-white shadow-xl sm:w-96 dark:border-neutral-800 dark:bg-neutral-900"
+      data-closing={closing || undefined}
       data-comments-panel
     >
       <header className="flex items-center gap-2 border-b border-neutral-200 px-4 py-2.5 dark:border-neutral-800">
@@ -61,11 +74,11 @@ export function CommentsPanel({
             {t("comments.showResolved", { count: resolvedCount })}
           </label>
         )}
-        <button onClick={onClose} className="rounded p-1 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800" aria-label={t("common.close")}>
+        <button onClick={close} className="rounded p-1 text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800" aria-label={t("common.close")}>
           <X size={16} />
         </button>
       </header>
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
+      <div className="nt-smooth-scroll min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
         {draft && canComment && (
           <div className="nt-pop rounded-lg border border-blue-300 p-3 dark:border-blue-800" data-comment-draft>
             <Quote text={draft.quote} />

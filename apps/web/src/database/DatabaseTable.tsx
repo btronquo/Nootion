@@ -1,6 +1,7 @@
 import { Fragment, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { ChevronDown, ChevronRight, GripVertical, Maximize2, Plus, Trash2 } from "lucide-react";
+import { SkeletonLines } from "../components/Skeleton";
 import {
   applyView,
   nestRows,
@@ -63,7 +64,7 @@ const TITLE_WIDTH = 260;
 export function DatabaseTable({ id, compact, owner }: { id: string; compact?: boolean; owner?: ViewOwner | null }) {
   const db = useDatabase(id, owner);
   const actions = useDatabaseActions(id, owner);
-  if (db.isLoading) return <div className="py-4 text-sm text-neutral-400">{t("common.loading")}</div>;
+  if (db.isLoading) return <SkeletonLines count={5} className="py-4" />;
   if (db.isError || !db.data) return <div className="py-4 text-sm text-neutral-500">{t("database.notFound")}</div>;
   return <DatabaseViews data={db.data} actions={actions} compact={compact} rowHref={(r) => `/page/${r.id}`} />;
 }
