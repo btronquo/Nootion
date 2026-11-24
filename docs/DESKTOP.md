@@ -138,14 +138,36 @@ public repository, GitHub Actions runners (macOS included) cost nothing.
 
 ## Signing
 
-The installers are not signed yet. Until they are, Windows shows a SmartScreen warning ("More info > Run anyway")
-and macOS refuses to open the app at first: right-click > Open, or System Settings > Privacy & Security > Open Anyway.
+Unsigned, Windows shows a SmartScreen warning ("More info > Run anyway") and macOS refuses to open the app at
+first (right-click > Open, or System Settings > Privacy & Security > Open Anyway). The Desktop workflow signs both
+once their settings exist in the repository (Settings > Secrets and variables > Actions).
 
-- **macOS**: an Apple Developer account (99 USD a year), a "Developer ID Application" certificate, and the secrets
-  listed in the workflow (`APPLE_CERTIFICATE`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`,
-  `APPLE_TEAM_ID`…). The workflow then signs and notarizes the app.
-- **Windows**: a code signing certificate. [SignPath](https://signpath.org) signs open source projects for free;
-  otherwise, a certificate from a certificate authority or Azure Trusted Signing.
+### macOS
+
+An Apple Developer account, a "Developer ID Application" certificate and these secrets: `APPLE_CERTIFICATE` (the
+certificate and its private key, exported as .p12 from Keychain Access, in base64: `base64 -i cert.p12 | pbcopy`),
+`APPLE_CERTIFICATE_PASSWORD` (the export's password), `APPLE_SIGNING_IDENTITY` (as shown by
+`security find-identity -v -p codesigning`: `Developer ID Application: Name (TEAMID)`), `APPLE_TEAM_ID`, `APPLE_ID`
+and `APPLE_PASSWORD` (an app-specific password from appleid.apple.com, for notarization). The workflow then signs
+the app and has Apple notarize it.
+
+### Windows
+
+[SignPath Foundation](https://signpath.org) signs open source projects for free, with its own certificate. The
+installers are built on GitHub Actions, sent to SignPath, and the signed ones replace them in the release (or in the
+run's artifacts). Setting it up, once SignPath has accepted the project:
+
+1. On SignPath, the project `nootion` with:
+   - its repository linked through the SignPath GitHub app (trusted build system: GitHub.com);
+   - an artifact configuration `windows-installers`, whose content is
+     [.signpath/artifact-configuration.xml](../.signpath/artifact-configuration.xml);
+   - the signing policies `test-signing` (builds without a release tag) and `release-signing` (tags `v1.2.3`),
+     the latter approved by a person for each release.
+2. In the repository: the secret `SIGNPATH_API_TOKEN` (a SignPath CI user's token, submitter on both policies) and
+   the variable `SIGNPATH_ORGANIZATION_ID`. Without that variable, Windows installers stay unsigned.
+
+A release waits on GitHub until its signing request is approved on SignPath (two hours at most). The setup program
+and the .msi are signed; the app it installs isn't yet, which SmartScreen doesn't check.
 
 ## What comes next
 

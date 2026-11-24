@@ -365,6 +365,19 @@ Bug reports and ideas are welcome in the issues. Nootion doesn't accept code con
 see [CONTRIBUTING.md](CONTRIBUTING.md).
 For a security issue: [SECURITY.md](SECURITY.md).
 
+## Code signing policy
+
+Free code signing on Windows provided by [SignPath.io](https://about.signpath.io), certificate by
+[SignPath Foundation](https://signpath.org). The macOS app is signed with the maintainer's Apple Developer ID and
+notarized by Apple.
+
+- Committers and approvers: [Boris](https://github.com/btronquo), the only person who writes code in this
+  repository (see [CONTRIBUTING.md](CONTRIBUTING.md)) and approves each signing of a release.
+- Only installers built by the [Desktop workflow](.github/workflows/desktop.yml) on GitHub Actions, from this
+  repository, are signed.
+- Privacy: the desktop app sends nothing to anyone but the Nootion servers its user connects it to. See
+  [docs/DESKTOP.md](docs/DESKTOP.md).
+
 ## License
 
 [AGPL-3.0](LICENSE)
