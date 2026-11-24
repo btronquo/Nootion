@@ -5,8 +5,17 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [4.2.0] - 2026-11-24
+
 ### Added
 
+- Branding: administrators give the app their own name and logo (Administration › Branding). The name replaces
+  "Nootion" in the interface and e-mail texts, the browser tab and the installed app; the logo (PNG, JPEG, WebP, GIF
+  or SVG, up to 1 MB) becomes the favicon, the home screen icon, the logo at the top of the sidebar and on the sign-in
+  page, and heads e-mails (raster images only, since many mail apps don't show SVG). The server writes both into the
+  page and its manifest, so they show before any script runs, and the logo is part of backups. A discreet "Powered by
+  Nootion" stays under the custom name; texts about the software itself (version, updates, desktop sync) keep its
+  real name.
 - Several blocks can be selected at once, to copy, cut, paste over, delete, duplicate or move them together: draw a
   rectangle from the margin of the page, press Escape while typing (then Shift+↑/↓ to add blocks), Shift+click
   another block, or press Ctrl+A twice. Dragging the handle of one of them moves them all, and a click on it opens a
@@ -746,6 +755,7 @@ First public version.
 - Markdown (.zip), CSV and JSON export, CSV import, full backup download.
 - Single Docker image (amd64 and arm64), data in `/data`, migrations applied at startup.
 
+[4.2.0]: ../../releases/tag/v4.2.0
 [4.1.0]: ../../releases/tag/v4.1.0
 [4.0.0]: ../../releases/tag/v4.0.0
 [3.6.0]: ../../releases/tag/v3.6.0
