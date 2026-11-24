@@ -139,8 +139,14 @@ export function AppShell() {
       {/* The instance's own name and logo, once administrators set them ("Administration › Branding"). */}
       {(branding.customName || branding.logoUrl) && (
         <Link to="/" className="mx-2 mt-3 flex items-center gap-2 rounded-md px-2 py-1" data-sidebar-brand>
-          <BrandLogo className="h-6 w-6 shrink-0 rounded" />
-          <span className="truncate text-[15px] font-bold tracking-tight">{branding.name}</span>
+          <BrandLogo className="h-7 w-7 shrink-0 rounded" />
+          <span className="min-w-0 leading-tight">
+            <span className="block truncate text-[15px] font-bold tracking-tight">{branding.name}</span>
+            {/* Nootion stays credited under the instance's own name. */}
+            <span className="block truncate text-[11px] text-neutral-400" data-powered-by>
+              {t("branding.poweredBy")}
+            </span>
+          </span>
         </Link>
       )}
       <Link

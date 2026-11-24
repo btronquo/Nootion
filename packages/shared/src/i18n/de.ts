@@ -348,6 +348,7 @@ export const de: Catalogue = {
   "branding.logoHelp": "PNG, JPEG, WebP, GIF oder SVG, höchstens 1 MB. Ein quadratisches Bild wirkt am besten: Es ist auch das Symbol im Browser-Tab.",
   "branding.name": "Name",
   "branding.nameHelp": "Leer: Nootion.",
+  "branding.poweredBy": "Betrieben mit Nootion",
   "branding.preview": "Vorschau",
   "branding.removeLogo": "Zurück zum Nootion-Logo",
   "branding.save": "Speichern",

@@ -127,14 +127,18 @@ export function BrandingAdmin() {
           <span className="mb-1 block text-sm font-medium">{t("branding.preview")}</span>
           <div className="overflow-hidden rounded-lg border border-neutral-200 dark:border-neutral-800" data-branding-preview>
             <div className="flex items-center gap-2 bg-neutral-50 px-3 py-2.5 dark:bg-neutral-950">
-              <BrandLogo className="h-6 w-6 shrink-0 rounded" />
-              <span className="truncate text-[15px] font-bold tracking-tight">{name.trim() || DEFAULT_APP_NAME}</span>
+              <BrandLogo className="h-7 w-7 shrink-0 rounded" />
+              <span className="min-w-0 leading-tight">
+                <span className="block truncate text-[15px] font-bold tracking-tight">{name.trim() || DEFAULT_APP_NAME}</span>
+                <span className="block truncate text-[11px] text-neutral-400">{t("branding.poweredBy")}</span>
+              </span>
             </div>
             <div className="flex flex-col items-center gap-2 border-t border-neutral-200 px-3 py-5 dark:border-neutral-800">
               <BrandLogo className="h-10 w-10" />
               <span className="text-sm font-semibold">{name.trim() || DEFAULT_APP_NAME}</span>
               <span className="h-2 w-32 rounded bg-neutral-200 dark:bg-neutral-800" />
               <span className="h-2 w-24 rounded bg-neutral-200 dark:bg-neutral-800" />
+              <span className="mt-1 text-[11px] text-neutral-400">{t("branding.poweredBy")}</span>
             </div>
           </div>
         </div>

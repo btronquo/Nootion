@@ -344,6 +344,7 @@ export const fr: Messages = {
   "branding.logoHelp": "PNG, JPEG, WebP, GIF ou SVG, 1 Mo au plus. Une image carrée rend le mieux : elle sert aussi d'icône à l'onglet du navigateur.",
   "branding.name": "Nom",
   "branding.nameHelp": "Vide : Nootion.",
+  "branding.poweredBy": "Propulsé par Nootion",
   "branding.preview": "Aperçu",
   "branding.removeLogo": "Revenir au logo de Nootion",
   "branding.save": "Enregistrer",

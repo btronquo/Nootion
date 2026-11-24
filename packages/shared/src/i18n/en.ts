@@ -342,6 +342,7 @@ export const en = {
   "branding.logoHelp": "PNG, JPEG, WebP, GIF or SVG, up to 1 MB. A square image works best: it is also the browser tab's icon.",
   "branding.name": "Name",
   "branding.nameHelp": "Empty: Nootion.",
+  "branding.poweredBy": "Powered by Nootion",
   "branding.preview": "Preview",
   "branding.removeLogo": "Back to Nootion's logo",
   "branding.save": "Save",

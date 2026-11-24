@@ -38,7 +38,7 @@ export function ErrorText({ error }: { error: unknown }) {
 export function AuthCard({ title, subtitle, children }: { title: string; subtitle?: string; children: ReactNode }) {
   const branding = useBranding();
   return (
-    <div className="flex min-h-full items-center justify-center bg-neutral-50 p-4 dark:bg-neutral-950">
+    <div className="flex min-h-full flex-col items-center justify-center bg-neutral-50 p-4 dark:bg-neutral-950">
       <div className="w-full max-w-sm rounded-xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
         <div className="mb-6 text-center">
           <BrandLogo className="mx-auto mb-3 h-10 w-10" />
@@ -53,6 +53,12 @@ export function AuthCard({ title, subtitle, children }: { title: string; subtitl
         </div>
         {children}
       </div>
+      {/* Nootion stays credited under the instance's own name. */}
+      {(branding.customName || branding.logoUrl) && (
+        <p className="mt-4 text-center text-xs text-neutral-400" data-powered-by>
+          {t("branding.poweredBy")}
+        </p>
+      )}
     </div>
   );
 }

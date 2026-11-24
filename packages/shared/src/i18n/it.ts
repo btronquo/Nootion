@@ -346,6 +346,7 @@ export const it: Catalogue = {
   "branding.logoHelp": "PNG, JPEG, WebP, GIF o SVG, al massimo 1 MB. Un'immagine quadrata rende meglio: è anche l'icona della scheda del browser.",
   "branding.name": "Nome",
   "branding.nameHelp": "Vuoto: Nootion.",
+  "branding.poweredBy": "Realizzato con Nootion",
   "branding.preview": "Anteprima",
   "branding.removeLogo": "Torna al logo di Nootion",
   "branding.save": "Salva",
