@@ -4,8 +4,8 @@
 #                                                     GitHub release (created as a draft if it doesn't exist yet)
 #   - git tag "desktop-v1.2.3", or "Run workflow"  -> same, as a separate draft pre-release (tests of the app)
 #
-# The installers are not signed yet: Windows shows a SmartScreen warning and macOS asks to open the app from
-# System Settings > Privacy & Security. Signing is set up by adding the secrets listed at the bottom of this file.
+# macOS installers are signed with a Developer ID certificate and notarized by Apple (the APPLE_* secrets below).
+# Windows installers are not signed yet: Windows shows a SmartScreen warning.
 name: Desktop
 
 on:
@@ -81,13 +81,13 @@ jobs:
         id: tauri
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Signing, once the secrets exist (Settings > Secrets and variables > Actions):
-          # APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}                 # Developer ID Application .p12, base64
-          # APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          # APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}       # "Developer ID Application: Name (TEAMID)"
-          # APPLE_ID: ${{ secrets.APPLE_ID }}                                   # notarization
-          # APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}                       # app-specific password
-          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # macOS signing and notarization (Settings > Secrets and variables > Actions); unused on Windows and Linux.
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}                   # Developer ID Application .p12, base64
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}         # "Developer ID Application: Name (TEAMID)"
+          APPLE_ID: ${{ secrets.APPLE_ID }}                                     # notarization
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}                         # app-specific password
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           projectPath: apps/desktop
           tauriScript: pnpm tauri
