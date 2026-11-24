@@ -24,6 +24,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   empty screen. The comments panel slides in from the right and back out when closed, and the page scrolls smoothly
   to where a link, the table of contents or a comment takes it.
 
+### Fixed
+
+- After cutting text or blocks, a click elsewhere followed by Enter or Ctrl+V sometimes acted where the cut had been:
+  the browser hadn't told the editor about the click. The editor now takes the cursor the browser shows before a key,
+  a paste, a cut or a copy.
+
 ## [4.1.0] - 2026-11-18
 
 ### Added

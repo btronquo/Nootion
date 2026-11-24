@@ -31,6 +31,7 @@ import { TextColorButton } from "./TextColorMenu";
 import { BlockHandle } from "./BlockHandle";
 import { BlockShortcuts } from "./blockActions";
 import { BlockSelection, BlockSelectionKeys, blockRange } from "./blockSelection";
+import { SelectionSync } from "./selectionSync";
 import { BlockFlash, EditTracking, findBlockById, findTaskByRank, flashBlock } from "./blockAttrs";
 import { useIsTouch } from "../lib/mobile";
 import type { CommentThread } from "@nootion/shared";
@@ -225,6 +226,7 @@ function CollabEditor({
         BlockShortcuts,
         BlockSelection,
         BlockSelectionKeys,
+        SelectionSync,
         BlockFlash,
         EditTracking.configure({ user: user ? { id: user.id, name: user.name } : null }),
       ],
