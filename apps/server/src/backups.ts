@@ -38,7 +38,7 @@ export async function fullBackupZip(app: FastifyInstance) {
   // Attached files kept in a bucket aren't copied: the bucket has its own copies (versioning, replication). A note says
   // where they are, so that a restore points the server at the same bucket.
   const files = fileStore(dataDir);
-  const dirs = files.kind === "s3" ? ["avatars", "icons", "plugins", "plugin-data"] : ["uploads", "avatars", "icons", "plugins", "plugin-data"];
+  const dirs = files.kind === "s3" ? ["avatars", "icons", "branding", "plugins", "plugin-data"] : ["uploads", "avatars", "icons", "branding", "plugins", "plugin-data"];
   for (const dir of dirs) addDir(path.join(dataDir, dir), dir);
   if (files.kind === "s3")
     zip.addBuffer(

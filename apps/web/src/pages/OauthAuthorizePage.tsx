@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { t } from "@nootion/shared";
+import { appName, t } from "@nootion/shared";
 import { api } from "../lib/api";
 import { useWorkspaces } from "../lib/queries";
 import { workspaceName } from "../lib/labels";
@@ -49,10 +49,10 @@ export function OauthAuthorizePage() {
     if (known && !valid) sendBack(redirectUri, "invalid_request", state);
   }, [known, valid, redirectUri, state]);
 
-  if (client.isLoading) return <AuthCard title="Nootion">{t("common.loading")}</AuthCard>;
+  if (client.isLoading) return <AuthCard title={appName()}>{t("common.loading")}</AuthCard>;
   if (!client.data) {
     return (
-      <AuthCard title="Nootion">
+      <AuthCard title={appName()}>
         <p className="text-sm text-neutral-600 dark:text-neutral-400" data-oauth-invalid>
           {t("oauth.invalid")}
         </p>

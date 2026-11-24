@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { APP_NAME_MAX } from "./branding.js";
 
 /** Choices administrators make for the whole server ("Administration › Security"). */
 export const instanceSettingsInput = z.object({
@@ -10,6 +11,14 @@ export const instanceSettingsInput = z.object({
   auditRetentionDays: z.number().int().min(0).max(3650).default(365),
   /** The first administrator hasn't finished (or skipped) the setup assistant yet: Administration offers to resume it. */
   setupPending: z.boolean().default(false),
+  /** The name shown instead of "Nootion" (sidebar, sign-in page, browser tab, e-mails); empty keeps "Nootion". */
+  appName: z.string().trim().max(APP_NAME_MAX).default(""),
+  /** The custom logo's file, in the data folder's "branding" directory; null keeps Nootion's. Set by its own routes. */
+  logo: z
+    .string()
+    .regex(/^logo-[a-f0-9]+\.(png|jpg|webp|gif|svg)$/)
+    .nullable()
+    .default(null),
 });
 export type InstanceSettings = z.infer<typeof instanceSettingsInput>;
 

@@ -100,8 +100,29 @@ export const collator = (options?: Intl.CollatorOptions, locale: string = intlLo
 
 const plurals = new Map<Locale, Intl.PluralRules>();
 
+/** The software's own name, which the catalogues use. */
+export const DEFAULT_APP_NAME = "Nootion";
+
+let brand = DEFAULT_APP_NAME;
+
+/**
+ * The name administrators gave the app ("Administration › Branding"): texts then say it instead of "Nootion".
+ * An empty name goes back to "Nootion".
+ */
+export function setAppName(name: string | null | undefined): void {
+  brand = name?.trim() || DEFAULT_APP_NAME;
+}
+
+/** The app's name as people see it: the custom one, or "Nootion". */
+export function appName(): string {
+  return brand;
+}
+
+/** Texts about the software itself (its version, its updates, servers of the desktop app), which keep its real name. */
+const SOFTWARE_TEXT = /^(update\.|whatsNew\.|sync\.|branding\.|admin\.version$)/;
+
 /** `textLocale` is the language the message is written in (English for a missing translation), for its plural forms. */
-function format(message: Message, locale: Locale, textLocale: Locale, params?: Record<string, string | number>): string {
+function format(message: Message, locale: Locale, textLocale: Locale, params?: Record<string, string | number>, key?: string): string {
   let text: string;
   if (typeof message === "string") text = message;
   else {
@@ -111,6 +132,8 @@ function format(message: Message, locale: Locale, textLocale: Locale, params?: R
     // the count, or "other" when the catalogue doesn't give it.
     text = message[rules.select(Number(params?.count ?? 0))] ?? message.other;
   }
+  // In the text itself, before the values are put in: a page called "Nootion" keeps its title.
+  if (brand !== DEFAULT_APP_NAME && !(key && SOFTWARE_TEXT.test(key))) text = text.replace(/\bNootion\b/g, () => brand);
   if (!params) return text;
   return text.replace(/\{(\w+)\}/g, (all, name: string) => {
     const value = params[name];
@@ -127,7 +150,7 @@ export function t(key: MessageKey, params?: Record<string, string | number>): st
 /** Translates a message into a given language. */
 export function tIn(locale: Locale, key: MessageKey, params?: Record<string, string | number>): string {
   const message = CATALOGUES[locale][key];
-  return message === undefined ? format(en[key], locale, DEFAULT_LOCALE, params) : format(message, locale, locale, params);
+  return message === undefined ? format(en[key], locale, DEFAULT_LOCALE, params, key) : format(message, locale, locale, params, key);
 }
 
 /** Whether a string is a message key (for messages that travel as keys, like validation errors). */

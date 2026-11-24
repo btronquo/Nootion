@@ -1,5 +1,7 @@
 // Sets the interface language before anything renders.
 import "./lib/i18n";
+// And the instance's name, which texts say instead of "Nootion".
+import "./lib/branding";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";

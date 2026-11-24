@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import nodemailer from "nodemailer";
 import {
+  appName,
   EMAIL_KINDS,
   mailSettingsInput,
   t,
@@ -15,6 +16,8 @@ import type { Db } from "./db/index.js";
 import { mailSettings, users } from "./db/schema.js";
 import { HttpError } from "./http.js";
 import { decryptSecret, encryptSecret, secretKey } from "./secrets.js";
+import { getInstanceSettings } from "./settings.js";
+import { logoUrl } from "./branding.js";
 
 const ROW = "default";
 
@@ -32,7 +35,8 @@ export interface Mail {
 const escape = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
 /** A plain, readable e-mail that looks fine in every client (tables and inline styles only). */
-export function renderMail(mail: Mail, appUrl: string): { html: string; text: string } {
+/** `logoUrl`: the instance's own logo (absolute address), shown before its name at the top. */
+export function renderMail(mail: Mail, appUrl: string, logoUrl: string | null = null): { html: string; text: string } {
   const paragraphs = mail.text
     .split(/\n{2,}/)
     .map((p) => `<p style="margin:0 0 14px;line-height:1.55">${escape(p).replace(/\n/g, "<br>")}</p>`)
@@ -44,7 +48,7 @@ export function renderMail(mail: Mail, appUrl: string): { html: string; text: st
   const html = `<!doctype html><html><body style="margin:0;background:#f6f6f5;padding:24px 12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#262626;font-size:15px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#fff;border:1px solid #e5e5e5;border-radius:10px">
-<tr><td style="padding:28px 28px 8px"><a href="${escape(appUrl)}" style="color:#262626;text-decoration:none;font-weight:700;font-size:16px">Nootion</a></td></tr>
+<tr><td style="padding:28px 28px 8px"><a href="${escape(appUrl)}" style="color:#262626;text-decoration:none;font-weight:700;font-size:16px">${logoUrl ? `<img src="${escape(logoUrl)}" alt="" height="28" style="height:28px;width:auto;max-width:120px;vertical-align:middle;margin-right:8px;border:0">` : ""}<span style="vertical-align:middle">${escape(appName())}</span></a></td></tr>
 <tr><td style="padding:8px 28px 28px">${paragraphs}${button}${footer}</td></tr>
 </table></td></tr></table></body></html>`;
   const text = [mail.text, mail.action ? `${mail.action.label}: ${mail.action.url}` : "", mail.footer ?? ""].filter(Boolean).join("\n\n");
@@ -59,6 +63,12 @@ export function createMailer(opts: { db: Db; appSecret: string; appUrl: string; 
   const { db } = opts;
   const key = secretKey(opts.appSecret, "nootion-mail");
   const row = () => db.select().from(mailSettings).where(eq(mailSettings.id, ROW)).get();
+
+  /** The custom logo for the top of e-mails: raster images only, since many mail apps don't show SVG. */
+  function mailLogo(): string | null {
+    const { logo } = getInstanceSettings(db);
+    return logo && !logo.endsWith(".svg") ? `${opts.appUrl.replace(/\/$/, "")}${logoUrl(logo)}` : null;
+  }
 
   function get(): MailSettings | null {
     const r = row();
@@ -102,7 +112,7 @@ export function createMailer(opts: { db: Db; appSecret: string; appUrl: string; 
     if (!r) throw new HttpError(400, "mail_off", t("mail.notConfigured"));
     const c = mailSettingsInput.parse(r.config);
     const secret = r.secret ? decryptSecret(key, r.secret) : null;
-    const { html, text } = renderMail(mail, opts.appUrl);
+    const { html, text } = renderMail(mail, opts.appUrl, mailLogo());
     if (opts.sender) return opts.sender({ from: c.from, to: mail.to, subject: mail.subject, text, html });
     if (c.provider === "resend") {
       if (!secret) throw new HttpError(400, "mail_secret", t("mail.secretUnreadable"));

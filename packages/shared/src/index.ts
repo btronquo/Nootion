@@ -26,6 +26,7 @@ export * from "./inbox.js";
 export * from "./backups.js";
 export * from "./mail.js";
 export * from "./sso.js";
+export * from "./branding.js";
 export * from "./settings.js";
 export * from "./audit.js";
 export * from "./updates.js";
