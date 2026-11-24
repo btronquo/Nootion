@@ -4,6 +4,7 @@ import {
   DatabaseBackup,
   KeyRound,
   Mail,
+  Palette,
   Puzzle,
   ScrollText,
   ShieldCheck,
@@ -26,6 +27,7 @@ import { BackupsAdmin } from "./BackupsAdmin";
 import { MailAdmin } from "./MailAdmin";
 import { SsoAdmin } from "./SsoAdmin";
 import { SecurityAdmin } from "./SecurityAdmin";
+import { BrandingAdmin } from "./BrandingAdmin";
 import { GuestsAdmin } from "./GuestsAdmin";
 import { GroupsAdmin } from "./GroupsAdmin";
 import { AuditLogAdmin } from "./AuditLogAdmin";
@@ -42,6 +44,7 @@ const SECTIONS: { id: string; icon: LucideIcon; label: () => string }[] = [
   { id: "backups", icon: DatabaseBackup, label: () => t("admin.nav.backups") },
   { id: "mail", icon: Mail, label: () => t("admin.nav.mail") },
   { id: "sso", icon: KeyRound, label: () => t("admin.nav.sso") },
+  { id: "branding", icon: Palette, label: () => t("admin.nav.branding") },
   { id: "security", icon: ShieldCheck, label: () => t("admin.nav.security") },
   { id: "activity", icon: ScrollText, label: () => t("admin.nav.activity") },
   { id: "plugins", icon: Puzzle, label: () => t("admin.nav.plugins") },
@@ -380,6 +383,10 @@ export function AdminPage() {
 
           <AdminCard id="sso">
             <SsoAdmin />
+          </AdminCard>
+
+          <AdminCard id="branding">
+            <BrandingAdmin />
           </AdminCard>
 
           <AdminCard id="security">

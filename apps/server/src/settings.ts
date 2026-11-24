@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { DEFAULT_INSTANCE_SETTINGS, instanceSettingsInput, type InstanceSettings } from "@nootion/shared";
+import { DEFAULT_INSTANCE_SETTINGS, instanceSettingsInput, setAppName, type InstanceSettings } from "@nootion/shared";
 import type { Db } from "./db/index.js";
 import { instanceSettings } from "./db/schema.js";
 
@@ -17,5 +17,13 @@ export function saveInstanceSettings(db: Db, input: InstanceSettings): InstanceS
     .values({ id: ROW, config: input })
     .onConflictDoUpdate({ target: instanceSettings.id, set: { config: input, updatedAt: new Date() } })
     .run();
-  return getInstanceSettings(db);
+  const saved = getInstanceSettings(db);
+  // Texts say the instance's name from now on (see setAppName).
+  setAppName(saved.appName);
+  return saved;
+}
+
+/** Hands the saved name to t(), when the server starts. */
+export function loadAppName(db: Db): void {
+  setAppName(getInstanceSettings(db).appName);
 }

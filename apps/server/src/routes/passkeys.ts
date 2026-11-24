@@ -8,7 +8,7 @@ import {
   type AuthenticationResponseJSON,
   type RegistrationResponseJSON,
 } from "@simplewebauthn/server";
-import { passkeyAddInput, passkeyLoginInput, passkeyOptionsInput, passkeyRenameInput, t, type PasskeyInfo, type PasskeysStatus } from "@nootion/shared";
+import { appName, passkeyAddInput, passkeyLoginInput, passkeyOptionsInput, passkeyRenameInput, t, type PasskeyInfo, type PasskeysStatus } from "@nootion/shared";
 import { and, asc, count, eq, lt } from "drizzle-orm";
 import { audit } from "../audit.js";
 import { verifyPassword } from "../auth/password.js";
@@ -97,7 +97,7 @@ export const passkeyRoutes: FastifyPluginAsync = async (app) => {
     const mine = db.select({ id: passkeys.credentialId, transports: passkeys.transports }).from(passkeys).where(eq(passkeys.userId, user.id)).all();
     if (mine.length >= PASSKEYS_MAX) throw new HttpError(409, "too_many_passkeys", t("passkeys.tooMany", { count: PASSKEYS_MAX }));
     const options = await generateRegistrationOptions({
-      rpName: "Nootion",
+      rpName: appName(),
       rpID,
       userID: new TextEncoder().encode(user.id),
       userName: user.email,

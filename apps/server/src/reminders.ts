@@ -3,7 +3,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, inArray, isNull, lte } from "drizzle-orm";
 import webpush from "web-push";
-import { atLeast, type EmailKind, type Reminder } from "@nootion/shared";
+import { appName, atLeast, type EmailKind, type Reminder } from "@nootion/shared";
 import type { Db } from "./db/index.js";
 import { pages, pushSubscriptions, reminders } from "./db/schema.js";
 import { prosemirrorToText, type ProseMirrorNode } from "./collab.js";
@@ -190,7 +190,7 @@ export function createNotifier(
         if (now.getTime() - r.remindAt.getTime() > TOO_LATE || !atLeast(getPageRole(db, r.userId, r.pageId), "viewer")) continue;
         await push(
           r.userId,
-          { title: `${icon ? `${icon} ` : ""}${title || "Nootion"}`, body: r.text || r.date.replace("T", " "), url: `/page/${r.pageId}`, tag: r.id },
+          { title: `${icon ? `${icon} ` : ""}${title || appName()}`, body: r.text || r.date.replace("T", " "), url: `/page/${r.pageId}`, tag: r.id },
           "reminders",
         );
       }
