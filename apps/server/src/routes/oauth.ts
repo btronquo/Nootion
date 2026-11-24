@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync, FastifyReply } from "fastify";
 import { z } from "zod";
-import { oauthAuthorizeInput, OAUTH_SCOPES, t } from "@nootion/shared";
+import { appName, oauthAuthorizeInput, OAUTH_SCOPES, t } from "@nootion/shared";
 import { HttpError, notFound, parseBody, requireUser } from "../http.js";
 import { getWorkspaceRole } from "../permissions.js";
 import { createCode, exchangeCode, getClient, OauthError, refreshToken, registerClient, revokeToken } from "../oauth.js";
@@ -21,7 +21,7 @@ export const oauthDiscoveryRoutes: FastifyPluginAsync = async (app) => {
     authorization_servers: [base],
     scopes_supported: OAUTH_SCOPES,
     bearer_methods_supported: ["header"],
-    resource_name: "Nootion",
+    resource_name: appName(),
   });
   const server = () => ({
     issuer: base,

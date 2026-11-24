@@ -50,6 +50,7 @@ import {
   useWorkspaces,
 } from "../lib/queries";
 import { useSession } from "../lib/session";
+import { BrandLogo, useBranding } from "../lib/branding";
 import { useUpdateStatus, useVersion } from "./UpdateNotice";
 import { WhatsNewDialog } from "./WhatsNew";
 import { OnboardingTour } from "./OnboardingTour";
@@ -79,6 +80,7 @@ export function AppShell() {
   // A guest only has the pages shared with them: no spaces, inbox, tasks, library or graph.
   const guest = user?.role === "guest";
   const version = useVersion();
+  const branding = useBranding();
   const update = useUpdateStatus(user?.role === "admin").data;
   const updateWarning = !!update?.available && !update.dismissed;
   const navigate = useNavigate();
@@ -134,6 +136,19 @@ export function AppShell() {
 
   const sidebar = (
     <>
+      {/* The instance's own name and logo, once administrators set them ("Administration › Branding"). */}
+      {(branding.customName || branding.logoUrl) && (
+        <Link to="/" className="mx-2 mt-3 flex items-center gap-2 rounded-md px-2 py-1" data-sidebar-brand>
+          <BrandLogo className="h-7 w-7 shrink-0 rounded" />
+          <span className="min-w-0 leading-tight">
+            <span className="block truncate text-[15px] font-bold tracking-tight">{branding.name}</span>
+            {/* Nootion stays credited under the instance's own name. */}
+            <span className="block truncate text-[11px] text-neutral-400" data-powered-by>
+              {t("branding.poweredBy")}
+            </span>
+          </span>
+        </Link>
+      )}
       <Link
         to="/account"
         title={t("account.title")}

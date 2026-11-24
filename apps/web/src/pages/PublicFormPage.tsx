@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { t, type ButtonColor, type FormField } from "@nootion/shared";
+import { appName, t, type ButtonColor, type FormField } from "@nootion/shared";
 import { api } from "../lib/api";
 import { AuthCard, Button } from "../components/ui";
 import { ButtonForm, localNow } from "../buttons/ButtonAction";
@@ -24,13 +24,13 @@ export function PublicFormPage() {
   const [sent, setSent] = useState(0);
   const [done, setDone] = useState(false);
 
-  if (form.isLoading) return <AuthCard title="Nootion">{t("common.loading")}</AuthCard>;
+  if (form.isLoading) return <AuthCard title={appName()}>{t("common.loading")}</AuthCard>;
   const lock = lockOf(form.error);
   if (lock)
     return <PublicLock lock={lock} unlockPath={`/forms/${token}/unlock`} onUnlocked={() => void qc.invalidateQueries({ queryKey: ["public-form", token] })} />;
   if (!form.data) {
     return (
-      <AuthCard title="Nootion">
+      <AuthCard title={appName()}>
         <p className="text-sm text-neutral-600 dark:text-neutral-400">{t("publicForm.notFound")}</p>
       </AuthCard>
     );

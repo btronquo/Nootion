@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyPluginAsync, FastifyReply } from "fastify";
 import { audit } from "../audit.js";
 import QRCode from "qrcode";
-import { t, twoFactorCodeInput, twoFactorPasswordInput, type TwoFactorSetup, type TwoFactorStatus } from "@nootion/shared";
+import { appName, t, twoFactorCodeInput, twoFactorPasswordInput, type TwoFactorSetup, type TwoFactorStatus } from "@nootion/shared";
 import { and, eq, gt, lt } from "drizzle-orm";
 import { verifyPassword } from "../auth/password.js";
 import { hashToken, newToken } from "../auth/tokens.js";
@@ -118,7 +118,7 @@ export const twoFactorRoutes: FastifyPluginAsync = async (app) => {
       .set({ totpPending: encryptSecret(totpKey(app), secret) })
       .where(eq(users.id, user.id))
       .run();
-    const url = otpauthUrl(secret, user.email, "Nootion");
+    const url = otpauthUrl(secret, user.email, appName());
     return { secret, otpauthUrl: url, qrSvg: await QRCode.toString(url, { type: "svg", margin: 1, errorCorrectionLevel: "M" }) };
   });
 

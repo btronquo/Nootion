@@ -16,7 +16,7 @@ import { configureFileStore, fileStore } from "./files.js";
 import { DEFAULT_TRUST_PROXY, type Config } from "./config.js";
 import type { Db } from "./db/index.js";
 import { findSessionUser, SESSION_COOKIE } from "./auth/sessions.js";
-import { HttpError } from "./http.js";
+import { HttpError, notFound } from "./http.js";
 import { guestForbidden, guestRefused, guestsAllowed, isGuest } from "./guests.js";
 import { requestLocale, withLocale } from "./i18n.js";
 import { t } from "@nootion/shared";
@@ -77,6 +77,9 @@ import { users } from "./db/schema.js";
 import { eq } from "drizzle-orm";
 import { buttonRoutes, publicFormRoutes } from "./routes/buttons.js";
 import { settingsRoutes } from "./routes/settings.js";
+import { brandingRoutes } from "./routes/branding.js";
+import { getInstanceSettings, loadAppName } from "./settings.js";
+import { brandIndexHtml, brandManifest, getBranding, logoType } from "./branding.js";
 import { agentAction, findTokenUser, recordActivity, tokenRefusal, withTokenScope, type TokenScope } from "./api-tokens.js";
 
 declare module "fastify" {
@@ -151,6 +154,8 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
     bodyLimit: 5 * 1024 * 1024,
   });
   app.decorate("db", opts.db);
+  // Texts say the name administrators gave the app ("Administration › Branding").
+  loadAppName(opts.db);
   app.decorate("config", opts.config);
   // Attached files: the data folder, or a bucket when FILES_S3_BUCKET is set.
   configureFileStore(opts.config.dataDir, opts.config.files ?? null);
@@ -396,6 +401,7 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
   await app.register(buttonRoutes, { prefix: "/api/buttons" });
   await app.register(publicFormRoutes, { prefix: "/api/forms" });
   await app.register(settingsRoutes, { prefix: "/api" });
+  await app.register(brandingRoutes, { prefix: "/api" });
   await app.register(oauthRoutes, { prefix: "/api/oauth" });
   await app.register(oauthDiscoveryRoutes);
   await app.register(mcpRoutes);
@@ -438,20 +444,33 @@ export async function buildApp(opts: { db: Db; config: Config; logger?: boolean;
 
   const webDir = opts.config.webDir;
   if (webDir && fs.existsSync(path.join(webDir, "index.html"))) {
+    // The page and the manifest carry the instance's name and logo: they are made below, not served as they are.
     await app.register(fastifyStatic, {
       root: webDir,
       wildcard: false,
+      index: false,
+      globIgnore: ["index.html", "manifest.webmanifest"],
       cacheControl: false,
       setHeaders: (res, file) => {
         // Built files carry a hash in their name: browsers may keep them for good.
         // The rest (the page, the service worker, icons) is checked on every visit, so a new version reaches installed apps at once.
         res.header("cache-control", file.includes(`${path.sep}assets${path.sep}`) ? "public, max-age=31536000, immutable" : "no-cache");
-        if (file.endsWith(".webmanifest")) res.header("content-type", "application/manifest+json");
       },
     });
-    // Single-page app: unknown non-API GET routes serve index.html.
+    const indexFile = path.join(webDir, "index.html");
+    const manifestFile = path.join(webDir, "manifest.webmanifest");
+    app.get("/manifest.webmanifest", async (_req, reply) => {
+      if (!fs.existsSync(manifestFile)) throw notFound();
+      const { logo } = getInstanceSettings(app.db);
+      const manifest = brandManifest(JSON.parse(fs.readFileSync(manifestFile, "utf8")), getBranding(app.db), logoType(logo));
+      return reply.header("content-type", "application/manifest+json").header("cache-control", "no-cache").send(JSON.stringify(manifest));
+    });
+    // Single-page app: unknown non-API GET routes serve index.html, with the instance's name and logo in it.
     app.setNotFoundHandler((req, reply) => {
-      if (req.method === "GET" && !req.url.startsWith("/api/")) return reply.sendFile("index.html");
+      if (req.method === "GET" && !req.url.startsWith("/api/")) {
+        const html = brandIndexHtml(fs.readFileSync(indexFile, "utf8"), getBranding(app.db), logoType(getInstanceSettings(app.db).logo));
+        return reply.header("content-type", "text/html; charset=utf-8").header("cache-control", "no-cache").send(html);
+      }
       return reply.status(404).send({ error: "not_found", message: withLocale(requestLocale(req), () => t("error.notFound")) });
     });
   } else {

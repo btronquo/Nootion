@@ -5,6 +5,40 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [4.2.0] - 2026-11-24
+
+### Added
+
+- Branding: administrators give the app their own name and logo (Administration › Branding). The name replaces
+  "Nootion" in the interface and e-mail texts, the browser tab and the installed app; the logo (PNG, JPEG, WebP, GIF
+  or SVG, up to 1 MB) becomes the favicon, the home screen icon, the logo at the top of the sidebar and on the sign-in
+  page, and heads e-mails (raster images only, since many mail apps don't show SVG). The server writes both into the
+  page and its manifest, so they show before any script runs, and the logo is part of backups. A discreet "Powered by
+  Nootion" stays under the custom name; texts about the software itself (version, updates, desktop sync) keep its
+  real name.
+- Several blocks can be selected at once, to copy, cut, paste over, delete, duplicate or move them together: draw a
+  rectangle from the margin of the page, press Escape while typing (then Shift+↑/↓ to add blocks), Shift+click
+  another block, or press Ctrl+A twice. Dragging the handle of one of them moves them all, and a click on it opens a
+  menu for all of them (colour, copy, cut, duplicate, move, delete). Typing doesn't replace them. Details in
+  [docs/EDITOR.md](docs/EDITOR.md#selecting-several-blocks).
+
+### Changed
+
+- The interface moves more smoothly, with one set of short durations and curves everywhere (120 to 240 ms, nothing
+  moves when the system asks to reduce motion). Putting the sidebar away (or bringing it back) slides it while the
+  page glides over, instead of jumping; sub-pages unfold in the sidebar, as does the content of an opened toggle; the
+  formatting toolbar rises from the selected text, and the colour and plugin menus pop in. Buttons, links and menu
+  entries change colour softly on hover. The handles beside a block fade in, and a dragged block shows where it will
+  land with a soft blue line. A page that loads shows grey lines where its title and text will be, rather than an
+  empty screen. The comments panel slides in from the right and back out when closed, and the page scrolls smoothly
+  to where a link, the table of contents or a comment takes it.
+
+### Fixed
+
+- After cutting text or blocks, a click elsewhere followed by Enter or Ctrl+V sometimes acted where the cut had been:
+  the browser hadn't told the editor about the click. The editor now takes the cursor the browser shows before a key,
+  a paste, a cut or a copy.
+
 ## [4.1.0] - 2026-11-18
 
 ### Added
@@ -721,6 +755,7 @@ First public version.
 - Markdown (.zip), CSV and JSON export, CSV import, full backup download.
 - Single Docker image (amd64 and arm64), data in `/data`, migrations applied at startup.
 
+[4.2.0]: ../../releases/tag/v4.2.0
 [4.1.0]: ../../releases/tag/v4.1.0
 [4.0.0]: ../../releases/tag/v4.0.0
 [3.6.0]: ../../releases/tag/v3.6.0

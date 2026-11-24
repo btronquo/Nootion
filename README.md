@@ -5,7 +5,7 @@
 **Your pages, wikis and real databases, on your own server.**<br>
 An open-source, self-hosted workspace that fits in a single Docker container.
 
-[![Version 4.1.0](https://img.shields.io/badge/version-4.1.0-7c3aed)](CHANGELOG.md)
+[![Version 4.2.0](https://img.shields.io/badge/version-4.2.0-7c3aed)](CHANGELOG.md)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
 [![CI](https://github.com/btronquo/Nootion/actions/workflows/ci.yml/badge.svg)](https://github.com/btronquo/Nootion/actions/workflows/ci.yml)
 [![Docker image](https://img.shields.io/badge/docker-ghcr.io%2Fbtronquo%2Fnootion-2496ED?logo=docker&logoColor=white)](https://github.com/btronquo/Nootion/pkgs/container/nootion)
@@ -22,7 +22,7 @@ An open-source, self-hosted workspace that fits in a single Docker container.
 
 </div>
 
-> Version 4.1.0. See [CHANGELOG.md](CHANGELOG.md) for what changed.
+> Version 4.2.0. See [CHANGELOG.md](CHANGELOG.md) for what changed.
 
 ![A Nootion page with its sidebar, a callout, a table of contents and formatted text](docs/screenshots/editor.png)
 
@@ -134,6 +134,8 @@ on a phone, offline use and imports.
   your personal space, then share it by moving it into a shared space.
 - Single sign-on with Microsoft Entra ID, Google, Okta, Keycloak or any OpenID Connect provider, and SCIM so that
   people who leave the company are disabled automatically. See [docs/SSO.md](docs/SSO.md).
+- Branding: your own name and logo instead of Nootion's (sidebar, sign-in page, browser tab, installed app and
+  e-mails), set in Administration, with a discreet "Powered by Nootion" under it.
 - "My account" page: name, email, password, profile picture, language, light / dark / system theme, imports, emptying a space and deleting the account with its data.
 - Interface in English, French, German, Spanish and Italian, chosen per user; dates, numbers and plurals follow the language, and a partly translated language falls back to English text by text.
 
@@ -144,6 +146,8 @@ on a phone, offline use and imports.
   Every access check is done on the server (`apps/server/src/permissions.ts`) and covered by tests.
 - Block editor ("/" commands, to-do lists, tables, callouts, toggles, columns, images and attached files,
   links between pages with "@", people mentions, table of contents), with real-time collaborative editing.
+- Several blocks selected at once (a rectangle drawn from the margin, Shift+click, Escape, or Ctrl+A twice) to copy,
+  cut, delete, duplicate, colour or move them together. See [docs/EDITOR.md](docs/EDITOR.md#selecting-several-blocks).
 - Repeating to-dos: checked, their date moves on to the next day, week, month or chosen days, reminder included.
 - Tasks: every to-do of every page you can read in one list, by page or by date (overdue, today, this week…), checked
   from there, with a home page widget. See [docs/EDITOR.md](docs/EDITOR.md#tasks-all-your-to-dos-in-one-list).

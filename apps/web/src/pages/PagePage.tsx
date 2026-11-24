@@ -52,13 +52,14 @@ import { useComments } from "../comments/queries";
 import { nextRunText, recurrenceText, RecurrenceDialog, useRecurrence } from "../components/RecurrenceDialog";
 import { PageGlyph, pageIcon } from "../lib/icons";
 import { DatabaseIntro } from "../components/DatabaseIntro";
+import { PageSkeleton } from "../components/Skeleton";
 
 /** A page, by the id in the address (or the one given, for the home page). */
 export function PagePage({ id: given }: { id?: string }) {
   const { id: param = "" } = useParams();
   const id = given ?? param;
   const page = usePage(id);
-  if (page.isLoading) return null;
+  if (page.isLoading) return <PageSkeleton />;
   if (page.isError || !page.data) {
     return (
       <div className="mx-auto max-w-3xl px-5 py-8 sm:px-8 sm:py-16 text-neutral-500">
@@ -101,6 +102,8 @@ function PageView({ page }: { page: PageDetail }) {
   const canComment = atLeast(page.role, "commenter");
   const [search, setSearch] = useSearchParams();
   const [commentsOpen, setCommentsOpen] = useState(() => !!search.get("comment"));
+  // The panel's own close, with its animation.
+  const closeComments = useRef<(() => void) | null>(null);
   const [activeThread, setActiveThread] = useState<string | null>(() => search.get("comment"));
   const [draft, setDraft] = useState<DraftAnchor | null>(null);
   const threads = useComments(page.id, hasComments);
@@ -201,7 +204,7 @@ function PageView({ page }: { page: PageDetail }) {
           {hasComments && (
             <Button
               variant="ghost"
-              onClick={() => setCommentsOpen((o) => !o)}
+              onClick={() => (commentsOpen ? (closeComments.current ?? (() => setCommentsOpen(false)))() : setCommentsOpen(true))}
               title={t("comments.title")}
               aria-label={t("comments.title")}
               aria-pressed={commentsOpen}
@@ -392,6 +395,7 @@ function PageView({ page }: { page: PageDetail }) {
       )}
       {hasComments && commentsOpen && (
         <CommentsPanel
+          closeRef={closeComments}
           pageId={page.id}
           canComment={canComment}
           active={activeThread}

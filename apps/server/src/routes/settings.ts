@@ -18,7 +18,8 @@ export const settingsRoutes: FastifyPluginAsync = async (app) => {
     // Settings left out keep their value: a form that only knows some of them doesn't reset the others.
     const body = req.body && typeof req.body === "object" ? req.body : {};
     const before = getInstanceSettings(db);
-    const settings = saveInstanceSettings(db, parseBody(instanceSettingsInput, { ...before, ...body }));
+    // The logo is a file, changed through its own routes (routes/branding.ts).
+    const settings = saveInstanceSettings(db, parseBody(instanceSettingsInput, { ...before, ...body, logo: before.logo }));
     const keys = changedKeys(before, settings);
     // Values are kept here: none of these is a secret, and "guests forbidden" says more than "allowGuests changed".
     const values = Object.fromEntries(keys.map((k) => [k, settings[k as keyof typeof settings]]));
