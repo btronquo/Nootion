@@ -144,12 +144,13 @@ once their settings exist in the repository (Settings > Secrets and variables > 
 
 ### macOS
 
-An Apple Developer account, a "Developer ID Application" certificate and these secrets: `APPLE_CERTIFICATE` (the
-certificate and its private key, exported as .p12 from Keychain Access, in base64: `base64 -i cert.p12 | pbcopy`),
-`APPLE_CERTIFICATE_PASSWORD` (the export's password), `APPLE_SIGNING_IDENTITY` (as shown by
-`security find-identity -v -p codesigning`: `Developer ID Application: Name (TEAMID)`), `APPLE_TEAM_ID`, `APPLE_ID`
-and `APPLE_PASSWORD` (an app-specific password from appleid.apple.com, for notarization). The workflow then signs
-the app and has Apple notarize it.
+An Apple Developer account, a "Developer ID Application" certificate and four secrets: `APPLE_CERTIFICATE` (the
+certificate with its private key, as a .p12 file in base64), `APPLE_CERTIFICATE_PASSWORD` (the .p12's password),
+`APPLE_ID` (the Apple account's e-mail) and `APPLE_PASSWORD` (an app-specific password from account.apple.com, for
+notarization). The signing identity and the team ID are read from the certificate. The workflow signs the local
+server's native modules, then the app and Node with the hardened runtime
+([Entitlements.plist](../apps/desktop/src-tauri/Entitlements.plist): Node compiles JavaScript as it runs), and has
+Apple notarize it: a green build means Apple accepted it. The certificate can be made without a Mac, with OpenSSL.
 
 ### Windows
 

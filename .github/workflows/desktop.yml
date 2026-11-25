@@ -6,7 +6,7 @@
 #
 # macOS installers are signed with a Developer ID certificate and notarized by Apple (the APPLE_* secrets below).
 # Windows installers are signed by SignPath (free code signing for open source projects): built here, sent to
-# SignPath, then put in place of the unsigned ones. On until the SIGNPATH_ORGANIZATION_ID variable exists.
+# SignPath, then put in place of the unsigned ones. Off until the SIGNPATH_ORGANIZATION_ID variable exists.
 # See docs/DESKTOP.md#signing.
 name: Desktop
 
@@ -79,17 +79,41 @@ jobs:
           workspaces: apps/desktop/src-tauri
       # The whole workspace: the installers ship the server and the web app (scripts/prepare-local-server.mjs).
       - run: pnpm install --frozen-lockfile
+      # macOS: the Developer ID certificate goes into a keychain of its own, so that the local server's native modules
+      # can be signed before bundling (scripts/prepare-local-server.mjs), then the app by Tauri, which also has Apple
+      # notarize it. The identity and team come from the certificate itself. Without the secrets, the app stays unsigned.
+      - if: startsWith(matrix.platform, 'macos')
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }} # Developer ID Application .p12, base64
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }} # notarization: the Apple account's e-mail
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }} # and an app-specific password
+        run: |
+          if [ -z "$APPLE_CERTIFICATE" ]; then echo "::warning::No APPLE_CERTIFICATE secret: the macOS app is not signed."; exit 0; fi
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          pass=$(openssl rand -hex 16)
+          echo "$APPLE_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$pass" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$pass" "$keychain"
+          security import "$RUNNER_TEMP/cert.p12" -k "$keychain" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          rm "$RUNNER_TEMP/cert.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$pass" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          identity=$(security find-identity -v -p codesigning "$keychain" | grep -o '"Developer ID Application: .*"' | head -1 | tr -d '"')
+          if [ -z "$identity" ]; then echo "::error::No Developer ID Application certificate in APPLE_CERTIFICATE."; exit 1; fi
+          echo "Signing as $identity"
+          team=$(echo "$identity" | sed -E 's/.*\(([A-Z0-9]+)\)$/\1/')
+          {
+            echo "APPLE_SIGNING_IDENTITY=$identity"
+            echo "APPLE_TEAM_ID=$team"
+            if [ -n "$APPLE_ID" ]; then echo "APPLE_ID=$APPLE_ID"; echo "APPLE_PASSWORD=$APPLE_PASSWORD"; fi
+          } >> "$GITHUB_ENV"
       - uses: tauri-apps/tauri-action@v0
         id: tauri
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # macOS signing and notarization (Settings > Secrets and variables > Actions); unused on Windows and Linux.
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}                   # Developer ID Application .p12, base64
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}         # "Developer ID Application: Name (TEAMID)"
-          APPLE_ID: ${{ secrets.APPLE_ID }}                                     # notarization
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}                         # app-specific password
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           projectPath: apps/desktop
           tauriScript: pnpm tauri
