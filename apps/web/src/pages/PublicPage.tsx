@@ -6,7 +6,7 @@ import { buildTree, pageTitle, type TreeNode } from "../lib/tree";
 import type { JSONContent } from "@tiptap/core";
 import { PublicContent } from "../editor/PublicContent";
 import { Cell } from "../database/Cell";
-import { PropertyIcon } from "../database/icons";
+import { PropertyLabel } from "../database/RowProperties";
 import { PublicDatabase } from "../database/DatabaseBlockView";
 import { t } from "@nootion/shared";
 import { MobileBar, SidebarLayout } from "../components/SidebarLayout";
@@ -103,9 +103,7 @@ function PublicRowProperties({ row, token, rowId }: { row: PublicRow; token: str
         .filter((p) => p.type !== "title")
         .map((p) => (
           <div key={p.id} className="flex items-start gap-2">
-            <div className="flex w-32 shrink-0 sm:w-40 items-center gap-1.5 truncate py-1.5 text-neutral-500">
-              <PropertyIcon type={p.type} size={14} /> <span className="truncate">{p.name}</span>
-            </div>
+            <PropertyLabel prop={p} />
             <div className="min-w-0 flex-1">
               <Cell
                 prop={p}
