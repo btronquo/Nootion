@@ -11,6 +11,8 @@ import { PageGlyph } from "../lib/icons";
 import { DRAG_SPACE_TYPE, PendingSpaceMoveDialog, readDraggedSpace, type PendingSpaceMove } from "./SpaceMove";
 
 export const DRAG_TYPE = "application/x-nootion-page";
+/** A starred page dragged from the favorites. */
+export const FAVORITE_TYPE = "application/x-nootion-favorite";
 
 type DropZone = "before" | "inside" | "after";
 

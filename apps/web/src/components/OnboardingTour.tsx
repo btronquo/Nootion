@@ -3,8 +3,10 @@ import { useMatch, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
+  AppWindow,
   ArrowRight,
   Bot,
+  Check,
   Calculator,
   CheckSquare,
   Command,
@@ -23,6 +25,7 @@ import { api } from "../lib/api";
 import { onboardingKey, useOnboarding, useTourRequests } from "../lib/onboarding";
 import { useSession } from "../lib/session";
 import { useRefreshPages } from "../lib/queries";
+import { setTabsEnabled, useTabs } from "../lib/tabs";
 import { usePlugins } from "../plugins/registry";
 import { captureShortcutLabel, isMac } from "./QuickCapture";
 import { Button, Rich, useClosing } from "./ui";
@@ -156,6 +159,55 @@ function PaletteArt() {
   );
 }
 
+function TabsArt() {
+  const tabs: [string, string, boolean][] = [
+    ["🏠", "", true],
+    ["📝", t("tour.art.tabNotes"), false],
+    ["💶", t("tour.art.tabBudget"), false],
+    ["🗾", t("tour.art.tabTrip"), false],
+  ];
+  return (
+    <div className="w-80 space-y-2">
+      <div className={`${card} flex items-center gap-1 p-1 text-xs`}>
+        {tabs.map(([icon, label, pinned], i) => (
+          <span
+            key={icon}
+            className={`flex h-6 items-center gap-1 rounded-md ${pinned ? "w-7 justify-center" : "min-w-0 flex-1 pr-1 pl-1.5"} ${i === 1 ? "bg-neutral-100 font-medium ring-1 ring-neutral-200 dark:bg-neutral-800 dark:ring-neutral-700" : "text-neutral-500"}`}
+          >
+            <span>{icon}</span>
+            {!pinned && <span className="min-w-0 flex-1 truncate">{label}</span>}
+            {!pinned && i === 1 && <X size={11} className="shrink-0 text-neutral-400" />}
+          </span>
+        ))}
+        <span className="px-1 text-neutral-400">+</span>
+      </div>
+      <div className={`${card} space-y-1.5 p-3`}>
+        <div className="h-2 w-1/2 rounded bg-neutral-300 dark:bg-neutral-600" />
+        <div className="h-1.5 w-full rounded bg-neutral-100 dark:bg-neutral-800" />
+        <div className="h-1.5 w-4/5 rounded bg-neutral-100 dark:bg-neutral-800" />
+      </div>
+    </div>
+  );
+}
+
+/** Turns the tab bar on (or off again) without leaving the tour. */
+function TabsSwitch() {
+  const { enabled } = useTabs();
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={enabled}
+      onClick={() => setTabsEnabled(!enabled)}
+      data-tour-tabs
+      className={`mt-4 flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${enabled ? "border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300" : "border-neutral-300 hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800"}`}
+    >
+      {enabled ? <Check size={16} /> : <AppWindow size={16} />}
+      {enabled ? t("tour.tabs.enabled") : t("tour.tabs.enable")}
+    </button>
+  );
+}
+
 function TasksArt() {
   const rows: [boolean, string, string | null][] = [
     [true, t("tour.art.task1"), null],
@@ -268,9 +320,11 @@ interface Step {
   /** Short tips, each with the keys to press. */
   tips?: { keys?: string[]; text: MessageKey }[];
   art: () => ReactNode;
+  /** Something to do right from the card (turn a feature on). */
+  action?: () => ReactNode;
 }
 
-function steps(assistant: boolean): Step[] {
+function steps(assistant: boolean, wide: boolean): Step[] {
   const all: (Step | false)[] = [
     {
       id: "welcome",
@@ -335,6 +389,20 @@ function steps(assistant: boolean): Step[] {
         { keys: [captureShortcutLabel()], text: "tour.palette.tipCapture" },
       ],
       art: () => <PaletteArt />,
+    },
+    // The tab bar is only on wide screens.
+    wide && {
+      id: "tabs",
+      icon: AppWindow,
+      tint: "from-sky-50 to-blue-100 dark:from-sky-950 dark:to-blue-950",
+      title: "tour.tabs.title",
+      body: "tour.tabs.body",
+      tips: [
+        { keys: [isMac() ? "⌘" : "Ctrl"], text: "tour.tabs.tipOpen" },
+        { keys: ["📌"], text: "tour.tabs.tipPin" },
+      ],
+      art: () => <TabsArt />,
+      action: () => <TabsSwitch />,
     },
     {
       id: "tasks",
@@ -418,7 +486,9 @@ function TourDialog({ demoPageId, onClose }: { demoPageId: string | null; onClos
   const refresh = useRefreshPages();
   const plugins = usePlugins().data ?? [];
   const assistant = plugins.some((p) => p.id === "assistant" && p.enabled);
-  const list = steps(assistant);
+  // Read once: the cards don't change while the tour is open.
+  const [wide] = useState(() => !!window.matchMedia?.("(min-width: 768px)").matches);
+  const list = steps(assistant, wide);
   const [index, setIndex] = useState(0);
   const step = list[Math.min(index, list.length - 1)]!;
   const last = index >= list.length - 1;
@@ -501,6 +571,7 @@ function TourDialog({ demoPageId, onClose }: { demoPageId: string | null; onClos
               ))}
             </ul>
           )}
+          {step.action?.()}
         </div>
         <div className="flex shrink-0 items-center gap-3 border-t border-neutral-100 px-6 py-4 dark:border-neutral-800">
           <div className="flex flex-1 flex-wrap gap-1.5" role="tablist" aria-label={t("tour.title")}>
