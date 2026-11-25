@@ -169,8 +169,9 @@ export const databaseRoutes: FastifyPluginAsync = async (app) => {
     const properties = listProperties(db, databaseId);
     // Read on its own: listRowPages leaves out row templates, which are edited like rows.
     const row = toRow(db.select().from(pages).where(eq(pages.id, rowId)).get()!, properties);
-    const { related } = enrichRows(db, properties, [row], canReadAs(db, userId));
-    return { row, related };
+    const { related, rollupTargets } = enrichRows(db, properties, [row], canReadAs(db, userId));
+    // Names of the people in its cells: someone just added would otherwise show without a name until a reload.
+    return { row, related, people: collectPeople(db, properties, [row], rollupTargets) };
   };
 
   // Databases the user can link to from a relation.

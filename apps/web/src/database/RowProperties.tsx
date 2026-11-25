@@ -17,6 +17,21 @@ interface RowData {
   rollupTargets: Record<string, DatabaseProperty | null>;
 }
 
+/**
+ * Name of a property in the list of an opened row. A long name goes on a second line, and past that the whole name
+ * shows on hover.
+ */
+export function PropertyLabel({ prop }: { prop: DatabaseProperty }) {
+  return (
+    <div title={prop.name} className="flex w-32 shrink-0 items-start gap-1.5 py-1.5 text-neutral-500 sm:w-40">
+      <span className="mt-[3px] flex">
+        <PropertyIcon type={prop.type} size={14} />
+      </span>
+      <span className="line-clamp-2 min-w-0 break-words">{prop.name}</span>
+    </div>
+  );
+}
+
 /** Property list shown above the content of a database row opened as a page. */
 export function RowProperties({ databaseId, rowId, locked = false }: { databaseId: string; rowId: string; locked?: boolean }) {
   const qc = useQueryClient();
@@ -31,10 +46,10 @@ export function RowProperties({ databaseId, rowId, locked = false }: { databaseI
 
   const update = useMutation({
     mutationFn: ({ propId, value }: { propId: string; value: CellValue }) =>
-      sendOrQueue<{ row: DatabaseRow; related: Record<string, RelatedRow> }>(`/databases/${databaseId}/rows/${rowId}`, { values: { [propId]: value } }),
+      sendOrQueue<{ row: DatabaseRow; related: Record<string, RelatedRow>; people: Record<string, string> }>(`/databases/${databaseId}/rows/${rowId}`, { values: { [propId]: value } }),
     onMutate: ({ propId, value }) =>
       qc.setQueryData<RowData>(key, (d) => (d ? { ...d, row: { ...d.row, values: { ...d.row.values, [propId]: value } } } : d)),
-    onSuccess: (res) => res && qc.setQueryData<RowData>(key, (d) => (d ? { ...d, row: res.row, related: { ...d.related, ...res.related } } : d)),
+    onSuccess: (res) => res && qc.setQueryData<RowData>(key, (d) => (d ? { ...d, row: res.row, related: { ...d.related, ...res.related }, people: { ...d.people, ...res.people } } : d)),
     onError: (err) => alert(err instanceof Error ? err.message : String(err)),
     // Relations and rollups can show this row in other databases too.
     onSettled: () => qc.invalidateQueries({ queryKey: ["database"] }),
@@ -59,9 +74,7 @@ export function RowProperties({ databaseId, rowId, locked = false }: { databaseI
         .filter((p) => p.type !== "title")
         .map((p) => (
           <div key={p.id} className="flex items-start gap-2">
-            <div className="flex w-32 shrink-0 sm:w-40 items-center gap-1.5 truncate py-1.5 text-neutral-500">
-              <PropertyIcon type={p.type} size={14} /> <span className="truncate">{p.name}</span>
-            </div>
+            <PropertyLabel prop={p} />
             <div className="min-w-0 flex-1">
               <Cell
                 prop={p}

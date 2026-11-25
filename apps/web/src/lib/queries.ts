@@ -54,8 +54,9 @@ export function useFavorites() {
   return useQuery({ queryKey: keys.favorites, queryFn: async () => (await api<{ pages: PageSummary[] }>("/favorites")).pages });
 }
 
-export function useUserDirectory() {
-  return useQuery({ queryKey: keys.users, queryFn: async () => (await api<{ users: UserDirectoryEntry[] }>("/users")).users });
+/** Everyone the user can mention or pick. Not enabled: only what is already loaded, without asking the server. */
+export function useUserDirectory(enabled = true) {
+  return useQuery({ queryKey: keys.users, queryFn: async () => (await api<{ users: UserDirectoryEntry[] }>("/users")).users, enabled });
 }
 
 /** The groups of people, to share with or mention (not for guests, who don't see them). */

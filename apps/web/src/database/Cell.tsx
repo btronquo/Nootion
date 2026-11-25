@@ -201,11 +201,7 @@ function Display(props: CellProps) {
     case "last_edited_by":
       return (
         <div className={wrap}>
-          {(value as string[]).map((id) => (
-            <span key={id} className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs dark:bg-neutral-800">
-              {people[id] ?? "Utilisateur"}
-            </span>
-          ))}
+          <PersonChips ids={value as string[]} people={people} />
         </div>
       );
     case "relation":
@@ -508,6 +504,25 @@ function RelationPicker({ prop, value, onChange }: CellProps) {
         {target.data && !rows.length && <p className="px-2 py-1 text-neutral-500">{t("cell.noRows")}</p>}
       </div>
     </div>
+  );
+}
+
+/**
+ * People of a person cell. A name missing from the database's answer (someone just picked, before the server has
+ * answered) is taken from the user directory already loaded by the picker: nothing is fetched here, so public pages,
+ * which can't read the directory, keep the generic label.
+ */
+function PersonChips({ ids, people }: { ids: string[]; people: Record<string, string> }) {
+  const directory = useUserDirectory(false);
+  const nameOf = (id: string) => people[id] ?? directory.data?.find((u) => u.id === id)?.name ?? t("cell.unknownUser");
+  return (
+    <>
+      {ids.map((id) => (
+        <span key={id} className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs dark:bg-neutral-800">
+          {nameOf(id)}
+        </span>
+      ))}
+    </>
   );
 }
 
