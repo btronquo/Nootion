@@ -117,6 +117,8 @@ jobs:
         with:
           projectPath: apps/desktop
           tauriScript: pnpm tauri
+          # The tools' own output when bundling fails (linuxdeploy, codesign, notarization), not just "failed to run".
+          args: --verbose
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
           # A Nootion release (v1.2.3) gets the installers in its own release; its notes are written by hand.
           releaseName: ${{ startsWith(github.ref, 'refs/tags/v') && format('Nootion {0}', github.ref_name) || format('Nootion Desktop {0}', github.ref_name) }}

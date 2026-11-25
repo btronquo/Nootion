@@ -33,6 +33,7 @@ for (const extra of ["src", "test", "plugins/README.md", "build.mjs", "drizzle.c
   fs.rmSync(path.join(out, extra), { recursive: true, force: true });
 }
 pruneNodeModules(path.join(out, "node_modules"));
+keepOwnPrebuilds(path.join(out, "node_modules"), process.env.TAURI_ENV_TARGET_TRIPLE || hostTriple());
 fs.cpSync(path.join(root, "apps/server/dist"), path.join(out, "dist"), { recursive: true });
 fs.cpSync(path.join(root, "apps/server/migrations"), path.join(out, "migrations"), { recursive: true });
 fs.cpSync(path.join(root, "apps/web/dist"), path.join(out, "web"), { recursive: true });
@@ -96,6 +97,22 @@ function pruneNodeModules(dir) {
     } else if (/\.(d\.ts|d\.mts|d\.cts|map|md|markdown)$/i.test(name) && !/^license/i.test(name)) {
       fs.rmSync(full, { force: true });
     }
+  }
+}
+
+/**
+ * Native modules that ship a binary for every system (better-sqlite3's prebuilds/linux-x64.node, win32-x64.node…):
+ * only this system's is kept. The others would be dead weight, and they break the build: the AppImage tool looks for
+ * the libraries of every Linux binary (musl ones included), and macOS can't sign Windows or Linux files.
+ */
+function keepOwnPrebuilds(dir, triple) {
+  const own = `${triple.includes("windows") ? "win32" : triple.includes("apple") ? "darwin" : "linux"}-${triple.startsWith("aarch64") ? "arm64" : "x64"}`;
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, e.name);
+    if (!e.isDirectory()) continue;
+    if (e.name === "prebuilds") {
+      for (const p of fs.readdirSync(full)) if (p.replace(/\.node$/, "") !== own) fs.rmSync(path.join(full, p), { recursive: true, force: true });
+    } else keepOwnPrebuilds(full, triple);
   }
 }
 
