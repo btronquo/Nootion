@@ -71,6 +71,7 @@ if (fs.existsSync(exe)) {
   fs.rmSync(tmp, { recursive: true, force: true });
 }
 checkFileNames(out);
+signNativeModules(out);
 console.log("Local server ready.");
 
 /**
@@ -109,6 +110,26 @@ function checkFileNames(dir) {
     if (/[^\x20-\x7e\u00a0-\u00ff]/.test(name)) throw new Error(`The Windows installer can't hold this file name: ${path.join(dir, name)}`);
     if (fs.statSync(path.join(dir, name)).isDirectory()) checkFileNames(path.join(dir, name));
   }
+}
+
+/**
+ * macOS, when a signing identity is set (the Desktop workflow sets it): Apple only notarizes an app whose every binary
+ * is signed, and Tauri signs the app and Node but not the server's native modules (.node), shipped as resources.
+ */
+function signNativeModules(dir) {
+  const identity = process.env.APPLE_SIGNING_IDENTITY;
+  if (process.platform !== "darwin" || !identity) return;
+  const files = [];
+  const walk = (d) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const full = path.join(d, e.name);
+      if (e.isDirectory()) walk(full);
+      else if (e.name.endsWith(".node") || e.name.endsWith(".dylib")) files.push(full);
+    }
+  };
+  walk(dir);
+  console.log(`Signing ${files.length} native modules…`);
+  for (const f of files) execFileSync("codesign", ["--force", "--timestamp", "--options", "runtime", "--sign", identity, f], { stdio: "inherit" });
 }
 
 function hostTriple() {
