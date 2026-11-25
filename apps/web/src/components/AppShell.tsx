@@ -55,7 +55,8 @@ import { useUpdateStatus, useVersion } from "./UpdateNotice";
 import { WhatsNewDialog } from "./WhatsNew";
 import { OnboardingTour } from "./OnboardingTour";
 import { buildTree, pageTitle } from "../lib/tree";
-import { DRAG_TYPE, PageTree } from "./PageTree";
+import { DRAG_TYPE, FAVORITE_TYPE, PageTree } from "./PageTree";
+import { TabBar, useTabsSync } from "./TabBar";
 import { PendingSpaceMoveDialog, readDraggedSpace, type PendingSpaceMove } from "./SpaceMove";
 import { Avatar } from "./Avatar";
 import { Button, CancelButton, ErrorText, Field, Modal } from "./ui";
@@ -88,6 +89,7 @@ export function AppShell() {
   // Loaded ahead: page editors wait for the plugins' blocks before opening.
   usePlugins();
   useLiveEvents(!!user);
+  useTabsSync(user?.id);
   const [creatingWorkspace, setCreatingWorkspace] = useState(false);
   const [searching, setSearching] = useState(false);
   const [capturing, setCapturing] = useState(false);
@@ -298,7 +300,7 @@ export function AppShell() {
   );
 
   return (
-    <SidebarLayout sidebar={sidebar}>
+    <SidebarLayout sidebar={sidebar} top={<TabBar />}>
       {!onPage && (
         <MobileBar>
           <SyncStatus className="mr-1" />
@@ -443,8 +445,6 @@ function WorkspaceSection({ workspace }: { workspace: WorkspaceSummary }) {
     </div>
   );
 }
-
-const FAVORITE_TYPE = "application/x-nootion-favorite";
 
 /** Starred pages, in the user's order: rows are dragged to reorder, and a page dragged from a tree is starred where it lands. */
 function FavoritesSection() {

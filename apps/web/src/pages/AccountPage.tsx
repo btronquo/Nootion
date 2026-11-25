@@ -16,6 +16,7 @@ import {
 import { api, ApiError } from "../lib/api";
 import { useSession } from "../lib/session";
 import { getTheme, setTheme, type ThemeChoice } from "../lib/theme";
+import { setTabsEnabled, useTabs } from "../lib/tabs";
 import { pickFiles } from "../editor/upload";
 import { Avatar } from "../components/Avatar";
 import { Button, ErrorText, Field, LanguageSelect, Rich, Select } from "../components/ui";
@@ -517,6 +518,7 @@ function LanguageSection({ user }: { user: PublicUser }) {
 
 function ThemeSection() {
   const [theme, setChoice] = useState(getTheme());
+  const tabs = useTabs();
   return (
     <Section title={t("account.appearance")}>
       <div role="radiogroup" aria-label={t("account.theme")} className="grid grid-cols-3 gap-2">
@@ -537,6 +539,20 @@ function ThemeSection() {
         ))}
       </div>
       <p className="mt-2 text-xs text-neutral-500">{t("account.themeHelp")}</p>
+      {/* The tab bar is only on wide screens. */}
+      <label className="mt-5 hidden items-start gap-2 text-sm md:flex">
+        <input
+          type="checkbox"
+          className="mt-0.5 h-4 w-4 accent-blue-600"
+          checked={tabs.enabled}
+          onChange={(e) => setTabsEnabled(e.target.checked)}
+          data-tabs-setting
+        />
+        <span>
+          {t("tabs.setting")}
+          <span className="mt-0.5 block text-xs text-neutral-500">{t("tabs.help")}</span>
+        </span>
+      </label>
     </Section>
   );
 }

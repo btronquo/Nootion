@@ -1,6 +1,7 @@
 import { useMatch, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import {
+  AppWindow,
   Bell,
   Database,
   FilePlus,
@@ -29,6 +30,7 @@ import { workspaceName } from "../lib/labels";
 import { keys, useRefreshPages, useWorkspaces } from "../lib/queries";
 import { useSession } from "../lib/session";
 import { setTheme, type ThemeChoice } from "../lib/theme";
+import { getTabs, setTabsEnabled } from "../lib/tabs";
 import { captureShortcutLabel } from "./QuickCapture";
 import { startTour } from "../lib/onboarding";
 
@@ -176,6 +178,17 @@ export function useAppActions({ capture, newSpace, hasSync }: { capture: () => v
         run: () => setTheme(choice),
       });
     }
+
+    // The tab bar, on wide screens only.
+    actions.push({
+      id: "tabs:toggle",
+      title: () => (getTabs().enabled ? t("palette.tabsHide") : t("palette.tabsShow")),
+      keywords: () => `${t("tabs.label")} ${t("account.appearance")}`,
+      section: "settings",
+      icon: <AppWindow size={16} />,
+      when: () => !!window.matchMedia?.("(min-width: 768px)").matches,
+      run: () => setTabsEnabled(!getTabs().enabled),
+    });
 
     for (const locale of LOCALES) {
       actions.push({
