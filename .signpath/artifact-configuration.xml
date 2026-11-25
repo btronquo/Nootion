@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  What SignPath signs in the Windows installers (artifact configuration "windows-installers" of the "nootion"
+  project). Paste it on SignPath when creating that configuration: SignPath keeps its own copy.
+  The artifact is the zip made by the Desktop workflow: nsis/Nootion_x.y.z_x64-setup.exe and msi/Nootion_x.y.z_x64_en-US.msi.
+-->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <zip-file>
+    <pe-file path="nsis/*.exe" max-matches="unbounded">
+      <authenticode-sign />
+    </pe-file>
+    <msi-file path="msi/*.msi" max-matches="unbounded">
+      <authenticode-sign />
+    </msi-file>
+  </zip-file>
+</artifact-configuration>

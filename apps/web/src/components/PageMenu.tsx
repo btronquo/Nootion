@@ -1,7 +1,9 @@
 import { useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
-import { Copy, CornerUpRight, Database, ExternalLink, FileText, FileUp, Link2, Pencil, Star, Trash2 } from "lucide-react";
+import { AppWindow, Copy, CornerUpRight, Database, ExternalLink, FileText, FileUp, Link2, Pencil, Star, Trash2 } from "lucide-react";
+import { useTabs } from "../lib/tabs";
+import { openInTab } from "./TabBar";
 import { FileImportDialog } from "./FileImport";
 import { t, type PageSummary } from "@nootion/shared";
 import { api } from "../lib/api";
@@ -63,6 +65,7 @@ export function PageMenu({
   const [moving, setMoving] = useState(false);
   const [importing, setImporting] = useState(false);
   const element = useMemo(() => toElement(anchor), [anchor]);
+  const tabs = useTabs().enabled;
 
   const run = (action: () => Promise<unknown> | void) => () => {
     onClose();
@@ -111,8 +114,14 @@ export function PageMenu({
           </>
         )}
         <Separator />
+        {/* With the tab bar on, "new tab" is one of its tabs, and the browser's is a new window. */}
+        {tabs && (
+          <Item icon={<AppWindow size={15} />} onClick={run(() => openInTab(`/page/${page.id}`))}>
+            {t("tabs.open")}
+          </Item>
+        )}
         <Item icon={<ExternalLink size={15} />} onClick={run(actions.openInNewTab)}>
-          {t("page.openNewTab")}
+          {tabs ? t("page.openNewWindow") : t("page.openNewTab")}
         </Item>
       </div>
     </Popover>

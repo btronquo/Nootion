@@ -70,7 +70,9 @@ export function RowCards({
           .filter((c) => !isEmpty(row.values[c.prop.id]))
           .map((c) => (
             <div key={c.prop.id} className="-mx-2 flex items-start gap-2 text-xs [&_[role=gridcell]]:min-h-0 [&_[role=gridcell]]:py-0.5 [&_[role=gridcell]]:hover:bg-transparent">
-              <span className="w-24 shrink-0 truncate px-2 py-0.5 text-neutral-400">{c.prop.name}</span>
+              <span className="w-24 shrink-0 truncate px-2 py-0.5 text-neutral-400" title={c.prop.name}>
+                {c.prop.name}
+              </span>
               <div className="min-w-0 flex-1">
                 <Cell
                   prop={c.prop}

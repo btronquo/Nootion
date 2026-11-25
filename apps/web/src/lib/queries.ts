@@ -17,11 +17,14 @@ export function useWorkspaces() {
   return useQuery({ queryKey: keys.workspaces, queryFn: async () => (await api<{ workspaces: WorkspaceSummary[] }>("/workspaces")).workspaces });
 }
 
+export const fetchWorkspacePages = async (workspaceId: string) =>
+  (await api<{ pages: PageSummary[] }>(`/workspaces/${workspaceId}/pages`)).pages;
+
 export function useWorkspacePages(workspaceId: string) {
   const { pending } = useOfflineQueue();
   return useQuery({
     queryKey: keys.pages(workspaceId),
-    queryFn: async () => (await api<{ pages: PageSummary[] }>(`/workspaces/${workspaceId}/pages`)).pages,
+    queryFn: () => fetchWorkspacePages(workspaceId),
     select: pending ? withQueuedPages : undefined,
   });
 }
@@ -35,14 +38,14 @@ export function useSharedPages() {
   });
 }
 
-export function usePage(id: string) {
+export function usePage(id: string, enabled = true) {
   const { pending } = useOfflineQueue();
   return useQuery({
     queryKey: keys.page(id),
     queryFn: async () => (await api<{ page: PageDetail }>(`/pages/${id}`)).page,
     // Title or icon changed offline shows until the server has it.
     select: pending ? withQueuedPage : undefined,
-    enabled: !!id,
+    enabled: !!id && enabled,
   });
 }
 
@@ -51,8 +54,9 @@ export function useFavorites() {
   return useQuery({ queryKey: keys.favorites, queryFn: async () => (await api<{ pages: PageSummary[] }>("/favorites")).pages });
 }
 
-export function useUserDirectory() {
-  return useQuery({ queryKey: keys.users, queryFn: async () => (await api<{ users: UserDirectoryEntry[] }>("/users")).users });
+/** Everyone the user can mention or pick. Not enabled: only what is already loaded, without asking the server. */
+export function useUserDirectory(enabled = true) {
+  return useQuery({ queryKey: keys.users, queryFn: async () => (await api<{ users: UserDirectoryEntry[] }>("/users")).users, enabled });
 }
 
 /** The groups of people, to share with or mention (not for guests, who don't see them). */

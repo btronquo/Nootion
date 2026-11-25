@@ -542,7 +542,9 @@ export function TableView({
                   className="flex w-full items-center gap-1.5 px-2 py-1.5 text-left enabled:hover:bg-neutral-100 dark:enabled:hover:bg-neutral-800"
                 >
                   <PropertyIcon type={c.prop.type} size={14} />
-                  <span className="truncate">{c.prop.name}</span>
+                  <span className="truncate" title={c.prop.name}>
+                    {c.prop.name}
+                  </span>
                 </button>
                 {structure && (
                   <div
@@ -755,7 +757,10 @@ export function TableView({
               }}
               className="flex w-full items-center gap-2 rounded px-2 py-1.5 enabled:hover:bg-neutral-100 dark:enabled:hover:bg-neutral-800"
             >
-              <PropertyIcon type={c.prop.type} size={14} /> <span className="truncate">{c.prop.name}</span>
+              <PropertyIcon type={c.prop.type} size={14} />{" "}
+              <span className="truncate" title={c.prop.name}>
+                {c.prop.name}
+              </span>
               {structure && <span className="ml-auto text-xs text-blue-600">{t("common.show")}</span>}
             </button>
           ))}

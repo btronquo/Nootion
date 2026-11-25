@@ -245,6 +245,17 @@ describe("databases", () => {
     const fake = "00000000-0000-4000-8000-000000000000";
     expect((await boris.patch(`/api/databases/${d.id}/rows/${row.id}`, { values: { [file.id]: [{ id: fake, name: "x.pdf" }] } })).statusCode).toBe(400);
   });
+
+  it("a row's answer names the people just added to it", async () => {
+    const d = await createDb(boris);
+    const who = await addProp(boris, d.id, "Responsable", "person");
+    const [aliceId, borisId] = [await alice.id(), await boris.id()];
+    const created = (await boris.post(`/api/databases/${d.id}/rows`, { values: { [who.id]: [borisId] } })).json();
+    expect(created.people).toEqual({ [borisId]: "Boris" });
+    const res = await boris.patch(`/api/databases/${d.id}/rows/${created.row.id}`, { values: { [who.id]: [borisId, aliceId] } });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.json().people).toEqual({ [borisId]: "Boris", [aliceId]: "Alice" });
+  });
 });
 
 describe("databases and access", () => {

@@ -33,6 +33,7 @@ for (const extra of ["src", "test", "plugins/README.md", "build.mjs", "drizzle.c
   fs.rmSync(path.join(out, extra), { recursive: true, force: true });
 }
 pruneNodeModules(path.join(out, "node_modules"));
+keepOwnPrebuilds(path.join(out, "node_modules"), process.env.TAURI_ENV_TARGET_TRIPLE || hostTriple());
 fs.cpSync(path.join(root, "apps/server/dist"), path.join(out, "dist"), { recursive: true });
 fs.cpSync(path.join(root, "apps/server/migrations"), path.join(out, "migrations"), { recursive: true });
 fs.cpSync(path.join(root, "apps/web/dist"), path.join(out, "web"), { recursive: true });
@@ -71,6 +72,7 @@ if (fs.existsSync(exe)) {
   fs.rmSync(tmp, { recursive: true, force: true });
 }
 checkFileNames(out);
+signNativeModules(out);
 console.log("Local server ready.");
 
 /**
@@ -98,6 +100,22 @@ function pruneNodeModules(dir) {
   }
 }
 
+/**
+ * Native modules that ship a binary for every system (better-sqlite3's prebuilds/linux-x64.node, win32-x64.node…):
+ * only this system's is kept. The others would be dead weight, and they break the build: the AppImage tool looks for
+ * the libraries of every Linux binary (musl ones included), and macOS can't sign Windows or Linux files.
+ */
+function keepOwnPrebuilds(dir, triple) {
+  const own = `${triple.includes("windows") ? "win32" : triple.includes("apple") ? "darwin" : "linux"}-${triple.startsWith("aarch64") ? "arm64" : "x64"}`;
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, e.name);
+    if (!e.isDirectory()) continue;
+    if (e.name === "prebuilds") {
+      for (const p of fs.readdirSync(full)) if (p.replace(/\.node$/, "") !== own) fs.rmSync(path.join(full, p), { recursive: true, force: true });
+    } else keepOwnPrebuilds(full, triple);
+  }
+}
+
 /** A package's own folder, where its tests sit (node_modules/name or node_modules/@scope/name). */
 function isPackage(dir) {
   return fs.existsSync(path.join(dir, "package.json")) && path.basename(path.dirname(dir)).match(/^(node_modules|@.+)$/) !== null;
@@ -109,6 +127,26 @@ function checkFileNames(dir) {
     if (/[^\x20-\x7e\u00a0-\u00ff]/.test(name)) throw new Error(`The Windows installer can't hold this file name: ${path.join(dir, name)}`);
     if (fs.statSync(path.join(dir, name)).isDirectory()) checkFileNames(path.join(dir, name));
   }
+}
+
+/**
+ * macOS, when a signing identity is set (the Desktop workflow sets it): Apple only notarizes an app whose every binary
+ * is signed, and Tauri signs the app and Node but not the server's native modules (.node), shipped as resources.
+ */
+function signNativeModules(dir) {
+  const identity = process.env.APPLE_SIGNING_IDENTITY;
+  if (process.platform !== "darwin" || !identity) return;
+  const files = [];
+  const walk = (d) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const full = path.join(d, e.name);
+      if (e.isDirectory()) walk(full);
+      else if (e.name.endsWith(".node") || e.name.endsWith(".dylib")) files.push(full);
+    }
+  };
+  walk(dir);
+  console.log(`Signing ${files.length} native modules…`);
+  for (const f of files) execFileSync("codesign", ["--force", "--timestamp", "--options", "runtime", "--sign", identity, f], { stdio: "inherit" });
 }
 
 function hostTriple() {

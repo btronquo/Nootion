@@ -5,6 +5,32 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [4.3.0] - 2026-11-25
+
+### Added
+
+- Tabs of open pages, as in a web browser (optional: Account › Appearance, or "Show the tabs" in the command
+  palette; wide screens only). A bar over the content lists the open pages: a click shows one, its cross or a middle
+  click closes it, and following a link changes the current tab. Ctrl+click (⌘+click) or a middle click on a link of
+  the app opens it in a new tab behind the current one, as does "Open in a new tab" in a page's menu in the sidebar
+  (the browser's new tab becomes "Open in a new window").
+  Tabs are dragged to reorder them, and a page dragged from the sidebar onto the bar
+  opens where it is dropped. Right-click a tab to pin it, duplicate it, or close the others or those on its right:
+  pinned tabs stay on the left, show only their icon and keep their page (a link followed from one opens in another
+  tab). The tabs are remembered on the device for each account, and the installed app reopens the last one shown.
+  The guided tour presents them (wide screens) with a button to turn them on right away.
+
+### Changed
+
+- The macOS desktop app is signed and notarized by Apple: it opens without the "unidentified developer" warning.
+
+### Fixed
+
+- A long property name in the list above an opened database row was cut after a dozen characters, with no way to
+  read it. It now goes on a second line, and the whole name shows on hover there, in the table headers and on cards.
+- A person picked in a person cell showed as "User" until the page was reloaded: their name now shows at once, in
+  every language.
+
 ## [4.2.0] - 2026-11-24
 
 ### Added

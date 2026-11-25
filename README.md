@@ -5,7 +5,7 @@
 **Your pages, wikis and real databases, on your own server.**<br>
 An open-source, self-hosted workspace that fits in a single Docker container.
 
-[![Version 4.2.0](https://img.shields.io/badge/version-4.2.0-7c3aed)](CHANGELOG.md)
+[![Version 4.3.0](https://img.shields.io/badge/version-4.3.0-7c3aed)](CHANGELOG.md)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
 [![CI](https://github.com/btronquo/Nootion/actions/workflows/ci.yml/badge.svg)](https://github.com/btronquo/Nootion/actions/workflows/ci.yml)
 [![Docker image](https://img.shields.io/badge/docker-ghcr.io%2Fbtronquo%2Fnootion-2496ED?logo=docker&logoColor=white)](https://github.com/btronquo/Nootion/pkgs/container/nootion)
@@ -22,7 +22,7 @@ An open-source, self-hosted workspace that fits in a single Docker container.
 
 </div>
 
-> Version 4.2.0. See [CHANGELOG.md](CHANGELOG.md) for what changed.
+> Version 4.3.0. See [CHANGELOG.md](CHANGELOG.md) for what changed.
 
 ![A Nootion page with its sidebar, a callout, a table of contents and formatted text](docs/screenshots/editor.png)
 
@@ -59,8 +59,15 @@ The interface is available in English, French, German, Spanish and Italian; each
 
 ### Write
 
+![Tabs of open pages over a page: two pinned tabs on the left, four open pages, and a tab's menu with "Pin tab", "Duplicate tab" and "Close other tabs"](docs/screenshots/page-tabs.png)
+
+**Tabs of open pages** (optional), as in a web browser: go back and forth between pages, Ctrl+click a link to open it
+in a new tab, pin tabs on the left and drag them to reorder.
+
 | | |
 | --- | --- |
+| ![Three blocks of meeting notes selected at once, highlighted in blue](docs/screenshots/block-selection.png) | ![An image beside a text column, with its bar (align, caption, comment, crop, full screen) and the alignment menu open](docs/screenshots/images.png) |
+| **Select several blocks** with a rectangle, Shift+click or Escape, then copy, move, colour or delete them together. | **Images**: resize from their sides, align, caption, comment and crop them, and go through a page's images full screen. |
 | ![A callout and a list shown in two pages at once, with "Synced in 2 pages", "Copy synced block" and "Unsync"](docs/screenshots/synced-blocks.png) | ![A page with an inline equation, a centred equation block and a Mermaid flowchart](docs/screenshots/equations-mermaid.png) |
 | **Synced blocks**: the same content in several pages, edited from any of them. | **Equations and diagrams**: LaTeX in a line or as a block, and Mermaid diagrams drawn as you type. |
 | ![The AI assistant's chat beside a page, answering "What is left to do?" with "Insert in the page" and "Copy"](docs/screenshots/ai-chat-page.png) | ![The command palette in German, listing the actions of the open page](docs/screenshots/languages.png) |
@@ -86,14 +93,14 @@ The interface is available in English, French, German, Spanish and Italian; each
 | ![The activity log: account created, guest invited, page shared, member added to a group, with filters and a CSV export](docs/screenshots/activity-log.png) | ![Dragging a draft from the personal space to a shared space asks who will see it](docs/screenshots/move-between-spaces.png) |
 | **Activity log**: who signed in, shared, exported or changed what, with filters and a CSV export. | **Move pages between spaces**: write a draft privately, then share it by dragging it. |
 
-### Get started
+### Get started and make it yours
 
 | | |
 | --- | --- |
 | ![The setup assistant: eight steps from the server to the team, the first one open](docs/screenshots/setup-assistant.png) | ![A card of the guided tour, "Pages made of blocks", with the keys to press](docs/screenshots/guided-tour.png) |
 | **Setup assistant** for administrators: e-mail, sign-in, backups, AI, plugins and team, one step at a time. | **Guided tour** for each new account, shown once and available again at any time. |
-| ![The demo page in dark mode](docs/screenshots/dark.png) | |
-| **Dark mode**, following the system or picked by hand. | |
+| ![The demo page in dark mode](docs/screenshots/dark.png) | ![The sidebar showing "Acme Studio" with its own logo and "Powered by Nootion", and the Name and logo settings with a preview](docs/screenshots/branding.png) |
+| **Dark mode**, following the system or picked by hand. | **Your own name and logo**, in the sidebar, the sign-in page, the browser tab, the installed app and e-mails. |
 
 ## Getting started
 
@@ -177,6 +184,9 @@ on a phone, offline use and imports.
 - Backlinks: each page lists the pages that mention it.
 - Page graph: the pages of your spaces and the links between them, as a map to explore.
 - "Full width" option per page.
+- Tabs of open pages, as in a web browser (optional, in My account › Appearance): Ctrl+click or middle-click a link to
+  open it in a new tab, pin tabs, drag them to reorder, close the others or those on the right. Remembered on the
+  device for each account.
 
 ### Databases
 
@@ -354,6 +364,19 @@ docs/            Documentation (deployment, editor and search, architecture, API
 Bug reports and ideas are welcome in the issues. Nootion doesn't accept code contributions (pull requests):
 see [CONTRIBUTING.md](CONTRIBUTING.md).
 For a security issue: [SECURITY.md](SECURITY.md).
+
+## Code signing policy
+
+Free code signing on Windows provided by [SignPath.io](https://about.signpath.io), certificate by
+[SignPath Foundation](https://signpath.org). The macOS app is signed with the maintainer's Apple Developer ID and
+notarized by Apple.
+
+- Committers and approvers: [Boris](https://github.com/btronquo), the only person who writes code in this
+  repository (see [CONTRIBUTING.md](CONTRIBUTING.md)) and approves each signing of a release.
+- Only installers built by the [Desktop workflow](.github/workflows/desktop.yml) on GitHub Actions, from this
+  repository, are signed.
+- Privacy: the desktop app sends nothing to anyone but the Nootion servers its user connects it to. See
+  [docs/DESKTOP.md](docs/DESKTOP.md).
 
 ## License
 

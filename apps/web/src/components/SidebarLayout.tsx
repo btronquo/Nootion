@@ -58,9 +58,12 @@ function readCollapsed() {
  */
 export function SidebarLayout({
   sidebar,
+  top,
   children,
 }: {
   sidebar: ReactNode;
+  /** Over the content, outside its scrolling (the tab bar). */
+  top?: ReactNode;
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -268,9 +271,12 @@ export function SidebarLayout({
           className={`hidden shrink-0 md:block print:hidden ${resizing ? "" : "transition-[width] duration-(--nt-dur-slow) ease-(--nt-ease-in-out)"} ${collapsed ? "w-0" : "w-(--sidebar-w)"}`}
           aria-hidden
         />
-        <main ref={main} className="min-w-0 flex-1 overflow-y-auto print:overflow-visible">
-          {children}
-        </main>
+        <div className="flex min-w-0 flex-1 flex-col print:block">
+          {top}
+          <main ref={main} className="min-h-0 min-w-0 flex-1 overflow-y-auto print:overflow-visible">
+            {children}
+          </main>
+        </div>
       </div>
     </SidebarContext.Provider>
   );
