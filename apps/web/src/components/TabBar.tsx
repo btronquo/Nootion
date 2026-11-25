@@ -35,9 +35,12 @@ export const isTabPath = (pathname: string) => TAB_PATH.test(pathname);
 
 const here = () => location.pathname + location.search;
 
-/** Opens a place of the app in a new tab: shown at once, or in the background (Ctrl+click, middle click). */
-export function openInTab(path: string, background = false) {
-  updateTabs((s) => open(s, path, { background, current: here() }));
+/**
+ * Opens a place of the app in a new tab, in the background as in browsers (Ctrl+click, middle click, "Open in a new
+ * tab"): the page on screen stays, and the new tab is a click away.
+ */
+export function openInTab(path: string) {
+  updateTabs((s) => open(s, path, { background: true, current: here() }));
 }
 
 /**
@@ -86,14 +89,14 @@ export function useTabsSync(userId: string | undefined) {
       const a = linkOf(e);
       if (!a) return;
       e.preventDefault();
-      openInTab(a.pathname + a.search, true);
+      openInTab(a.pathname + a.search);
     };
     const onAux = (e: MouseEvent) => {
       if (e.button !== 1) return;
       const a = linkOf(e);
       if (!a) return;
       e.preventDefault();
-      openInTab(a.pathname + a.search, true);
+      openInTab(a.pathname + a.search);
     };
     // Captured before the links' own handlers, which would follow them.
     document.addEventListener("click", onClick, true);
