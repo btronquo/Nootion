@@ -519,6 +519,7 @@ export const en = {
   "cell.searchIn": "Search in {title}…",
   "cell.start": "Start",
   "cell.startTime": "Start time",
+  "cell.unknownUser": "User",
   "codeBlock.auto": "Auto",
   "codeBlock.copied": "Copied",
   "codeBlock.copy": "Copy",

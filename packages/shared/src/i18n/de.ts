@@ -526,6 +526,7 @@ export const de: Catalogue = {
   "cell.searchIn": "In {title} suchen…",
   "cell.start": "Beginn",
   "cell.startTime": "Startzeit",
+  "cell.unknownUser": "Benutzer",
   "codeBlock.auto": "Automatisch",
   "codeBlock.copied": "Kopiert",
   "codeBlock.copy": "Kopieren",

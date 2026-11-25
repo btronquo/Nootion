@@ -521,6 +521,7 @@ export const fr: Messages = {
   "cell.searchIn": "Chercher dans {title}…",
   "cell.start": "Début",
   "cell.startTime": "Heure de début",
+  "cell.unknownUser": "Utilisateur",
   "codeBlock.auto": "Auto",
   "codeBlock.copied": "Copié",
   "codeBlock.copy": "Copier",

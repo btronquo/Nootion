@@ -12,6 +12,8 @@ const linkedQuery = (owner?: ViewOwner | null) => (owner ? `?${new URLSearchPara
 interface RowResponse {
   row: DatabaseRow;
   related: Record<string, RelatedRow>;
+  /** Names of the people in the row's cells. */
+  people: Record<string, string>;
 }
 
 /**
@@ -71,10 +73,10 @@ export function useDatabaseActions(id: string, owner?: ViewOwner | null) {
       })),
     onSuccess: (res, { propId }) => {
       if (!res) return;
-      const { row, related } = res;
+      const { row, related, people } = res;
       const prop = qc.getQueryData<DatabaseData>(key)?.properties.find((p) => p.id === propId);
       const touchesOtherRows = (prop?.type === "relation" && prop.config.databaseId === id) || prop?.type === "date";
-      patch((d) => ({ ...d, related: { ...d.related, ...related }, rows: d.rows.map((r) => (r.id === row.id ? row : r)) }));
+      patch((d) => ({ ...d, related: { ...d.related, ...related }, people: { ...d.people, ...people }, rows: d.rows.map((r) => (r.id === row.id ? row : r)) }));
       // Other databases may show this row through relations and rollups; in this one, a relation to itself (sub-items,
       // dependencies) changes the other side, and moving a date can move the rows waiting on it.
       return qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === "database" && (q.queryKey[1] !== id || touchesOtherRows) });
@@ -87,7 +89,7 @@ export function useDatabaseActions(id: string, owner?: ViewOwner | null) {
 
   const addRow = useMutation({
     mutationFn: (values: Record<string, CellValue> = {}) => api<RowResponse>(`/databases/${id}/rows`, { method: "POST", body: { values } }),
-    onSuccess: ({ row, related }) => patch((d) => ({ ...d, related: { ...d.related, ...related }, rows: [...d.rows, row] })),
+    onSuccess: ({ row, related, people }) => patch((d) => ({ ...d, related: { ...d.related, ...related }, people: { ...d.people, ...people }, rows: [...d.rows, row] })),
   });
 
   const deleteRows = useMutation({
@@ -100,11 +102,11 @@ export function useDatabaseActions(id: string, owner?: ViewOwner | null) {
   const insertRow = useMutation({
     mutationFn: ({ values = {}, after }: { values?: Record<string, CellValue>; after: string | null }) =>
       api<RowResponse>(`/databases/${id}/rows`, { method: "POST", body: { values, after } }),
-    onSuccess: ({ row, related }, { after }) =>
+    onSuccess: ({ row, related, people }, { after }) =>
       patch((d) => {
         const rows = d.rows.filter((r) => r.id !== row.id);
         rows.splice(after === null ? 0 : rows.findIndex((r) => r.id === after) + 1, 0, row);
-        return { ...d, related: { ...d.related, ...related }, rows };
+        return { ...d, related: { ...d.related, ...related }, people: { ...d.people, ...people }, rows };
       }),
     onError: (err) => alert(err instanceof Error ? err.message : String(err)),
   });
@@ -112,11 +114,11 @@ export function useDatabaseActions(id: string, owner?: ViewOwner | null) {
   /** Copies a row right after it. */
   const duplicateRow = useMutation({
     mutationFn: (rowId: string) => api<RowResponse>(`/databases/${id}/rows/${rowId}/duplicate`, { method: "POST", body: {} }),
-    onSuccess: ({ row, related }, rowId) => {
+    onSuccess: ({ row, related, people }, rowId) => {
       patch((d) => {
         const rows = [...d.rows];
         rows.splice(rows.findIndex((r) => r.id === rowId) + 1, 0, row);
-        return { ...d, related: { ...d.related, ...related }, rows };
+        return { ...d, related: { ...d.related, ...related }, people: { ...d.people, ...people }, rows };
       });
       // Two-way relations show the copy in other databases.
       return qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === "database" });
