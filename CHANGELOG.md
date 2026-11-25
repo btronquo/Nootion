@@ -15,6 +15,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   opens where it is dropped. Right-click a tab to pin it, duplicate it, or close the others or those on its right:
   pinned tabs stay on the left, show only their icon and keep their page (a link followed from one opens in another
   tab). The tabs are remembered on the device for each account, and the installed app reopens the last one shown.
+  The guided tour presents them (wide screens) with a button to turn them on right away.
 
 ## [4.2.0] - 2026-11-24
 
