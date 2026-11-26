@@ -57,7 +57,7 @@ Texts may hold variables between double braces, inserted by clicking them under 
 ### Formulas
 
 `{{= formula}}` is computed as a formula column of the row would be, with the same functions, columns, relations and
-rollups (see the formula editor's help). For example, to repeat a task as in Notion, an automation "when Status
+rollups (see the formula editor's help). For example, to repeat a task, an automation "when Status
 becomes Done" with the steps:
 
 - set **Due** to `{{= dateAdd(prop("Due"), 1, "weeks")}}`;

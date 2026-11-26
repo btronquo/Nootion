@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    {{head}}
+  </head>
+  <body class="home" data-root="" data-repo="{{repo}}">
+    <a class="skip-link" href="#content">Skip to the content</a>
+    {{header}}
+
+    <main id="content">
+      <!-- Hero: the promise on the left, the app itself on the right (light or dark screenshot, following the theme). -->
+      <section class="hero">
+        <div class="container hero-inner">
+          <div class="hero-copy reveal">
+            <h1>Your workspace, <span class="brand-gradient">self‑hosted or on your desktop</span></h1>
+            <p class="hero-lead">
+              Open-source pages, wikis and real databases. Start in the desktop app with no server needed, or host it for your team with Docker.
+            </p>
+            <div class="hero-actions">
+              <a class="button button-primary" href="#download" data-download-primary>{{icon:download-simple}}<span>Download the app</span></a>
+              <a class="button button-secondary" href="#docker">{{icon:shipping-container}}<span>Run with Docker</span></a>
+            </div>
+          </div>
+          <div class="hero-visual reveal" style="--delay: 120ms">
+            <figure class="window window-back">
+              <div class="window-bar" aria-hidden="true"><span></span><span></span><span></span></div>
+              <img
+                src="screenshots/database-table.png"
+                alt="A Projects database as a table, with status, priority, dates and owner columns"
+                width="1440"
+                height="900"
+              />
+            </figure>
+            <figure class="window window-front">
+              <div class="window-bar" aria-hidden="true"><span></span><span></span><span></span></div>
+              <picture>
+                <source srcset="screenshots/dark.png" media="(prefers-color-scheme: dark)" data-theme-source />
+                <img
+                  src="screenshots/editor.png"
+                  data-light="screenshots/editor.png"
+                  data-dark="screenshots/dark.png"
+                  alt="A Nootion page with its sidebar, a callout, a table of contents and formatted text"
+                  width="1440"
+                  height="900"
+                  fetchpriority="high"
+                />
+              </picture>
+            </figure>
+          </div>
+        </div>
+        <div class="container">
+          <ul class="pills" aria-label="Highlights">
+            <li>Real-time collaboration</li>
+            <li>Databases</li>
+            <li>Calendar and timeline</li>
+            <li>Automations</li>
+            <li>Plugins</li>
+            <li>SSO and passkeys</li>
+            <li>Works offline</li>
+            <li>Five languages</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- Screenshots, by theme, in a slider. -->
+      <section class="section tour" id="tour" aria-labelledby="tour-title">
+        <div class="container">
+          <h2 id="tour-title" class="section-title reveal">See it at work</h2>
+          <div class="tour-tabs reveal" role="tablist" aria-label="Screenshots by theme">
+            <button role="tab" type="button" aria-selected="true" aria-controls="slider-write" id="tab-write">Write</button>
+            <button role="tab" type="button" aria-selected="false" aria-controls="slider-organise" id="tab-organise" tabindex="-1">Organise</button>
+            <button role="tab" type="button" aria-selected="false" aria-controls="slider-share" id="tab-share" tabindex="-1">Share</button>
+            <button role="tab" type="button" aria-selected="false" aria-controls="slider-start" id="tab-start" tabindex="-1">Get started</button>
+          </div>
+
+          <div class="slider" id="slider-write" role="tabpanel" aria-labelledby="tab-write" aria-roledescription="carousel">
+            <div class="slider-track">
+              <figure class="slide">
+                <img
+                  src="screenshots/synced-blocks.png"
+                  alt="A callout and a list shown in two pages at once, with the synced block menu"
+                  width="1600"
+                  height="1000"
+                  loading="lazy"
+                />
+                <figcaption><strong>Synced blocks.</strong> The same content in several pages, edited from any of them.</figcaption>
+              </figure>
+              <figure class="slide">
+                <img
+                  src="screenshots/equations-mermaid.png"
+                  alt="A page with an inline equation, a centred equation block and a Mermaid flowchart"
+                  width="1600"
+                  height="1000"
+                  loading="lazy"
+                />
+                <figcaption><strong>Equations and diagrams.</strong> LaTeX in a line or as a block, Mermaid diagrams drawn as you type.</figcaption>
+              </figure>
+              <figure class="slide">
+                <img src="screenshots/page-tabs.png" alt="Several pages open as tabs above the editor" width="1600" height="1000" loading="lazy" />
+                <figcaption><strong>Tabs.</strong> Keep several pages open and switch between them.</figcaption>
+              </figure>
+              <figure class="slide">
+                <img src="screenshots/block-selection.png" alt="Several blocks of a page selected together" width="1600" height="1000" loading="lazy" />
+                <figcaption><strong>Block selection.</strong> Select several blocks at once to move, copy or colour them.</figcaption>
+              </figure>
+              <figure class="slide">
+                <img src="screenshots/images.png" alt="Images aligned side by side in a page" width="1600" height="1000" loading="lazy" />
+                <figcaption><strong>Images and files.</strong> Align, resize and open them full screen.</figcaption>
+              </figure>
+            </div>
+          </div>
+
+          <div class="slider" id="slider-organise" role="tabpanel" aria-labelledby="tab-organise" aria-roledescription="carousel" hidden>
+            <div class="slider-track">
+              <figure class="slide">
+                <img src="screenshots/database-board.png" alt="A database shown as a board grouped by status" width="1440" height="900" loading="lazy" />
+                <figcaption><strong>Board view.</strong> Grouped by any select or status column, cards dragged between columns.</figcaption>
+              </figure>
+              <figure class="slide">
+                <img
+                  src="screenshots/database-calendar.png"
+                  alt="A database as a monthly calendar, with multi-day entries shown as bars"
+                  width="1440"
+                  height="900"
+                  loading="lazy"
+                />
+                <figcaption><strong>Calendar.</strong> Date ranges and times, with a private iCal link for your phone.</figcaption>
+              </figure>
+              <figure class="slide">
+                <img
+                  src="screenshots/dependencies-timeline.png"
+                  alt="A timeline where blocked tasks are linked by arrows"
+                  width="2560"
+                  height="1600"
+                  loading="lazy"
+                />
+                <figcaption><strong>Timeline and dependencies.</strong> "Blocked by" drawn as arrows, dates moving along.</figcaption>
+              </figure>
+              <figure class="slide">
+                <img
+                  src="screenshots/database-columns.png"
+                  alt="A table with an ID column, a status column, progress bars and phone numbers"
+                  width="1440"
+                  height="900"
+                  loading="lazy"
+                />
+                <figcaption><strong>Typed columns.</strong> IDs, progress bars, relations, rollups and formulas.</figcaption>
+              </figure>
+              <figure class="slide">
+                <img src="screenshots/widgets.png" alt="Clock, weather, donut and bar chart widgets" width="1440" height="1060" loading="lazy" />
+                <figcaption><strong>Widgets.</strong> Charts, progress, countdowns and more, for dashboards.</figcaption>
+              </figure>
+            </div>
+          </div>
+
+          <div class="slider" id="slider-share" role="tabpanel" aria-labelledby="tab-share" aria-roledescription="carousel" hidden>
+            <div class="slider-track">
+              <figure class="slide">
+                <img
+                  src="screenshots/share-guests.png"
+                  alt="The share window of a page, with a guest who can comment and the public link"
+                  width="1600"
+                  height="1000"
+                  loading="lazy"
+                />
+                <figcaption><strong>Guests and public links.</strong> Invite someone from outside on one page, nothing else.</figcaption>
+              </figure>
+              <figure class="slide">
+                <img
+                  src="screenshots/groups-guests.png"
+                  alt="Administration: a group of two people, and the guests with the pages they see"
+                  width="1600"
+                  height="1000"
+                  loading="lazy"
+                />
+                <figcaption><strong>Groups.</strong> Share a space or a page with a whole team at once.</figcaption>
+              </figure>
+              <figure class="slide">
+                <img src="screenshots/activity-log.png" alt="The activity log with filters and a CSV export" width="1600" height="1000" loading="lazy" />
+                <figcaption><strong>Activity log.</strong> Who signed in, shared, exported or changed what.</figcaption>
+              </figure>
+              <figure class="slide">
+                <img
+                  src="screenshots/move-between-spaces.png"
+                  alt="Dragging a draft from the personal space to a shared space"
+                  width="1440"
+                  height="900"
+                  loading="lazy"
+                />
+                <figcaption><strong>Spaces.</strong> Write a draft privately, then share it by dragging it.</figcaption>
+              </figure>
+            </div>
+          </div>
+
+          <div class="slider" id="slider-start" role="tabpanel" aria-labelledby="tab-start" aria-roledescription="carousel" hidden>
+            <div class="slider-track">
+              <figure class="slide">
+                <img
+                  src="screenshots/setup-assistant.png"
+                  alt="The setup assistant, eight steps from the server to the team"
+                  width="1600"
+                  height="1000"
+                  loading="lazy"
+                />
+                <figcaption><strong>Setup assistant.</strong> E-mail, sign-in, backups, AI, plugins and team, one step at a time.</figcaption>
+              </figure>
+              <figure class="slide">
+                <img
+                  src="screenshots/guided-tour.png"
+                  alt="A card of the guided tour explaining pages made of blocks"
+                  width="1600"
+                  height="1000"
+                  loading="lazy"
+                />
+                <figcaption><strong>Guided tour.</strong> Shown once to each new account, available again any time.</figcaption>
+              </figure>
+              <figure class="slide">
+                <img src="screenshots/languages.png" alt="The command palette in German" width="1600" height="1000" loading="lazy" />
+                <figcaption><strong>Five languages</strong> and a command palette (Ctrl+K). Here in German.</figcaption>
+              </figure>
+              <figure class="slide">
+                <img src="screenshots/branding.png" alt="Nootion under a custom name and logo" width="1600" height="1000" loading="lazy" />
+                <figcaption><strong>Your own name and logo.</strong> Administrators can brand their instance.</figcaption>
+              </figure>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Features: a bento of six cells, two of them with a real screenshot. -->
+      <section class="section features" id="features" aria-labelledby="features-title">
+        <div class="container">
+          <h2 id="features-title" class="section-title reveal">Everything a team workspace needs</h2>
+          <div class="bento">
+            <article class="cell cell-databases reveal">
+              <div class="cell-text">
+                {{icon:table}}
+                <h3>Real databases</h3>
+                <p>Relations both ways, rollups, formulas, filters and six views: table, board, list, gallery, calendar and timeline.</p>
+              </div>
+              <img src="screenshots/database-board.png" alt="" width="1440" height="900" loading="lazy" />
+            </article>
+            <article class="cell cell-collab reveal" style="--delay: 60ms">
+              {{icon:users-three}}
+              <h3>Write together</h3>
+              <p>Real-time editing, comments, @mentions, page history and shared spaces with roles.</p>
+            </article>
+            <article class="cell cell-offline reveal" style="--delay: 120ms">
+              {{icon:wifi-slash}}
+              <h3>Works offline</h3>
+              <p>On the phone as an installed app, and on the desktop. Changes merge when you are back online.</p>
+            </article>
+            <article class="cell cell-import reveal">
+              {{icon:arrow-square-out}}
+              <h3>Move in without losing anything</h3>
+              <p>Import from other tools, Markdown, HTML, Word or CSV: pages, databases, relations and files come along.</p>
+            </article>
+            <article class="cell cell-security reveal" style="--delay: 60ms">
+              {{icon:shield-check}}
+              <h3>Secure by default</h3>
+              <p>Two-factor authentication, passkeys, single sign-on with SCIM, and an activity log.</p>
+            </article>
+            <article class="cell cell-extend reveal" style="--delay: 120ms">
+              <div class="cell-text">
+                {{icon:plugs-connected}}
+                <h3>Yours to extend</h3>
+                <p>Plugins, a REST API, a built-in MCP server for AI agents, automations and buttons.</p>
+              </div>
+              <img src="screenshots/ai-chat-page.png" alt="" width="1600" height="1000" loading="lazy" />
+            </article>
+          </div>
+          <p class="section-more reveal"><a href="docs/features/">See every feature {{icon:arrow-right}}</a></p>
+        </div>
+      </section>
+
+      <!-- Desktop apps: the visitor's system first, links taken from the latest GitHub release. -->
+      <section class="section download" id="download" aria-labelledby="download-title">
+        <div class="container download-inner">
+          <div class="download-copy reveal">
+            <h2 id="download-title" class="section-title">No server needed</h2>
+            <p>
+              Install the desktop app and start writing: everything stays on your computer, with no account to create. Later, connect it to a Nootion server to
+              work with others, and keep its spaces offline.
+            </p>
+            <p class="download-version" data-release-name>Latest version: {{version}}</p>
+            <p class="download-docs"><a href="docs/install-desktop/">Installing the desktop app {{icon:arrow-right}}</a></p>
+          </div>
+          <div class="platforms reveal" style="--delay: 80ms">
+            <article class="platform" data-os="windows">
+              <header>
+                {{icon:windows-logo}}
+                <h3>Windows</h3>
+              </header>
+              <p>Windows 10 and 11, 64-bit.</p>
+              <div class="platform-links">
+                <a class="button button-primary" href="{{repo}}/releases/latest" data-asset="windows-exe"
+                  >{{icon:download-simple}}<span>Installer (.exe)</span></a
+                >
+                <a class="link-small" href="{{repo}}/releases/latest" data-asset="windows-msi">.msi package</a>
+              </div>
+            </article>
+            <article class="platform" data-os="mac">
+              <header>
+                {{icon:apple-logo}}
+                <h3>macOS</h3>
+              </header>
+              <p>macOS 11 or later.</p>
+              <div class="platform-links">
+                <a class="button button-primary" href="{{repo}}/releases/latest" data-asset="mac-arm">{{icon:download-simple}}<span>Apple chip (.dmg)</span></a>
+                <a class="link-small" href="{{repo}}/releases/latest" data-asset="mac-intel">Intel (.dmg)</a>
+              </div>
+            </article>
+            <article class="platform" data-os="linux">
+              <header>
+                {{icon:linux-logo}}
+                <h3>Linux</h3>
+              </header>
+              <p>64-bit, most distributions.</p>
+              <div class="platform-links">
+                <a class="button button-primary" href="{{repo}}/releases/latest" data-asset="linux-appimage">{{icon:download-simple}}<span>AppImage</span></a>
+                <span class="link-row">
+                  <a class="link-small" href="{{repo}}/releases/latest" data-asset="linux-deb">.deb</a>
+                  <a class="link-small" href="{{repo}}/releases/latest" data-asset="linux-rpm">.rpm</a>
+                </span>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- Docker: the commands, ready to copy, and the image address. -->
+      <section class="section docker" id="docker" aria-labelledby="docker-title">
+        <div class="container docker-inner">
+          <div class="docker-copy reveal">
+            <h2 id="docker-title" class="section-title">Your server in one container</h2>
+            <p>
+              One image for amd64 and arm64, a SQLite database and your files in one folder. No separate database server, no Redis. Backing up is copying a
+              folder.
+            </p>
+            <div class="image-address">
+              <span class="image-label">Image</span>
+              <code>ghcr.io/btronquo/nootion</code>
+              <button class="copy" type="button" data-copy="ghcr.io/btronquo/nootion:latest" aria-label="Copy the image address">{{icon:copy}}</button>
+            </div>
+            <div class="docker-links">
+              <a class="button button-primary" href="docs/docker/">{{icon:book-open-text}}<span>Docker guide</span></a>
+              <a class="button button-secondary" href="{{repo}}/pkgs/container/nootion" rel="noopener">{{icon:package}}<span>Image on GitHub</span></a>
+            </div>
+          </div>
+          <div class="terminal reveal" style="--delay: 80ms">
+            <div class="terminal-bar">
+              <span>Terminal</span>
+              <button class="copy" type="button" data-copy-target="docker-commands" aria-label="Copy the commands">{{icon:copy}}</button>
+            </div>
+            <pre id="docker-commands"><code><span class="c"># In an empty folder</span>
+curl -O https://raw.githubusercontent.com/btronquo/Nootion/main/docker-compose.yml
+curl -o .env https://raw.githubusercontent.com/btronquo/Nootion/main/.env.example
+
+<span class="c"># Set APP_SECRET (openssl rand -hex 32) and APP_URL in .env</span>
+docker compose up -d</code></pre>
+            <p class="terminal-note">Then open APP_URL and create the administrator account. A setup assistant takes you through the rest.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Why: four short reasons, in two columns. -->
+      <section class="section why" aria-labelledby="why-title">
+        <div class="container why-inner">
+          <h2 id="why-title" class="section-title reveal">Why host it yourself</h2>
+          <dl class="reasons">
+            <div class="reveal">
+              <dt>{{icon:house-line}}Your data stays at home</dt>
+              <dd>Your notes live on your server, under your rules. No telemetry, no external service needed.</dd>
+            </div>
+            <div class="reveal" style="--delay: 60ms">
+              <dt>{{icon:copyleft}}Open for good</dt>
+              <dd>Licensed under the AGPL-3.0: the code, and the code of any hosted version of it, stays open.</dd>
+            </div>
+            <div class="reveal">
+              <dt>{{icon:hard-drives}}Light on resources</dt>
+              <dd>Runs on a small home server or a NAS, TrueNAS included.</dd>
+            </div>
+            <div class="reveal" style="--delay: 60ms">
+              <dt>{{icon:translate}}In your language</dt>
+              <dd>English, French, German, Spanish and Italian, chosen by each user.</dd>
+            </div>
+          </dl>
+        </div>
+      </section>
+
+      <!-- Documentation: the main guides. -->
+      <section class="section docs-band" aria-labelledby="docs-title">
+        <div class="container">
+          <div class="docs-band-inner reveal">
+            <div>
+              <h2 id="docs-title" class="section-title">Read the documentation</h2>
+              <p>Installation, everyday use, administration and plugins, in one place.</p>
+            </div>
+            <ul class="doc-links">
+              <li>
+                <a href="docs/introduction/">{{icon:book-open}}<span>Getting started</span></a>
+              </li>
+              <li>
+                <a href="docs/docker/">{{icon:shipping-container}}<span>Install with Docker</span></a>
+              </li>
+              <li>
+                <a href="docs/install-desktop/">{{icon:desktop}}<span>Desktop app</span></a>
+              </li>
+              <li>
+                <a href="docs/editor/">{{icon:text-t}}<span>Writing and finding</span></a>
+              </li>
+              <li>
+                <a href="docs/sso/">{{icon:key}}<span>Single sign-on</span></a>
+              </li>
+              <li>
+                <a href="docs/plugins/">{{icon:plug}}<span>Plugins and API</span></a>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    {{footer}}
+  </body>
+</html>

@@ -401,16 +401,16 @@ Limits: `IMPORT_MAX_MB` (500 MB by default) for the files sent at once; once unc
 four times as much. Paths leaving the archive are refused. Views, comments and history of other tools are not
 imported. Behind a reverse proxy, raise its body size limit to `IMPORT_MAX_MB` (see the Nginx example above).
 
-## Importing from Notion
+## Importing from other tools through their API
 
-*My account › Import › Import from Notion* copies a Notion workspace into a Nootion space
-(the personal space or a shared space you can edit). It reads Notion through its API, so the server needs
-internet access to `api.notion.com` and to Notion's file storage.
+*My account › Import* can also copy a whole workspace of another tool into a Nootion space (the personal space or a
+shared space you can edit), through that tool's API. The import runs on the server, so the server needs internet
+access to the tool's API and to its file storage.
 
-1. In Notion, open *Settings › Connections › Develop or manage integrations* and create an **internal** integration.
+1. In the other tool, open its settings for connections or integrations and create an **internal** integration.
    In its capabilities, allow reading content and reading user information **with email addresses**.
-2. On each top-level page to import, open the **•••** menu › *Connections* and add the integration: its subpages
-   and databases follow.
+2. On each top-level page to import, add the integration from the page's connections menu: its subpages and
+   databases follow.
 3. Copy the integration's secret, paste it on the import screen and start the import. It runs on the server:
    the screen can be closed meanwhile.
 
@@ -420,21 +420,22 @@ What is imported:
   tables, dividers, images and files (copied to Nootion), bookmarks, mentions and links between pages;
 - databases (inline or full page) with their columns, select and status options, number formats, rows and the content
   of rows, people (matched to Nootion accounts by email), two-way relations, rollups and formulas, translated to
-  Nootion's formula language (Notion 2's lists, `let`, `map`, `filter`… and `current.prop()` included);
-- image icons (uploaded, from Notion's gallery, custom emojis), copied as custom icons.
+  Nootion's formula language (lists, `let`, `map`, `filter`… and `current.prop()` included);
+- image icons (uploaded, from the tool's gallery, custom emojis), copied as custom icons.
 
 What is not, or differently:
 
-- Notion's API doesn't give the views: each database gets a table view.
+- The API doesn't give the views: each database gets a table view.
 - Formulas using `link()` or `email()`, which Nootion's formulas don't have, keep their values in a text column.
 - Comments and page history are left out. Toggles, columns, callouts and covers are kept.
-- Notion's API doesn't say whether a page was private or in a teamspace: everything goes into the space chosen for
+- The API doesn't say whether a page was private or shared with a team: everything goes into the space chosen for
   the import. Pages that were private can then be moved to your personal space (drag them onto it in the sidebar, or
   *Move to…*); importing again keeps updating them there.
 
-The report at the end lists these cases. **Importing again** uses the saved secret: pages and rows changed in Notion
-since the last import are updated (their content is replaced, edits made in Nootion included), the others are left
-as they are, and nothing is duplicated. An option imports the unchanged pages again too, so that pages imported by
-an older version get what the import does better now. *Forget the secret* removes it from the server; what was imported stays.
+The report at the end lists these cases. **Importing again** uses the saved secret: pages and rows changed in the
+other tool since the last import are updated (their content is replaced, edits made in Nootion included), the others
+are left as they are, and nothing is duplicated. An option imports the unchanged pages again too, so that pages
+imported by an older version get what the import does better now. *Forget the secret* removes it from the server;
+what was imported stays.
 
-Notion allows about three requests per second, so a large workspace takes a few minutes.
+The API allows about three requests per second, so a large workspace takes a few minutes.
