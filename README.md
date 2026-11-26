@@ -17,7 +17,7 @@ An open-source, self-hosted workspace that fits in a single Docker container.
 [![Self-hosted](https://img.shields.io/badge/self--hosted-no%20telemetry-success)](#why-nootion)
 [![Node.js 22](https://img.shields.io/badge/node-22-339933?logo=node.js&logoColor=white)](#development)
 
-[Getting started](#getting-started) · [Screenshots](#screenshots) · [All features](#all-features) ·
+[Website and docs](https://btronquo.github.io/Nootion/) · [Getting started](#getting-started) · [Screenshots](#screenshots) · [All features](#all-features) ·
 [Documentation](#documentation) · [What's new](CHANGELOG.md)
 
 </div>
@@ -312,6 +312,8 @@ on a phone, offline use and imports.
 
 ## Documentation
 
+The guides below are also published, with a search, on [btronquo.github.io/Nootion](https://btronquo.github.io/Nootion/docs/introduction/).
+
 | Guide | |
 | --- | --- |
 | [Deployment](docs/DEPLOYMENT.md) | Docker, variables, updates, HTTPS and security, S3 storage, passkeys, e-mail, imports, activity log |
@@ -357,6 +359,7 @@ apps/desktop     Desktop app for Windows, macOS and Linux (Tauri), see docs/DESK
 packages/shared  Types, validation, formulas, views and translations shared by both
 docker/          Dockerfile
 docs/            Documentation (deployment, editor and search, architecture, API, SSO, plugins…)
+site/            Website and documentation site (GitHub Pages), built from docs/ by site/build.mjs
 ```
 
 ## Contributing
