@@ -1,7 +1,8 @@
 # Getting started
 
-Nootion is an open-source workspace that you host yourself: pages and wikis, real databases, comments and real-time
-collaboration, in a single Docker container. Your data stays on your server, in one folder.
+Nootion is an open-source workspace: pages and wikis, real databases, comments and real-time collaboration. You
+don't need a server to use it: the desktop app keeps everything on your computer. To work with others, host it in a
+single Docker container; your data stays on your server, in one folder.
 
 ![A Nootion page with its sidebar, a callout, a table of contents and formatted text](../../docs/screenshots/editor.png)
 
@@ -9,9 +10,14 @@ collaboration, in a single Docker container. Your data stays on your server, in 
 
 | | For | How |
 | --- | --- | --- |
+| **Desktop app** | Yourself, on Windows, macOS or Linux, with nothing to set up | Keeps a space on the computer with no server and no account, and can connect to servers later. See [Install the desktop app](install-desktop.md). |
 | **On a server** | A team, a family, or yourself from any device | One Docker container on a server, a NAS or a small home server. See [Install with Docker](docker.md). |
-| **Desktop app** | Windows, macOS and Linux | Connects to your servers, or keeps a space on the computer with no server at all. See [Install the desktop app](install-desktop.md). |
 | **On a phone** | Android, iPhone and iPad | Open your server in the browser and install it as an app. See [Installing the app on a phone](../../docs/DEPLOYMENT.md#installing-the-app-on-a-phone-or-computer). |
+
+## Quick start with the desktop app
+
+Download the installer for your system from the [latest release](https://github.com/btronquo/Nootion/releases/latest),
+install it, then choose **On this computer** in the first window. That's all: no server, no account.
 
 ## Quick start with Docker
 
@@ -27,7 +33,7 @@ docker compose up -d
 
 Open the address you put in `APP_URL` (for example `http://localhost:3000`).
 
-## Your first ten minutes
+## Your first ten minutes on a server
 
 1. **Create the administrator account.** The first page asks for a name, an e-mail, a password and a language.
 2. **Follow the setup assistant.** It goes through e-mail, sign-in and security, backups, the AI assistant, plugins

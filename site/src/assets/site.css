@@ -367,13 +367,13 @@ pre {
 
 .hero-inner {
   display: grid;
-  grid-template-columns: minmax(0, 6fr) minmax(0, 6fr);
+  grid-template-columns: minmax(0, 13fr) minmax(0, 11fr);
   gap: 48px;
   align-items: center;
 }
 
 .hero h1 {
-  font-size: clamp(2.3rem, 3.9vw, 3.3rem);
+  font-size: clamp(2.2rem, 3.6vw, 3.1rem);
   font-weight: 750;
   letter-spacing: -0.035em;
   line-height: 1.06;

@@ -376,8 +376,9 @@ const indexHtml = fs
   .replace(
     "{{head}}",
     head({
-      title: "Nootion: your open-source, self-hosted workspace",
-      description: "Pages, wikis and real databases on your own server. One Docker container, desktop apps for Windows, macOS and Linux, AGPL-3.0.",
+      title: "Nootion: your open-source workspace, self-hosted or on your desktop",
+      description:
+        "Pages, wikis and real databases. A desktop app for Windows, macOS and Linux that needs no server, or one Docker container for your team. AGPL-3.0.",
       prefix: "",
       canonical: SITE_URL,
     }),
