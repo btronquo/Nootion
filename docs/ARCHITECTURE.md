@@ -84,7 +84,7 @@ Hocuspocus on a websocket: each editor sends its changes, they are merged withou
 save the server also keeps the content as ProseMirror JSON (for exports, public pages, the API's Markdown) and as
 plain text (for search, SQLite FTS5). Those two are derived: only the Yjs document is the truth.
 
-Anything on the server that writes into a page (the API's Markdown, the MCP server, buttons, the Notion import)
+Anything on the server that writes into a page (the API's Markdown, the MCP server, buttons, the import through an API)
 goes through `writeContent` in `collab.ts`, so that people with the page open see the change arrive like anyone
 else's. `markdown.ts` and `markdown-in.ts` turn content into Markdown and back; `history.ts` keeps versions.
 
