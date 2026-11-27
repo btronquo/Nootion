@@ -127,11 +127,8 @@ export function BlockHandle({
     setMenu({ block, anchor, group });
   }
 
-  // Beside the first line of a callout, the handle sat over its emoji: it goes left of the emoji then.
-  const position = useMemo(
-    () => ({ placement: "left-start" as const, strategy: "absolute" as const, middleware: [clearCalloutEmoji(editor, current)] }),
-    [editor],
-  );
+  // The handle goes left of what is drawn before a block's text: a list's bullet or number, a callout's emoji.
+  const position = useMemo(() => ({ placement: "left-start" as const, strategy: "absolute" as const, middleware: [clearMarkers(editor, current)] }), [editor]);
 
   const button = "flex h-6 w-6 items-center justify-center rounded text-neutral-400 hover:bg-neutral-100 hover:text-neutral-600 dark:hover:bg-neutral-800";
   return (
@@ -188,26 +185,44 @@ function sameGroup(editor: Editor, group: BlockRange): boolean {
 const CALLOUT_EMOJI = { left: 16, top: 16, size: 28 };
 
 /**
- * Moves the handle left of a callout's emoji when it would cover it: the blocks of a callout start right of the emoji,
- * so the handle of the one beside it (its first line, often empty) was drawn over it.
+ * Moves the handle left of what is drawn before the block's text, which it covered otherwise:
+ * - the bullet or number of a list item: the browser draws it outside the item, in the list's left padding, so the handle
+ *   placed against the item sat on it. It goes against the list's left edge instead (a to-do's box is inside its item).
+ * - a callout's emoji: the blocks of a callout start right of it, so the handle of the one beside it (its first line,
+ *   often empty) was drawn over it.
  */
-function clearCalloutEmoji(editor: Editor, current: { current: Block | null }): Middleware {
+function clearMarkers(editor: Editor, current: { current: Block | null }): Middleware {
   return {
-    name: "clearCalloutEmoji",
+    name: "clearMarkers",
     fn({ x, elements }) {
       const block = current.current;
       if (!block || editor.isDestroyed) return {};
       const dom = editor.view.nodeDOM(block.pos);
-      const callout = dom instanceof HTMLElement ? dom.parentElement?.closest<HTMLElement>(".callout") : null;
-      if (!callout?.dataset.emoji) return {};
-      const box = callout.getBoundingClientRect();
+      if (!(dom instanceof HTMLElement)) return {};
       const ref = elements.reference.getBoundingClientRect();
-      const width = elements.floating.getBoundingClientRect().width;
-      const emojiLeft = box.left + CALLOUT_EMOJI.left;
-      const overlaps = ref.top < box.top + CALLOUT_EMOJI.top + CALLOUT_EMOJI.size && ref.left - width < emojiLeft + CALLOUT_EMOJI.size && ref.left > emojiLeft;
-      return overlaps ? { x: x - (ref.left - emojiLeft) } : {};
+      // Where the handle's right side goes.
+      let edge = ref.left;
+      const list = markerList(dom);
+      if (list) edge = Math.min(edge, list.getBoundingClientRect().left);
+      const callout = dom.parentElement?.closest<HTMLElement>(".callout");
+      if (callout?.dataset.emoji) {
+        const box = callout.getBoundingClientRect();
+        const width = elements.floating.getBoundingClientRect().width;
+        const emojiLeft = box.left + CALLOUT_EMOJI.left;
+        const overlaps = ref.top < box.top + CALLOUT_EMOJI.top + CALLOUT_EMOJI.size && edge - width < emojiLeft + CALLOUT_EMOJI.size && edge > emojiLeft;
+        if (overlaps) edge = emojiLeft;
+      }
+      return edge === ref.left ? {} : { x: x - (ref.left - edge) };
     },
   };
+}
+
+/** The list of an item that has a bullet or a number drawn left of it (not a to-do, whose box is inside the item). */
+function markerList(dom: HTMLElement): HTMLElement | null {
+  if (dom.tagName !== "LI") return null;
+  const list = dom.parentElement;
+  if (!list || (list.tagName !== "UL" && list.tagName !== "OL") || list.dataset.type === "taskList") return null;
+  return getComputedStyle(dom).listStyleType === "none" ? null : list;
 }
 
 type Sub = "turn" | "color" | "repeat";
