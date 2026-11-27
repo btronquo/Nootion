@@ -5,6 +5,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed
+
+- In a bulleted or numbered list, the handle shown on hover ("+" and the dots) covered the bullet or the number of
+  the line. It now sits left of it, at every level of a nested list.
+
 ## [4.3.0] - 2026-11-25
 
 ### Added
