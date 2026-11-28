@@ -5,6 +5,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [4.3.1] - 2026-11-28
+
+### Added
+
+- A website with the documentation, searchable: https://btronquo.github.io/Nootion/ (built from `docs/` and
+  published by GitHub Pages).
+
+### Fixed
+
+- In a bulleted or numbered list, the handle shown on hover ("+" and the dots) covered the bullet or the number of
+  the line. It now sits left of it, at every level of a nested list.
+
 ## [4.3.0] - 2026-11-25
 
 ### Added
@@ -781,6 +793,8 @@ First public version.
 - Markdown (.zip), CSV and JSON export, CSV import, full backup download.
 - Single Docker image (amd64 and arm64), data in `/data`, migrations applied at startup.
 
+[4.3.1]: ../../releases/tag/v4.3.1
+[4.3.0]: ../../releases/tag/v4.3.0
 [4.2.0]: ../../releases/tag/v4.2.0
 [4.1.0]: ../../releases/tag/v4.1.0
 [4.0.0]: ../../releases/tag/v4.0.0

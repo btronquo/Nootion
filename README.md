@@ -5,7 +5,7 @@
 **Your pages, wikis and real databases, on your own server.**<br>
 An open-source, self-hosted workspace that fits in a single Docker container.
 
-[![Version 4.3.0](https://img.shields.io/badge/version-4.3.0-7c3aed)](CHANGELOG.md)
+[![Version 4.3.1](https://img.shields.io/badge/version-4.3.1-7c3aed)](CHANGELOG.md)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
 [![CI](https://github.com/btronquo/Nootion/actions/workflows/ci.yml/badge.svg)](https://github.com/btronquo/Nootion/actions/workflows/ci.yml)
 [![Docker image](https://img.shields.io/badge/docker-ghcr.io%2Fbtronquo%2Fnootion-2496ED?logo=docker&logoColor=white)](https://github.com/btronquo/Nootion/pkgs/container/nootion)
@@ -17,12 +17,12 @@ An open-source, self-hosted workspace that fits in a single Docker container.
 [![Self-hosted](https://img.shields.io/badge/self--hosted-no%20telemetry-success)](#why-nootion)
 [![Node.js 22](https://img.shields.io/badge/node-22-339933?logo=node.js&logoColor=white)](#development)
 
-[Getting started](#getting-started) · [Screenshots](#screenshots) · [All features](#all-features) ·
+[Website and docs](https://btronquo.github.io/Nootion/) · [Getting started](#getting-started) · [Screenshots](#screenshots) · [All features](#all-features) ·
 [Documentation](#documentation) · [What's new](CHANGELOG.md)
 
 </div>
 
-> Version 4.3.0. See [CHANGELOG.md](CHANGELOG.md) for what changed.
+> Version 4.3.1. See [CHANGELOG.md](CHANGELOG.md) for what changed.
 
 ![A Nootion page with its sidebar, a callout, a table of contents and formatted text](docs/screenshots/editor.png)
 
@@ -312,6 +312,8 @@ on a phone, offline use and imports.
 
 ## Documentation
 
+The guides below are also published, with a search, on [btronquo.github.io/Nootion](https://btronquo.github.io/Nootion/docs/introduction/).
+
 | Guide | |
 | --- | --- |
 | [Deployment](docs/DEPLOYMENT.md) | Docker, variables, updates, HTTPS and security, S3 storage, passkeys, e-mail, imports, activity log |
@@ -357,6 +359,7 @@ apps/desktop     Desktop app for Windows, macOS and Linux (Tauri), see docs/DESK
 packages/shared  Types, validation, formulas, views and translations shared by both
 docker/          Dockerfile
 docs/            Documentation (deployment, editor and search, architecture, API, SSO, plugins…)
+site/            Website and documentation site (GitHub Pages), built from docs/ by site/build.mjs
 ```
 
 ## Contributing
