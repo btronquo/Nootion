@@ -5,7 +5,7 @@
 **Your pages, wikis and real databases, on your own server.**<br>
 An open-source, self-hosted workspace that fits in a single Docker container.
 
-[![Version 4.3.0](https://img.shields.io/badge/version-4.3.0-7c3aed)](CHANGELOG.md)
+[![Version 4.3.1](https://img.shields.io/badge/version-4.3.1-7c3aed)](CHANGELOG.md)
 [![License: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
 [![CI](https://github.com/btronquo/Nootion/actions/workflows/ci.yml/badge.svg)](https://github.com/btronquo/Nootion/actions/workflows/ci.yml)
 [![Docker image](https://img.shields.io/badge/docker-ghcr.io%2Fbtronquo%2Fnootion-2496ED?logo=docker&logoColor=white)](https://github.com/btronquo/Nootion/pkgs/container/nootion)
@@ -22,7 +22,7 @@ An open-source, self-hosted workspace that fits in a single Docker container.
 
 </div>
 
-> Version 4.3.0. See [CHANGELOG.md](CHANGELOG.md) for what changed.
+> Version 4.3.1. See [CHANGELOG.md](CHANGELOG.md) for what changed.
 
 ![A Nootion page with its sidebar, a callout, a table of contents and formatted text](docs/screenshots/editor.png)
 
